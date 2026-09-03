@@ -1,6 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Unit } from '@prisma/client';
+import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { DashboardService } from './dashboard.service';
 
@@ -11,6 +12,7 @@ import { DashboardService } from './dashboard.service';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
+  @Public()
   @Get('overview')
   @ApiOperation({
     summary:
@@ -22,6 +24,7 @@ export class DashboardController {
     return this.dashboardService.getExecutiveOverview(unit, complexCode);
   }
 
+  @Public()
   @Get('live-fleet')
   @ApiOperation({ summary: 'Vị trí trực tuyến toàn bộ 168 thiết bị trên không ảnh vệ tinh GPS' })
   @ApiQuery({ name: 'unit', enum: Unit, required: false })

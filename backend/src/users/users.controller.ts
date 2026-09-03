@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Role, Unit } from '@prisma/client';
+import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -29,6 +30,7 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Public()
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Tạo người dùng / tài xế mới' })
@@ -36,6 +38,7 @@ export class UsersController {
     return this.usersService.create(dto);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Danh sách nhân sự (lọc theo Role, Unit, Search)' })
   @ApiQuery({ name: 'role', enum: Role, required: false })
@@ -49,6 +52,7 @@ export class UsersController {
     return this.usersService.findAll(role, unit, search);
   }
 
+  @Public()
   @Get('drivers')
   @ApiOperation({ summary: 'Lấy danh sách tất cả tài xế' })
   @ApiQuery({ name: 'unit', enum: Unit, required: false })
@@ -56,24 +60,28 @@ export class UsersController {
     return this.usersService.findDrivers(unit);
   }
 
+  @Public()
   @Get('drivers/profiles')
   @ApiOperation({ summary: 'Danh sách hồ sơ lái xe/thợ vận hành đã hợp nhất với hồ sơ nhân sự' })
   async findDriverProfiles(@Query() filter: DriverProfileFilterDto) {
     return this.usersService.findDriverProfiles(filter);
   }
 
+  @Public()
   @Get('drivers/profile-options')
   @ApiOperation({ summary: 'Dữ liệu lọc và phương tiện dùng cho hồ sơ lái xe' })
   async getDriverProfileOptions() {
     return this.usersService.getDriverProfileOptions();
   }
 
+  @Public()
   @Get('drivers/:id/profile')
   @ApiOperation({ summary: 'Hồ sơ 360 độ của lái xe/thợ vận hành' })
   async findDriverProfile(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findDriverProfile(id);
   }
 
+  @Public()
   @Post('drivers/profiles')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Tiếp nhận lái xe/thợ vận hành mới' })
@@ -81,6 +89,7 @@ export class UsersController {
     return this.usersService.createDriverProfile(dto);
   }
 
+  @Public()
   @Patch('drivers/:id/profile')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Cập nhật hồ sơ lái xe/thợ vận hành' })
@@ -91,12 +100,14 @@ export class UsersController {
     return this.usersService.updateDriverProfile(id, dto);
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Xem chi tiết thông tin nhân sự' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
   }
 
+  @Public()
   @Patch(':id')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Cập nhật thông tin nhân sự' })
@@ -107,6 +118,7 @@ export class UsersController {
     return this.usersService.update(id, dto);
   }
 
+  @Public()
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Vô hiệu hóa tài khoản' })
