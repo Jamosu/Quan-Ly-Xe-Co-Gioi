@@ -85,12 +85,14 @@ export class VehiclesController {
   // --------------------------------------------------------------------------
   // MASTER DATA: MANUFACTURERS & MODELS
   // --------------------------------------------------------------------------
+  @Public()
   @Get('manufacturers/list')
   @ApiOperation({ summary: 'Lấy danh sách tất cả hãng sản xuất MMTB' })
   async findAllManufacturers() {
     return this.vehiclesService.findAllManufacturers();
   }
 
+  @Public()
   @Post('manufacturers')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Tạo hãng sản xuất mới' })
@@ -98,6 +100,7 @@ export class VehiclesController {
     return this.vehiclesService.createManufacturer(body);
   }
 
+  @Public()
   @Patch('manufacturers/:id')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Cập nhật hãng sản xuất' })
@@ -108,6 +111,7 @@ export class VehiclesController {
     return this.vehiclesService.updateManufacturer(id, body);
   }
 
+  @Public()
   @Delete('manufacturers/:id')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Xóa hãng sản xuất' })
@@ -115,12 +119,14 @@ export class VehiclesController {
     return this.vehiclesService.deleteManufacturer(id);
   }
 
+  @Public()
   @Get('models/list')
   @ApiOperation({ summary: 'Lấy danh sách tất cả model MMTB' })
   async findAllModels(@Query('manufacturerId') manufacturerId?: string) {
     return this.vehiclesService.findAllModels(manufacturerId ? Number(manufacturerId) : undefined);
   }
 
+  @Public()
   @Post('models')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Tạo model xe mới' })
@@ -128,6 +134,7 @@ export class VehiclesController {
     return this.vehiclesService.createModel(body);
   }
 
+  @Public()
   @Patch('models/:id')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Cập nhật model xe' })
@@ -138,6 +145,7 @@ export class VehiclesController {
     return this.vehiclesService.updateModel(id, body);
   }
 
+  @Public()
   @Delete('models/:id')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Xóa model xe' })
@@ -145,6 +153,7 @@ export class VehiclesController {
     return this.vehiclesService.deleteModel(id);
   }
 
+  @Public()
   @Post('catalogs/merge')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Gộp các danh mục trùng lặp và chuyển đổi toàn bộ hồ sơ xe liên quan' })
