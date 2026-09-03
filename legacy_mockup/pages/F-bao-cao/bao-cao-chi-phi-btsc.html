@@ -1,0 +1,3026 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo cáo chi phí BTSC - THACO AGRI Quản Lý Xe Cơ Giới</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --green: #135c3f;
+      --green2: #1f7a55;
+      --lime: #b8d83d;
+      --ink: #17211d;
+      --muted: #6f7c75;
+      --line: #e5eae7;
+      --bg: #f4f6f5;
+      --white: #fff;
+      --red: #d94b4b;
+      --amber: #e59e2f;
+      --blue: #407fbc;
+      --sidebar: 282px
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      font-size: 14px
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: flex
+    }
+
+    .sidebar {
+      width: var(--sidebar);
+      background: #123d2e;
+      color: #d9e6df;
+      position: fixed;
+      inset: 0 auto 0 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      transition: .25s;
+      overflow: hidden
+    }
+
+    .brand {
+      height: 78px;
+      padding: 0 18px 0 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #ffffff18;
+      flex-shrink: 0
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      transform: skew(-8deg)
+    }
+
+    .brand-mark span {
+      background: var(--lime);
+      border-radius: 1px
+    }
+
+    .brand-mark span:nth-child(2) {
+      height: 75%;
+      align-self: end
+    }
+
+    .brand-mark span:nth-child(3) {
+      height: 50%;
+      align-self: end
+    }
+
+    .brand strong {
+      font-family: Manrope;
+      font-size: 16px;
+      letter-spacing: .6px;
+      display: block;
+      color: #fff
+    }
+
+    .brand small {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: #a8c1b6
+    }
+
+    .collapse-btn {
+      margin-left: auto;
+      color: #d6e4de;
+      background: #ffffff12
+    }
+
+    .sidebar nav {
+      padding: 14px 10px;
+      overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #ffffff25 transparent
+    }
+
+    .nav-group {
+      margin-bottom: 3px
+    }
+
+    .nav-parent,
+    .nav-child {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      border-radius: 8px
+    }
+
+    .nav-parent {
+      height: 43px;
+      padding: 0 10px;
+      gap: 11px;
+      font-weight: 600;
+      font-size: 13px
+    }
+
+    .nav-parent:hover,
+    .nav-group.open>.nav-parent {
+      background: #ffffff0d;
+      color: #fff
+    }
+
+    .nav-parent.active {
+      background: var(--lime);
+      color: #173c2f
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      font-size: 15px
+    }
+
+    .nav-label {
+      white-space: nowrap;
+      flex: 1
+    }
+
+    .chev {
+      font-size: 12px;
+      transition: .2s
+    }
+
+    .nav-group.open .chev {
+      transform: rotate(180deg)
+    }
+
+    .nav-children {
+      display: none;
+      padding: 2px 0 5px 40px
+    }
+
+    .nav-group.open .nav-children {
+      display: block
+    }
+
+    .nav-child {
+      min-height: 34px;
+      padding: 7px 8px;
+      font-size: 12px;
+      color: #b8cbc2;
+      position: relative
+    }
+
+    .nav-child:hover,
+    .nav-child.active {
+      color: #fff
+    }
+
+    .nav-child.active:before {
+      content: "";
+      position: absolute;
+      left: -10px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--lime)
+    }
+
+    .badge {
+      background: #e85050;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 10px;
+      min-width: 20px;
+      padding: 2px 6px;
+      text-align: center
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 12px;
+      border-top: 1px solid #ffffff18
+    }
+
+    .support {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 9px
+    }
+
+    .support .nav-icon {
+      border: 1px solid #ffffff40;
+      border-radius: 50%
+    }
+
+    .support b,
+    .support small {
+      display: block;
+      font-size: 11px
+    }
+
+    .support small {
+      color: #85a295;
+      margin-top: 3px
+    }
+
+    .main {
+      margin-left: var(--sidebar);
+      width: calc(100% - var(--sidebar));
+      transition: .25s
+    }
+
+    .topbar {
+      height: 78px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 30px;
+      position: sticky;
+      top: 0;
+      z-index: 10
+    }
+
+    .breadcrumb {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px
+    }
+
+    .breadcrumb span,
+    .breadcrumb b {
+      color: #98a29d;
+      font-weight: 500
+    }
+
+    .top-actions,
+    .profile {
+      display: flex;
+      align-items: center
+    }
+
+    .top-actions {
+      gap: 15px
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 7px;
+      cursor: pointer
+    }
+
+    .notification {
+      background: #f2f5f3;
+      position: relative;
+      font-size: 18px
+    }
+
+    .notification span {
+      position: absolute;
+      right: -5px;
+      top: -6px;
+      background: var(--red);
+      color: #fff;
+      border: 2px solid #fff;
+      border-radius: 10px;
+      font-size: 9px;
+      min-width: 17px;
+      padding: 2px
+    }
+
+    .divider {
+      height: 32px;
+      width: 1px;
+      background: var(--line)
+    }
+
+    .profile {
+      border: 0;
+      background: none;
+      gap: 10px;
+      text-align: left;
+      cursor: pointer
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #dcebe4;
+      color: var(--green);
+      display: grid;
+      place-items: center;
+      font-weight: 700
+    }
+
+    .profile-copy b,
+    .profile-copy small {
+      display: block
+    }
+
+    .profile-copy b {
+      font-size: 12px
+    }
+
+    .profile-copy small {
+      color: var(--muted);
+      font-size: 10px;
+      margin-top: 3px
+    }
+
+    .page {
+      padding: 28px 30px 40px;
+      max-width: 1660px;
+      margin: auto
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 22px
+    }
+
+    .eyebrow {
+      color: var(--green2) !important;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      font-size: 10px;
+      margin-bottom: 7px !important
+    }
+
+    .page-head h1 {
+      font: 800 26px/1.2 Manrope;
+      margin: 0
+    }
+
+    .page-head p {
+      color: var(--muted);
+      margin: 7px 0 0;
+      font-size: 12px
+    }
+
+    .head-actions {
+      display: flex;
+      gap: 10px
+    }
+
+    .btn {
+      height: 40px;
+      border-radius: 7px;
+      border: 1px solid var(--line);
+      padding: 0 16px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer
+    }
+
+    .btn-light {
+      background: #fff
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green)
+    }
+
+    .filterbar {
+      height: 54px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      margin-bottom: 15px
+    }
+
+    .select-btn,
+    .select-mini {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      color: #435049;
+      font-size: 11px;
+      height: 36px;
+      padding: 0 12px;
+      cursor: pointer
+    }
+
+    .select-btn span,
+    .select-mini span {
+      margin-left: 20px
+    }
+
+    .live-status {
+      margin-left: auto;
+      color: var(--green2);
+      font-size: 11px;
+      font-weight: 600
+    }
+
+    .live-status i {
+      width: 7px;
+      height: 7px;
+      background: #35a56f;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 7px;
+      box-shadow: 0 0 0 4px #35a56f1f
+    }
+
+    .live-status span {
+      color: #9aa39f;
+      font-weight: 400;
+      margin-left: 8px
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 12px
+    }
+
+    .stat-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 16px;
+      position: relative;
+      min-width: 0
+    }
+
+    .stat-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between
+    }
+
+    .stat-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 17px
+    }
+
+    .stat-icon.green {
+      background: #e5f3ec;
+      color: var(--green2)
+    }
+
+    .stat-icon.blue {
+      background: #e8f1fa;
+      color: var(--blue)
+    }
+
+    .stat-icon.amber {
+      background: #fff2dc;
+      color: var(--amber)
+    }
+
+    .stat-icon.red {
+      background: #fbe9e9;
+      color: var(--red)
+    }
+
+    .stat-icon.gray {
+      background: #edf0ee;
+      color: #68736d
+    }
+
+    .trend {
+      font-size: 10px;
+      color: var(--green2)
+    }
+
+    .trend.down {
+      color: var(--red)
+    }
+
+    .stat-value {
+      font: 800 25px Manrope;
+      margin: 13px 0 3px
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted)
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(330px, .75fr);
+      gap: 12px
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden
+    }
+
+    .card-head {
+      height: 70px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .card-head h2 {
+      font: 700 14px Manrope;
+      margin: 0
+    }
+
+    .card-head p {
+      font-size: 10px;
+      color: var(--muted);
+      margin: 5px 0 0
+    }
+
+    .text-btn {
+      border: 0;
+      background: none;
+      color: var(--green2);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .map-area {
+      height: 390px;
+      position: relative;
+      overflow: hidden;
+      background: #eef0e9
+    }
+
+    .map-grid {
+      position: absolute;
+      inset: 0;
+      background-color: #eef1e9;
+      background-image: linear-gradient(31deg, transparent 47%, #d7ddd5 48%, #d7ddd5 50%, transparent 51%), linear-gradient(92deg, transparent 47%, #dde2da 48%, #dde2da 50%, transparent 51%);
+      background-size: 145px 100px;
+      opacity: .9
+    }
+
+    .map-area:before,
+    .map-area:after {
+      content: "";
+      position: absolute;
+      border: 2px solid #dce3d6;
+      background: #e2eadc;
+      border-radius: 45%
+    }
+
+    .map-area:before {
+      width: 250px;
+      height: 110px;
+      left: -35px;
+      top: 130px;
+      transform: rotate(-12deg)
+    }
+
+    .map-area:after {
+      width: 320px;
+      height: 120px;
+      right: -70px;
+      top: 50px;
+      transform: rotate(19deg)
+    }
+
+    .route-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%
+    }
+
+    .route-lines path {
+      fill: none;
+      stroke: #fff;
+      stroke-width: 11;
+      stroke-linecap: round;
+      filter: drop-shadow(0 1px 1px #abb5aa)
+    }
+
+    .route-lines path+path {
+      stroke: #cad3c9;
+      stroke-width: 5;
+      stroke-dasharray: 5 8
+    }
+
+    .map-label {
+      position: absolute;
+      color: #7f8d85;
+      font-size: 10px;
+      font-weight: 600
+    }
+
+    .l1 {
+      left: 13%;
+      top: 18%
+    }
+
+    .l2 {
+      left: 45%;
+      top: 28%
+    }
+
+    .l3 {
+      right: 13%;
+      top: 23%
+    }
+
+    .l4 {
+      right: 18%;
+      bottom: 15%
+    }
+
+    .vehicle-marker {
+      position: absolute;
+      width: 31px;
+      height: 31px;
+      border-radius: 9px;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      border: 3px solid #fff;
+      box-shadow: 0 4px 12px #25362c40;
+      cursor: pointer;
+      font-size: 0
+    }
+
+    .vehicle-marker span {
+      font-size: 9px;
+      font-weight: 700
+    }
+
+    .vehicle-marker:hover:after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 37px;
+      white-space: nowrap;
+      background: #17211d;
+      color: #fff;
+      padding: 7px 9px;
+      border-radius: 5px;
+      font-size: 9px
+    }
+
+    .vehicle-marker.green {
+      background: var(--green2)
+    }
+
+    .vehicle-marker.amber {
+      background: var(--amber)
+    }
+
+    .vehicle-marker.red {
+      background: var(--red)
+    }
+
+    .vehicle-marker.blue {
+      background: var(--blue)
+    }
+
+    .m1 {
+      left: 17%;
+      top: 52%
+    }
+
+    .m2 {
+      left: 43%;
+      top: 32%
+    }
+
+    .m3 {
+      left: 58%;
+      top: 59%
+    }
+
+    .m4 {
+      right: 17%;
+      top: 35%
+    }
+
+    .m5 {
+      right: 27%;
+      bottom: 13%
+    }
+
+    .zoom {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 8px #3332
+    }
+
+    .zoom button {
+      width: 30px;
+      height: 29px;
+      border: 0;
+      background: #fff;
+      cursor: pointer
+    }
+
+    .zoom button+button {
+      border-top: 1px solid var(--line)
+    }
+
+    .legend {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      background: #ffffffec;
+      border-radius: 6px;
+      padding: 9px 11px;
+      display: flex;
+      gap: 14px;
+      font-size: 9px;
+      box-shadow: 0 2px 8px #3331
+    }
+
+    .legend i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 4px
+    }
+
+    .green-dot {
+      background: var(--green2)
+    }
+
+    .amber-dot {
+      background: var(--amber)
+    }
+
+    .red-dot {
+      background: var(--red)
+    }
+
+    #alerts {
+      padding: 3px 17px
+    }
+
+    .alert-item {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 11px;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .alert-item:last-child {
+      border: 0
+    }
+
+    .alert-symbol {
+      width: 32px;
+      height: 32px;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      font-size: 14px
+    }
+
+    .alert-symbol.red {
+      background: #fbeaea;
+      color: var(--red)
+    }
+
+    .alert-symbol.amber {
+      background: #fff3df;
+      color: var(--amber)
+    }
+
+    .alert-symbol.blue {
+      background: #eaf2fa;
+      color: var(--blue)
+    }
+
+    .alert-copy b {
+      display: block;
+      font-size: 11px;
+      margin-bottom: 5px
+    }
+
+    .alert-copy small {
+      font-size: 9px;
+      color: var(--muted)
+    }
+
+    .alert-time {
+      font-size: 9px;
+      color: #9da6a1;
+      white-space: nowrap
+    }
+
+    .operation-card {
+      min-height: 310px
+    }
+
+    .chart-wrap {
+      height: 240px;
+      display: flex;
+      padding: 20px 20px 14px
+    }
+
+    .y-axis {
+      width: 35px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #a2aaa6;
+      font-size: 9px;
+      text-align: right;
+      padding-bottom: 24px
+    }
+
+    .bar-chart {
+      flex: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-around;
+      border-left: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: repeating-linear-gradient(to bottom, transparent 0, transparent 43px, #edf0ee 44px)
+    }
+
+    .bar-group {
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      position: relative;
+      padding-bottom: 0
+    }
+
+    .bar {
+      width: 12px;
+      border-radius: 3px 3px 0 0;
+      background: #dbe6df;
+      transition: .4s
+    }
+
+    .bar.primary {
+      background: var(--green2)
+    }
+
+    .bar-group label {
+      position: absolute;
+      bottom: -23px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      color: #7f8984
+    }
+
+    .orders-card {
+      min-width: 0
+    }
+
+    .table-wrap {
+      overflow: auto
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      white-space: nowrap
+    }
+
+    th {
+      text-align: left;
+      background: #fafbfa;
+      color: #8c9691;
+      font-size: 8px;
+      letter-spacing: .4px;
+      padding: 11px 14px
+    }
+
+    td {
+      border-top: 1px solid var(--line);
+      padding: 12px 14px;
+      font-size: 10px
+    }
+
+    td b {
+      font-size: 10px
+    }
+
+    .vehicle-cell small {
+      color: var(--muted);
+      display: block;
+      margin-top: 3px
+    }
+
+    .progress {
+      width: 80px;
+      height: 5px;
+      background: #edf0ee;
+      border-radius: 4px;
+      overflow: hidden;
+      display: inline-block;
+      margin-right: 7px
+    }
+
+    .progress i {
+      height: 100%;
+      display: block;
+      background: var(--green2);
+      border-radius: 4px
+    }
+
+    .status-pill {
+      font-size: 8px;
+      padding: 5px 7px;
+      border-radius: 12px;
+      background: #e6f3ec;
+      color: var(--green2);
+      font-weight: 700
+    }
+
+    .status-pill.amber {
+      background: #fff3df;
+      color: #b57411
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      background: #173e30;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 7px;
+      box-shadow: 0 8px 30px #0003;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: .2s;
+      z-index: 50;
+      font-size: 12px
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: none
+    }
+
+    .sidebar.collapsed {
+      width: 72px
+    }
+
+    .sidebar.collapsed .brand>div:not(.brand-mark),
+    .sidebar.collapsed .nav-label,
+    .sidebar.collapsed .chev,
+    .sidebar.collapsed .badge,
+    .sidebar.collapsed .nav-children,
+    .sidebar.collapsed .support div {
+      display: none
+    }
+
+    .sidebar.collapsed .collapse-btn {
+      display: none
+    }
+
+    .sidebar.collapsed .brand {
+      padding: 0 18px
+    }
+
+    .sidebar.collapsed .brand-mark {
+      width: 34px
+    }
+
+    .sidebar.collapsed+.main {
+      margin-left: 72px;
+      width: calc(100% - 72px)
+    }
+
+    @media(max-width:1150px) {
+      .stats {
+        grid-template-columns: repeat(3, 1fr)
+      }
+
+      .dashboard-grid {
+        grid-template-columns: 1fr
+      }
+
+      .alert-card {
+        grid-row: 2
+      }
+
+      .profile-copy {
+        display: none
+      }
+    }
+
+    @media(max-width:760px) {
+      .sidebar {
+        transform: translateX(-100%)
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%
+      }
+
+      .topbar,
+      .page {
+        padding-left: 16px;
+        padding-right: 16px
+      }
+
+      .page-head {
+        align-items: flex-start;
+        gap: 18px;
+        flex-direction: column
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, 1fr)
+      }
+
+      .filterbar {
+        overflow: auto
+      }
+
+      .live-status {
+        display: none
+      }
+
+      .head-actions {
+        width: 100%
+      }
+
+      .head-actions .btn {
+        flex: 1
+      }
+
+      .breadcrumb {
+        display: none
+      }
+    }
+
+    .orders-horizontal-card {
+      grid-column: 1 / -1;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden;
+      margin-top: 2px
+    }
+
+    .orders-head-wrap {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    .orders-filter-tabs {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    .order-tab {
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s
+    }
+
+    .order-tab:hover {
+      background: #f4f6f5;
+      color: var(--ink)
+    }
+
+    .order-tab.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green)
+    }
+
+    .order-tab .tab-cnt {
+      background: #00000014;
+      border-radius: 10px;
+      padding: 1px 6px;
+      font-size: 9px
+    }
+
+    .order-tab.active .tab-cnt {
+      background: #ffffff35;
+      color: #fff
+    }
+
+    .orders-search-box {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 6px;
+      background: #fff
+    }
+
+    .orders-search-box input {
+      border: 0;
+      outline: 0;
+      font-size: 11px;
+      width: 170px
+    }
+
+    .orders-kpi-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      background: #fafbfa;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .orders-kpi-item {
+      padding: 10px 16px;
+      border-right: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .orders-kpi-item:last-child {
+      border-right: none
+    }
+
+    .orders-kpi-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      color: var(--green2)
+    }
+
+    .orders-kpi-text small {
+      display: block;
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .3px
+    }
+
+    .orders-kpi-text strong {
+      font: 700 13px Manrope;
+      color: var(--ink)
+    }
+
+    .orders-table {
+      width: 100%;
+      border-collapse: collapse;
+      white-space: nowrap
+    }
+
+    .orders-table th {
+      background: #fafbfa;
+      color: #8c9691;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left
+    }
+
+    .orders-table td {
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      vertical-align: middle
+    }
+
+    .orders-table tr:hover td {
+      background: #f8faf8
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700
+    }
+
+    .tag.green {
+      background: #e6f3ec;
+      color: var(--green2)
+    }
+
+    .tag.blue {
+      background: #e8f1fa;
+      color: var(--blue)
+    }
+
+    .tag.amber {
+      background: #fff3df;
+      color: #b57411
+    }
+
+    .tag.gray {
+      background: #edf0ee;
+      color: #55605a
+    }
+
+    .mini-btn {
+      height: 26px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--green2);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px
+    }
+
+    .mini-btn:hover {
+      background: var(--green2);
+      color: #fff;
+      border-color: var(--green2)
+    }
+
+    .card-foot {
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      color: var(--muted);
+      background: #fafbfa
+    }
+
+    .pagination {
+      display: flex;
+      gap: 4px;
+      align-items: center
+    }
+
+    .pagination button {
+      width: 26px;
+      height: 26px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--ink)
+    }
+
+    .pagination button.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green)
+    }
+
+    .operation-card {
+      grid-column: 1 / -1
+    }
+
+    .op-split {
+      display: grid;
+      grid-template-columns: 1fr 1.35fr;
+      gap: 18px;
+      padding: 16px 18px
+    }
+
+    .chart-filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      background: #fafbfa;
+      border-bottom: 1px solid var(--line);
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    .time-filter-tabs {
+      display: flex;
+      gap: 4px;
+      background: #edf1ee;
+      padding: 3px;
+      border-radius: 6px
+    }
+
+    .time-tab {
+      border: 0;
+      background: transparent;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .time-tab:hover {
+      color: var(--ink)
+    }
+
+    .time-tab.active {
+      background: #fff;
+      color: var(--green);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .08)
+    }
+
+    .date-range-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 3px 8px;
+      height: 30px
+    }
+
+    .date-range-box .date-icon {
+      font-size: 12px
+    }
+
+    .date-range-box .date-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600
+    }
+
+    .date-range-box .date-arrow {
+      color: var(--muted);
+      font-size: 10px
+    }
+
+    .date-input {
+      border: 0;
+      outline: 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink);
+      width: 76px;
+      background: transparent;
+      text-align: center;
+      font-family: inherit
+    }
+
+    .mini-filter-btn {
+      border: 0;
+      background: var(--green);
+      color: #fff;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .mini-filter-btn:hover {
+      background: var(--green2)
+    }
+
+    .quick-presets {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap
+    }
+
+    .preset-pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .preset-pill:hover {
+      border-color: var(--green2);
+      color: var(--green2)
+    }
+
+    .preset-pill.active {
+      background: #e6f3ec;
+      border-color: #c0ded0;
+      color: var(--green2);
+      font-weight: 700
+    }
+
+    .fleet-status-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px
+    }
+
+    .fleet-status-table th {
+      background: #fafbfa;
+      color: #8c9691;
+      font-size: 8px;
+      letter-spacing: .3px;
+      padding: 7px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      text-transform: uppercase
+    }
+
+    .fleet-status-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+      font-size: 10px
+    }
+
+    .fleet-status-table tr:hover td {
+      background: #f8faf8
+    }
+
+    .fleet-status-table tr:last-child td {
+      border-bottom: none
+    }
+
+    .fleet-status-table tfoot td {
+      background: #f4f7f5;
+      font-weight: 700;
+      border-top: 2px solid var(--line);
+      padding: 7px 8px
+    }
+
+    .fleet-multi-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: #edf0ee;
+      overflow: hidden;
+      display: flex;
+      width: 60px
+    }
+
+    .fleet-multi-bar .bar-active {
+      background: var(--green2);
+      height: 100%
+    }
+
+    .fleet-multi-bar .bar-idle {
+      background: var(--amber);
+      height: 100%
+    }
+
+    .fleet-multi-bar .bar-btsc {
+      background: var(--red);
+      height: 100%
+    }
+
+    .badge-sm {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block
+    }
+
+    .badge-sm.green {
+      background: #e6f3ec;
+      color: var(--green2)
+    }
+
+    .badge-sm.amber {
+      background: #fff3df;
+      color: #b57411
+    }
+
+    .badge-sm.red {
+      background: #fbe9e9;
+      color: var(--red)
+    }
+
+    .module-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 20px
+    }
+
+    .module-head h1 {
+      font: 800 25px Manrope;
+      margin: 0
+    }
+
+    .module-head p {
+      font-size: 11px;
+      color: var(--muted);
+      margin: 6px 0 0
+    }
+
+    .module-filters {
+      height: 50px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      padding: 7px;
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .module-filters button,
+    .module-toolbar button,
+    .module-toolbar select {
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0 11px;
+      color: #56615b;
+      font-size: 10px
+    }
+
+    .module-filters span {
+      margin-left: auto;
+      color: var(--green2);
+      font-size: 10px
+    }
+
+    .module-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 11px;
+      margin-bottom: 12px
+    }
+
+    .module-stat,
+    .module-panel,
+    .analytics>div,
+    .analytics>aside,
+    .timeline {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px
+    }
+
+    .module-stat {
+      padding: 14px 16px
+    }
+
+    .module-stat small,
+    .module-stat strong,
+    .module-stat span {
+      display: block
+    }
+
+    .module-stat small {
+      color: var(--muted);
+      font-size: 10px
+    }
+
+    .module-stat strong {
+      font: 800 22px Manrope;
+      margin: 8px 0 4px
+    }
+
+    .module-stat span {
+      color: var(--green2);
+      font-size: 9px
+    }
+
+    .module-panel {
+      overflow: hidden
+    }
+
+    .module-toolbar {
+      padding: 12px;
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .module-toolbar label,
+    .module-map aside>label {
+      height: 34px;
+      min-width: 240px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 7px
+    }
+
+    .module-toolbar input,
+    .module-map input {
+      border: 0;
+      outline: 0;
+      width: 100%;
+      font-size: 10px
+    }
+
+    .module-table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    .module-table th {
+      font-size: 8px;
+      color: #8f9994;
+      letter-spacing: .5px;
+      text-align: left;
+      background: #fafbfa;
+      padding: 11px 13px
+    }
+
+    .module-table td {
+      padding: 12px 13px;
+      border-top: 1px solid var(--line);
+      font-size: 10px
+    }
+
+    .module-table td small {
+      display: block;
+      color: var(--muted);
+      font-size: 8px;
+      margin-top: 4px
+    }
+
+    .module-pill {
+      display: inline-block;
+      padding: 5px 8px;
+      background: #e6f2eb;
+      color: var(--green2);
+      font-size: 8px;
+      font-weight: 700;
+      border-radius: 12px
+    }
+
+    .module-pill.pending {
+      background: #fff1dc;
+      color: #ae7117
+    }
+
+    .module-pill.danger {
+      background: #fbe7e7;
+      color: var(--red)
+    }
+
+    .module-panel>footer {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px;
+      font-size: 9px;
+      color: var(--muted);
+      border-top: 1px solid var(--line)
+    }
+
+    .module-panel>footer button {
+      width: 27px;
+      height: 27px;
+      border: 1px solid var(--line);
+      background: #fff
+    }
+
+    .module-map {
+      height: 520px;
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden
+    }
+
+    .module-map aside {
+      padding: 12px;
+      border-right: 1px solid var(--line)
+    }
+
+    .module-map aside>label {
+      min-width: 0;
+      margin-bottom: 8px
+    }
+
+    .module-map aside>button {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      text-align: left;
+      border: 0;
+      border-top: 1px solid var(--line);
+      background: #fff;
+      padding: 13px 5px;
+      gap: 9px
+    }
+
+    .module-map aside button i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green2)
+    }
+
+    .module-map aside button i.red {
+      background: var(--red)
+    }
+
+    .module-map aside button span {
+      flex: 1
+    }
+
+    .module-map aside b,
+    .module-map aside small {
+      display: block
+    }
+
+    .module-map aside small {
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 4px
+    }
+
+    .map-stage {
+      position: relative;
+      overflow: hidden;
+      background: #edf1e9
+    }
+
+    .module-marker {
+      position: absolute;
+      background: var(--green);
+      color: #fff;
+      border: 3px solid #fff;
+      border-radius: 9px;
+      box-shadow: 0 3px 12px #0003;
+      padding: 8px;
+      font-size: 9px;
+      font-weight: 700
+    }
+
+    .map-stage>em {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      background: #fff;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 9px;
+      font-style: normal
+    }
+
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px
+    }
+
+    .kanban>section {
+      background: #edf0ee;
+      border-radius: 9px;
+      padding: 10px
+    }
+
+    .kanban section>header {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 3px 12px;
+      font-size: 10px
+    }
+
+    .kanban article {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      margin-bottom: 8px
+    }
+
+    .kanban article>small {
+      font-size: 8px;
+      color: var(--green2)
+    }
+
+    .kanban h3 {
+      font-size: 11px;
+      margin: 8px 0
+    }
+
+    .kanban p {
+      font-size: 9px;
+      color: var(--muted)
+    }
+
+    .kanban article div {
+      display: flex;
+      justify-content: space-between
+    }
+
+    .kanban time {
+      font-size: 8px;
+      color: var(--muted)
+    }
+
+    .calendar {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden
+    }
+
+    .calendar>header {
+      text-align: center;
+      padding: 18px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .calendar>header b {
+      margin: 0 25px
+    }
+
+    .calendar>div {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      min-height: 400px
+    }
+
+    .calendar>div>section {
+      padding: 10px;
+      border-right: 1px solid var(--line);
+      font-size: 9px
+    }
+
+    .calendar article {
+      padding: 9px 7px;
+      border-left: 3px solid var(--green2);
+      background: #eaf3ed;
+      border-radius: 4px;
+      margin-top: 10px
+    }
+
+    .calendar article b,
+    .calendar article small,
+    .calendar article span {
+      display: block
+    }
+
+    .calendar article small,
+    .calendar article span {
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 5px
+    }
+
+    .analytics {
+      display: grid;
+      grid-template-columns: 1.7fr .7fr;
+      gap: 12px;
+      margin-bottom: 12px
+    }
+
+    .analytics>div,
+    .analytics>aside {
+      padding: 17px
+    }
+
+    .analytics h2,
+    .settings h2 {
+      font: 700 13px Manrope;
+      margin: 0 0 18px
+    }
+
+    .analytics svg {
+      height: 230px;
+      width: 100%;
+      background: repeating-linear-gradient(to bottom, transparent 0, transparent 49px, #edf0ee 50px)
+    }
+
+    .analytics svg path {
+      fill: none;
+      stroke: var(--green2);
+      stroke-width: 3
+    }
+
+    .donut {
+      width: 140px;
+      height: 140px;
+      margin: 20px auto;
+      border-radius: 50%;
+      background: conic-gradient(var(--green2) 0 67%, var(--amber) 67% 85%, #dde3df 85%);
+      display: grid;
+      place-items: center
+    }
+
+    .donut b {
+      background: #fff;
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center
+    }
+
+    .donut small {
+      font-size: 8px
+    }
+
+    .analytics aside p {
+      font-size: 9px
+    }
+
+    .analytics aside p b {
+      float: right
+    }
+
+    .settings {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      min-height: 470px
+    }
+
+    .settings>aside {
+      padding: 12px;
+      border-right: 1px solid var(--line)
+    }
+
+    .settings>aside button {
+      width: 100%;
+      border: 0;
+      background: none;
+      text-align: left;
+      padding: 11px
+    }
+
+    .settings>div {
+      padding: 28px;
+      max-width: 650px
+    }
+
+    .settings label {
+      display: block;
+      font-size: 9px;
+      font-weight: 600;
+      margin: 16px 0
+    }
+
+    .settings input {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      margin-top: 7px
+    }
+
+    .settings footer {
+      text-align: right
+    }
+
+    .settings footer button {
+      height: 36px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      padding: 0 13px
+    }
+
+    .settings footer .save {
+      background: var(--green);
+      color: #fff
+    }
+
+    .timeline {
+      padding: 8px 20px
+    }
+
+    .timeline article {
+      display: grid;
+      grid-template-columns: 15px 1fr auto;
+      gap: 12px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .timeline article>i {
+      width: 9px;
+      height: 9px;
+      background: var(--green2);
+      border-radius: 50%
+    }
+
+    .timeline article b {
+      font-size: 10px
+    }
+
+    .timeline article p {
+      font-size: 10px
+    }
+
+    .timeline article small {
+      font-size: 8px;
+      color: var(--muted)
+    }
+
+    .timeline article button {
+      border: 0;
+      background: none;
+      color: var(--green2)
+    }
+
+    @media(max-width:1000px) {
+      .module-stats {
+        grid-template-columns: repeat(2, 1fr)
+      }
+
+      .kanban {
+        grid-template-columns: repeat(2, 1fr)
+      }
+
+      .calendar>div {
+        grid-template-columns: repeat(4, 1fr)
+      }
+
+      .analytics {
+        grid-template-columns: 1fr
+      }
+    }
+
+    @media(max-width:700px) {
+      .module-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 15px
+      }
+
+      .module-stats {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .kanban,
+      .calendar>div {
+        grid-template-columns: 1fr
+      }
+
+      .module-map {
+        grid-template-columns: 1fr
+      }
+
+      .module-map aside {
+        display: none
+      }
+
+      .settings {
+        grid-template-columns: 1fr
+      }
+
+      .settings>aside {
+        display: none
+      }
+
+      .module-table-wrap {
+        overflow: auto
+      }
+    }
+
+    .orders-horizontal-card {
+      grid-column: 1 / -1;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden;
+      margin-top: 2px
+    }
+
+    .orders-head-wrap {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    .orders-filter-tabs {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    .order-tab {
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s
+    }
+
+    .order-tab:hover {
+      background: #f4f6f5;
+      color: var(--ink)
+    }
+
+    .order-tab.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green)
+    }
+
+    .order-tab .tab-cnt {
+      background: #00000014;
+      border-radius: 10px;
+      padding: 1px 6px;
+      font-size: 9px
+    }
+
+    .order-tab.active .tab-cnt {
+      background: #ffffff35;
+      color: #fff
+    }
+
+    .orders-search-box {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 6px;
+      background: #fff
+    }
+
+    .orders-search-box input {
+      border: 0;
+      outline: 0;
+      font-size: 11px;
+      width: 170px
+    }
+
+    .orders-kpi-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      background: #fafbfa;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .orders-kpi-item {
+      padding: 10px 16px;
+      border-right: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .orders-kpi-item:last-child {
+      border-right: none
+    }
+
+    .orders-kpi-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      color: var(--green2)
+    }
+
+    .orders-kpi-text small {
+      display: block;
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .3px
+    }
+
+    .orders-kpi-text strong {
+      font: 700 13px Manrope;
+      color: var(--ink)
+    }
+
+    .orders-table {
+      width: 100%;
+      border-collapse: collapse;
+      white-space: nowrap
+    }
+
+    .orders-table th {
+      background: #fafbfa;
+      color: #8c9691;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left
+    }
+
+    .orders-table td {
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      vertical-align: middle
+    }
+
+    .orders-table tr:hover td {
+      background: #f8faf8
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700
+    }
+
+    .tag.green {
+      background: #e6f3ec;
+      color: var(--green2)
+    }
+
+    .tag.blue {
+      background: #e8f1fa;
+      color: var(--blue)
+    }
+
+    .tag.amber {
+      background: #fff3df;
+      color: #b57411
+    }
+
+    .tag.gray {
+      background: #edf0ee;
+      color: #55605a
+    }
+
+    .mini-btn {
+      height: 26px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--green2);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px
+    }
+
+    .mini-btn:hover {
+      background: var(--green2);
+      color: #fff;
+      border-color: var(--green2)
+    }
+
+    .card-foot {
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      color: var(--muted);
+      background: #fafbfa
+    }
+
+    .pagination {
+      display: flex;
+      gap: 4px;
+      align-items: center
+    }
+
+    .pagination button {
+      width: 26px;
+      height: 26px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--ink)
+    }
+
+    .pagination button.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green)
+    }
+
+    .operation-card {
+      grid-column: 1 / -1
+    }
+
+    .op-split {
+      display: grid;
+      grid-template-columns: 1fr 1.35fr;
+      gap: 18px;
+      padding: 16px 18px
+    }
+
+    .chart-filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      background: #fafbfa;
+      border-bottom: 1px solid var(--line);
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    .time-filter-tabs {
+      display: flex;
+      gap: 4px;
+      background: #edf1ee;
+      padding: 3px;
+      border-radius: 6px
+    }
+
+    .time-tab {
+      border: 0;
+      background: transparent;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .time-tab:hover {
+      color: var(--ink)
+    }
+
+    .time-tab.active {
+      background: #fff;
+      color: var(--green);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .08)
+    }
+
+    .date-range-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 3px 8px;
+      height: 30px
+    }
+
+    .date-range-box .date-icon {
+      font-size: 12px
+    }
+
+    .date-range-box .date-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600
+    }
+
+    .date-range-box .date-arrow {
+      color: var(--muted);
+      font-size: 10px
+    }
+
+    .date-input {
+      border: 0;
+      outline: 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink);
+      width: 76px;
+      background: transparent;
+      text-align: center;
+      font-family: inherit
+    }
+
+    .mini-filter-btn {
+      border: 0;
+      background: var(--green);
+      color: #fff;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .mini-filter-btn:hover {
+      background: var(--green2)
+    }
+
+    .quick-presets {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap
+    }
+
+    .preset-pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .preset-pill:hover {
+      border-color: var(--green2);
+      color: var(--green2)
+    }
+
+    .preset-pill.active {
+      background: #e6f3ec;
+      border-color: #c0ded0;
+      color: var(--green2);
+      font-weight: 700
+    }
+
+    .fleet-status-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px
+    }
+
+    .fleet-status-table th {
+      background: #fafbfa;
+      color: #8c9691;
+      font-size: 8px;
+      letter-spacing: .3px;
+      padding: 7px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      text-transform: uppercase
+    }
+
+    .fleet-status-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+      font-size: 10px
+    }
+
+    .fleet-status-table tr:hover td {
+      background: #f8faf8
+    }
+
+    .fleet-status-table tr:last-child td {
+      border-bottom: none
+    }
+
+    .fleet-status-table tfoot td {
+      background: #f4f7f5;
+      font-weight: 700;
+      border-top: 2px solid var(--line);
+      padding: 7px 8px
+    }
+
+    .fleet-multi-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: #edf0ee;
+      overflow: hidden;
+      display: flex;
+      width: 60px
+    }
+
+    .fleet-multi-bar .bar-active {
+      background: var(--green2);
+      height: 100%
+    }
+
+    .fleet-multi-bar .bar-idle {
+      background: var(--amber);
+      height: 100%
+    }
+
+    .fleet-multi-bar .bar-btsc {
+      background: var(--red);
+      height: 100%
+    }
+
+    .badge-sm {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block
+    }
+
+    .badge-sm.green {
+      background: #e6f3ec;
+      color: var(--green2)
+    }
+
+    .badge-sm.amber {
+      background: #fff3df;
+      color: #b57411
+    }
+
+    .badge-sm.red {
+      background: #fbe9e9;
+      color: var(--red)
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <a href="../A-dashboard/dashboard-van-hanh.html" class="brand-link"
+          style="display:flex;align-items:center;text-decoration:none;flex:1">
+          <svg id="thaco_agri_logo" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+            viewBox="0 0 184.07 18.7" style="height:22px;width:auto;display:block">
+            <defs>
+              <style>
+                .logo-white {
+                  fill: #ffffff;
+                }
+
+                .logo-clip {
+                  clip-path: url(#clippath-logo);
+                }
+
+                .logo-none {
+                  fill: none;
+                }
+
+                .logo-grad {
+                  fill: url(#linear-gradient-logo);
+                }
+              </style>
+              <clipPath id="clippath-logo">
+                <path class="logo-none"
+                  d="M143.77,0c-5.1,0-9.31,4.2-9.31,9.3v9.24l5.38-4.29v-4.95c0-2.73,2.21-4.94,4.95-4.94h7.45l5.43-4.36h-13.9Z" />
+              </clipPath>
+              <linearGradient id="linear-gradient-logo" x1="-433.17" y1="101.4" x2="-431.23" y2="101.4"
+                gradientTransform="translate(6672.89 1540.57) scale(15.1 -15.1)" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#8cc540" />
+                <stop offset=".28" stop-color="#79b63f" />
+                <stop offset=".84" stop-color="#49903f" />
+                <stop offset="1" stop-color="#3b853f" />
+              </linearGradient>
+            </defs>
+            <g id="Layer_1-2" data-name="Layer 1">
+              <g>
+                <path class="logo-white"
+                  d="M159.05,18.54V3.09h14.23c4.56-.02,4.61,3.07,4.61,4.57v1.22c0,3.02-2.11,3.54-2.63,3.54v.04c.55,0,2.62,.32,2.61,3.41v2.67s-4.75,0-4.75,0v-1.92c.01-.59,.18-2.16-1.93-2.15h-7.41v4.06h-4.72Zm4.68-11.63v3.74h7.8c1.16,0,1.74-.54,1.74-1.61v-.51c0-.65,.03-1.62-2.17-1.62h-7.37Z" />
+                <g class="logo-clip">
+                  <rect class="logo-grad" x="131.31" y="-5.49" width="29.52" height="29.52"
+                    transform="translate(36.23 106) rotate(-45)" />
+                </g>
+                <path class="logo-white"
+                  d="M148.6,7.26l-5.14,4.1h8.32c-.78,1.71-2.5,2.9-4.5,2.9h-7.45l-5.37,4.29h13.91c4.39,0,8.08-3.07,9-7.19,.31-1.4,.23-4.1,.23-4.1h-9.01Z" />
+                <path class="logo-white"
+                  d="M118.86,3.09l-8.37,15.45h5.29l1.39-2.73h9.6l1.47,2.73h5.27l-8.49-15.45h-6.17Zm.09,9.39l2.99-5.8,3.07,5.8h-6.06Z" />
+                <rect class="logo-white" x="179.34" y="3.09" width="4.73" height="15.44" />
+                <polygon class="logo-white"
+                  points="34.75 8.6 24.77 8.6 24.77 3.09 0 3.09 0 6.93 7.82 6.93 7.82 18.54 12.56 18.54 12.56 6.93 20.03 6.93 20.03 18.54 24.77 18.54 24.77 12.69 34.75 12.69 34.75 18.54 39.49 18.54 39.49 3.09 34.75 3.09 34.75 8.6" />
+                <path class="logo-white"
+                  d="M48.8,3.09l-8.37,15.45h5.29l1.39-2.73h9.6l1.47,2.73h5.27L54.97,3.09h-6.17Zm.09,9.39l2.99-5.8,3.07,5.8h-6.06Z" />
+                <path class="logo-white"
+                  d="M84.57,10.81c0-4.99,0-7.89,6.8-7.89h7.59c6.8,0,6.8,2.7,6.8,7.89,0,4.83,0,7.89-6.8,7.89h-7.59c-6.8,0-6.8-3.04-6.8-7.89m4.86,0c0,3.11,.36,3.92,2.71,3.92h6.06c2.68,0,2.68-1.43,2.68-3.92s-.12-3.92-2.94-3.92h-5.55c-2.96,0-2.96,1.59-2.96,3.92" />
+                <path class="logo-white"
+                  d="M62.99,10.17c0-4.4-.16-7.24,6.8-7.24h6.74c6.59,0,6.4,3.12,6.4,5.82h-4.74s.25-1.86-1.66-1.86h-5.71c-2.44,.04-2.97,.93-2.97,3.6,0,2.95-.07,4.3,2.97,4.25h5.71c1.54-.03,1.86-1.15,1.86-2.13h4.73c0,3.2,.45,6.1-6.59,6.1h-6.74c-7.02,0-6.8-2.98-6.8-8.54" />
+              </g>
+            </g>
+          </svg>
+        </a>
+        <button class="icon-btn collapse-btn" id="collapseBtn" aria-label="Thu gọn">‹</button>
+      </div>
+      <nav id="mainNav">
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+
+            <span class="nav-label">Dashboard</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../A-dashboard/dashboard-van-hanh.html" class="nav-child" style="text-decoration:none">Dashboard
+              vận hành</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Giám sát GPS trực tuyến</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../B-giam-sat-gps/giam-sat-realtime.html" class="nav-child" style="text-decoration:none">Bản đồ GPS
+              realtime</a><a href="../B-giam-sat-gps/playback-hanh-trinh.html" class="nav-child"
+              style="text-decoration:none">Playback hành trình</a><a
+              href="../B-giam-sat-gps/vung-giam-sat-geofence.html" class="nav-child" style="text-decoration:none">Vùng
+              giám sát (Geofence)</a><a href="../B-giam-sat-gps/canh-bao-toc-do-vung.html" class="nav-child"
+              style="text-decoration:none">Cảnh báo tốc độ & Vùng</a><a
+              href="../B-giam-sat-gps/nhat-ky-mat-song-offline.html" class="nav-child" style="text-decoration:none">Nhật
+              ký mất sóng offline</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Quản lý đội xe</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../C-doi-xe/ho-so-xe.html" class="nav-child" style="text-decoration:none">Hồ sơ xe</a><a
+              href="../C-doi-xe/ho-so-thiet-bi.html" class="nav-child" style="text-decoration:none">Hồ sơ thiết bị</a><a
+              href="../C-doi-xe/phan-xe-don-vi.html" class="nav-child" style="text-decoration:none">Phân xe theo đơn
+              vị</a><a href="../C-doi-xe/thiet-bi-gps-cam-bien.html" class="nav-child"
+              style="text-decoration:none">Thiết bị GPS & Cảm biến</a><a href="../C-doi-xe/lich-su-thay-doi-xe.html"
+              class="nav-child" style="text-decoration:none">Lịch sử biến động xe</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Lệnh điều xe & Vận hành</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../D-lenh-dieu-xe/ke-hoach-san-xuat.html" class="nav-child" style="text-decoration:none">Kế hoạch
+              sản xuất</a><a href="../D-lenh-dieu-xe/lenh-dieu-xe.html" class="nav-child"
+              style="text-decoration:none">Lệnh điều xe</a><a href="../D-lenh-dieu-xe/lenh-van-chuyen.html"
+              class="nav-child" style="text-decoration:none">Lệnh vận chuyển nội bộ</a><a
+              href="../D-lenh-dieu-xe/xac-nhan-khoi-luong-phieu-can.html" class="nav-child"
+              style="text-decoration:none">Xác nhận khối lượng & Cân</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Quản lý lái xe</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../I-lai-xe/ho-so-lai-xe.html" class="nav-child" style="text-decoration:none">Hồ sơ lái xe & Thợ
+              máy</a><a href="../I-lai-xe/phan-cong-lai-xe.html" class="nav-child" style="text-decoration:none">Phân
+              công lái xe theo ca</a><a href="../I-lai-xe/quan-ly-gplx.html" class="nav-child"
+              style="text-decoration:none">Quản lý GPLX & Hết hạn</a><a href="../I-lai-xe/lich-su-vi-pham.html"
+              class="nav-child" style="text-decoration:none">Lịch sử lái xe & Vi phạm</a><a
+              href="../I-lai-xe/bang-xep-hang-kpi.html" class="nav-child" style="text-decoration:none">Bảng xếp hạng thi
+              đua KPI</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Xưởng BTSC</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../E-xuong-btsc/ke-hoach-bao-tri.html" class="nav-child" style="text-decoration:none">Kế hoạch bảo
+              trì (250h)</a><a href="../E-xuong-btsc/yeu-cau-sua-chua.html" class="nav-child"
+              style="text-decoration:none">Tiếp nhận báo hỏng</a><a href="../E-xuong-btsc/phieu-sua-chua.html"
+              class="nav-child" style="text-decoration:none">Phiếu sửa chữa & Vật tư</a><a
+              href="../E-xuong-btsc/theo-doi-sua-chua.html" class="nav-child" style="text-decoration:none">Theo dõi tiến
+              độ xưởng</a><a href="../E-xuong-btsc/dang-kiem-bao-hiem.html" class="nav-child"
+              style="text-decoration:none">Đăng kiểm & Bảo hiểm</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Quản lý nhiên liệu</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../J-nhien-lieu/phieu-cap-nhien-lieu.html" class="nav-child" style="text-decoration:none">Phiếu cấp
+              nhiên liệu</a><a href="../J-nhien-lieu/dinh-muc-nhien-lieu.html" class="nav-child"
+              style="text-decoration:none">Định mức tiêu hao khoán</a><a href="../J-nhien-lieu/doi-chieu-tieu-hao.html"
+              class="nav-child" style="text-decoration:none">Đối chiếu GPS vs Định mức</a><a
+              href="../J-nhien-lieu/ton-kho-bon-chua.html" class="nav-child" style="text-decoration:none">Tồn kho bồn
+              chứa xăng dầu</a><a href="../J-nhien-lieu/canh-bao-bat-thuong-dau.html" class="nav-child"
+              style="text-decoration:none">Cảnh báo bất thường sụt dầu</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Cảnh báo & Thông báo</span>
+            <span class="badge">18</span>
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../K-canh-bao/canh-bao-chua-xu-ly.html" class="nav-child" style="text-decoration:none">Cảnh báo
+              chưa xử lý (SOS)<span class="badge" style="margin-left:auto">18</span></a><a
+              href="../K-canh-bao/lich-su-canh-bao.html" class="nav-child" style="text-decoration:none">Lịch sử cảnh
+              báo</a><a href="../K-canh-bao/cau-hinh-nguong-canh-bao.html" class="nav-child"
+              style="text-decoration:none">Cấu hình ngưỡng cảnh báo</a><a href="../K-canh-bao/thong-ke-canh-bao.html"
+              class="nav-child" style="text-decoration:none">Thống kê tần suất vi phạm</a>
+          </div>
+        </div>
+        <div class="nav-group open">
+          <button class="nav-parent active" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Báo cáo hợp nhất</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../F-bao-cao/bao-cao-van-hanh.html" class="nav-child" style="text-decoration:none">Báo cáo năng
+              suất xe</a><a href="../F-bao-cao/bao-cao-hanh-trinh-vi-pham.html" class="nav-child"
+              style="text-decoration:none">Hành trình & Vi phạm</a><a href="../F-bao-cao/bao-cao-lai-xe-kpi.html"
+              class="nav-child" style="text-decoration:none">Báo cáo KPI lái xe</a><a
+              href="../F-bao-cao/bao-cao-nhien-lieu.html" class="nav-child" style="text-decoration:none">Báo cáo tiêu
+              hao nhiên liệu</a><a href="#" class="nav-child active" style="text-decoration:none">Báo cáo chi phí
+              BTSC</a><a href="../F-bao-cao/bao-cao-so-sanh-klh.html" class="nav-child" style="text-decoration:none">So
+              sánh giữa các KLH</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Danh mục hệ thống</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../H-danh-muc/don-vi-klh-doi-xe.html" class="nav-child" style="text-decoration:none">Đơn vị / KLH /
+              Đội xe</a><a href="../H-danh-muc/loai-xe-9-chung-loai.html" class="nav-child"
+              style="text-decoration:none">Chủng loại xe</a><a
+              href="../H-danh-muc/loai-cong-viec-loai-lenh.html" class="nav-child" style="text-decoration:none">Loại
+              công việc & Lệnh</a><a href="../H-danh-muc/lo-thua-tuyen-duong.html" class="nav-child"
+              style="text-decoration:none">Lô thửa & Tuyến đường</a><a href="../H-danh-muc/vat-tu-phu-tung.html"
+              class="nav-child" style="text-decoration:none">Vật tư & Phụ tùng BTSC</a><a
+              href="../H-danh-muc/dinh-muc-ky-thuat.html" class="nav-child" style="text-decoration:none">Định mức kỹ
+              thuật</a>
+          </div>
+        </div>
+        <div class="nav-group">
+          <button class="nav-parent" onclick="this.parentElement.classList.toggle('open')">
+            <span class="nav-icon"></span>
+            <span class="nav-label">Phân quyền hệ thống</span>
+
+            <span class="chev">⌄</span>
+          </button>
+          <div class="nav-children">
+            <a href="../G-phan-quyen/nguoi-dung.html" class="nav-child" style="text-decoration:none">Người dùng & Tài
+              khoản</a><a href="../G-phan-quyen/vai-tro-phan-quyen.html" class="nav-child"
+              style="text-decoration:none">Vai trò & Ma trận quyền</a><a href="../G-phan-quyen/phan-quyen-don-vi.html"
+              class="nav-child" style="text-decoration:none">Phân quyền theo đơn vị</a><a
+              href="../G-phan-quyen/nhat-ky-he-thong.html" class="nav-child" style="text-decoration:none">Nhật ký hệ
+              thống (Audit)</a>
+          </div>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="support"><span class="nav-icon">?</span>
+          <div><b>Trung tâm hỗ trợ</b><small>Phiên bản 1.0.0</small></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb"><span>Báo cáo hợp nhất</span><b>/</b><strong>Báo cáo chi phí BTSC</strong></div>
+        <div class="top-actions">
+          <div class="search"><input placeholder="Tìm nhanh xe, lái xe, lệnh điều động..." /></div>
+          <button class="icon-btn notification" aria-label="Thông báo"><span class="dot"></span></button>
+          <div class="divider"></div>
+          <button class="profile"><span class="avatar">LT</span><span class="profile-copy"><b>Chau Tiểu
+                Long</b><small>Quản trị hệ thống</small></span><span>⌄</span></button>
+        </div>
+      </header>
+
+      <section class="page">
+        <div class="module-head">
+          <div>
+            <p class="eyebrow">BÁO CÁO HỢP NHẤT</p>
+            <h1>Báo cáo Chi phí Bảo trì & Sửa chữa</h1>
+            <p>Tổng hợp chi phí thay thế phụ tùng, dầu nhớt bôi trơn, giờ công thợ máy và thời gian dừng xe hỏng
+              (Downtime).</p>
+          </div>
+          <div class="head-actions"><button class="btn btn-light">↗ Xuất báo cáo tài chính BTSC</button><button
+              class="btn btn-primary">📊 Phân tích chi phí</button></div>
+        </div>
+        <div class="module-filters"><button>Tháng 08/2026 ⌄</button><button>Xưởng BTSC Trung tâm ⌄</button><span>● Đã
+            quyết toán</span></div>
+        <div class="module-stats">
+          <div class="module-stat"><small>Tổng chi phí BTSC tháng</small><strong>142.500.000 đ</strong><span>Đạt 94.0%
+              ngân sách</span></div>
+          <div class="module-stat"><small>Chi phí vật tư phụ tùng</small><strong>98.200.000 đ</strong><span>Lọc, lốp,
+              phớt ben</span></div>
+          <div class="module-stat"><small>Chi phí dầu nhớt bôi trơn</small><strong>32.300.000 đ</strong><span>Nhớt
+              15W-40 & Thủy lực</span></div>
+          <div class="module-stat"><small>Chi phí gia công ngoài</small><strong>12.000.000 đ</strong><span>Tiện cơ khí &
+              ép tuy-ô</span></div>
+        </div>
+        <section class="analytics">
+          <div>
+            <h2>Cơ cấu chi phí bảo trì sửa chữa theo nhóm xe (VNĐ)</h2>
+            <svg viewBox="0 0 700 230">
+              <path d="M10 170 C130 145, 250 155, 380 90 S520 70, 680 30" />
+            </svg>
+          </div>
+          <aside>
+            <h2>Phân bổ tỷ trọng</h2>
+            <div class="donut"><b>142.5 tr<small>Tổng cộng</small></b></div>
+            <p>Máy kéo John Deere/Kubota <b>45.2%</b></p>
+            <p>Xe tải Howo & Ben Hyundai <b>35.8%</b></p>
+            <p>Máy công trình đào/ủi <b>19.0%</b></p>
+          </aside>
+        </section>
+        <section class="module-panel">
+          <div class="module-toolbar">
+            <label>⌕ <input placeholder="Tìm nhóm xe, chi phí..."></label>
+            <select>
+              <option>Tất cả đơn vị</option>
+              <option>KLH Koun Mom</option>
+              <option>KLH Snuol</option>
+              <option>XN Chuối 1</option>
+              <option>XN Chuối 2</option>
+              <option>XN Cây ăn trái</option>
+            </select>
+            <select>
+              <option>Tất cả trạng thái</option>
+              <option>Đang hoạt động</option>
+              <option>Chờ xác nhận</option>
+              <option>Cần xử lý</option>
+            </select>
+            <button>☷ Bộ lọc nâng cao</button>
+          </div>
+          <div class="module-table-wrap">
+            <table class="module-table">
+              <thead>
+                <tr>
+                  <th>NHÓM PHƯƠNG TIỆN</th>
+                  <th>SỐ LƯỢT BTSC</th>
+                  <th>CHI PHÍ PHỤ TÙNG</th>
+                  <th>CHI PHÍ DẦU NHỚT</th>
+                  <th>TỔNG CHI PHÍ (VNĐ)</th>
+                  <th>GIỜ DỪNG MÁY</th>
+                  <th>BÌNH QUÂN / XE</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><b>Máy kéo nông nghiệp (62 xe)</b></td>
+                  <td>24 lượt</td>
+                  <td>42.500.000 đ</td>
+                  <td>21.900.000 đ</td>
+                  <td><b>64.400.000 đ</b></td>
+                  <td>96 giờ máy</td>
+                  <td><b>1.038.000 đ / xe</b></td>
+                  <td>•••</td>
+                </tr>
+                <tr>
+                  <td><b>Xe ô tô tải & Ben (36 xe)</b></td>
+                  <td>14 lượt</td>
+                  <td>38.200.000 đ</td>
+                  <td>7.800.000 đ</td>
+                  <td><b>46.000.000 đ</b></td>
+                  <td>68 giờ xe</td>
+                  <td><b>1.277.000 đ / xe</b></td>
+                  <td>•••</td>
+                </tr>
+                <tr>
+                  <td><b>Máy công trình đào/ủi (18 xe)</b></td>
+                  <td>6 lượt</td>
+                  <td>14.500.000 đ</td>
+                  <td>2.600.000 đ</td>
+                  <td><b>17.100.000 đ</b></td>
+                  <td>42 giờ máy</td>
+                  <td><b>950.000 đ / xe</b></td>
+                  <td>•••</td>
+                </tr>
+                <tr>
+                  <td><b>Xe chuyên dùng & Téc (12 xe)</b></td>
+                  <td>4 lượt</td>
+                  <td>3.000.000 đ</td>
+                  <td>2.000.000 đ</td>
+                  <td><b>5.000.000 đ</b></td>
+                  <td>18 giờ xe</td>
+                  <td><b>416.000 đ / xe</b></td>
+                  <td>•••</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <footer>
+            Tổng hợp chi phí 4 nhóm phương tiện cơ giới
+            <span><button>‹</button><button
+                class="active">1</button><button>2</button><button>3</button><button>›</button></span>
+          </footer>
+        </section>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script>
+    function showToast(msg) {
+      const t = document.querySelector('#toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+    }
+    document.querySelectorAll('.btn,.text-btn,.select-btn,.select-mini,.notification,.profile,.module-toolbar button,.module-toolbar select,.module-panel footer button,.kanban article,.settings footer button,.timeline button,.module-map aside button,.zoom button').forEach(b => {
+      b.onclick = () => showToast('Đã ghi nhận: ' + b.textContent.trim());
+    });
+    const cBtn = document.querySelector('#collapseBtn');
+    if (cBtn) cBtn.onclick = () => document.querySelector('#sidebar').classList.toggle('collapsed');
+  </script>
+</body>
+
+</html>

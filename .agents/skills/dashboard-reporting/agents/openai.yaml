@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dashboard & Reporting"
+  short_description: "Change operational dashboards and reports"
+  default_prompt: "Use $dashboard-reporting to modify dashboard KPIs, fleet summaries, report pages, filters, or exports."

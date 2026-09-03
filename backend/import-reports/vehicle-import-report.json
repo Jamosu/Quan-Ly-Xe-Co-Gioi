@@ -1,0 +1,152 @@
+{
+  "workbook": "00. DANH MỤC MMTB THUỘC KLH KOUN MOM.xlsx",
+  "generatedAt": "2026-09-01T03:04:29.334Z",
+  "dryRun": false,
+  "sheets": [
+    {
+      "sheet": "TỔNG KLH + TN",
+      "nonEmptyRows": 3147,
+      "parsedRows": 3055,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "01. TH",
+      "nonEmptyRows": 281,
+      "parsedRows": 0,
+      "role": "REFERENCE"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "nonEmptyRows": 711,
+      "parsedRows": 678,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "nonEmptyRows": 706,
+      "parsedRows": 652,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "nonEmptyRows": 809,
+      "parsedRows": 776,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "XE & MÁY CG AGRI",
+      "nonEmptyRows": 660,
+      "parsedRows": 575,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "TB CG AGRI",
+      "nonEmptyRows": 320,
+      "parsedRows": 290,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "NS QUẢN LÝ CG",
+      "nonEmptyRows": 28,
+      "parsedRows": 0,
+      "role": "IGNORED"
+    },
+    {
+      "sheet": "04. XMA",
+      "nonEmptyRows": 112,
+      "parsedRows": 101,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "03.1 NHÓM TB",
+      "nonEmptyRows": 890,
+      "parsedRows": 707,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "Danh mục",
+      "nonEmptyRows": 1774,
+      "parsedRows": 1689,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "Thông số",
+      "nonEmptyRows": 102,
+      "parsedRows": 0,
+      "role": "REFERENCE"
+    },
+    {
+      "sheet": "05. MPC",
+      "nonEmptyRows": 745,
+      "parsedRows": 729,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "nonEmptyRows": 102,
+      "parsedRows": 90,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "nonEmptyRows": 104,
+      "parsedRows": 86,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "08. ĐKĐK",
+      "nonEmptyRows": 115,
+      "parsedRows": 60,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
+      "nonEmptyRows": 25,
+      "parsedRows": 5,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "nonEmptyRows": 466,
+      "parsedRows": 408,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "03.1-TB.SXCN",
+      "nonEmptyRows": 114,
+      "parsedRows": 103,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "TT BTSC",
+      "nonEmptyRows": 1,
+      "parsedRows": 0,
+      "role": "IGNORED"
+    }
+  ],
+  "totalWorkbookNonEmptyRows": 11212,
+  "totalRowsRead": 10004,
+  "uniqueVehicles": 3196,
+  "newVehicles": 0,
+  "updatedVehicles": 3196,
+  "inserted": 0,
+  "updated": 3196,
+  "mergedRows": 6690,
+  "unresolvedRows": 118,
+  "conflicts": [
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 64,
+      "values": {
+        "bravoCode": "A23-XTA-048"
+      },
+      "candidateVehicles": [
+        "CNN-XTA-001",
+        "XD1-XTA-007"
+      ],
+      "reason": "Một dòng khớp nhiều hồ sơ theo identifier tin cậy; không tự động gộp các candidate."
+    }
+  ],
+  "skippedRows": 757,
+  "databaseVehicleCount": 3217
+}

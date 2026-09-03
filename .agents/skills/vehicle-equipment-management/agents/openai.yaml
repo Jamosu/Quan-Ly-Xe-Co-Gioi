@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vehicle & Equipment Management"
+  short_description: "Work with vehicle and implement lifecycles"
+  default_prompt: "Use $vehicle-equipment-management to change vehicle, implement, telemetry, assignment, or equipment-history behavior safely."

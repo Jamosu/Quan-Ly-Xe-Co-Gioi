@@ -1,0 +1,21 @@
+# Glossary
+
+- **KLH**: Khu Liên Hợp.
+- **MMTB**: Máy móc thiết bị.
+- **PTVC**: Phương tiện vận chuyển.
+- **Ban CG / Ban Xe cơ giới**: Ban Ô tô Xe máy CG & PTVC Xếp dỡ; vai trò giám sát/phân bổ tổng thể theo BRD.
+- **TT BTSC**: Trung tâm Bảo trì Sửa chữa.
+- **BDC1**: Bảo dưỡng cấp 1 hằng ngày.
+- **BDC2**: Bảo dưỡng cấp 2 theo chu kỳ giờ máy/km.
+- **ODO**: Đồng hồ quãng đường.
+- **Giờ máy**: Engine/machine operating hours.
+- **Nông cụ / implement**: Thiết bị gắn với máy kéo/xe như dàn cày, bừa, xới, rơ-moóc.
+- **Lệnh điều xe**: DispatchOrder cho công tác/điều động.
+- **Lệnh vận chuyển**: TransportOrder cho logistics/tuyến hàng.
+- **Đối lưu**: Tận dụng chiều về chở hàng return cargo.
+- **SLA 3 Đúng**: Đúng loại, đúng lượng, đúng thời gian trong vận chuyển thức ăn nội bộ.
+- **Nợ phụ tùng**: Vật tư chưa thay đủ khi bảo dưỡng, được theo dõi bằng WorkshopOwedPartNote.
+- **Audit trail**: Lưu người thực hiện, hành động, lý do, thời điểm và xác nhận thay đổi.
+- **VERIFIED**: Có bằng chứng trực tiếp từ code/schema/BRD.
+- **INFERRED**: Hành vi suy ra hoặc chỉ được implement như demo, chưa được nghiệp vụ xác nhận.
+- **UNKNOWN**: Thiếu bằng chứng; phải hỏi xác nhận.

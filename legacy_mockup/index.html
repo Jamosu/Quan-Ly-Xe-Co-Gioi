@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THACO AGRI — Fleet Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="modules.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <a href="#dashboard/dashboard-van-hanh" class="brand-link" style="display:flex;align-items:center;text-decoration:none;flex:1">
+          <svg id="thaco_agri_logo" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 184.07 18.7" style="height:22px;width:auto;display:block">
+            <defs>
+              <style>
+                .logo-white { fill: #ffffff; }
+                .logo-clip { clip-path: url(#clippath-logo-idx); }
+                .logo-none { fill: none; }
+                .logo-grad { fill: url(#linear-gradient-logo-idx); }
+              </style>
+              <clipPath id="clippath-logo-idx">
+                <path class="logo-none" d="M143.77,0c-5.1,0-9.31,4.2-9.31,9.3v9.24l5.38-4.29v-4.95c0-2.73,2.21-4.94,4.95-4.94h7.45l5.43-4.36h-13.9Z"/>
+              </clipPath>
+              <linearGradient id="linear-gradient-logo-idx" x1="-433.17" y1="101.4" x2="-431.23" y2="101.4" gradientTransform="translate(6672.89 1540.57) scale(15.1 -15.1)" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#8cc540"/>
+                <stop offset=".28" stop-color="#79b63f"/>
+                <stop offset=".84" stop-color="#49903f"/>
+                <stop offset="1" stop-color="#3b853f"/>
+              </linearGradient>
+            </defs>
+            <g id="Layer_1-2" data-name="Layer 1">
+              <g>
+                <path class="logo-white" d="M159.05,18.54V3.09h14.23c4.56-.02,4.61,3.07,4.61,4.57v1.22c0,3.02-2.11,3.54-2.63,3.54v.04c.55,0,2.62,.32,2.61,3.41v2.67s-4.75,0-4.75,0v-1.92c.01-.59,.18-2.16-1.93-2.15h-7.41v4.06h-4.72Zm4.68-11.63v3.74h7.8c1.16,0,1.74-.54,1.74-1.61v-.51c0-.65,.03-1.62-2.17-1.62h-7.37Z"/>
+                <g class="logo-clip">
+                  <rect class="logo-grad" x="131.31" y="-5.49" width="29.52" height="29.52" transform="translate(36.23 106) rotate(-45)"/>
+                </g>
+                <path class="logo-white" d="M148.6,7.26l-5.14,4.1h8.32c-.78,1.71-2.5,2.9-4.5,2.9h-7.45l-5.37,4.29h13.91c4.39,0,8.08-3.07,9-7.19,.31-1.4,.23-4.1,.23-4.1h-9.01Z"/>
+                <path class="logo-white" d="M118.86,3.09l-8.37,15.45h5.29l1.39-2.73h9.6l1.47,2.73h5.27l-8.49-15.45h-6.17Zm.09,9.39l2.99-5.8,3.07,5.8h-6.06Z"/>
+                <rect class="logo-white" x="179.34" y="3.09" width="4.73" height="15.44"/>
+                <polygon class="logo-white" points="34.75 8.6 24.77 8.6 24.77 3.09 0 3.09 0 6.93 7.82 6.93 7.82 18.54 12.56 18.54 12.56 6.93 20.03 6.93 20.03 18.54 24.77 18.54 24.77 12.69 34.75 12.69 34.75 18.54 39.49 18.54 39.49 3.09 34.75 3.09 34.75 8.6"/>
+                <path class="logo-white" d="M48.8,3.09l-8.37,15.45h5.29l1.39-2.73h9.6l1.47,2.73h5.27L54.97,3.09h-6.17Zm.09,9.39l2.99-5.8,3.07,5.8h-6.06Z"/>
+                <path class="logo-white" d="M84.57,10.81c0-4.99,0-7.89,6.8-7.89h7.59c6.8,0,6.8,2.7,6.8,7.89,0,4.83,0,7.89-6.8,7.89h-7.59c-6.8,0-6.8-3.04-6.8-7.89m4.86,0c0,3.11,.36,3.92,2.71,3.92h6.06c2.68,0,2.68-1.43,2.68-3.92s-.12-3.92-2.94-3.92h-5.55c-2.96,0-2.96,1.59-2.96,3.92"/>
+                <path class="logo-white" d="M62.99,10.17c0-4.4-.16-7.24,6.8-7.24h6.74c6.59,0,6.4,3.12,6.4,5.82h-4.74s.25-1.86-1.66-1.86h-5.71c-2.44,.04-2.97,.93-2.97,3.6,0,2.95-.07,4.3,2.97,4.25h5.71c1.54-.03,1.86-1.15,1.86-2.13h4.73c0,3.2,.45,6.1-6.59,6.1h-6.74c-7.02,0-6.8-2.98-6.8-8.54"/>
+              </g>
+            </g>
+          </svg>
+        </a>
+        <button class="icon-btn collapse-btn" id="collapseBtn" aria-label="Thu gọn">‹</button>
+      </div>
+      <nav id="mainNav"></nav>
+      <div class="sidebar-footer">
+        <div class="support">
+          <span class="nav-icon" style="font-size:14px;display:flex;align-items:center;justify-content:center">🎧</span>
+          <div class="support-text">
+            <b>Hỗ trợ vận hành IT</b>
+            <small>Ext: 8888 | 028 3999 8888</small>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb"><span>Tổng quan</span><b>/</b><strong>Dashboard vận hành</strong></div>
+        <div class="top-actions">
+          <button class="icon-btn notification" aria-label="Thông báo">♢<span>18</span></button>
+          <div class="divider"></div>
+          <button class="profile"><span class="avatar">LT</span><span class="profile-copy"><b>Chau Tiểu
+                Long</b><small>Quản trị hệ thống</small></span><span>⌄</span></button>
+        </div>
+      </header>
+
+      <section class="page">
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">TRUNG TÂM ĐIỀU HÀNH THỜI GIAN THỰC</p>
+            <h1>Chào buổi sáng, anh Long!</h1>
+            <p>Theo dõi toàn cảnh 128 phương tiện cơ giới & 96 lái xe tại Khu liên hợp Koun Mom.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-light">↗ Xuất báo cáo nhanh</button>
+            <button class="btn btn-primary">＋ Lập lệnh điều xe</button>
+          </div>
+        </div>
+
+        <div class="filterbar">
+          <button class="select-btn">▦&nbsp; Hôm nay, 23/08/2026 <span>⌄</span></button>
+          <button class="select-btn">⌂&nbsp; KLH Koun Mom (Tất cả xí nghiệp) <span>⌄</span></button>
+          <div class="live-status"><i></i>Dữ liệu trực tiếp GPS <span>Cập nhật 08:42:16</span></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-top"><span style="font-size:11px;color:var(--muted);font-weight:600">Phương tiện</span><span class="trend">+4,2%</span></div>
+            <div class="stat-value">128</div>
+            <div class="stat-label">Tổng phương tiện (86 chạy / 21 dừng / 15 BTSC / 6 mất sóng)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top"><span style="font-size:11px;color:var(--muted);font-weight:600">Lực lượng lái xe</span><span class="trend" style="background:#edf0ee;color:#55605a">96 tài xế</span></div>
+            <div class="stat-value">68 / 24</div>
+            <div class="stat-label">Lái xe đang trực ca / Nghỉ off (4 chưa nhận lệnh)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top"><span style="font-size:11px;color:var(--muted);font-weight:600">Nhiên liệu trong bình xe</span><span class="trend" style="background:#edf0ee;color:#55605a">80.9% bình</span></div>
+            <div class="stat-value">18.450 L</div>
+            <div class="stat-label">Tổng lượng dầu trong bình 128 xe (2 xe &lt;15% cần cấp, 1 cảnh báo sụt dầu)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top"><span style="font-size:11px;color:var(--muted);font-weight:600">Cảnh báo hệ thống</span><span class="trend down">Ưu tiên 6 SOS</span></div>
+            <div class="stat-value">18</div>
+            <div class="stat-label">Cảnh báo chưa xử lý (Sụt dầu, Quá tốc độ, Ra vùng)</div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="card map-card">
+            <div class="card-head">
+              <div>
+                <h2>Bản đồ GPS Realtime toàn đội xe</h2>
+                <p>Phân biệt xe đang chạy lệnh (Xanh) · Chạy tự do (Lam) · Dừng đỗ (Vàng) · Cảnh báo (Đỏ)</p>
+              </div>
+              <button class="text-btn">Mở bản đồ lớn ↗</button>
+            </div>
+            <div class="map-area">
+              <div class="map-grid"></div>
+              <svg class="route-lines" viewBox="0 0 900 390" preserveAspectRatio="none">
+                <path d="M44 282 C170 236, 190 290, 320 210 S535 92, 655 170 S785 300, 860 242" />
+                <path d="M84 72 C210 120, 300 70, 410 145 S624 270, 808 82" />
+              </svg>
+              <div class="map-label l1">XN Chuối 1</div>
+              <div class="map-label l2">XN Chuối 2</div>
+              <div class="map-label l3">Packhouse 2</div>
+              <div class="map-label l4">Xưởng BTSC</div>
+              <div class="vehicle-marker green m1" data-tip="XC-JD-024 • Đang cày ải (Lệnh LSX-018)">●<span>24</span></div>
+              <div class="vehicle-marker green m2" data-tip="XT-HW-102 • Chở chuối Packhouse (Lệnh LVC-011)">●<span>02</span></div>
+              <div class="vehicle-marker amber m3" data-tip="XC-KB-053 • Dừng chờ bồn dầu">●<span>53</span></div>
+              <div class="vehicle-marker red m4" data-tip="XT-HN-079 • Cảnh báo quá tốc độ 38km/h">●<span>79</span></div>
+              <div class="vehicle-marker blue m5" data-tip="BT-FR-007 • Xe kỹ thuật tuần tra tự do">●<span>07</span></div>
+              <div class="zoom"><button>＋</button><button>−</button></div>
+              <div class="legend">
+                <span><i class="green-dot"></i>Đang chạy lệnh 58</span>
+                <span><i class="blue-dot" style="background:#407fbc;width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px"></i>Chạy tự do 28</span>
+                <span><i class="amber-dot"></i>Dừng đỗ 21</span>
+                <span><i class="red-dot"></i>Cảnh báo SOS 6</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card alert-card">
+            <div class="card-head">
+              <div>
+                <h2>Cảnh báo chưa xử lý (Phân cấp ưu tiên)</h2>
+                <p>18 cảnh báo trực tiếp trên hệ thống Web</p>
+              </div>
+              <button class="text-btn">Xem tất cả</button>
+            </div>
+            <div id="alerts">
+              <div class="alert-item"><span class="alert-symbol red">!</span>
+                <div class="alert-copy"><b>Sụt giảm nhiên liệu bất thường (>15L/3p)</b><small>XC-JD-024 · Lô CN-A12 · Mức độ: Khẩn cấp</small></div><span class="alert-time">2 phút</span>
+              </div>
+              <div class="alert-item"><span class="alert-symbol red">⚡</span>
+                <div class="alert-copy"><b>Chạy quá tốc độ nông trường (38.5 km/h)</b><small>XT-HN-079 · Trục chính NT2 · Mức độ: Khẩn cấp</small></div><span class="alert-time">7 phút</span>
+              </div>
+              <div class="alert-item"><span class="alert-symbol amber">⏱</span>
+                <div class="alert-copy"><b>Xe đến hạn bảo dưỡng Cấp 2 (2.500h)</b><small>XC-JD-024 · Còn 15 giờ máy · Mức độ: Cảnh báo</small></div><span class="alert-time">15 phút</span>
+              </div>
+              <div class="alert-item"><span class="alert-symbol amber">⌁</span>
+                <div class="alert-copy"><b>Mất kết nối GPS > 2 giờ</b><small>MU-KM-015 · Khu khai hoang MR-01 · Mức độ: Cảnh báo</small></div><span class="alert-time">32 phút</span>
+              </div>
+              <div class="alert-item"><span class="alert-symbol blue">🪪</span>
+                <div class="alert-copy"><b>GPLX lái xe sắp hết hạn (<30 ngày)</b><small>Sok Phearith (GPLX Hạng C) · Hạn 15/09/2026</small></div><span class="alert-time">1 giờ</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- THANH NGANG: LỆNH ĐIỀU XE & VẬN CHUYỂN HÔM NAY -->
+          <section class="card orders-horizontal-card">
+            <div class="orders-head-wrap">
+              <div>
+                <h2 style="font:700 15px Manrope;margin:0;display:flex;align-items:center;gap:8px">
+                  <span>▦</span> Lệnh điều xe & Vận chuyển hôm nay
+                  <span style="font-size:10px;font-weight:700;background:#e6f3ec;color:var(--green2);padding:2px 8px;border-radius:10px">42 lệnh trong ngày</span>
+                </h2>
+                <p style="font-size:11px;color:var(--muted);margin:4px 0 0">Giám sát tiến độ realtime qua GPS, đồng hồ giờ máy & App Lái xe (Tự động kiểm tra GPLX & Cấp dầu)</p>
+              </div>
+
+              <div class="orders-filter-tabs">
+                <button class="order-tab active">Tất cả <span class="tab-cnt">42</span></button>
+                <button class="order-tab">Sản xuất (LSX) <span class="tab-cnt">24</span></button>
+                <button class="order-tab">Vận chuyển (LVC) <span class="tab-cnt">12</span></button>
+                <button class="order-tab">Điều động cơ giới (LĐX) <span class="tab-cnt">6</span></button>
+                <button class="order-tab" style="color:var(--red)">⚠️ Cần chú ý <span class="tab-cnt" style="background:#fbe9e9;color:var(--red)">2</span></button>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="orders-search-box">
+                  <span>🔍</span>
+                  <input placeholder="Tìm mã lệnh, xe, lái xe, lô..." />
+                </div>
+                <button class="btn btn-primary" style="height:32px;padding:0 12px;font-size:11px">＋ Lập lệnh mới</button>
+                <button class="text-btn" style="font-size:11px;white-space:nowrap">Xem tất cả ↗</button>
+              </div>
+            </div>
+
+            <div class="orders-kpi-bar">
+              <div class="orders-kpi-item">
+                <span class="orders-kpi-icon">📋</span>
+                <div class="orders-kpi-text">
+                  <small>Tổng lệnh phát hành</small>
+                  <strong>42 lệnh (100% giao việc)</strong>
+                </div>
+              </div>
+              <div class="orders-kpi-item">
+                <span class="orders-kpi-icon" style="color:var(--green2)">🚜</span>
+                <div class="orders-kpi-text">
+                  <small>Đang làm việc tại Lô/Thửa</small>
+                  <strong>26 phương tiện cơ giới</strong>
+                </div>
+              </div>
+              <div class="orders-kpi-item">
+                <span class="orders-kpi-icon" style="color:var(--blue)">🚛</span>
+                <div class="orders-kpi-text">
+                  <small>Đang vận chuyển trên đường</small>
+                  <strong>12 chuyến xe nông sản</strong>
+                </div>
+              </div>
+              <div class="orders-kpi-item">
+                <span class="orders-kpi-icon" style="color:var(--amber)">⏱</span>
+                <div class="orders-kpi-text">
+                  <small>Chờ duyệt & Xuất bến</small>
+                  <strong>4 lệnh ca tiếp theo</strong>
+                </div>
+              </div>
+              <div class="orders-kpi-item">
+                <span class="orders-kpi-icon" style="color:var(--green2)">🛡</span>
+                <div class="orders-kpi-text">
+                  <small>GPLX & An toàn kỹ thuật</small>
+                  <strong>100% Hợp lệ / Đạt chuẩn</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="orders-table">
+                <thead>
+                  <tr>
+                    <th>MÃ LỆNH & LOẠI LỆNH</th>
+                    <th>PHƯƠNG TIỆN & THIẾT BỊ</th>
+                    <th>LÁI XE / VẬN HÀNH</th>
+                    <th>CÔNG VIỆC / LÔ THỬA / LỘ TRÌNH</th>
+                    <th>NHIÊN LIỆU & ĐỊNH MỨC</th>
+                    <th>TIẾN ĐỘ THỰC HIỆN</th>
+                    <th>TRẠNG THÁI & HÀNH ĐỘNG</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <b style="font-size:12px">LSX-260823-018</b>
+                      <div><span class="tag green">Lệnh sản xuất</span> <small style="color:var(--muted)">06:30 • Ca 1</small></div>
+                    </td>
+                    <td>
+                      <b style="color:var(--ink);font-size:12px">XC-JD-024</b>
+                      <small style="display:block;color:var(--muted)">John Deere 140HP • Bánh hơi (7.2 km/h)</small>
+                    </td>
+                    <td>
+                      <b>Nguyễn Văn Minh</b>
+                      <div style="margin-top:2px"><span style="color:var(--green2);font-weight:700;font-size:10px">✓ Hạng FC / Máy kéo</span> <small style="color:var(--muted)">· 0918.234.567</small></div>
+                    </td>
+                    <td>
+                      <b>Cày lật sâu 35cm · Lô CN-A12</b>
+                      <small style="display:block;color:var(--muted)">Kế hoạch 24.0 ha (Đã xong 17.3 ha • Đạt 72%)</small>
+                    </td>
+                    <td>
+                      <b>115 L / 160 L</b>
+                      <small style="display:block;color:var(--muted)">Tiêu hao 71.8% • Giờ máy: 2.485h</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span class="progress" style="width:90px"><i style="width:72%"></i></span>
+                        <b>72%</b>
+                      </div>
+                      <small style="display:block;color:var(--muted);margin-top:2px">ETA: Còn ~1.5 giờ máy</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="status-pill">Đang cày ải</span>
+                        <button class="mini-btn">⌖ GPS</button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b style="font-size:12px">LVC-260823-011</b>
+                      <div><span class="tag blue">Vận chuyển nội bộ</span> <small style="color:var(--muted)">07:15 • Ca 1</small></div>
+                    </td>
+                    <td>
+                      <b style="color:var(--ink);font-size:12px">XT-HW-102</b>
+                      <small style="display:block;color:var(--muted)">Howo 4 chân 15T • Thùng lạnh (38 km/h)</small>
+                    </td>
+                    <td>
+                      <b>Trần Quốc Huy</b>
+                      <div style="margin-top:2px"><span style="color:var(--green2);font-weight:700;font-size:10px">✓ Hạng C</span> <small style="color:var(--muted)">· 0977.812.345</small></div>
+                    </td>
+                    <td>
+                      <b>Chở 14.2T chuối tươi ➔ Packhouse 2</b>
+                      <small style="display:block;color:var(--muted)">Lộ trình 18.5 km (Đã qua Trạm cân 1 • 14.230 kg)</small>
+                    </td>
+                    <td>
+                      <b>105 L / 220 L</b>
+                      <small style="display:block;color:var(--muted)">Tiêu hao 47.7% • Odo: 48.320 km</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span class="progress" style="width:90px"><i style="width:48%"></i></span>
+                        <b>48%</b>
+                      </div>
+                      <small style="display:block;color:var(--muted);margin-top:2px">Đến Packhouse sau ~15 phút</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="status-pill">Đang vận chuyển</span>
+                        <button class="mini-btn">⌖ GPS</button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b style="font-size:12px">LSX-260823-022</b>
+                      <div><span class="tag green">Lệnh sản xuất</span> <small style="color:var(--muted)">07:30 • Ca 1</small></div>
+                    </td>
+                    <td>
+                      <b style="color:var(--ink);font-size:12px">MG-KB-018</b>
+                      <small style="display:block;color:var(--muted)">Máy gặt đập Kubota DC-70 Plus (4.5 km/h)</small>
+                    </td>
+                    <td>
+                      <b>Lê Hoàng Nam</b>
+                      <div style="margin-top:2px"><span style="color:var(--green2);font-weight:700;font-size:10px">✓ CC Cơ giới NN</span> <small style="color:var(--muted)">· 0903.112.233</small></div>
+                    </td>
+                    <td>
+                      <b>Thu hoạch bắp sinh khối bò sữa · Lô SK-08</b>
+                      <small style="display:block;color:var(--muted)">Kế hoạch 12.0 ha (Đã xong 3.0 ha • Năng suất 2.1 ha/h)</small>
+                    </td>
+                    <td>
+                      <b>30 L / 120 L</b>
+                      <small style="display:block;color:var(--muted)">Tiêu hao 25.0% • Giờ máy: 1.890h</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span class="progress" style="width:90px"><i style="width:25%"></i></span>
+                        <b>25%</b>
+                      </div>
+                      <small style="display:block;color:var(--muted);margin-top:2px">Đang gom hạt lên xe trung chuyển</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="status-pill amber">Đang thu hoạch</span>
+                        <button class="mini-btn">⌖ GPS</button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b style="font-size:12px">LĐX-260823-026</b>
+                      <div><span class="tag amber">Điều động cơ giới</span> <small style="color:var(--muted)">08:00 • Ca 1</small></div>
+                    </td>
+                    <td>
+                      <b style="color:var(--ink);font-size:12px">XB-HN-045</b>
+                      <small style="display:block;color:var(--muted)">Hino FG8J 8m³ • Xe bồn tưới dưỡng ẩm</small>
+                    </td>
+                    <td>
+                      <b>Đỗ Thanh Hải</b>
+                      <div style="margin-top:2px"><span style="color:var(--green2);font-weight:700;font-size:10px">✓ Hạng C</span> <small style="color:var(--muted)">· 0945.678.901</small></div>
+                    </td>
+                    <td>
+                      <b>Tưới dưỡng ẩm lô chuối mới trồng · Lô CB-03</b>
+                      <small style="display:block;color:var(--muted)">Kế hoạch 3 lượt bồn 8m³ (Đã xong 2 lượt)</small>
+                    </td>
+                    <td>
+                      <b>45 L / 90 L</b>
+                      <small style="display:block;color:var(--muted)">Tiêu hao 50.0% • Giờ bơm: 3.120h</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span class="progress" style="width:90px"><i style="width:66%"></i></span>
+                        <b>66%</b>
+                      </div>
+                      <small style="display:block;color:var(--muted);margin-top:2px">Còn 1 lượt xả bồn nước</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="status-pill">Đang tưới ẩm</span>
+                        <button class="mini-btn">⌖ GPS</button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b style="font-size:12px">LĐX-260823-031</b>
+                      <div><span class="tag gray">Chờ xuất bến</span> <small style="color:var(--muted)">08:30 • Ca 1</small></div>
+                    </td>
+                    <td>
+                      <b style="color:var(--ink);font-size:12px">MU-KM-015</b>
+                      <small style="display:block;color:var(--muted)">Komatsu D65PX • Máy ủi bánh xích</small>
+                    </td>
+                    <td>
+                      <b>Keo Sarath</b>
+                      <div style="margin-top:2px"><span style="color:var(--green2);font-weight:700;font-size:10px">✓ CC Máy ủi</span> <small style="color:var(--muted)">· (+855) 88.991.223</small></div>
+                    </td>
+                    <td>
+                      <b>San gạt nền đường giao thông nội đồng NT2</b>
+                      <small style="display:block;color:var(--muted)">Kế hoạch 3.5 km đường lô nông trường</small>
+                    </td>
+                    <td>
+                      <b>0 L / 140 L</b>
+                      <small style="display:block;color:var(--muted)">Đã duyệt cấp phiếu dầu 140L</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:7px">
+                        <span class="progress" style="width:90px"><i style="width:0%"></i></span>
+                        <b>0%</b>
+                      </div>
+                      <small style="display:block;color:var(--muted);margin-top:2px">Chờ Quản đốc duyệt xuất bến</small>
+                    </td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="status-pill amber">Chờ xuất phát</span>
+                        <button class="btn btn-primary" style="height:26px;padding:0 10px;font-size:10px">✓ Xuất bến</button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card-foot">
+              <span>Hiển thị <b>5</b> trên tổng số <b>42</b> lệnh điều xe & vận chuyển trong ca trực hôm nay</span>
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="pagination">
+                  <button>‹</button>
+                  <button class="active">1</button>
+                  <button>2</button>
+                  <button>3</button>
+                  <button>...</button>
+                  <button>9</button>
+                  <button>›</button>
+                </div>
+                <button class="text-btn" style="font-weight:700">Mở phân hệ Lệnh điều xe →</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- HIỆU SUẤT VẬN HÀNH & ĐIỀU ĐỘ 9 CHỦNG LOẠI XE -->
+          <section class="card operation-card">
+            <div class="card-head">
+              <div>
+                <h2>Hiệu suất vận hành theo chu kỳ & Tình trạng điều độ 9 chủng loại xe cơ giới</h2>
+                <p>Thống kê tỷ lệ hoàn thành sản lượng kế hoạch vs thực tế theo khoảng ngày, tuần, tháng và cơ cấu 128 phương tiện</p>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="select-mini">Đơn vị: Sản lượng (Ha / Tấn) <span>⌄</span></button>
+                <button class="btn btn-light" style="height:32px;padding:0 12px;font-size:11px">↗ Xuất Excel</button>
+              </div>
+            </div>
+
+            <!-- THANH LỌC THỜI GIAN THEO KHOẢNG NGÀY, TUẦN, THÁNG -->
+            <div class="chart-filter-bar">
+              <div class="time-filter-tabs">
+                <button class="time-tab active">📅 Theo ngày (Khoảng ngày)</button>
+                <button class="time-tab">🗓 Theo tuần</button>
+                <button class="time-tab">📆 Theo tháng</button>
+              </div>
+
+              <div class="date-range-box">
+                <span class="date-icon">📅</span>
+                <span class="date-label">Từ:</span>
+                <input type="text" class="date-input" value="17/08/2026" />
+                <span class="date-arrow">➔</span>
+                <span class="date-label">Đến:</span>
+                <input type="text" class="date-input" value="23/08/2026" />
+                <button class="mini-filter-btn" title="Áp dụng lọc">Lọc</button>
+              </div>
+
+              <div class="quick-presets">
+                <span style="font-size:10px;color:var(--muted);margin-right:2px">Nhanh:</span>
+                <button class="preset-pill">Hôm nay</button>
+                <button class="preset-pill active">7 ngày qua</button>
+                <button class="preset-pill">Tuần này (W34)</button>
+                <button class="preset-pill">Tháng 08/2026</button>
+              </div>
+            </div>
+
+            <div class="op-split">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <b style="font-size:11px;color:var(--muted)">BIỂU ĐỒ HOÀN THÀNH KẾ HOẠCH THEO NGÀY (17/08 ➔ 23/08/2026)</b>
+                  <div style="display:flex;gap:12px;font-size:10px">
+                    <span><i style="width:8px;height:8px;background:#dbe6df;display:inline-block;border-radius:2px;margin-right:4px"></i>Kế hoạch giao</span>
+                    <span><i style="width:8px;height:8px;background:var(--green2);display:inline-block;border-radius:2px;margin-right:4px"></i>Thực tế đạt</span>
+                  </div>
+                </div>
+                <div class="chart-wrap" style="height:210px;padding:10px 0 14px">
+                  <div class="y-axis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0</span></div>
+                  <div class="bar-chart">
+                    <div class="bar-group"><i class="bar" style="height:61%"></i><i class="bar primary" style="height:75%"></i><label>T2<small style="display:block;font-size:7px;color:#9aa39f">17/08</small></label></div>
+                    <div class="bar-group"><i class="bar" style="height:72%"></i><i class="bar primary" style="height:81%"></i><label>T3<small style="display:block;font-size:7px;color:#9aa39f">18/08</small></label></div>
+                    <div class="bar-group"><i class="bar" style="height:55%"></i><i class="bar primary" style="height:68%"></i><label>T4<small style="display:block;font-size:7px;color:#9aa39f">19/08</small></label></div>
+                    <div class="bar-group"><i class="bar" style="height:74%"></i><i class="bar primary" style="height:88%"></i><label>T5<small style="display:block;font-size:7px;color:#9aa39f">20/08</small></label></div>
+                    <div class="bar-group"><i class="bar" style="height:68%"></i><i class="bar primary" style="height:83%"></i><label>T6<small style="display:block;font-size:7px;color:#9aa39f">21/08</small></label></div>
+                    <div class="bar-group"><i class="bar" style="height:77%"></i><i class="bar primary" style="height:91%"></i><label>T7<small style="display:block;font-size:7px;color:#9aa39f">22/08</small></label></div>
+                    <div class="bar-group"><i class="bar" style="height:66%"></i><i class="bar primary" style="height:78%"></i><label>CN<small style="display:block;font-size:7px;color:#9aa39f">23/08</small></label></div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="overflow-x:auto">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <b style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">PHÂN BỔ TRẠNG THÁI 9 CHỦNG LOẠI XE CƠ GIỚI (128 XE)</b>
+                  <div style="display:flex;gap:8px;font-size:10px">
+                    <span><i style="width:7px;height:7px;background:var(--green2);display:inline-block;border-radius:50%;margin-right:3px"></i>Đã giao việc</span>
+                    <span><i style="width:7px;height:7px;background:var(--amber);display:inline-block;border-radius:50%;margin-right:3px"></i>Chờ việc</span>
+                    <span><i style="width:7px;height:7px;background:var(--red);display:inline-block;border-radius:50%;margin-right:3px"></i>Bảo dưỡng</span>
+                  </div>
+                </div>
+                
+                <table class="fleet-status-table">
+                  <thead>
+                    <tr>
+                      <th>CHỦNG LOẠI XE</th>
+                      <th style="text-align:center">TỔNG</th>
+                      <th style="text-align:center;color:var(--green2)">ĐÃ GIAO VIỆC</th>
+                      <th style="text-align:center;color:var(--amber)">CHƯA GIAO VIỆC</th>
+                      <th style="text-align:center;color:var(--red)">BẢO DƯỠNG</th>
+                      <th style="text-align:center">TỶ LỆ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><b>Máy kéo lớn 140HP (John Deere)</b></td>
+                      <td style="text-align:center"><b>24</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">18 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">3 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">3 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="18 Chạy / 3 Chờ / 3 BTSC">
+                          <span class="bar-active" style="width:75%"></span>
+                          <span class="bar-idle" style="width:12.5%"></span>
+                          <span class="bar-btsc" style="width:12.5%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Máy kéo nhỏ 70-90HP (Kubota/NH)</b></td>
+                      <td style="text-align:center"><b>38</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">28 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">6 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">4 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="28 Chạy / 6 Chờ / 4 BTSC">
+                          <span class="bar-active" style="width:73.7%"></span>
+                          <span class="bar-idle" style="width:15.8%"></span>
+                          <span class="bar-btsc" style="width:10.5%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Xe tải Howo 4 chân 15T (Chở chuối)</b></td>
+                      <td style="text-align:center"><b>18</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">13 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">3 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">2 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="13 Chạy / 3 Chờ / 2 BTSC">
+                          <span class="bar-active" style="width:72.2%"></span>
+                          <span class="bar-idle" style="width:16.7%"></span>
+                          <span class="bar-btsc" style="width:11.1%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Xe tải Hino 8T (Nông sản & Vật tư)</b></td>
+                      <td style="text-align:center"><b>12</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">8 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">3 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">1 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="8 Chạy / 3 Chờ / 1 BTSC">
+                          <span class="bar-active" style="width:66.7%"></span>
+                          <span class="bar-idle" style="width:25%"></span>
+                          <span class="bar-btsc" style="width:8.3%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Xe ben tự đổ 15T (Đất đá & Phân bón)</b></td>
+                      <td style="text-align:center"><b>6</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">4 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">1 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">1 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="4 Chạy / 1 Chờ / 1 BTSC">
+                          <span class="bar-active" style="width:66.7%"></span>
+                          <span class="bar-idle" style="width:16.7%"></span>
+                          <span class="bar-btsc" style="width:16.7%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Máy gặt đập liên hợp Kubota DC-70</b></td>
+                      <td style="text-align:center"><b>4</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">3 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">1 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm" style="background:#edf0ee;color:#8c9691">0 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="3 Chạy / 1 Chờ / 0 BTSC">
+                          <span class="bar-active" style="width:75%"></span>
+                          <span class="bar-idle" style="width:25%"></span>
+                          <span class="bar-btsc" style="width:0%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Máy đào bánh xích thủy lợi (CAT)</b></td>
+                      <td style="text-align:center"><b>8</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">5 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">1 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">2 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="5 Chạy / 1 Chờ / 2 BTSC">
+                          <span class="bar-active" style="width:62.5%"></span>
+                          <span class="bar-idle" style="width:12.5%"></span>
+                          <span class="bar-btsc" style="width:25%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Máy ủi đất san gạt mặt bằng (Komatsu)</b></td>
+                      <td style="text-align:center"><b>6</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">4 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">1 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">1 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="4 Chạy / 1 Chờ / 1 BTSC">
+                          <span class="bar-active" style="width:66.7%"></span>
+                          <span class="bar-idle" style="width:16.7%"></span>
+                          <span class="bar-btsc" style="width:16.7%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><b>Xe chuyên dùng (Bồn dầu, Téc nước)</b></td>
+                      <td style="text-align:center"><b>12</b></td>
+                      <td style="text-align:center"><span class="badge-sm green">9 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm amber">2 xe</span></td>
+                      <td style="text-align:center"><span class="badge-sm red">1 xe</span></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" title="9 Chạy / 2 Chờ / 1 BTSC">
+                          <span class="bar-active" style="width:75%"></span>
+                          <span class="bar-idle" style="width:16.7%"></span>
+                          <span class="bar-btsc" style="width:8.3%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td><b>TỔNG CỘNG (TOÀN KHU LIÊN HỢP)</b></td>
+                      <td style="text-align:center"><b>128</b></td>
+                      <td style="text-align:center"><b style="color:var(--green2)">92 xe (71.9%)</b></td>
+                      <td style="text-align:center"><b style="color:var(--amber)">21 xe (16.4%)</b></td>
+                      <td style="text-align:center"><b style="color:var(--red)">15 xe (11.7%)</b></td>
+                      <td style="text-align:center">
+                        <div class="fleet-multi-bar" style="width:100%">
+                          <span class="bar-active" style="width:71.9%"></span>
+                          <span class="bar-idle" style="width:16.4%"></span>
+                          <span class="bar-btsc" style="width:11.7%"></span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="page_data.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

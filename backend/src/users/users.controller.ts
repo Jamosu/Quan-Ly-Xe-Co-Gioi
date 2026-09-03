@@ -1,0 +1,116 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Role, Unit } from '@prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { CreateUserDto } from './dto/create-user.dto';
+import { CreateDriverProfileDto } from './dto/create-driver-profile.dto';
+import { DriverProfileFilterDto } from './dto/driver-profile-filter.dto';
+import { UpdateDriverProfileDto } from './dto/update-driver-profile.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UsersService } from './users.service';
+
+@ApiTags('Users - Quản Lý Nhân Sự & Phân Quyền')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
+  @ApiOperation({ summary: 'Tạo người dùng / tài xế mới' })
+  async create(@Body() dto: CreateUserDto) {
+    return this.usersService.create(dto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Danh sách nhân sự (lọc theo Role, Unit, Search)' })
+  @ApiQuery({ name: 'role', enum: Role, required: false })
+  @ApiQuery({ name: 'unit', enum: Unit, required: false })
+  @ApiQuery({ name: 'search', type: String, required: false })
+  async findAll(
+    @Query('role') role?: Role,
+    @Query('unit') unit?: Unit,
+    @Query('search') search?: string,
+  ) {
+    return this.usersService.findAll(role, unit, search);
+  }
+
+  @Get('drivers')
+  @ApiOperation({ summary: 'Lấy danh sách tất cả tài xế' })
+  @ApiQuery({ name: 'unit', enum: Unit, required: false })
+  async findDrivers(@Query('unit') unit?: Unit) {
+    return this.usersService.findDrivers(unit);
+  }
+
+  @Get('drivers/profiles')
+  @ApiOperation({ summary: 'Danh sách hồ sơ lái xe/thợ vận hành đã hợp nhất với hồ sơ nhân sự' })
+  async findDriverProfiles(@Query() filter: DriverProfileFilterDto) {
+    return this.usersService.findDriverProfiles(filter);
+  }
+
+  @Get('drivers/profile-options')
+  @ApiOperation({ summary: 'Dữ liệu lọc và phương tiện dùng cho hồ sơ lái xe' })
+  async getDriverProfileOptions() {
+    return this.usersService.getDriverProfileOptions();
+  }
+
+  @Get('drivers/:id/profile')
+  @ApiOperation({ summary: 'Hồ sơ 360 độ của lái xe/thợ vận hành' })
+  async findDriverProfile(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findDriverProfile(id);
+  }
+
+  @Post('drivers/profiles')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
+  @ApiOperation({ summary: 'Tiếp nhận lái xe/thợ vận hành mới' })
+  async createDriverProfile(@Body() dto: CreateDriverProfileDto) {
+    return this.usersService.createDriverProfile(dto);
+  }
+
+  @Patch('drivers/:id/profile')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
+  @ApiOperation({ summary: 'Cập nhật hồ sơ lái xe/thợ vận hành' })
+  async updateDriverProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDriverProfileDto,
+  ) {
+    return this.usersService.updateDriverProfile(id, dto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Xem chi tiết thông tin nhân sự' })
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findOne(id);
+  }
+
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
+  @ApiOperation({ summary: 'Cập nhật thông tin nhân sự' })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.usersService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Vô hiệu hóa tài khoản' })
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.remove(id);
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Master Data & Catalogs"
+  short_description: "Manage Fleet reference and catalog data"
+  default_prompt: "Use $master-data-catalogs to work on units, vehicle types, jobs, plots, routes, spare parts, quotas, or bulk catalog sync."

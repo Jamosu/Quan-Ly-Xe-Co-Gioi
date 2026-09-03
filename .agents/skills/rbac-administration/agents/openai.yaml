@@ -1,0 +1,4 @@
+interface:
+  display_name: "RBAC & Administration"
+  short_description: "Change authentication, roles, users, and units"
+  default_prompt: "Use $rbac-administration to review or modify authentication, role guards, user administration, unit access, or audit behavior."

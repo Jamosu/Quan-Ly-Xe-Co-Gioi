@@ -1,0 +1,4 @@
+interface:
+  display_name: "Driver Operations & KPI"
+  short_description: "Change driver mobile operations and KPI"
+  default_prompt: "Use $driver-operations-kpi to work on driver records, assignments, mobile trips, violations, KPI, or SOS."

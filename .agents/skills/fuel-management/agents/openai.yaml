@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fuel Management"
+  short_description: "Change fuel stock, dispensing, and variance"
+  default_prompt: "Use $fuel-management to work on fuel warehouses, dispense tickets, quotas, reconciliation, or excess alerts."

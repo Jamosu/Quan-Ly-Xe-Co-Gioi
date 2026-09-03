@@ -1,0 +1,4 @@
+interface:
+  display_name: "React Frontend"
+  short_description: "Follow this Fleet React UI architecture"
+  default_prompt: "Use $react-frontend to implement or review Fleet React pages, routes, components, filters, stores, and API mappings."

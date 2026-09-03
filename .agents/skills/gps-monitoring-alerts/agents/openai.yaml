@@ -1,0 +1,4 @@
+interface:
+  display_name: "GPS Monitoring & Alerts"
+  short_description: "Build GPS, geofence, telemetry, and alerts"
+  default_prompt: "Use $gps-monitoring-alerts to modify GPS monitoring, telemetry, geofence, route, offline, speed, or SOS behavior."

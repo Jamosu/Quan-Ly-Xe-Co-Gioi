@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prisma Database"
+  short_description: "Work safely with the Fleet Prisma schema"
+  default_prompt: "Use $prisma-database to inspect or change Fleet Prisma models, relations, constraints, queries, migrations, or seed data."

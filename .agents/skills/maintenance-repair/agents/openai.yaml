@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintenance & Repair"
+  short_description: "Change maintenance and workshop workflows"
+  default_prompt: "Use $maintenance-repair to modify maintenance scheduling, workshop repair, owed parts, inspections, or vehicle service status."

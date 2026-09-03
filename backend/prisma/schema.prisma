@@ -1,0 +1,1308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 1. ENUMS (PHÂN LOẠI & TRẠNG THÁI NGHIỆP VỤ)
+// ==========================================
+
+enum Role {
+  SUPER_ADMIN
+  DISPATCHER
+  FARM_MANAGER
+  WORKSHOP_MANAGER
+  FUEL_STOREKEEPER
+  DRIVER
+}
+
+enum Unit {
+  NT1
+  NT2
+  XN_BO
+  TT_BTSC
+  BAN_CO_GIOI
+  TOAN_KLH
+}
+
+enum DriverEmploymentStatus {
+  DANG_LAM_VIEC // Còn làm việc
+  DA_NGHI_VIEC // Đã nghỉ việc / Chấm dứt HĐLĐ
+}
+
+enum DriverShiftStatus {
+  DANG_VAN_HANH // Đang lái máy / Chạy ca (Được giao việc)
+  SAN_SANG // Sẵn sàng nhận lệnh (Chờ phân công)
+  NGHI_PHEP_CA // Nghỉ phép ca / Nghỉ luân phiên
+}
+
+enum DriverLicenseClass {
+  BANG_MAY_NONG_NGHIEP // Bằng máy nông nghiệp (Máy kéo, Máy gặt)
+  HANG_C // Bằng C (Xe tải >3.5T)
+  HANG_FC // Bằng FC (Đầu kéo Container 40ft)
+  HANG_B2 // Bằng B2 (Xe bán tải)
+  HANG_D // Bằng D (Xe chở người)
+}
+
+enum VehicleCategory {
+  // Nhóm 1 - Máy công trình
+  MAY_DAO
+  MAY_UI
+  MAY_SAN
+  MAY_LU
+  MAY_XUC_LAT
+  XE_XUC
+
+  // Nhóm 2 - Máy nông nghiệp
+  MAY_CAY
+  MAY_KEO
+  MAY_GAT_DAP
+
+  // Nhóm 3 - Xe vận tải & Công vụ
+  XE_TAI
+  XE_BEN
+  XE_BON
+  XE_CONTAINER
+  XE_BAN_TAI
+  XE_CHUYEN_DUNG
+  XE_CONG_VU
+  XE_CHO_NGUOI
+
+  // Nhóm 4 - Máy móc & Thiết bị phụ trợ
+  XE_NANG
+  MAY_PHAT_DIEN
+  MAY_PHAT_CO
+  MAY_CUA
+  MAY_BOM
+  XE_MAY_2_BANH
+  THIET_BI_NONG_CU
+}
+
+enum FuelQuotaUnit {
+  L_PER_HOUR // Lít / Giờ máy (L/h)
+  L_PER_KM // Lít / 100km (L/100km)
+  L_PER_HA // Lít / Ha (L/ha)
+}
+
+enum VehicleStatus {
+  HOAT_DONG
+  TAM_DUNG
+  BAO_DUONG
+  SUA_CHUA
+  CHO_PHAN_CONG
+}
+
+enum MaintenanceAlertTier {
+  GREEN // An toàn (0 - 200h)
+  AMBER // Sắp đến hạn (200 - 250h)
+  RED // Quá hạn bảo dưỡng (> 250h)
+}
+
+enum ImplementCategory {
+  DAN_CAY
+  DAN_BUA
+  DAN_XOI
+  DAN_RAI_PHAN
+  RO_MOOC
+  DAN_PHUN_THUOC
+}
+
+enum ImplementStatus {
+  ATTACHED
+  IN_DEPOT
+  MAINTENANCE
+}
+
+enum TechnicalCondition {
+  GOOD
+  WORN_OUT
+  NEED_REPAIR
+}
+
+enum ProductionStage {
+  LAM_DAT // Giai đoạn 1: Làm đất (Cày sâu 30cm, Bừa đĩa, Xới tơi, Lên luống)
+  TRONG_MOI // Giai đoạn 2: Trồng mới (Đào hố, Bón lót, Đặt giống, Lắp tưới)
+  THU_HOACH // Giai đoạn 3: Thu hoạch (Cắt buồng, Kéo cáp, Gom mooc)
+}
+
+enum PlanStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+  ADJUSTED
+  CANCELLED
+}
+
+enum PlotStatus {
+  CHUA_THUC_HIEN
+  DANG_THUC_HIEN
+  HOAN_THANH
+}
+
+enum DispatchStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ASSIGNED
+  DRIVER_ACCEPTED
+  DEPARTED
+  WORKING
+  COMPLETED
+  ACCEPTED
+  CLOSED
+  REJECTED
+  CANCELLED
+}
+
+enum RouteType {
+  ONE_WAY
+  TWO_WAY
+}
+
+enum TransportStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ASSIGNED
+  DRIVER_ACCEPTED
+  AT_PICKUP
+  LOADING
+  DEPARTED
+  IN_TRANSIT
+  AT_DELIVERY
+  UNLOADING
+  DELIVERED
+  ACCEPTED
+  COMPLETED
+}
+
+enum DispatchSourceType {
+  MANUAL
+  PRODUCTION_ORDER
+  IMPORT
+}
+
+enum TransportFlowType {
+  STANDARD
+  LIVESTOCK_FEED_3_LEG
+}
+
+enum OperationalEntityType {
+  PRODUCTION_PLAN
+  PRODUCTION_ORDER
+  DISPATCH_ORDER
+  TRANSPORT_ORDER
+  OPERATION_CONFIRMATION
+}
+
+enum OperationConfirmationType {
+  WEIGHT
+  GPS
+}
+
+enum OperationConfirmationStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum TransportImportStatus {
+  COMMITTED
+  FAILED
+}
+
+enum ReturnDriverStatus {
+  EMPTY_DISPATCHED
+  RETURN_LOADED
+  RETURN_DELIVERED
+}
+
+enum FeedGroupType {
+  PHU_PHAM_CHUOI
+  CO_VOI
+  TMR_VO_BEO
+  BA_BIA
+  CAM_VIEN
+  KHOANG_PREMIX
+}
+
+enum SlaStatus {
+  ON_TIME
+  DELAYED
+}
+
+enum WarehouseType {
+  STATIONARY_TANK_45000L // Bồn cố định 45.000L Trung tâm
+  MOBILE_TRUCK_5000L // Xe bồn lưu động 5.000L
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_SERVICE
+  COMPLETED
+}
+
+enum RepairTier {
+  TIEU_TU
+  TRUNG_TU
+  DAI_TU
+  SOS_CUU_HO
+}
+
+enum RepairStatus {
+  RECEIVED
+  IN_REPAIR
+  WAITING_PARTS
+  COMPLETED
+}
+
+enum KpiGrade {
+  HANG_A // Xuất sắc (>= 90đ)
+  HANG_B // Đạt chuẩn (75 - 89đ)
+  HANG_C // Cần cải thiện (50 - 74đ)
+  HANG_D // Yếu kém (< 50đ)
+}
+
+enum SosEmergencyType {
+  HONG_MAY
+  THUNG_LOP
+  SA_LAY_RUONG
+  TAI_NAN
+  HET_DAU_DOT_XUAT
+}
+
+enum SosStatus {
+  PENDING
+  DISPATCHED
+  RESOLVED
+}
+
+// ==========================================
+// 2. DATA MODELS (CẤU TRÚC BẢNG DỮ LIỆU)
+// ==========================================
+
+model User {
+  id                    Int                    @id @default(autoincrement())
+  code                  String                 @unique // Mã nhân sự / Mã TX: TX-NT1-001, CB-KLH-01
+  username              String                 @unique
+  passwordHash          String
+  fullName              String
+  phone                 String?
+  role                  Role                   @default(DRIVER)
+  unit                  Unit                   @default(NT1)
+  employmentStatus      DriverEmploymentStatus @default(DANG_LAM_VIEC)
+  joinedDate            DateTime               @default(now()) // Ngày gia nhập để tính thâm niên
+  resignedDate          DateTime? // Ngày nghỉ việc (nếu DA_NGHI_VIEC)
+  resignedReason        String?                @db.Text
+  licenseClass          DriverLicenseClass?    @default(BANG_MAY_NONG_NGHIEP)
+  licenseNumber         String?
+  licenseExpiryDate     DateTime?
+  healthCheckExpiryDate DateTime?
+  currentShiftStatus    DriverShiftStatus?     @default(SAN_SANG)
+  currentLocation       String?                @default("Bãi Xe Trung Tâm")
+  assignedVehicleId     Int?
+  avatarUrl             String?                @db.Text
+  isActive              Boolean                @default(true)
+  notes                 String?                @db.Text
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  // Quan hệ
+  assignedVehicle      Vehicle?                 @relation("UserAssignedVehicle", fields: [assignedVehicleId], references: [id], onDelete: SetNull)
+  drivenVehicles       Vehicle[]                @relation("DefaultDriver")
+  secondaryVehicles    Vehicle[]                @relation("SecondaryDriver")
+  implementLogs        ImplementAttachmentLog[] @relation("ActorLogs")
+  productionPlans      ProductionPlan[]         @relation("SupervisorPlans")
+  plotProgresses       ProductionPlotProgress[] @relation("DriverPlots")
+  auditTrails          ProductionAuditTrail[]   @relation("AuditActor")
+  productionPlansCreated ProductionPlan[]        @relation("ProductionPlanCreator")
+  productionPlansApproved ProductionPlan[]       @relation("ProductionPlanApprover")
+  productionOrdersCreated ProductionOrder[]      @relation("ProductionOrderCreator")
+  dispatchOrdersReq    DispatchOrder[]          @relation("RequesterDispatch")
+  dispatchOrdersDriven DispatchOrder[]          @relation("DriverDispatch")
+  dispatchOrdersApproved DispatchOrder[]         @relation("DispatchApprover")
+  dispatchOrdersAssigned DispatchOrder[]         @relation("DispatchAssigner")
+  dispatchOrdersAccepted DispatchOrder[]         @relation("DispatchAcceptor")
+  transportOrders      TransportOrder[]         @relation("DriverTransport")
+  transportOrdersApproved TransportOrder[]       @relation("TransportApprover")
+  operationalAuditLogs OperationalAuditLog[]     @relation("OperationalAuditActor")
+  operationConfirmationsCreated OperationConfirmation[] @relation("ConfirmationCreator")
+  operationConfirmationsConfirmed OperationConfirmation[] @relation("ConfirmationConfirmer")
+  transportImportBatches TransportImportBatch[]  @relation("TransportImportActor")
+  feedTrips            InternalFeedTrip[]       @relation("DriverFeedTrip")
+  feedMaterialsCreated FeedRawMaterial[]        @relation("MaterialCreator")
+  fuelTicketsOperated  FuelDispenseTicket[]     @relation("OperatorTicket")
+  fuelTicketsReceived  FuelDispenseTicket[]     @relation("DriverFuelTicket")
+  maintenanceRecords   MaintenanceRecord[]      @relation("TechnicianMaintenance")
+  repairsReported      RepairTicket[]           @relation("DriverRepairs")
+  repairsAssigned      RepairTicket[]           @relation("TechnicianRepairs")
+  kpis                 DriverKpi[]              @relation("DriverKpiRel")
+  sosAlerts            DriverSosAlert[]         @relation("DriverSosRel")
+
+  @@index([role])
+  @@index([unit])
+  @@index([employmentStatus])
+  @@index([currentShiftStatus])
+  @@map("users")
+}
+
+model VehicleType {
+  id                      Int              @id @default(autoincrement())
+  code                    String           @unique
+  name                    String
+  assetGroup              String?
+  category                VehicleCategory?
+  parentId                Int?
+  defaultMaintenanceHours Float            @default(250)
+  defaultFuelQuotaRate    Float?
+  defaultFuelQuotaUnit    FuelQuotaUnit?
+  requiredLicenseClass    DriverLicenseClass?
+  active                  Boolean          @default(true)
+  description             String?          @db.Text
+  sourceLabels            Json?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  parent   VehicleType?  @relation("VehicleTypeHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children VehicleType[] @relation("VehicleTypeHierarchy")
+  vehicles Vehicle[]
+  productionPlanItems ProductionPlanItem[]
+
+  @@index([assetGroup])
+  @@index([category])
+  @@index([parentId])
+  @@index([active])
+  @@map("vehicle_types")
+}
+
+model VehicleManufacturer {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique // Tên chuẩn (THACO AGRI, KOMATSU, CATERPILLAR...)
+  aliases      Json?    // Danh sách alias đã biết (["THACO", "THACOAGRI"])
+  countryCode  String?  // ISO 3166-1 alpha-2 (VN, JP, KR, CN...)
+  countryName  String?  // Tên quốc gia tiếng Việt (VIỆT NAM, NHẬT BẢN...)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  models   VehicleModel[]
+  vehicles Vehicle[]
+
+  @@index([countryCode])
+  @@index([active])
+  @@map("vehicle_manufacturers")
+}
+
+model VehicleModel {
+  id              Int      @id @default(autoincrement())
+  name            String   // Tên model (SK200-08, 6140B, HD270...)
+  manufacturerId  Int
+  categoryHint    VehicleCategory? // Gợi ý loại xe (nếu model chỉ dùng cho 1 loại)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  manufacturer VehicleManufacturer @relation(fields: [manufacturerId], references: [id], onDelete: Cascade)
+  vehicles     Vehicle[]
+
+  @@unique([name, manufacturerId])
+  @@index([manufacturerId])
+  @@index([active])
+  @@map("vehicle_models")
+}
+
+model Vehicle {
+  id                Int             @id @default(autoincrement())
+  code              String          @unique // Mã MMTB mới (TT, Mã MMTB mới)
+  oldCode           String? // Mã MMTB cũ
+  bravoCode         String? // Mã Bravo
+  plate             String? // Biển số xe
+  purchaseCondition String? // Tình trạng mua (Mua mới / ĐQSD...)
+  name              String // Tên MMTB
+  category          VehicleCategory
+  vehicleTypeId     Int?
+  assetGroup        String?
+  vehicleSubtype    String?
+  unit              Unit            @default(BAN_CO_GIOI)
+  complexCode       String          @default("KOUN_MOM")
+  assignedUnitCode  String? // Đơn vị sử dụng (CGTC DP, XN Chuối DP1...)
+  regionCode        String? // Khu vực (DP, LP, AD, KLH)
+  allocationDate    DateTime? // Ngày phân bổ
+  conditionStatus   String? // Tình trạng (Bình thường / Hỏng...)
+  transferHistory   String?         @db.Text // Lịch sử điều chuyển
+  manufacturer      String? // NHÃN HIỆU (KOBELCO, SUMITOMO, HOWO, HINO...)
+  origin            String? // XUẤT XỨ (NHẬT BẢN, HÀN QUỐC, TRUNG QUỐC, MỸ...)
+  manufactureYear   Int? // NĂM SX
+  modelName         String? // MODEL (SK200-08, 6140B, HD270...)
+  powerHp           String? // CÔNG SUẤT (140HP, 150 KW, 110cc...)
+  frameNumber       String? // Số khung
+  engineNumber      String? // Số máy
+  fuelQuotaRate     Float? // Định mức nhiên liệu (l/h) hoặc (l/km)
+  fuelQuotaUnit     FuelQuotaUnit   @default(L_PER_HOUR)
+  fuelTankCapacity  Float? // Dung tích thùng nhiên liệu (lít)
+  supplier          String? // NHÀ CUNG CẤP
+  notes             String?         @db.Text // Ghi chú
+  imageUrl          String?         @db.Text // Hình ảnh MMTB
+  technicalSpecs    String?         @db.Text
+  dimensions        String?
+  productivity      String?
+
+  // Master Data FK (optional, backfill từ raw fields)
+  manufacturerRefId Int? // FK → VehicleManufacturer
+  modelRefId        Int? // FK → VehicleModel
+
+  // Kế toán & Pháp nhân
+  assetCode            String? // Mã tài sản kế toán
+  contractStatus       String? // Tình trạng hợp đồng / tài sản
+  companyOwner         String? // Pháp nhân sở hữu (THACO AGRI...)
+  inspectionDate       DateTime?
+  inspectionExpiryDate DateTime? // Hạn đăng kiểm (theo luật Campuchia)
+  nextInspectionDate   DateTime?
+  roadFeeDate          DateTime?
+  roadFeeExpiryDate    DateTime?
+  nextRoadFeeDate      DateTime?
+  sourceSheets         Json?
+  importMetadata       Json?
+
+  defaultDriverId       Int?
+  secondaryDriverId     Int?
+  status                VehicleStatus        @default(CHO_PHAN_CONG)
+  totalMachineHours     Float                @default(0)
+  hoursSinceLastService Float                @default(0) // 0-250h
+  alertTier             MaintenanceAlertTier @default(GREEN)
+  odoKm                 Float                @default(0)
+  fuelRateStandard      Float                @default(12.5) // L/h hoặc L/100km
+
+  // GPS Sensor - để trống/optional, sẵn sàng gán sau
+  gpsImei             String?
+  fuelSensorImei      String?
+  currentLat          Float?    @default(13.5678)
+  currentLng          Float?    @default(106.8901)
+  currentLocationName String?   @default("Khu liên hợp Koun Mom")
+  lastGpsUpdate       DateTime?
+  managerName         String?   // Nhân sự quản lý (từ sheet XE & MÁY CG AGRI)
+  managerPhone        String?   // Số liên lạc / Zalo
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Quan hệ
+  vehicleType        VehicleType?             @relation(fields: [vehicleTypeId], references: [id], onDelete: SetNull)
+  manufacturerRef    VehicleManufacturer?     @relation(fields: [manufacturerRefId], references: [id], onDelete: SetNull)
+  modelRef           VehicleModel?            @relation(fields: [modelRefId], references: [id], onDelete: SetNull)
+  defaultDriver      User?                    @relation("DefaultDriver", fields: [defaultDriverId], references: [id], onDelete: SetNull)
+  secondaryDriver    User?                    @relation("SecondaryDriver", fields: [secondaryDriverId], references: [id], onDelete: SetNull)
+  assignedUsers      User[]                   @relation("UserAssignedVehicle")
+  currentImplements  AgriculturalImplement[]  @relation("VehicleImplement")
+  implementLogs      ImplementAttachmentLog[]
+  plotProgresses     ProductionPlotProgress[]
+  dispatchOrders     DispatchOrder[]
+  transportOrders    TransportOrder[]
+  feedTrips          InternalFeedTrip[]
+  fuelTickets        FuelDispenseTicket[]
+  maintenanceRecords MaintenanceRecord[]
+  owedPartNotes      WorkshopOwedPartNote[]
+  repairTickets      RepairTicket[]
+  sosAlerts          DriverSosAlert[]
+
+  @@index([category])
+  @@index([vehicleTypeId])
+  @@index([assetGroup])
+  @@index([unit])
+  @@index([complexCode])
+  @@index([status])
+  @@index([alertTier])
+  @@index([plate])
+  @@index([bravoCode])
+  @@index([oldCode])
+  @@index([assetCode])
+  @@index([assignedUnitCode])
+  @@index([regionCode])
+  @@index([manufacturer])
+  @@index([modelName])
+  @@index([manufactureYear])
+  @@index([manufacturerRefId])
+  @@index([modelRefId])
+  @@map("vehicles")
+}
+
+model AgriculturalImplement {
+  id                 Int                @id @default(autoincrement())
+  code               String             @unique // TB-DC-04, TB-BD-12, TB-RP-02
+  name               String // Dàn cày 4 chảo Kubota, Dàn bừa đĩa 24 chảo
+  category           ImplementCategory
+  unit               Unit
+  currentVehicleId   Int?
+  status             ImplementStatus    @default(IN_DEPOT)
+  technicalCondition TechnicalCondition @default(GOOD)
+  standardPurpose    String? // Cày lật đất sâu 30cm, Phay xới đất tơi xốp
+  attachedAt         DateTime?
+  managerName        String? // Nhân sự quản lý (Nguyễn Tấn Triều...)
+  gatheringLocation  String? // Địa chỉ / Nơi tập kết (Lô 85 DP4, LP3.5-LP3...)
+  managerPhone       String? // Số liên lạc (Zalo)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Quan hệ
+  currentVehicle Vehicle?                 @relation("VehicleImplement", fields: [currentVehicleId], references: [id], onDelete: SetNull)
+  attachmentLogs ImplementAttachmentLog[]
+  dispatchOrders DispatchOrder[]
+  transportOrders TransportOrder[]
+
+  @@index([category])
+  @@index([unit])
+  @@index([status])
+  @@map("agricultural_implements")
+}
+
+model ImplementAttachmentLog {
+  id          Int       @id @default(autoincrement())
+  vehicleId   Int
+  implementId Int
+  actorId     Int
+  attachedAt  DateTime  @default(now())
+  detachedAt  DateTime?
+  startWearMm Float     @default(0) // Độ mòn lúc bắt đầu (mm)
+  endWearMm   Float? // Độ mòn khi tháo ra (mm)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  // Quan hệ
+  vehicle   Vehicle               @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  implement AgriculturalImplement @relation(fields: [implementId], references: [id], onDelete: Cascade)
+  actor     User                  @relation("ActorLogs", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@index([implementId])
+  @@index([actorId])
+  @@map("implement_attachment_logs")
+}
+
+model ProductionPlan {
+  id                    Int             @id @default(autoincrement())
+  code                  String          @unique // KH-2026-NT1-008
+  title                 String // Kế hoạch làm đất vụ Chuối 2026 - NT1
+  stage                 ProductionStage @default(LAM_DAT)
+  unit                  Unit            @default(NT1)
+  lotPlot               String // Lô A01-A04, Khoảnh 4
+  targetAreaHa          Float           @default(0)
+  completedAreaHa       Float           @default(0)
+  assignedVehiclesCount Int             @default(0)
+  fuelQuotaLiters       Float           @default(0)
+  fuelUsedLiters        Float           @default(0)
+  supervisorId          Int?
+  startDate             DateTime
+  endDate               DateTime
+  weekStart             DateTime?
+  complexCode           String          @default("KOUN_MOM")
+  createdById           Int?
+  approvedById          Int?
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  rejectedAt            DateTime?
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  status                PlanStatus      @default(DRAFT)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  // Quan hệ
+  supervisor     User?                    @relation("SupervisorPlans", fields: [supervisorId], references: [id], onDelete: SetNull)
+  createdBy      User?                    @relation("ProductionPlanCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy     User?                    @relation("ProductionPlanApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  plotProgresses ProductionPlotProgress[]
+  auditTrails    ProductionAuditTrail[]
+  items          ProductionPlanItem[]
+  productionOrders ProductionOrder[]
+
+  @@index([stage])
+  @@index([unit])
+  @@index([status])
+  @@index([complexCode])
+  @@index([weekStart])
+  @@map("production_plans")
+}
+
+model ProductionPlanItem {
+  id                 Int             @id @default(autoincrement())
+  planId             Int
+  workDate           DateTime
+  shift              String
+  plotName           String
+  stage              ProductionStage
+  jobName            String
+  targetQuantity     Float           @default(0)
+  targetUnit         String          @default("ha")
+  vehicleTypeId      Int?
+  plannedVehicleCount Int            @default(0)
+  plannedMachineHours Float          @default(0)
+  quotaValue         Float?
+  quotaUnit          FuelQuotaUnit?
+  notes              String?         @db.Text
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  plan               ProductionPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  vehicleType        VehicleType?     @relation(fields: [vehicleTypeId], references: [id], onDelete: SetNull)
+  productionOrders   ProductionOrder[]
+
+  @@index([planId, workDate])
+  @@index([vehicleTypeId])
+  @@map("production_plan_items")
+}
+
+model ProductionOrder {
+  id             Int       @id @default(autoincrement())
+  code           String    @unique
+  planId         Int
+  planItemId     Int?
+  unit           Unit
+  title          String
+  location       String
+  plannedStart   DateTime?
+  plannedEnd     DateTime?
+  createdById    Int?
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  plan           ProductionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planItem       ProductionPlanItem? @relation(fields: [planItemId], references: [id], onDelete: SetNull)
+  createdBy      User? @relation("ProductionOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  dispatchOrders DispatchOrder[]
+
+  @@index([planId])
+  @@index([planItemId])
+  @@index([unit])
+  @@map("production_orders")
+}
+
+model ProductionPlotProgress {
+  id                 Int        @id @default(autoincrement())
+  planId             Int
+  plotName           String // Lô A01, Lô A02...
+  taskName           String? // Cày lật 30cm, Bừa đĩa 24 chảo, Đào hố trồng, Cắt buồng
+  areaHa             Float
+  status             PlotStatus @default(CHUA_THUC_HIEN)
+  receivedAt         DateTime?
+  completedAt        DateTime?
+  actualMachineHours Float      @default(0)
+  actualFuelLiters   Float      @default(0)
+  driverId           Int?
+  vehicleId          Int?
+  isSettledFinance   Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  // Quan hệ
+  plan    ProductionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  driver  User?          @relation("DriverPlots", fields: [driverId], references: [id], onDelete: SetNull)
+  vehicle Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([driverId])
+  @@index([vehicleId])
+  @@map("production_plot_progresses")
+}
+
+model ProductionAuditTrail {
+  id         Int      @id @default(autoincrement())
+  planId     Int
+  actorId    Int
+  action     String // DIEU_CHINH_DIEN_TICH, THAY_DOI_DINH_MUC_DAU, DOI_LICH_TRINH
+  reason     String   @db.Text
+  approvedBy String? // GĐ Nông trường xác nhận
+  timestamp  DateTime @default(now())
+
+  // Quan hệ
+  plan  ProductionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  actor User           @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([actorId])
+  @@map("production_audit_trails")
+}
+
+model DispatchOrder {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique // LC-2026-0512
+  requesterId   Int
+  unit          Unit
+  purpose       String // San gạt mặt bằng đường giao thông nội đồng Lô B
+  origin        String // Kho cơ giới Trung tâm
+  destination   String // Lô B04 - NT2
+  sourceType    DispatchSourceType @default(MANUAL)
+  productionOrderId Int?
+  implementId   Int?
+  vehicleId     Int?
+  driverId      Int?
+  departureTime DateTime?
+  plannedEndTime DateTime?
+  actualDepartureTime DateTime?
+  actualStartTime DateTime?
+  actualCompletedTime DateTime?
+  returnTime    DateTime?
+  approvedById  Int?
+  assignedById  Int?
+  acceptedById  Int?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  assignedAt    DateTime?
+  driverAcceptedAt DateTime?
+  acceptedAt    DateTime?
+  closedAt      DateTime?
+  cancelledAt   DateTime?
+  rejectionReason String? @db.Text
+  legacyVehicle String?
+  legacyDriver  String?
+  legacyImplement String?
+  status        DispatchStatus @default(DRAFT)
+  isDelayed     Boolean        @default(false)
+  notes         String?        @db.Text
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Quan hệ
+  requester User    @relation("RequesterDispatch", fields: [requesterId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driver    User?    @relation("DriverDispatch", fields: [driverId], references: [id], onDelete: SetNull)
+  productionOrder ProductionOrder? @relation(fields: [productionOrderId], references: [id], onDelete: SetNull)
+  implement AgriculturalImplement? @relation(fields: [implementId], references: [id], onDelete: SetNull)
+  approvedBy User? @relation("DispatchApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  assignedBy User? @relation("DispatchAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  acceptedBy User? @relation("DispatchAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  confirmations OperationConfirmation[]
+
+  @@index([unit])
+  @@index([status])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([productionOrderId])
+  @@index([implementId])
+  @@index([departureTime, plannedEndTime])
+  @@map("dispatch_orders")
+}
+
+model TransportOrder {
+  id              Int             @id @default(autoincrement())
+  code            String          @unique // VC-2026-089
+  routeType       RouteType       @default(ONE_WAY)
+  flowType        TransportFlowType @default(STANDARD)
+  requestDate     DateTime?
+  executionDate   DateTime?
+  unit            Unit            @default(BAN_CO_GIOI)
+  cargoType       String?
+  tonnage         Float           @default(0)
+  origin          String?
+  destination     String?
+  vehicleId       Int?
+  driverId        Int?
+  trailerId       Int?
+  containerNumber String?
+  transportMode   String?
+  departureTime   DateTime?
+  plannedEndTime  DateTime?
+  arrivalTime     DateTime?
+  distanceKm      Float           @default(0)
+  plannedFuelLiters Float?
+  actualFuelLiters Float?
+  palletCount     Int?
+  trailerNote     String?
+  notes           String?         @db.Text
+  legacyVehicle   String?
+  legacyDriver    String?
+  legacyTrailer   String?
+  approvedById    Int?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  assignedAt      DateTime?
+  driverAcceptedAt DateTime?
+  pickupAt        DateTime?
+  loadingAt       DateTime?
+  departedAt      DateTime?
+  deliveryAt      DateTime?
+  unloadingAt     DateTime?
+  deliveredAt     DateTime?
+  acceptedAt      DateTime?
+  completedAt     DateTime?
+  speedKmH        Float           @default(0)
+  maxSpeedLimit   Float           @default(70)
+  isRouteDeviated Boolean         @default(false)
+  deviationReason String?         @db.Text
+  status          TransportStatus @default(DRAFT)
+
+  // Tuyến Đối Lưu (Chiều Về)
+  returnCargoName    String? // 22T Phân bón NPK 16-16-8
+  returnTonnage      Float?             @default(0)
+  returnDestination  String? // Kho vật tư Nông trường 1
+  returnDriverStatus ReturnDriverStatus @default(EMPTY_DISPATCHED)
+  costSavedVnd       Float              @default(0) // 1.250.000 VNĐ nhờ chạy đối lưu
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Quan hệ
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driver  User?    @relation("DriverTransport", fields: [driverId], references: [id], onDelete: SetNull)
+  trailer AgriculturalImplement? @relation(fields: [trailerId], references: [id], onDelete: SetNull)
+  approvedBy User? @relation("TransportApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  items TransportItem[]
+  confirmations OperationConfirmation[]
+
+  @@index([routeType])
+  @@index([status])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([unit])
+  @@index([executionDate])
+  @@index([departureTime, plannedEndTime])
+  @@map("transport_orders")
+}
+
+model TransportItem {
+  id              Int      @id @default(autoincrement())
+  transportOrderId Int
+  materialCode    String?
+  cargoName       String
+  unitOfMeasure   String
+  plannedQuantity Float    @default(0)
+  actualQuantity  Float?
+  pickupLocation  String?
+  deliveryLocation String?
+  notes           String?  @db.Text
+  sourceRowNumber Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transportOrder TransportOrder @relation(fields: [transportOrderId], references: [id], onDelete: Cascade)
+
+  @@index([transportOrderId])
+  @@index([materialCode])
+  @@map("transport_items")
+}
+
+model OperationalAuditLog {
+  id          Int                   @id @default(autoincrement())
+  entityType  OperationalEntityType
+  entityId    Int
+  actorId     Int
+  action      String
+  oldValue    Json?
+  newValue    Json?
+  reason      String?               @db.Text
+  legacyProductionAuditTrailId Int? @unique
+  createdAt   DateTime              @default(now())
+
+  actor       User @relation("OperationalAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("operational_audit_logs")
+}
+
+model OperationConfirmation {
+  id              Int                         @id @default(autoincrement())
+  code            String                      @unique
+  type            OperationConfirmationType
+  status          OperationConfirmationStatus @default(PENDING)
+  dispatchOrderId Int?
+  transportOrderId Int?
+  grossWeightTons Float?
+  tareWeightTons  Float?
+  netWeightTons   Float?
+  measuredAreaHa  Float?
+  machineHours    Float?
+  routeLocation   String?
+  createdById     Int
+  confirmedById   Int?
+  confirmedAt     DateTime?
+  notes           String?                     @db.Text
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  dispatchOrder   DispatchOrder? @relation(fields: [dispatchOrderId], references: [id], onDelete: Restrict)
+  transportOrder  TransportOrder? @relation(fields: [transportOrderId], references: [id], onDelete: Restrict)
+  createdBy       User @relation("ConfirmationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  confirmedBy     User? @relation("ConfirmationConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@index([dispatchOrderId])
+  @@index([transportOrderId])
+  @@index([status])
+  @@map("operation_confirmations")
+}
+
+model TransportImportBatch {
+  id            Int                   @id @default(autoincrement())
+  checksum      String                @unique
+  fileName      String
+  sheetName     String?
+  importedById  Int
+  status        TransportImportStatus @default(COMMITTED)
+  tripCount     Int                   @default(0)
+  itemCount     Int                   @default(0)
+  warningCount  Int                   @default(0)
+  errorSummary  Json?
+  createdAt     DateTime              @default(now())
+
+  importedBy    User @relation("TransportImportActor", fields: [importedById], references: [id], onDelete: Restrict)
+
+  @@index([importedById, createdAt])
+  @@map("transport_import_batches")
+}
+
+model FeedRawMaterial {
+  id              Int           @id @default(autoincrement())
+  name            String        @unique // Cỏ voi ủ chua, Bã chuối xay nhuyễn, Cám đậm đặc TMR
+  groupType       FeedGroupType @default(PHU_PHAM_CHUOI)
+  moisturePercent Float         @default(65.0) // Độ ẩm %
+  isCustomAdded   Boolean       @default(false)
+  createdById     Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Quan hệ
+  createdBy User?              @relation("MaterialCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  feedTrips InternalFeedTrip[]
+
+  @@index([groupType])
+  @@map("feed_raw_materials")
+}
+
+model InternalFeedTrip {
+  id                  Int       @id @default(autoincrement())
+  code                String    @unique // TMR-2026-0314
+  materialId          Int
+  vehicleId           Int
+  driverId            Int
+  sourceLocation      String // Trung tâm Chế biến Thức ăn TMR
+  transferPoint       String? // Trạm cân phụ phẩm NT1
+  destinationLocation String // Cụm chuồng Bò thịt 04 (XN Bò)
+  dispatchWeightTons  Float // 8.5 tấn xuất xưởng
+  receiveWeightTons   Float? // 8.42 tấn thực nhận
+  weightDiffPercent   Float?    @default(0) // -0.94% hao hụt
+  slaWindowStart      DateTime // Khung giờ SLA bắt đầu
+  slaWindowEnd        DateTime // Khung giờ SLA kết thúc (VD: 07:00 - 08:30)
+  departureTime       DateTime?
+  completedFeedTime   DateTime?
+  slaStatus           SlaStatus @default(ON_TIME)
+  delayReason         String?   @db.Text
+  receiverSignature   String?   @db.Text // Tên/Chữ ký điện tử người nhận chuồng bò
+  isSettled           Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Quan hệ
+  material FeedRawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver   User            @relation("DriverFeedTrip", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([materialId])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([slaStatus])
+  @@map("internal_feed_trips")
+}
+
+model FuelWarehouse {
+  id                 Int           @id @default(autoincrement())
+  name               String // Kho bồn Trung tâm 45.000L, Xe bồn lưu động 01
+  type               WarehouseType @default(STATIONARY_TANK_45000L)
+  capacityLiters     Float         @default(45000)
+  currentStockLiters Float         @default(38500)
+  unit               Unit          @default(BAN_CO_GIOI)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  // Quan hệ
+  tickets FuelDispenseTicket[]
+
+  @@index([type])
+  @@index([unit])
+  @@map("fuel_warehouses")
+}
+
+model FuelDispenseTicket {
+  id              Int      @id @default(autoincrement())
+  ticketCode      String   @unique // PXK-DO-2026-0921
+  warehouseId     Int
+  vehicleId       Int
+  driverId        Int
+  dispensedLiters Float // Số lít dầu thực cấp
+  engineOdoHours  Float // Giờ máy / Số km lúc nhận dầu
+  quotaLiters     Float // Định mức tiêu chuẩn
+  varianceLiters  Float    @default(0) // Chênh lệch (thực cấp - định mức)
+  variancePercent Float    @default(0) // % chênh lệch
+  isExcess        Boolean  @default(false) // Vượt định mức (True)
+  qrCodePayload   String?  @db.Text
+  operatorId      Int
+  dispensedAt     DateTime @default(now())
+
+  // Quan hệ
+  warehouse FuelWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver    User          @relation("DriverFuelTicket", fields: [driverId], references: [id], onDelete: Cascade)
+  operator  User          @relation("OperatorTicket", fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@index([warehouseId])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@index([operatorId])
+  @@index([isExcess])
+  @@map("fuel_dispense_tickets")
+}
+
+model MaintenanceRecord {
+  id                 Int                  @id @default(autoincrement())
+  vehicleId          Int
+  technicianId       Int
+  currentHours       Float // Giờ máy lúc bảo dưỡng (VD: 252.5h)
+  hoursToNextService Float                @default(250.0)
+  alertTier          MaintenanceAlertTier @default(GREEN)
+  checklistJson      Json // 12 hạng mục checklist (thay nhớt động cơ, lọc gió, bơm mỡ...)
+  status             MaintenanceStatus    @default(SCHEDULED)
+  completedAt        DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  // Quan hệ
+  vehicle          Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  technician       User                   @relation("TechnicianMaintenance", fields: [technicianId], references: [id], onDelete: Cascade)
+  owedPartNotes    WorkshopOwedPartNote[]
+  generatedRepairs RepairTicket[]         @relation("MaintenanceToRepair")
+
+  @@index([vehicleId])
+  @@index([technicianId])
+  @@index([status])
+  @@map("maintenance_records")
+}
+
+model WorkshopOwedPartNote {
+  id                   Int       @id @default(autoincrement())
+  maintenanceRecordId  Int
+  vehicleId            Int
+  missingPartName      String // Lọc tách nước Donaldson P550881, Nhớt thủy lực 15W40
+  partCode             String? // DL-P550881
+  scheduledRestockDate DateTime? // Dự kiến nhập kho bù: 20/08/2026
+  isResolved           Boolean   @default(false)
+  resolvedAt           DateTime?
+  technicianNotes      String?   @db.Text
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Quan hệ
+  maintenanceRecord MaintenanceRecord @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([maintenanceRecordId])
+  @@index([vehicleId])
+  @@index([isResolved])
+  @@map("workshop_owed_part_notes")
+}
+
+model RepairTicket {
+  id                         Int          @id @default(autoincrement())
+  code                       String       @unique // SC-2026-0042
+  vehicleId                  Int
+  reportedByDriverId         Int?
+  assignedTechnicianId       Int?
+  repairTier                 RepairTier   @default(TIEU_TU)
+  issueDescription           String       @db.Text
+  isGeneratedFromMaintenance Boolean      @default(false)
+  maintenanceRecordId        Int?
+  status                     RepairStatus @default(RECEIVED)
+  estimatedCostVnd           Float        @default(0)
+  actualCostVnd              Float        @default(0)
+  replacedPartsJson          Json? // Danh sách phụ tùng thay thế và đơn giá
+  receivedDate               DateTime     @default(now())
+  completedDate              DateTime?
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+
+  // Quan hệ
+  vehicle            Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  reportedByDriver   User?              @relation("DriverRepairs", fields: [reportedByDriverId], references: [id], onDelete: SetNull)
+  assignedTechnician User?              @relation("TechnicianRepairs", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  maintenanceRecord  MaintenanceRecord? @relation("MaintenanceToRepair", fields: [maintenanceRecordId], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId])
+  @@index([repairTier])
+  @@index([status])
+  @@map("repair_tickets")
+}
+
+model DriverKpi {
+  id              Int      @id @default(autoincrement())
+  driverId        Int
+  monthYear       String // 08/2026
+  tripsCount      Int      @default(0)
+  tripsScore      Float    @default(25.0) // Max 25 điểm
+  distanceKm      Float    @default(0)
+  distanceScore   Float    @default(25.0) // Max 25 điểm
+  machineHours    Float    @default(0)
+  hoursScore      Float    @default(25.0) // Max 25 điểm
+  fuelSavedLiters Float    @default(0)
+  fuelScore       Float    @default(25.0) // Max 25 điểm
+  totalScore      Float    @default(100.0) // Tổng 100 điểm
+  rankGrade       KpiGrade @default(HANG_A)
+  bonusAmountVnd  Float    @default(1500000) // Thưởng năng suất
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Quan hệ
+  driver User @relation("DriverKpiRel", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, monthYear])
+  @@index([driverId])
+  @@index([rankGrade])
+  @@map("driver_kpis")
+}
+
+model DriverSosAlert {
+  id            Int              @id @default(autoincrement())
+  driverId      Int
+  vehicleId     Int
+  lat           Float
+  lng           Float
+  lotLocation   String // Lô C14 - Nông trường 1
+  emergencyType SosEmergencyType @default(HONG_MAY)
+  photoUrl      String?          @db.Text
+  description   String           @db.Text
+  status        SosStatus        @default(PENDING)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Quan hệ
+  driver  User    @relation("DriverSosRel", fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([vehicleId])
+  @@index([status])
+  @@map("driver_sos_alerts")
+}
+
+// ==========================================
+// 3. COMMON CATALOGS & SYSTEM ADMIN DATA
+// ==========================================
+
+enum CatalogType {
+  COMPLEX
+  REGION
+  DEPARTMENT
+  ENTERPRISE
+  FARM
+  TEAM
+  PLOT
+  LAND_PARCEL
+  VEHICLE_CATEGORY
+  JOB_TYPE
+}
+
+model CatalogItem {
+  id             String      @id
+  code           String
+  name           String
+  type           CatalogType
+  parentCode     String?
+  parentName     String?
+  enterpriseName String?
+  farmName       String?
+  plotStatus     String?
+  systemId       String?
+  address        String?
+  managerName    String?
+  phone          String?
+  areaHa         Float?
+  status         String      @default("HOAT_DONG")
+  description    String?     @db.Text
+  createdUser    String?     @default("admin")
+  createdDate    String?
+  updatedUser    String?     @default("admin")
+  updatedDate    String?
+  confirmedUser  String?
+  confirmedDate  String?
+  deletedUser    String?
+  deletedDate    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([type])
+  @@index([code])
+  @@index([parentCode])
+  @@index([status])
+  @@map("catalogs")
+}
+
+model CompanyEntity {
+  id              Int      @id @default(autoincrement())
+  code            String   @unique
+  name            String
+  address         String
+  field           String
+  businessLicense String
+  charterCapital  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("companies")
+}
+
+model EmployeeRecord {
+  id                    Int      @id @default(autoincrement())
+  empCode               String   @unique
+  fullName              String
+  businessUnit          String?
+  complex               String?
+  enterprise            String?
+  farm                  String?
+  team                  String?
+  position              String?
+  licenseClass          String?
+  licenseNumber         String?
+  licenseExpiryDate     String?
+  healthCheckExpiryDate String?
+  status                String   @default("Hoạt động")
+  username              String?
+  phone                 String?
+  email                 String?
+  joinedDate            String?
+  idCardNumber          String?
+  idCardIssueDate       String?
+  idCardIssuePlace      String?
+  taxCode               String?
+  bankAccount           String?
+  bankName              String?
+  salaryGrade           String?
+  baseSalary            Float?
+  coefficients          Float?
+  insuranceSalary       Float?
+  allowancesJson        Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("employees")
+}
+
+model PersonnelRecord {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique
+  name       String
+  complex    String?
+  enterprise String?
+  farm       String?
+  team       String?
+  position   String?
+  status     String   @default("Hoạt động")
+  creator    String?  @default("admin")
+  createdAt  DateTime @default(now())
+  updater    String?  @default("admin")
+  updatedAt  DateTime @updatedAt
+
+  @@map("personnel_partners")
+}

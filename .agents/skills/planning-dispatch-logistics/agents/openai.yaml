@@ -1,0 +1,4 @@
+interface:
+  display_name: "Planning, Dispatch & Logistics"
+  short_description: "Change production and transport workflows"
+  default_prompt: "Use $planning-dispatch-logistics to work on production plans, dispatch orders, transport, or internal-feed trips."

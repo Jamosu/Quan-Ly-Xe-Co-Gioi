@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fleet Project Orientation"
+  short_description: "Navigate Fleet domains and evidence safely"
+  default_prompt: "Use $fleet-project-orientation to locate the correct Fleet domain, project context, and source evidence before making changes."
