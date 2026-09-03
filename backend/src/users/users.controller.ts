@@ -24,15 +24,12 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users - Quản Lý Nhân Sự & Phân Quyền')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Public()
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Tạo người dùng / tài xế mới' })
   async create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
@@ -83,7 +80,6 @@ export class UsersController {
 
   @Public()
   @Post('drivers/profiles')
-  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Tiếp nhận lái xe/thợ vận hành mới' })
   async createDriverProfile(@Body() dto: CreateDriverProfileDto) {
     return this.usersService.createDriverProfile(dto);
@@ -91,7 +87,6 @@ export class UsersController {
 
   @Public()
   @Patch('drivers/:id/profile')
-  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Cập nhật hồ sơ lái xe/thợ vận hành' })
   async updateDriverProfile(
     @Param('id', ParseIntPipe) id: number,
@@ -109,7 +104,6 @@ export class UsersController {
 
   @Public()
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Cập nhật thông tin nhân sự' })
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -118,8 +112,8 @@ export class UsersController {
     return this.usersService.update(id, dto);
   }
 
-  @Public()
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Vô hiệu hóa tài khoản' })
   async remove(@Param('id', ParseIntPipe) id: number) {
