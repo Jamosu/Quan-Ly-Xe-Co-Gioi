@@ -116,7 +116,6 @@ export const Sidebar: React.FC = () => {
       title: 'Quản lý lái xe',
       children: [
         { label: 'Hồ sơ lái xe & Thợ máy', path: '/lai-xe/ho-so' },
-        { label: 'Phân công lái xe theo ca', path: '/lai-xe/phan-cong' },
         { label: 'Quản lý GPLX & Hạn SK', path: '/lai-xe/quan-ly-gplx' },
         { label: 'Lịch sử vi phạm', path: '/lai-xe/vi-pham' },
         { label: 'Bảng xếp hạng KPI thi đua', path: '/lai-xe/kpi' },
