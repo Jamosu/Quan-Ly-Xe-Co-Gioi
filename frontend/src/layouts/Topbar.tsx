@@ -74,24 +74,17 @@ export const Topbar: React.FC = () => {
   const handleGlobalRefresh = () => {
     setGlobalRefreshing(true);
 
-    // Chỉ phát sự kiện làm mới cho trang hiện tại đang mở
+    // 1. Phát sự kiện làm mới dữ liệu cho các trang/component lắng nghe
     window.dispatchEvent(
       new CustomEvent('thaco_refresh_current_page', {
         detail: { pathname: location.pathname },
       })
     );
 
+    // 2. Làm mới trang (reload) sau hiệu ứng xoay làm mới
     setTimeout(() => {
-      setGlobalRefreshing(false);
-      // Chỉ gán thông báo thành công nếu hiện tại không có lỗi nào đang hiển thị
-      const current = useAppStore.getState().headerAlert;
-      if (!current || current.type === 'info' || current.type === 'success') {
-        setHeaderAlert({
-          type: 'success',
-          message: 'Đã gửi yêu cầu làm mới dữ liệu trang.',
-        });
-      }
-    }, 700);
+      window.location.reload();
+    }, 350);
   };
 
   // Dynamic breadcrumb label
@@ -103,12 +96,12 @@ export const Topbar: React.FC = () => {
       <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-4">
         <KlhHeaderFilter />
 
-        {/* Nút Load lại dữ liệu đặt cạnh ô chọn Khu liên hợp, chỉ tải lại trang hiện tại */}
+        {/* Nút Load lại dữ liệu đặt cạnh ô chọn Khu liên hợp, vừa làm mới dữ liệu và làm mới trang luôn */}
         <button
           type="button"
           onClick={handleGlobalRefresh}
           disabled={isGlobalRefreshing}
-          title="Làm mới dữ liệu trang hiện tại"
+          title="Làm mới dữ liệu và làm mới trang"
           className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#d2e4d8] bg-[#f0f6f2] hover:bg-[#e6f1e9] text-emerald-800 transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 shrink-0"
         >
           <RefreshCw
