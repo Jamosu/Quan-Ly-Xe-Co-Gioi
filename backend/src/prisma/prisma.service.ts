@@ -5,7 +5,8 @@ import { PrismaClient } from '@prisma/client';
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
     super({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+      // Chỉ in log truy vấn khi cấu hình PRISMA_LOG_QUERY=true, bình thường chỉ log 'warn' và 'error' để tránh làm tràn terminal
+      log: process.env.PRISMA_LOG_QUERY === 'true' ? ['query', 'info', 'warn', 'error'] : ['warn', 'error'],
     });
   }
 

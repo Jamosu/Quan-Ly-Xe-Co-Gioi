@@ -554,10 +554,27 @@ export const UnitAssignmentPage: React.FC = () => {
       }
     } catch (err) {
       setAssignmentsList([]);
+      useAppStore.getState().setHeaderAlert({
+        type: 'error',
+        message: 'Lỗi kết nối máy chủ khi tải dữ liệu bàn giao đơn vị.',
+      });
     } finally {
       setLoading(false);
     }
   }, [selectedKLH]);
+
+  useEffect(() => {
+    void fetchAssignments();
+  }, [fetchAssignments]);
+
+  // Lắng nghe sự kiện làm mới từ nút trên Header
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      void fetchAssignments();
+    };
+    window.addEventListener('thaco_refresh_current_page', handlePageRefresh);
+    return () => window.removeEventListener('thaco_refresh_current_page', handlePageRefresh);
+  }, [fetchAssignments]);
 
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1599,16 +1616,6 @@ export const UnitAssignmentPage: React.FC = () => {
             >
               <Download className="h-3.5 w-3.5 text-emerald-700" />
               <span>Xuất Excel 12 Trường ({isImplementMode ? filteredImplements.length.toLocaleString('vi-VN') : filteredAssignments.length.toLocaleString('vi-VN')})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void fetchAssignments()}
-              disabled={loading}
-              title="Làm mới dữ liệu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition-all hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

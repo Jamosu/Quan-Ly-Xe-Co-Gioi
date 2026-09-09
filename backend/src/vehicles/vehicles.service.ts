@@ -1006,4 +1006,14 @@ export class VehiclesService {
 
     return { updatedVehicles, removedItems: cleanSources.length };
   }
+
+  async getSosAlerts() {
+    return this.prisma.driverSosAlert.findMany({
+      include: {
+        driver: { select: { id: true, fullName: true, phone: true } },
+        vehicle: { select: { id: true, code: true, plate: true, name: true, category: true, complexCode: true, assignedUnitCode: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

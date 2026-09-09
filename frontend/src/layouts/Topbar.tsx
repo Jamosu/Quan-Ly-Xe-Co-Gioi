@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Bell,
@@ -7,30 +7,177 @@ import {
   User,
   Shield,
   LogOut,
+  RefreshCw,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  X,
 } from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
+import { useAppStore, HeaderAlert } from '../store/useAppStore';
 import { MOCK_SYSTEM_ALERTS } from '../api/mockData';
 
 import { KlhHeaderFilter } from '../components/filters/KlhHeaderFilter';
+import { SosRescueModal } from '../components/dispatch/SosRescueModal';
 
 export const Topbar: React.FC = () => {
-  const { activeEmergencyCount } = useAppStore();
+  const {
+    activeEmergencyCount,
+    selectedKLH,
+    isGlobalRefreshing,
+    setGlobalRefreshing,
+    headerAlert,
+    setHeaderAlert,
+  } = useAppStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSosModal, setShowSosModal] = useState(false);
   const location = useLocation();
+
+  // Listen to custom header alert events from any page / component
+  useEffect(() => {
+    const handleCustomAlert = (event: Event) => {
+      const customEvent = event as CustomEvent<HeaderAlert>;
+      if (customEvent.detail) {
+        setHeaderAlert(customEvent.detail);
+      }
+    };
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      // Do not duplicate if already handled by axios interceptor
+      if (reason?.isAxiosError) return;
+      const message = reason?.message || (typeof reason === 'string' ? reason : 'Lỗi không xác định khi tải dữ liệu');
+      setHeaderAlert({
+        type: 'error',
+        message: `Lỗi hệ thống: ${message}`,
+      });
+    };
+
+    window.addEventListener('thaco_header_alert', handleCustomAlert);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => {
+      window.removeEventListener('thaco_header_alert', handleCustomAlert);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [setHeaderAlert]);
+
+  // Auto-dismiss success / info alerts after 4 seconds (error and warning persist until dismissed or refreshed)
+  useEffect(() => {
+    if (headerAlert && (headerAlert.type === 'success' || headerAlert.type === 'info')) {
+      const timer = setTimeout(() => {
+        setHeaderAlert(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [headerAlert, setHeaderAlert]);
+
+  const handleGlobalRefresh = () => {
+    setGlobalRefreshing(true);
+
+    // Chỉ phát sự kiện làm mới cho trang hiện tại đang mở
+    window.dispatchEvent(
+      new CustomEvent('thaco_refresh_current_page', {
+        detail: { pathname: location.pathname },
+      })
+    );
+
+    setTimeout(() => {
+      setGlobalRefreshing(false);
+      // Chỉ gán thông báo thành công nếu hiện tại không có lỗi nào đang hiển thị
+      const current = useAppStore.getState().headerAlert;
+      if (!current || current.type === 'info' || current.type === 'success') {
+        setHeaderAlert({
+          type: 'success',
+          message: 'Đã gửi yêu cầu làm mới dữ liệu trang.',
+        });
+      }
+    }, 700);
+  };
 
   // Dynamic breadcrumb label
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between min-w-0">
-      {/* Left / Center: Global 3 Complexes Filter */}
-      <div className="flex items-center min-w-0 flex-1 mr-4">
+      {/* Left / Center: Global 3 Complexes Filter + Global Refresh Button + Header Alert */}
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-4">
         <KlhHeaderFilter />
+
+        {/* Nút Load lại dữ liệu đặt cạnh ô chọn Khu liên hợp, chỉ tải lại trang hiện tại */}
+        <button
+          type="button"
+          onClick={handleGlobalRefresh}
+          disabled={isGlobalRefreshing}
+          title="Làm mới dữ liệu trang hiện tại"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#d2e4d8] bg-[#f0f6f2] hover:bg-[#e6f1e9] text-emerald-800 transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 shrink-0"
+        >
+          <RefreshCw
+            className={`h-4 w-4 text-emerald-700 transition-transform ${
+              isGlobalRefreshing ? 'animate-spin text-emerald-600' : ''
+            }`}
+          />
+        </button>
+
+        {/* Thông báo lỗi / không có data / trạng thái ngay trên Header kế bên nút Refresh */}
+        {headerAlert && (
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs animate-in fade-in slide-in-from-left-2 duration-200 min-w-0 max-w-[240px] sm:max-w-sm md:max-w-md lg:max-w-xl ${
+              headerAlert.type === 'error'
+                ? 'bg-rose-50 border-rose-300 text-rose-800 shadow-rose-100'
+                : headerAlert.type === 'warning'
+                ? 'bg-amber-50 border-amber-300 text-amber-900 shadow-amber-100'
+                : headerAlert.type === 'success'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-emerald-100'
+                : 'bg-blue-50 border-blue-300 text-blue-900 shadow-blue-100'
+            }`}
+          >
+            {headerAlert.type === 'error' && (
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+              </span>
+            )}
+            {headerAlert.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+            {headerAlert.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />}
+            {headerAlert.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+            {headerAlert.type === 'info' && <Info className="w-4 h-4 text-blue-600 shrink-0" />}
+
+            <span
+              className="truncate select-text"
+              title={headerAlert.detail ? `${headerAlert.message} (${headerAlert.detail})` : headerAlert.message}
+            >
+              {headerAlert.message}
+            </span>
+
+            {headerAlert.type === 'error' && (
+              <button
+                type="button"
+                onClick={handleGlobalRefresh}
+                className="px-2 py-0.5 rounded-md bg-rose-200/80 hover:bg-rose-300 text-rose-900 font-bold text-[11px] shrink-0 transition-colors cursor-pointer ml-auto"
+                title="Tải lại trang"
+              >
+                Tải lại
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setHeaderAlert(null)}
+              className={`p-1 rounded-md hover:bg-black/10 cursor-pointer shrink-0 transition-colors ${
+                headerAlert.type === 'error'
+                  ? 'text-rose-600 hover:text-rose-900'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+              title="Đóng thông báo"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right Actions: Notification & User */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
 
         {/* SOS Emergency Bell */}
         <div className="relative">
@@ -135,6 +282,12 @@ export const Topbar: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* SOS Emergency Rescue Modal */}
+      <SosRescueModal
+        isOpen={showSosModal}
+        onClose={() => setShowSosModal(false)}
+      />
     </header>
   );
 };

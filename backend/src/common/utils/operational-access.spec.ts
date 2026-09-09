@@ -3,6 +3,11 @@ import { Role, Unit } from '@prisma/client';
 import { assertOperationalAccess, hasGlobalOperationalAccess, scopedUnit } from './operational-access';
 
 describe('operational access', () => {
+  it('never treats a missing actor as global access', () => {
+    expect(hasGlobalOperationalAccess(undefined)).toBe(false);
+    expect(() => scopedUnit(undefined, Unit.NT1)).toThrow();
+    expect(() => assertOperationalAccess(undefined, Unit.NT1)).toThrow();
+  });
   it('allows Ban Cơ giới dispatcher to view all units', () => {
     const actor = { id: 1, role: Role.DISPATCHER, unit: Unit.BAN_CO_GIOI };
     expect(hasGlobalOperationalAccess(actor)).toBe(true);

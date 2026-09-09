@@ -29,3 +29,4 @@ Thumbs.db
 # Prisma / SQLite temporary files
 *.sqlite
 *.sqlite-journal
+.tmp_brd_review/

@@ -266,13 +266,36 @@ export const DriversListPage: React.FC = () => {
       });
       setDrivers(result.items || []);
       setSummary(result.summary || { total: 0, operating: 0, ready: 0, inactive: 0, complianceAlerts: 0 });
+      if ((result.items || []).length === 0) {
+        useAppStore.getState().setHeaderAlert({
+          type: 'warning',
+          message: 'Không tìm thấy hồ sơ nhân sự lái xe theo bộ lọc.',
+        });
+      }
     } catch {
       setDrivers([]);
       setError('Không tải được dữ liệu hồ sơ lái xe từ máy chủ. Hệ thống không sử dụng dữ liệu giả thay thế.');
+      useAppStore.getState().setHeaderAlert({
+        type: 'error',
+        message: 'Lỗi kết nối máy chủ khi nạp danh sách nhân sự lái xe.',
+      });
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    void loadDrivers();
+  }, [filters, globalKLH]);
+
+  // Lắng nghe sự kiện làm mới từ nút trên Header
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      void loadDrivers();
+    };
+    window.addEventListener('thaco_refresh_current_page', handlePageRefresh);
+    return () => window.removeEventListener('thaco_refresh_current_page', handlePageRefresh);
+  }, [filters, globalKLH]);
 
   useEffect(() => {
     void apiService.getDriverProfileOptions().then((data) => setOptions(data || EMPTY_OPTIONS)).catch(() => setOptions(EMPTY_OPTIONS));
@@ -1067,16 +1090,6 @@ export const DriversListPage: React.FC = () => {
             >
               <Download className="h-3.5 w-3.5 text-emerald-700" />
               Xuất Excel ({displayDrivers.length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void loadDrivers()}
-              disabled={loading}
-              title="Làm mới dữ liệu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition-all hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

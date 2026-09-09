@@ -18,4 +18,16 @@ export class PlanFilterDto extends PaginationDto {
   @IsOptional()
   @IsEnum(PlanStatus)
   status?: PlanStatus;
+
+  @ApiPropertyOptional({ description: 'Tuần trong năm (1-52)' })
+  @IsOptional()
+  weekNumber?: number;
+
+  @ApiPropertyOptional({ description: 'Mã Khu liên hợp' })
+  @IsOptional()
+  complexCode?: string;
+
+  @ApiPropertyOptional({ description: 'Năm kế hoạch' })
+  @IsOptional()
+  year?: number;
 }

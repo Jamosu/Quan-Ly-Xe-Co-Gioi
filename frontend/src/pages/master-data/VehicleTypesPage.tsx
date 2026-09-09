@@ -982,6 +982,98 @@ export const VehicleTypesPage: React.FC = () => {
     },
   ];
 
+  // Xuất file CSV cho tab hiện tại
+  const handleExportCSV = () => {
+    let headers: string[] = [];
+    let rows: (string | number)[][] = [];
+    let filename = `danh-muc-xe-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    if (activeTab === 'types') {
+      headers = ['STT', 'Mã chủng loại', 'Tên chủng loại', 'Phân nhóm tài sản', 'Nhóm phương tiện', 'Bảo dưỡng định kỳ', 'Định mức dầu khoán', 'Đơn vị tính', 'Số lượng xe'];
+      rows = filteredTypes.map((t, idx) => [
+        idx + 1,
+        t.code,
+        t.name,
+        GROUP_LABELS[t.assetGroup] || t.assetGroup,
+        t.category || '',
+        t.defaultMaintenanceHours ? `${t.defaultMaintenanceHours} giờ` : '250 giờ',
+        t.defaultFuelQuotaRate ?? '',
+        FUEL_UNIT_LABELS[t.defaultFuelQuotaUnit] || t.defaultFuelQuotaUnit,
+        t.vehicleCount ?? 0,
+      ]);
+    } else if (activeTab === 'manufacturers') {
+      headers = ['STT', 'Tên Hãng / Thương hiệu', 'Quốc gia / Xuất xứ', 'Mã QG', 'Số lượng Model', 'Số xe sử dụng'];
+      rows = filteredManufacturers.map((m, idx) => [
+        idx + 1,
+        m.name,
+        m.countryName || '',
+        m.countryCode || '',
+        m.modelCount,
+        m.vehicleCount,
+      ]);
+    } else if (activeTab === 'models') {
+      headers = ['STT', 'Tên Model', 'Hãng sản xuất', 'Xuất xứ Hãng', 'Số xe sử dụng'];
+      rows = filteredModels.map((m, idx) => [
+        idx + 1,
+        m.name,
+        m.manufacturerName || '',
+        m.countryName || '',
+        m.vehicleCount,
+      ]);
+    } else if (activeTab === 'origins') {
+      headers = ['STT', 'Tên Quốc gia / Xuất xứ', 'Mã Quốc gia', 'Số Hãng sản xuất', 'Tổng số MMTB nhập khẩu'];
+      rows = countryStats.map((c, idx) => [
+        idx + 1,
+        c.name,
+        c.code,
+        c.mfCount,
+        c.vehicleCount,
+      ]);
+    } else if (activeTab === 'units') {
+      headers = ['STT', 'Tên Đơn vị sử dụng'];
+      rows = unitRows.map((u, idx) => [idx + 1, u.name]);
+    } else if (activeTab === 'locations') {
+      headers = ['STT', 'Tên Bãi / Nơi tập kết', 'Khu liên hợp', 'Khu vực / Nông trường', 'Địa chỉ / Vị trí'];
+      rows = filteredLocationItems.map((l, idx) => [
+        idx + 1,
+        l.name,
+        l.complexName,
+        l.regionName || '',
+        l.address || '',
+      ]);
+    } else if (activeTab === 'cgManagers') {
+      headers = ['STT', 'Đơn vị trực thuộc', 'Nhân sự Quản lý CG', 'Số điện thoại', 'Vị trí bãi'];
+      rows = filteredCgManagers.map((c, idx) => [
+        idx + 1,
+        c.unitName,
+        c.managerName,
+        c.phone,
+        c.location,
+      ]);
+    } else if (activeTab === 'purchaseConditions') {
+      headers = ['STT', 'Tình trạng mua xe'];
+      rows = conditionRows.map((p, idx) => [idx + 1, p.name]);
+    } else if (activeTab === 'suppliers') {
+      headers = ['STT', 'Nhà cung cấp / Pháp nhân đối tác'];
+      rows = supplierRows.map((s, idx) => [idx + 1, s.name]);
+    }
+
+    if (rows.length === 0) return;
+
+    const csvRows = [
+      headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','),
+      ...rows.map((r) => r.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')),
+    ];
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + csvRows.join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const mfColumns: Column<any>[] = [
     {
       key: 'select',
@@ -1642,6 +1734,16 @@ export const VehicleTypesPage: React.FC = () => {
               Làm mới
             </Button>
 
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-xs font-bold border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs"
+              icon={<Download className="h-3.5 w-3.5" />}
+              onClick={handleExportCSV}
+            >
+              Xuất file
+            </Button>
+
             {activeTab === 'types' && (
               <Button
                 size="sm"
@@ -1721,7 +1823,7 @@ export const VehicleTypesPage: React.FC = () => {
               isLoading={typesLoading}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1736,7 +1838,7 @@ export const VehicleTypesPage: React.FC = () => {
               isLoading={mfLoading}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1751,7 +1853,7 @@ export const VehicleTypesPage: React.FC = () => {
               isLoading={modelsLoading}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1765,7 +1867,7 @@ export const VehicleTypesPage: React.FC = () => {
               columns={countryColumns}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1779,7 +1881,7 @@ export const VehicleTypesPage: React.FC = () => {
               columns={simpleColumns('units', unitRows)}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1823,7 +1925,7 @@ export const VehicleTypesPage: React.FC = () => {
                 columns={locationColumns}
                 pageSize={20}
                 showSearch={false}
-                showExport={true}
+                showExport={false}
                 useGlobalFilters={false}
               />
             </div>
@@ -1838,7 +1940,7 @@ export const VehicleTypesPage: React.FC = () => {
               columns={cgManagerColumns}
               pageSize={25}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1852,7 +1954,7 @@ export const VehicleTypesPage: React.FC = () => {
               columns={simpleColumns('purchaseConditions', conditionRows)}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>
@@ -1866,7 +1968,7 @@ export const VehicleTypesPage: React.FC = () => {
               columns={simpleColumns('suppliers', supplierRows)}
               pageSize={20}
               showSearch={false}
-              showExport={true}
+              showExport={false}
               useGlobalFilters={false}
             />
           </div>

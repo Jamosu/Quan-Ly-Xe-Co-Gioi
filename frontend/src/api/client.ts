@@ -14,6 +14,7 @@ import {
   VehicleStatistics,
   VehicleTypeMaster,
 } from '../types';
+import { useAppStore } from '../store/useAppStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -69,7 +70,7 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor to handle token refresh
+// Response interceptor to handle token refresh and display header alert on error
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -78,12 +79,31 @@ apiClient.interceptors.response.use(
       const originalRequest = error.config as (typeof error.config & { _demoAuthRetried?: boolean }) | undefined;
       if (demoAutoLoginEnabled && originalRequest && !originalRequest._demoAuthRetried && !String(originalRequest.url).includes('/auth/login')) {
         originalRequest._demoAuthRetried = true;
-        const token = await getDemoAccessToken();
-        originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-        return apiClient(originalRequest);
+        try {
+          const token = await getDemoAccessToken();
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return apiClient(originalRequest);
+        } catch (authErr: any) {
+          useAppStore.getState().setHeaderAlert({
+            type: 'error',
+            message: 'Lỗi xác thực: Không thể tự động đăng nhập tài khoản.',
+          });
+          return Promise.reject(authErr);
+        }
       }
     }
+
+    const status = error.response?.status;
+    const errorData = error.response?.data;
+    const msg = errorData?.message || errorData?.error?.message || error.message || 'Không thể kết nối máy chủ.';
+    const cleanMsg = typeof msg === 'string' ? msg : JSON.stringify(msg);
+
+    useAppStore.getState().setHeaderAlert({
+      type: 'error',
+      message: `Lỗi kết nối máy chủ (${status || 'Network'}): ${cleanMsg}`,
+    });
+
     return Promise.reject(error);
   }
 );

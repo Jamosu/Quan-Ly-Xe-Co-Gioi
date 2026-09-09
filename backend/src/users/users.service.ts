@@ -157,6 +157,18 @@ export class UsersService {
           currentLocation: true,
           avatarUrl: true,
           isActive: true,
+          driverProfile: {
+            select: {
+              employmentStatus: true, joinedDate: true, resignedDate: true, resignedReason: true,
+              licenseClass: true, licenseNumber: true, licenseExpiryDate: true, healthCheckExpiryDate: true,
+              currentShiftStatus: true, currentLocation: true,
+              vehicleAssignments: {
+                where: { status: 'ACTIVE', type: 'PRIMARY' },
+                include: { vehicle: true },
+                orderBy: { effectiveFrom: 'desc' }, take: 1,
+              },
+            },
+          },
           assignedVehicle: {
             select: { id: true, code: true, plate: true, name: true, category: true, status: true },
           },
@@ -191,9 +203,21 @@ export class UsersService {
     const merged = drivers
       .map((driver) => {
         const employee = employeeByCode.get(driver.code) || null;
-        const defaultVehicle = driver.assignedVehicle || driver.drivenVehicles[0] || driver.secondaryVehicles[0] || null;
+        const defaultVehicle = driver.driverProfile?.vehicleAssignments[0]?.vehicle || driver.assignedVehicle || driver.drivenVehicles[0] || driver.secondaryVehicles[0] || null;
+        const profile = driver.driverProfile;
         return {
           ...driver,
+          ...(profile ? {
+            employmentStatus: profile.employmentStatus,
+            joinedDate: profile.joinedDate,
+            resignedDate: profile.resignedDate,
+            licenseClass: profile.licenseClass,
+            licenseNumber: profile.licenseNumber,
+            licenseExpiryDate: profile.licenseExpiryDate,
+            healthCheckExpiryDate: profile.healthCheckExpiryDate,
+            currentShiftStatus: profile.currentShiftStatus,
+            currentLocation: profile.currentLocation,
+          } : {}),
           employee,
           enterprise: employee?.enterprise || employee?.businessUnit || null,
           team: employee?.team || employee?.farm || null,
@@ -324,6 +348,12 @@ export class UsersService {
         notes: true,
         createdAt: true,
         updatedAt: true,
+        driverProfile: {
+          include: {
+            vehicleAssignments: { include: { vehicle: true, assignedBy: { select: { id: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } },
+            unavailability: { orderBy: { startAt: 'desc' }, take: 20 },
+          },
+        },
         assignedVehicle: true,
         drivenVehicles: true,
         secondaryVehicles: true,
@@ -367,21 +397,36 @@ export class UsersService {
       where: { empCode: driver.code },
     });
 
+    const profile = driver.driverProfile;
     const complianceStatus = this.getComplianceStatus(
-      driver.licenseNumber,
-      driver.licenseExpiryDate,
-      driver.healthCheckExpiryDate,
+      profile?.licenseNumber ?? driver.licenseNumber,
+      profile?.licenseExpiryDate ?? driver.licenseExpiryDate,
+      profile?.healthCheckExpiryDate ?? driver.healthCheckExpiryDate,
     );
 
     return {
       ...driver,
+      ...(profile ? {
+        employmentStatus: profile.employmentStatus,
+        joinedDate: profile.joinedDate,
+        resignedDate: profile.resignedDate,
+        resignedReason: profile.resignedReason,
+        licenseClass: profile.licenseClass,
+        licenseNumber: profile.licenseNumber,
+        licenseExpiryDate: profile.licenseExpiryDate,
+        healthCheckExpiryDate: profile.healthCheckExpiryDate,
+        currentShiftStatus: profile.currentShiftStatus,
+        currentLocation: profile.currentLocation,
+        vehicleAssignmentHistory: profile.vehicleAssignments,
+        unavailability: profile.unavailability,
+      } : {}),
       employee,
       complianceStatus,
       dataAvailability: {
         personalProfile: Boolean(employee),
         multipleCredentials: false,
         safetyTraining: false,
-        vehicleAssignmentHistory: false,
+        vehicleAssignmentHistory: Boolean(profile?.vehicleAssignments.length),
         documents: false,
         changeAudit: false,
       },
@@ -426,6 +471,8 @@ export class UsersService {
         update: { fullName: driver.fullName, ...employeeData },
       });
 
+      await tx.driverProfile.create({ data: { userId: driver.id, ...this.pickDriverProfileData(dto) } });
+
       return driver.id;
     });
     return this.findDriverProfile(driverId);
@@ -468,6 +515,7 @@ export class UsersService {
           status: updated.employmentStatus === DriverEmploymentStatus.DA_NGHI_VIEC ? 'Đã nghỉ việc' : 'Đang làm việc',
         },
       });
+      await tx.driverProfile.upsert({ where: { userId: id }, create: { userId: id, ...this.pickDriverProfileData({ ...current, ...dto } as any) }, update: this.pickDriverProfileData(dto) });
     });
 
     return this.findDriverProfile(id);
@@ -489,6 +537,21 @@ export class UsersService {
       ...(dto.assignedVehicleId !== undefined ? { assignedVehicleId: dto.assignedVehicleId || null } : {}),
       ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl || null } : {}),
       ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
+    };
+  }
+
+  private pickDriverProfileData(dto: UpdateDriverProfileDto | CreateDriverProfileDto): any {
+    return {
+      ...(dto.employmentStatus !== undefined ? { employmentStatus: dto.employmentStatus } : {}),
+      ...(dto.joinedDate !== undefined ? { joinedDate: new Date(dto.joinedDate) } : {}),
+      ...(dto.resignedDate !== undefined ? { resignedDate: dto.resignedDate ? new Date(dto.resignedDate) : null } : {}),
+      ...(dto.resignedReason !== undefined ? { resignedReason: dto.resignedReason || null } : {}),
+      ...(dto.licenseClass !== undefined ? { licenseClass: dto.licenseClass || null } : {}),
+      ...(dto.licenseNumber !== undefined ? { licenseNumber: dto.licenseNumber || null } : {}),
+      ...(dto.licenseExpiryDate !== undefined ? { licenseExpiryDate: dto.licenseExpiryDate ? new Date(dto.licenseExpiryDate) : null } : {}),
+      ...(dto.healthCheckExpiryDate !== undefined ? { healthCheckExpiryDate: dto.healthCheckExpiryDate ? new Date(dto.healthCheckExpiryDate) : null } : {}),
+      ...(dto.currentShiftStatus !== undefined ? { currentShiftStatus: dto.currentShiftStatus || DriverShiftStatus.SAN_SANG } : {}),
+      ...(dto.currentLocation !== undefined ? { currentLocation: dto.currentLocation || null } : {}),
     };
   }
 

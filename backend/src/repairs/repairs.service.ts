@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -30,6 +31,11 @@ export class RepairsService {
       throw new NotFoundException(`Không tìm thấy phương tiện #${dto.vehicleId}`);
     }
 
+    if (dto.plannedEndAt && dto.plannedStartAt && dto.plannedEndAt <= dto.plannedStartAt) {
+      throw new BadRequestException('Thời gian kết thúc sửa chữa phải sau thời gian bắt đầu.');
+    }
+    const startsNow = !dto.plannedStartAt || dto.plannedStartAt <= new Date();
+
     const [repair] = await this.prisma.$transaction([
       this.prisma.repairTicket.create({
         data: {
@@ -42,6 +48,9 @@ export class RepairsService {
           estimatedCostVnd: dto.estimatedCostVnd || 0,
           replacedPartsJson: dto.replacedPartsJson,
           status: RepairStatus.RECEIVED,
+          plannedStartAt: dto.plannedStartAt,
+          plannedEndAt: dto.plannedEndAt,
+          startedAt: startsNow ? new Date() : undefined,
         },
         include: {
           vehicle: true,
@@ -49,10 +58,12 @@ export class RepairsService {
           assignedTechnician: { select: { id: true, fullName: true, phone: true } },
         },
       }),
-      this.prisma.vehicle.update({
-        where: { id: dto.vehicleId },
-        data: { status: VehicleStatus.SUA_CHUA },
-      }),
+      ...(startsNow
+        ? [this.prisma.vehicle.update({
+            where: { id: dto.vehicleId },
+            data: { status: VehicleStatus.SUA_CHUA },
+          })]
+        : []),
     ]);
 
     return repair;
@@ -125,13 +136,22 @@ export class RepairsService {
   async update(id: number, dto: UpdateRepairDto) {
     const repair = await this.findOne(id);
     const isCompleted = dto.status === RepairStatus.COMPLETED;
+    const now = new Date();
+    const [activeExecution, maintenance, hold] = isCompleted ? await Promise.all([
+      this.prisma.workExecutionSegment.findFirst({ where: { vehicleId: repair.vehicleId, endedAt: null } }),
+      this.prisma.maintenanceRecord.findFirst({ where: { vehicleId: repair.vehicleId, cancelledAt: null, endedAt: null, status: { not: 'COMPLETED' } } }),
+      this.prisma.vehicleUnavailability.findFirst({ where: { vehicleId: repair.vehicleId, cancelledAt: null, status: 'APPROVED', OR: [{ endAt: null }, { endAt: { gt: now } }] } }),
+    ]) : [null, null, null];
+    const releaseStatus = maintenance ? VehicleStatus.BAO_DUONG : activeExecution ? VehicleStatus.HOAT_DONG : hold ? VehicleStatus.TAM_DUNG : VehicleStatus.CHO_PHAN_CONG;
 
     const [updatedRepair] = await this.prisma.$transaction([
       this.prisma.repairTicket.update({
         where: { id },
         data: {
           ...dto,
-          completedDate: isCompleted ? new Date() : repair.completedDate,
+          completedDate: isCompleted ? now : repair.completedDate,
+          endedAt: isCompleted ? now : repair.endedAt,
+          startedAt: dto.status === RepairStatus.IN_REPAIR && !repair.startedAt ? now : repair.startedAt,
         },
         include: {
           vehicle: true,
@@ -142,7 +162,7 @@ export class RepairsService {
         ? [
             this.prisma.vehicle.update({
               where: { id: repair.vehicleId },
-              data: { status: VehicleStatus.CHO_PHAN_CONG },
+              data: { status: releaseStatus },
             }),
           ]
         : []),
@@ -176,7 +196,8 @@ export class RepairsService {
   }
 
   async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.repairTicket.delete({ where: { id } });
+    const repair = await this.findOne(id);
+    if (repair.status === RepairStatus.COMPLETED) throw new ConflictException('Không thể hủy phiếu sửa chữa đã hoàn thành.');
+    return this.prisma.repairTicket.update({ where: { id }, data: { cancelledAt: new Date(), cancellationReason: 'Hủy qua API tương thích DELETE' } });
   }
 }

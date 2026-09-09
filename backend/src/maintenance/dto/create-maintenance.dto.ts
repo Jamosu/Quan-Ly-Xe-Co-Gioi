@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MaintenanceAlertTier, MaintenanceStatus } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsNumber, IsObject, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsObject, IsOptional } from 'class-validator';
 
 export class CreateMaintenanceDto {
   @ApiProperty({ example: 1, description: 'ID phương tiện cần bảo dưỡng' })
@@ -33,4 +34,16 @@ export class CreateMaintenanceDto {
   @IsOptional()
   @IsObject()
   checklistJson?: Record<string, boolean>;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  plannedStartAt?: Date;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  plannedEndAt?: Date;
 }

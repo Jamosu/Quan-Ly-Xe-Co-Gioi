@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Role, Unit } from '@prisma/client';
 
 export interface OperationalActor {
@@ -8,13 +8,13 @@ export interface OperationalActor {
 }
 
 export const hasGlobalOperationalAccess = (actor?: OperationalActor | null) =>
-  !actor ||
-  actor.role === Role.SUPER_ADMIN ||
+  !!actor && (actor.role === Role.SUPER_ADMIN ||
   actor.unit === Unit.TOAN_KLH ||
-  (actor.role === Role.DISPATCHER && actor.unit === Unit.BAN_CO_GIOI);
+  (actor.role === Role.DISPATCHER && actor.unit === Unit.BAN_CO_GIOI));
 
 export const scopedUnit = (actor?: OperationalActor | null, requested?: Unit): Unit | undefined => {
-  if (!actor || hasGlobalOperationalAccess(actor)) return requested;
+  if (!actor) throw new UnauthorizedException('Yêu cầu đăng nhập để truy cập dữ liệu vận hành.');
+  if (hasGlobalOperationalAccess(actor)) return requested;
   if (actor.role === Role.DRIVER) return undefined;
   if (requested && requested !== actor.unit) {
     throw new ForbiddenException('Không được truy cập dữ liệu ngoài đơn vị được phân quyền.');
@@ -27,7 +27,8 @@ export const assertOperationalAccess = (
   unit?: Unit,
   assignedDriverId?: number | null,
 ) => {
-  if (!actor || hasGlobalOperationalAccess(actor)) return;
+  if (!actor) throw new UnauthorizedException('Yêu cầu đăng nhập để thao tác dữ liệu vận hành.');
+  if (hasGlobalOperationalAccess(actor)) return;
   if (actor.role === Role.DRIVER) {
     if (assignedDriverId === actor.id) return;
     throw new ForbiddenException('Tài xế chỉ được thao tác lệnh được phân công cho mình.');

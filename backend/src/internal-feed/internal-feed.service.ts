@@ -3,7 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { SlaStatus } from '@prisma/client';
+import { DriverShiftStatus, Role, SlaStatus, WorkAssignmentMode, WorkOrderStatus, WorkOrderType } from '@prisma/client';
+import { AvailabilityService } from '../availability/availability.service';
+import { OperationalActor, assertOperationalAccess } from '../common/utils/operational-access';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteFeedTripDto } from './dto/complete-feed-trip.dto';
 import { CreateFeedMaterialDto } from './dto/create-feed-material.dto';
@@ -12,7 +14,7 @@ import { FeedFilterDto } from './dto/feed-filter.dto';
 
 @Injectable()
 export class InternalFeedService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly availability: AvailabilityService) {}
 
   // Quản lý nguyên liệu thức ăn & phụ phẩm
   async createMaterial(dto: CreateFeedMaterialDto, creatorId?: number) {
@@ -45,7 +47,7 @@ export class InternalFeedService {
   }
 
   // Quản lý chuyến vận chuyển thức ăn & SLA 3 Đúng
-  async createTrip(dto: CreateFeedTripDto) {
+  async createTrip(dto: CreateFeedTripDto, actor: OperationalActor) {
     const existing = await this.prisma.internalFeedTrip.findUnique({
       where: { code: dto.code },
     });
@@ -54,16 +56,20 @@ export class InternalFeedService {
       throw new ConflictException(`Chuyến thức ăn mã ${dto.code} đã tồn tại.`);
     }
 
-    return this.prisma.internalFeedTrip.create({
-      data: {
-        ...dto,
-        departureTime: new Date(),
-      },
-      include: {
-        material: true,
-        vehicle: { select: { id: true, code: true, plate: true, name: true } },
-        driver: { select: { id: true, fullName: true, phone: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM vehicles WHERE id = ${dto.vehicleId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${dto.driverId} FOR UPDATE`;
+      const [vehicle, driver] = await Promise.all([tx.vehicle.findUnique({ where: { id: dto.vehicleId } }), tx.user.findUnique({ where: { id: dto.driverId } })]);
+      if (!vehicle) throw new NotFoundException(`Không tìm thấy xe #${dto.vehicleId}.`);
+      if (!driver || driver.role !== Role.DRIVER) throw new NotFoundException(`Không tìm thấy tài xế #${dto.driverId}.`);
+      assertOperationalAccess(actor, vehicle.unit);
+      await this.availability.assertResourcesAvailable({ startAt: dto.slaWindowStart, endAt: dto.slaWindowEnd, unit: vehicle.unit, vehicleId: dto.vehicleId, driverId: dto.driverId }, actor);
+      await tx.driverProfile.upsert({ where: { userId: driver.id }, update: {}, create: { userId: driver.id, employmentStatus: driver.employmentStatus, joinedDate: driver.joinedDate, resignedDate: driver.resignedDate, resignedReason: driver.resignedReason, licenseClass: driver.licenseClass, licenseNumber: driver.licenseNumber, licenseExpiryDate: driver.licenseExpiryDate, healthCheckExpiryDate: driver.healthCheckExpiryDate, currentShiftStatus: driver.currentShiftStatus ?? DriverShiftStatus.SAN_SANG, currentLocation: driver.currentLocation } });
+      const trip = await tx.internalFeedTrip.create({ data: { ...dto }, include: { material: true, vehicle: { select: { id: true, code: true, plate: true, name: true } }, driver: { select: { id: true, fullName: true, phone: true } } } });
+      const workOrder = await tx.operationalWorkOrder.create({ data: { type: WorkOrderType.INTERNAL_FEED, unit: vehicle.unit, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, status: WorkOrderStatus.ASSIGNED, plannedStartAt: dto.slaWindowStart, plannedEndAt: dto.slaWindowEnd, internalFeedTripId: trip.id, createdById: actor.id } });
+      await tx.workVehicleAssignment.create({ data: { workOrderId: workOrder.id, vehicleId: dto.vehicleId, startAt: dto.slaWindowStart, endAt: dto.slaWindowEnd, assignedById: actor.id } });
+      await tx.workDriverAssignment.create({ data: { workOrderId: workOrder.id, driverId: dto.driverId, startAt: dto.slaWindowStart, endAt: dto.slaWindowEnd, assignedById: actor.id } });
+      return trip;
     });
   }
 

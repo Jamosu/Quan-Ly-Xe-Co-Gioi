@@ -22,11 +22,15 @@ import { DriverProfileFilterDto } from './dto/driver-profile-filter.dto';
 import { UpdateDriverProfileDto } from './dto/update-driver-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+import { AvailabilityService } from '../availability/availability.service';
+import { TimelineQueryDto } from '../availability/dto/timeline-query.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { OperationalActor } from '../common/utils/operational-access';
 
 @ApiTags('Users - Quản Lý Nhân Sự & Phân Quyền')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService, private readonly availabilityService: AvailabilityService) {}
 
   @Public()
   @Post()
@@ -69,6 +73,12 @@ export class UsersController {
   @ApiOperation({ summary: 'Dữ liệu lọc và phương tiện dùng cho hồ sơ lái xe' })
   async getDriverProfileOptions() {
     return this.usersService.getDriverProfileOptions();
+  }
+
+  @Get('drivers/:id/timeline')
+  @ApiOperation({ summary: 'Timeline bận/rảnh và khung giờ phù hợp của tài xế' })
+  timeline(@Param('id', ParseIntPipe) id: number, @Query() query: TimelineQueryDto, @CurrentUser() actor: OperationalActor) {
+    return this.availabilityService.driverTimeline(id, query.from, query.to, actor, query.excludeWorkOrderId, query.requiredDurationMinutes);
   }
 
   @Public()

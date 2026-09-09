@@ -26,6 +26,7 @@ export class TransportController {
 
   @Public()
   @Post()
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   create(@Body() dto: CreateTransportOrderDto, @CurrentUser() actor?: OperationalActor) { return this.service.create(dto, actor); }
 
   @Public()
@@ -58,6 +59,7 @@ export class TransportController {
 
   @Public()
   @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTransportOrderDto, @CurrentUser() actor?: OperationalActor) { return this.service.update(id, dto, actor); }
 
   @Public()
@@ -74,54 +76,67 @@ export class TransportController {
 
   @Public()
   @Post(':id/submit')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.submit(id, actor); }
 
   @Public()
   @Post(':id/approve')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   approve(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.approve(id, actor); }
 
   @Public()
   @Post(':id/assign')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   assign(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignTransportDto, @CurrentUser() actor?: OperationalActor) { return this.service.assign(id, dto, actor); }
 
   @Public()
   @Post(':id/driver-accept')
+  @Roles(Role.DRIVER)
   driverAccept(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.driverAccept(id, actor); }
 
   @Public()
   @Post(':id/at-pickup')
+  @Roles(Role.DRIVER)
   atPickup(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.atPickup(id, actor); }
 
   @Public()
   @Post(':id/loading')
+  @Roles(Role.DRIVER)
   loading(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.loading(id, actor); }
 
   @Public()
   @Post(':id/depart')
+  @Roles(Role.DRIVER)
   depart(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.depart(id, actor); }
 
   @Public()
   @Post(':id/in-transit')
+  @Roles(Role.DRIVER)
   inTransit(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.inTransit(id, actor); }
 
   @Public()
   @Post(':id/at-delivery')
+  @Roles(Role.DRIVER)
   atDelivery(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.atDelivery(id, actor); }
 
   @Public()
   @Post(':id/unloading')
+  @Roles(Role.DRIVER)
   unloading(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.unloading(id, actor); }
 
   @Public()
   @Post(':id/deliver')
+  @Roles(Role.DRIVER)
   deliver(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.deliver(id, actor); }
 
   @Public()
   @Post(':id/accept')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   accept(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.accept(id, actor); }
 
   @Public()
   @Post(':id/complete')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   complete(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.complete(id, actor); }
 
   @Public()

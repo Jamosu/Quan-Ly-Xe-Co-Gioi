@@ -9,6 +9,8 @@ const payload = <T>(response: { data: unknown }): T => {
 export const operationsApi = {
   async plans(params: Record<string, unknown> = {}) { return payload<PaginatedResponse<ProductionPlanRecord>>(await apiClient.get('/production-plans', { params })); },
   async createPlan(data: Record<string, unknown>) { return payload<ProductionPlanRecord>(await apiClient.post('/production-plans', data)); },
+  async updatePlan(id: number | string, data: Record<string, unknown>) { return payload<ProductionPlanRecord>(await apiClient.patch(`/production-plans/${id}`, data)); },
+  async deletePlan(id: number | string) { return payload<any>(await apiClient.delete(`/production-plans/${id}`)); },
   async dispatchOrders(params: Record<string, unknown> = {}) { return payload<PaginatedResponse<DispatchOrderRecord>>(await apiClient.get('/dispatch-orders', { params })); },
   async createDispatch(data: Record<string, unknown>) { return payload<DispatchOrderRecord>(await apiClient.post('/dispatch-orders', data)); },
   async transportOrders(params: Record<string, unknown> = {}) { return payload<PaginatedResponse<TransportOrderRecord>>(await apiClient.get('/transport-orders', { params })); },

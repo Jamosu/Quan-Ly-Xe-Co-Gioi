@@ -235,13 +235,32 @@ export const EquipmentPage: React.FC = () => {
       const allData = await apiService.getAllImplements();
       if (allData && Array.isArray(allData.items)) {
         setEquipmentList(allData.items);
+        if (allData.items.length === 0) {
+          useAppStore.getState().setHeaderAlert({
+            type: 'warning',
+            message: 'Không có nông cụ/thiết bị phụ trợ nào theo bộ lọc.',
+          });
+        }
       }
     } catch (err) {
       console.error('Lỗi nạp danh sách thiết bị đính kèm:', err);
+      useAppStore.getState().setHeaderAlert({
+        type: 'error',
+        message: 'Lỗi kết nối máy chủ khi nạp danh mục nông cụ.',
+      });
     } finally {
       setLoading(false);
     }
   };
+
+  // Lắng nghe sự kiện làm mới từ nút trên Header
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      void loadData();
+    };
+    window.addEventListener('thaco_refresh_current_page', handlePageRefresh);
+    return () => window.removeEventListener('thaco_refresh_current_page', handlePageRefresh);
+  }, []);
 
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1436,16 +1455,6 @@ export const EquipmentPage: React.FC = () => {
             >
               <Download className="h-3.5 w-3.5 text-emerald-700" />
               Xuất Excel
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void loadData()}
-              disabled={loading}
-              title="Làm mới dữ liệu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition-all hover:bg-slate-100 disabled:opacity-50"
-            >
-              <RotateCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

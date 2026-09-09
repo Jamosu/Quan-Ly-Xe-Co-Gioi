@@ -98,3 +98,15 @@
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.85; transform: scale(1.03); }
 }
+
+/* Global Select & Option text display styling */
+select {
+  text-overflow: ellipsis;
+}
+
+select option {
+  white-space: normal;
+  word-wrap: break-word;
+  padding: 6px 10px;
+  font-size: 12px;
+}

@@ -94,4 +94,5 @@ async function bootstrap() {
   console.log(`=======================================================`);
 }
 
+// Trigger watcher reload
 bootstrap();

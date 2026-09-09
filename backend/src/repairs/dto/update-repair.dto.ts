@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { RepairStatus, RepairTier } from '@prisma/client';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateRepairDto {
   @ApiPropertyOptional({ enum: RepairTier })
@@ -31,4 +32,16 @@ export class UpdateRepairDto {
   @ApiPropertyOptional()
   @IsOptional()
   replacedPartsJson?: any;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  plannedStartAt?: Date;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  plannedEndAt?: Date;
 }

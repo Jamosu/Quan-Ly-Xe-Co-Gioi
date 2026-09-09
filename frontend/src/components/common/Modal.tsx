@@ -8,7 +8,8 @@ export interface ModalProps {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
-  footer?: React.ReactNode;
+  footer?: React.ReactNode | null;
+  hideFooter?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 }
 
@@ -19,6 +20,7 @@ export const Modal: React.FC<ModalProps> = ({
   subtitle,
   children,
   footer,
+  hideFooter,
   size = 'md',
 }) => {
   useEffect(() => {
@@ -64,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -76,18 +78,17 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Footer */}
-        {footer ? (
+        {!hideFooter && footer !== null && (
           <div className="flex items-center justify-end gap-3 px-6 py-3.5 border-t border-slate-100 bg-slate-50/50">
-            {footer}
-          </div>
-        ) : (
-          <div className="flex items-center justify-end px-6 py-3.5 border-t border-slate-100 bg-slate-50/50">
-            <Button variant="outline" size="sm" onClick={onClose}>
-              Đóng
-            </Button>
+            {footer || (
+              <Button variant="outline" size="sm" onClick={onClose}>
+                Đóng
+              </Button>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 };
+

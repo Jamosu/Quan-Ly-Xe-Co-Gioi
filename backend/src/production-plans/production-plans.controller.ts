@@ -43,6 +43,10 @@ export class ProductionPlansController {
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePlanDto, @CurrentUser() actor?: OperationalActor) { return this.service.update(id, dto, actor); }
 
   @Public()
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.remove(id, actor); }
+
+  @Public()
   @Post(':id/submit')
   submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.submit(id, actor); }
 
@@ -113,8 +117,4 @@ export class ProductionPlansController {
   @Public()
   @Post(':id/settle')
   settle(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.settleFinance(id, actor); }
-
-  @Public()
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.remove(id, actor); }
 }

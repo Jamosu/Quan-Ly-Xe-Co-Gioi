@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -43,6 +44,10 @@ export class MaintenanceService {
       check12_tire_pressure_tighten: false,
     };
 
+    if (dto.plannedEndAt && dto.plannedStartAt && dto.plannedEndAt <= dto.plannedStartAt) {
+      throw new BadRequestException('Thời gian kết thúc bảo dưỡng phải sau thời gian bắt đầu.');
+    }
+    const startsNow = !dto.plannedStartAt || dto.plannedStartAt <= new Date();
     const [record] = await this.prisma.$transaction([
       this.prisma.maintenanceRecord.create({
         data: {
@@ -52,17 +57,17 @@ export class MaintenanceService {
           hoursToNextService: 250.0,
           alertTier: vehicle.alertTier,
           checklistJson: defaultChecklist,
-          status: MaintenanceStatus.IN_SERVICE,
+          status: startsNow ? MaintenanceStatus.IN_SERVICE : MaintenanceStatus.SCHEDULED,
+          plannedStartAt: dto.plannedStartAt,
+          plannedEndAt: dto.plannedEndAt,
+          startedAt: startsNow ? new Date() : undefined,
         },
         include: {
           vehicle: true,
           technician: { select: { id: true, fullName: true, phone: true } },
         },
       }),
-      this.prisma.vehicle.update({
-        where: { id: dto.vehicleId },
-        data: { status: VehicleStatus.BAO_DUONG },
-      }),
+      ...(startsNow ? [this.prisma.vehicle.update({ where: { id: dto.vehicleId }, data: { status: VehicleStatus.BAO_DUONG } })] : []),
     ]);
 
     return record;
@@ -156,9 +161,14 @@ export class MaintenanceService {
       });
     }
 
-    const nextVehicleStatus = generatedRepair
+    const [otherRepair, activeExecution, manualHold] = await Promise.all([
+      this.prisma.repairTicket.findFirst({ where: { vehicleId: record.vehicleId, cancelledAt: null, endedAt: null, status: { not: RepairStatus.COMPLETED } } }),
+      this.prisma.workExecutionSegment.findFirst({ where: { vehicleId: record.vehicleId, endedAt: null } }),
+      this.prisma.vehicleUnavailability.findFirst({ where: { vehicleId: record.vehicleId, cancelledAt: null, status: 'APPROVED', OR: [{ endAt: null }, { endAt: { gt: now } }] } }),
+    ]);
+    const nextVehicleStatus = generatedRepair || otherRepair
       ? VehicleStatus.SUA_CHUA
-      : VehicleStatus.CHO_PHAN_CONG;
+      : activeExecution ? VehicleStatus.HOAT_DONG : manualHold ? VehicleStatus.TAM_DUNG : VehicleStatus.CHO_PHAN_CONG;
 
     const [updatedRecord] = await this.prisma.$transaction([
       this.prisma.maintenanceRecord.update({
@@ -167,6 +177,7 @@ export class MaintenanceService {
           status: MaintenanceStatus.COMPLETED,
           checklistJson: dto.checklistJson,
           completedAt: now,
+          endedAt: now,
         },
       }),
       this.prisma.vehicle.update({

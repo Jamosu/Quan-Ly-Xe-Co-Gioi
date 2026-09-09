@@ -243,10 +243,20 @@ export const VehiclesPage: React.FC = () => {
       });
       setVehicles(response.items);
       setPagination(response.pagination);
+      if (response.items.length === 0) {
+        useAppStore.getState().setHeaderAlert({
+          type: 'warning',
+          message: 'Không có xe máy nông nghiệp nào phù hợp bộ lọc hiện tại.',
+        });
+      }
     } catch (error) {
       setVehicles([]);
       setPagination({ total: 0, page: 1, limit: 20, totalPages: 1 });
       setLoadMessage('Không kết nối được API đội xe hoặc chưa có dữ liệu.');
+      useAppStore.getState().setHeaderAlert({
+        type: 'error',
+        message: 'Lỗi kết nối máy chủ khi tải danh sách xe máy thiết bị.',
+      });
     } finally {
       setLoading(false);
     }
@@ -338,6 +348,15 @@ export const VehiclesPage: React.FC = () => {
     selectedStatus,
     selectedAlertTier,
   ]);
+
+  // Lắng nghe sự kiện làm mới từ nút trên Header
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      void loadVehicles();
+    };
+    window.addEventListener('thaco_refresh_current_page', handlePageRefresh);
+    return () => window.removeEventListener('thaco_refresh_current_page', handlePageRefresh);
+  }, [loadVehicles]);
 
   // Update filter when query param changes
   useEffect(() => {
@@ -1462,16 +1481,6 @@ export const VehiclesPage: React.FC = () => {
             >
               <Download className="h-3.5 w-3.5 text-emerald-700" />
               Xuất Excel 23 Trường ({pagination.total})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void loadVehicles()}
-              disabled={loading}
-              title="Làm mới dữ liệu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition-all hover:bg-slate-100 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

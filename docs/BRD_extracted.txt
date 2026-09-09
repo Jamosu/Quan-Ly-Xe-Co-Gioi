@@ -1,242 +1,518 @@
-=== PARAGRAPHS (277) ===
-[9] TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM (BRD) YÊU CẦU: QUẢN LÝ XE CƠ GIỚI
-[13] PHÒNG CÔNG NGHỆ THÔNG TIN – KHU LIÊN HỢP KOUN MOM
-[14] NGƯỜI SOẠN: CHAU TIỂU LONG
-[33] MỤC LỤC
-[38] I. TỔNG QUAN DỰ ÁN
-[39] 1. Mục tiêu dự án
-[40] Số hóa toàn bộ quy trình quản lý xe cơ giới tại Khu liên hợp Koun Mom (Ban Ô tô Xe máy CG & PTVC Xếp dỡ, Nông trường, Xí nghiệp Chăn nuôi Bò, Trung tâm Bảo trì Sửa chữa) từ thủ công sang phần mềm, bao gồm: quản lý vận hành xe (GPS, điều xe), nhiên liệu, bảo dưỡng – sửa chữa, KPI lái xe.
-[41] Số hóa hoàn toàn khâu điều xe bằng phương thức tạo/duyệt lệnh qua Web và App di động, thay thế lệnh miệng thủ công.
-[42] Số hóa khâu khai báo nhiên liệu bằng phương thức đối chiếu tự động theo dữ liệu GPS thực tế, đồng bộ vào hệ thống quản lý.
-[43] Quản lý chặt chẽ bảo dưỡng bằng cơ chế nhắc lịch tự động theo giờ chạy máy, cung cấp hệ thống cảnh báo tự động (đỏ / vàng / xanh).
-[44] Số hóa lập kế hoạch sản xuất và lệnh sản xuất theo chuỗi Làm đất → Trồng mới → Thu hoạch, gắn với điều xe cơ giới thực hiện.
-[45] Số hóa lệnh vận chuyển (giám sát tốc độ, lộ trình) và quy trình vận chuyển nội bộ phục vụ chế biến thức ăn chăn nuôi.
-[46] Hỗ trợ báo cáo hợp nhất (Dashboard) theo thời gian thực về vị trí, năng suất, nhiên liệu, KPI và tình trạng bảo dưỡng cho Ban Lãnh đạo.
-[47] 2. Hiện trạng & Vấn đề
-[48] Đang sử dụng Excel và ghi chép sổ tay/lệnh miệng để quản lý xe cơ giới, nhiên liệu và bảo trì.
-[49] Tốn nhiều thời gian đối chiếu, tổng hợp báo cáo cuối tháng. Dữ liệu dễ sai lệch (sai tên tài xế, sai số km/chuyến đi, khai gian định mức nhiên liệu) và khó tra cứu lịch sử vận hành từng xe.
-[50] Tình trạng một xe có thể bị điều động chồng chéo do lệnh miệng không được ghi nhận tập trung, gây nhầm lẫn trong bố trí xe.
-[51] Việc báo cáo xe hư hỏng giữa tài xế và bộ phận sửa chữa (TT BTSC) còn thủ công qua điện thoại/sổ tay, khó theo dõi tiến độ xử lý.
-[52] Kế hoạch sản xuất nông nghiệp thay đổi thường xuyên nhưng chưa có công cụ cập nhật, lưu vết và xác nhận thay đổi một cách hệ thống.
-[53] Ban Ô tô Xe máy hiện chưa tách bạch rõ vai trò quản trị (giám sát tuân thủ) với vai trò điều xe trực tiếp — thực tế việc điều xe do các xí nghiệp/nông trường thực hiện.
-[54] 3. Phạm vi
-[55] Đối tượng sử dụng: Ban Lãnh đạo, Ban Ô tô Xe máy CG & PTVC Xếp dỡ, Nông trường (Giám đốc nông trường, Đội trưởng đội cơ giới), Xí nghiệp Chăn nuôi Bò và các xí nghiệp thành viên, Trung tâm Bảo trì Sửa chữa (TT BTSC), Tài xế.
-[56] Nguyên tắc dữ liệu: Phân quyền theo đơn vị — mỗi xí nghiệp/nông trường chỉ xem và thao tác dữ liệu đội xe, kế hoạch của đơn vị mình. Ban Lãnh đạo và Phòng Vận Hành Số có quyền xem hợp nhất toàn bộ hệ thống.
-[57] Phạm vi nền tảng: Hệ thống triển khai trên Web-based (Desktop) cho bộ phận vận hành/quản lý, và App Android cho tài xế (nhận lệnh, nhập km, báo sự cố khẩn).
-[58] II. YÊU CẦU NGHIỆP VỤ
-[59] Yêu cầu nghiệp vụ gồm 13 nghiệp vụ, sắp xếp theo trình tự vận hành: dữ liệu nền về xe → lập kế hoạch, điều xe, vận chuyển → giám sát GPS, nhiên liệu, bảo dưỡng, sửa chữa → đánh giá hiệu suất, báo cáo và Dashboard quản trị → ứng dụng cho tài xế. Toàn bộ nội dung được tổng hợp và thống nhất từ buổi họp kế hoạch triển khai và các buổi phỏng vấn phân tích yêu cầu nghiệp vụ (VHS, tháng 08/2026).
-[60] 1. Quản lý danh sách xe
-[61] 2. Lập kế hoạch & Lệnh sản xuất
-[62] Số hóa quy trình lập kế hoạch sản xuất nông nghiệp và tạo lệnh sản xuất theo chuỗi cố định: Làm đất → Trồng mới → Thu hoạch.
-[63] 3. Lệnh điều xe số hóa
-[64] 4. Lệnh vận chuyển & Giám sát lộ trình
-[69] 5. Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi
-[70] Phân quyền điều xe: Xí nghiệp là bên trực tiếp điều xe trong phạm vi kế hoạch được phân bổ; Ban Xe cơ giới chỉ phân bổ kế hoạch tổng thể và kiểm soát chất lượng (đúng tài xế, đúng xe, định mức hợp lý), không trực tiếp điều xe.
-[71] 6. Bản đồ GPS thời gian thực
-[74] 7. Quản lý nhiên liệu GPS
-[75] Ghi chú: phạm vi yêu cầu của module này giữ nguyên như hiện trạng đã thống nhất — chưa bổ sung thêm yêu cầu mới.
-[76] 8. Bảo dưỡng theo giờ máy
-[77] 9. Tiếp nhận sửa chữa
-[78] 10. KPI & Đánh giá lái xe
-[79] 11. Báo cáo & Cảnh báo tự động
-[81] 12. Dashboard giám sát vận hành tổng quan
-[82] Tổng hợp báo cáo real-time theo ngày/tuần/tháng cho Ban Lãnh đạo; hệ thống cần trả lời được các câu hỏi quản trị sau tại mọi thời điểm:
-[83] 13. App dành cho Tài xế
-[84] III. VAI TRÒ & TRÁCH NHIỆM CÁC BÊN
-[85] Ma trận RACI (A: Phê duyệt / R: Thực hiện, chịu trách nhiệm chính) — đã cập nhật bổ sung Nông trường và làm rõ vai trò Ban Ô tô Xe máy theo nội dung phỏng vấn:
-[86] IV. YÊU CẦU PHI CHỨC NĂNG
-[87] Độ trễ cập nhật vị trí GPS: đề xuất cập nhật mỗi 30 giây/lần — ngưỡng chính thức cần xác nhận thêm.
-[88] Khả năng hoạt động của App tài xế trong điều kiện mạng yếu tại khu vực nông trường (đồng bộ dữ liệu offline).
-[89] Lưu vết (audit trail) đầy đủ cho các thay đổi kế hoạch sản xuất.
-[90] Khả năng mở rộng để bổ sung xí nghiệp/đơn vị mới trong tương lai.
-[91] Bảo mật & phân quyền dữ liệu theo từng xí nghiệp/đơn vị.
-[92] Giao diện Web-based (Desktop) cho vận hành/quản lý; App Android cho tài xế. Ngôn ngữ hiển thị: Tiếng Việt.
-[93] Mọi thao tác quan trọng (điều xe, xuất nhiên liệu, sửa chữa, thay đổi kế hoạch) đều được ghi lại: ai làm, lúc nào, thay đổi gì; dữ liệu không xóa vĩnh viễn.
-[97] V. CÂU HỎI CẦN LÀM RÕ THÊM (PHỎNG VẤN CHI TIẾT)
-[98] VI. RỦI RO & GIẢ ĐỊNH
-[99] 1. Giả định
-[100] Toàn bộ xe cơ giới trong phạm vi triển khai đều được lắp thiết bị GPS.
-[101] Các xí nghiệp, nông trường và trung tâm bảo trì đều có kết nối mạng để sử dụng hệ thống, ít nhất theo dạng đồng bộ định kỳ.
-[102] 2. Rủi ro
-[103] Thông tin thu thập từ cuộc họp còn ở mức trao đổi sơ bộ — có thể phát sinh yêu cầu mới khi phỏng vấn chuyên sâu từng vai trò.
-[104] Việc phân quyền điều xe giữa Ban Xe cơ giới và các xí nghiệp cần được thống nhất rõ ràng để tránh chồng chéo trách nhiệm khi vận hành thực tế.
-[105] Kế hoạch sản xuất thay đổi thường xuyên có thể gây khó khăn trong thiết kế mô hình dữ liệu nếu không được làm rõ ngay từ đầu.
-[106] VII. CÁC ĐIỂM ĐÃ ĐƯỢC XÁC NHẬN RÕ
-[107] 9 nghiệp vụ vận hành xe cơ giới cốt lõi (Bản đồ GPS, Lệnh điều xe, Quản lý nhiên liệu, Bảo dưỡng, KPI, Báo cáo & cảnh báo, Danh sách xe, Tiếp nhận sửa chữa, App tài xế) đã được các bên thống nhất tại buổi họp kế hoạch triển khai.
-[108] Ngưỡng bảo dưỡng định kỳ: 250 giờ chạy máy; nhắc lịch tự động theo 3 mốc trước 50 giờ, 30 giờ và 20 giờ.
-[110] Quy trình sản xuất giữ nguyên theo chuỗi cố định: Làm đất → Trồng mới → Thu hoạch.
-[111] Xí nghiệp là bên trực tiếp điều xe trong phạm vi kế hoạch; Ban Xe cơ giới chỉ phân bổ kế hoạch tổng thể và kiểm soát chất lượng.
-[112] Luồng vận chuyển nội bộ chế biến thức ăn: Xí nghiệp → Xí nghiệp Chăn nuôi Bò → Trung tâm chế biến.
-[113] Kế hoạch sản xuất phải hỗ trợ điều chỉnh linh hoạt, có lưu vết minh chứng và bước xác nhận thay đổi.
-[114] Phân quyền theo đơn vị: mỗi xí nghiệp/nông trường hoạt động độc lập, không xem dữ liệu chéo của nhau.
-[115] VIII. SƠ ĐỒ QUY TRÌNH NGHIỆP VỤ (FLOWCHART)
-[116] Toàn bộ sơ đồ dưới đây minh họa trực quan cho 13 nghiệp vụ đã mô tả tại mục II, theo đúng trình tự vận hành: dữ liệu nền về xe → lập kế hoạch, điều xe, vận chuyển → giám sát GPS, nhiên liệu, bảo dưỡng, sửa chữa → đánh giá hiệu suất, báo cáo và dashboard quản trị → ứng dụng cho tài xế.
-[117] Sơ đồ tổng thể. Trình tự vận hành xuyên suốt hệ thống, từ lập kế hoạch sản xuất đến dashboard báo cáo cho Ban Lãnh đạo.
-[124] Sơ đồ 0 — Sơ đồ tổng thể luồng nghiệp vụ Quản lý xe cơ giới KLH Koun Mom
-[125] 1. Quản lý danh sách xe
-[126] Dữ liệu nền về xe cơ giới: tìm kiếm/lọc thiết bị theo mọi tiêu chí, xem thông tin vận hành (giờ máy, số km, hạn bảo dưỡng), trạng thái GPS Live/Offline theo từng thiết bị, và cập nhật hồ sơ xe (thêm mới, lý lịch thiết bị).
-[131] Sơ đồ 1 — Quy trình xử lý nghiệp vụ "Quản lý danh sách xe"
-[156] 2. Lập kế hoạch & Lệnh sản xuất
-[157] Giám đốc nông trường lập kế hoạch tuần/ngày, đội trưởng khảo sát thực tế và nhập kế hoạch vào hệ thống theo lô/thửa, sau đó tạo lệnh sản xuất theo chuỗi cố định Làm đất → Trồng mới → Thu hoạch, gắn với điều xe cơ giới thực hiện và xác nhận khối lượng hoàn thành.
-[158] Ghi chú: Cho phép điều chỉnh kế hoạch linh hoạt khi thực tế thay đổi, có lưu vết minh chứng (audit trail) và bước xác nhận thay đổi.
-[161] Sơ đồ 2 — Quy trình xử lý nghiệp vụ "Lập kế hoạch & Lệnh sản xuất"
-[164] 3. Lệnh điều xe số hóa
-[165] Quản đốc/Tổ trưởng tạo và duyệt lệnh điều xe qua Web hoặc App, thay thế lệnh miệng thủ công. Hệ thống gợi ý phân công xe trống và lái xe phù hợp; lái xe xác nhận nhận lệnh trên App bằng một thao tác bấm; hệ thống cảnh báo khi xe chưa xuất phát đúng giờ.
-[168] Sơ đồ 3 — Quy trình xử lý nghiệp vụ "Lệnh điều xe số hóa"
-[171] 4. Lệnh vận chuyển & Giám sát lộ trình
-[172] Ban Xe cơ giới tạo lệnh vận chuyển gắn với nhu cầu cụ thể; hệ thống giám sát tốc độ và thời gian di chuyển thực tế, cảnh báo khi xe đi sai lộ trình đã định.
-[173] Ghi chú: Ngưỡng cảnh báo sai lộ trình/tốc độ cụ thể vẫn cần làm rõ thêm.
-[176] Sơ đồ 4 — Quy trình xử lý nghiệp vụ "Lệnh vận chuyển & Giám sát lộ trình"
-[189] 5. Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi
-[190] Xí nghiệp gửi yêu cầu vận chuyển phụ phẩm đến Xí nghiệp Chăn nuôi Bò; hệ thống điều phối xe theo kế hoạch rải; luồng vận chuyển 3 chặng: Xí nghiệp → Xí nghiệp Chăn nuôi Bò → Trung tâm chế biến thức ăn; xác nhận số lượng nguyên liệu thực nhận tại điểm đến.
-[194] Sơ đồ 5 — Quy trình xử lý nghiệp vụ "Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi"
-[197] 6. Bản đồ GPS thời gian thực
-[198] Hiển thị vị trí toàn bộ thiết bị trực tiếp trên bản đồ, cập nhật mỗi 30 giây/lần; phân loại màu icon theo chủng loại xe; cảnh báo geo-fence khi xe ra khỏi vùng làm việc đã thiết lập; lưu và tra cứu lịch sử hành trình theo ngày/ca làm việc.
-[203] Sơ đồ 6 — Quy trình xử lý nghiệp vụ "Bản đồ GPS thời gian thực"
-[206] 7. Quản lý nhiên liệu GPS
-[207] Tính định mức tiêu hao nhiên liệu dựa trên số km GPS thực tế, tự động đối chiếu với phiếu xuất kho dầu, cảnh báo ngay khi phát hiện tiêu hao vượt định mức cho phép, và báo cáo chi phí nhiên liệu theo xe/đơn vị/tháng.
-[208] Ghi chú: Phạm vi yêu cầu của module này giữ nguyên như hiện trạng đã thống nhất, chưa bổ sung thêm.
-[212] Sơ đồ 7 — Quy trình xử lý nghiệp vụ "Quản lý nhiên liệu GPS"
-[217] 8. Bảo dưỡng theo giờ máy
-[218] Hệ thống số hóa bảo dưỡng 2 cấp theo Quy định THACO AGRI: BDC1 (hằng ngày - vệ sinh, kiểm tra, bôi trơn, siết bulong) do nhân viên vận hành thực hiện; BDC2 (định kỳ theo chu kỳ giờ máy/km) do Trung tâm/Xưởng bảo trì thực hiện. Tự động nhắc lịch và cảnh báo màu Xanh/Vàng/Đỏ theo mốc chu kỳ. Số hóa Sổ nhật ký bảo trì, sửa chữa (Phụ lục 1) và Sổ nhật ký vận hành (Phụ lục 2). Quản lý vật tư dự phòng và lập ngân sách bảo dưỡng theo Bảng định mức (Chương III Quy định 13/2023).
-[222] Sơ đồ 8 — Quy trình xử lý nghiệp vụ "Bảo dưỡng theo giờ máy"
-[225] 9. Tiếp nhận sửa chữa
-[226] Số hóa toàn bộ Quy trình Sửa chữa Thiết bị (QT.VPĐH.KTCN/06) gồm 8 bước: (1) BP. Vận hành lập Phiếu yêu cầu; (2) BP. Sửa chữa tiếp nhận, đánh giá hư hỏng (nhẹ/nặng); (3) Lên kế hoạch sửa chữa (kiểm tra bảo hành NCC, phân luồng nội bộ/bên ngoài); (4) Thực hiện sửa chữa; (5) Đánh giá kết quả; (6) Nghiệm thu (BP. Vận hành xác nhận); (7) Bàn giao; (8) Lưu hồ sơ. Hệ thống cảnh báo trễ tiến độ và thống kê chi phí BD & SC theo tháng/quý.
-[227] Ghi chú: Biểu mẫu sử dụng trong quy trình: Phiếu yêu cầu (BM09), Biên bản sự việc (BM01), Phiếu sửa chữa (BM02), Lịch sử sửa chữa (BM10), Báo cáo phản hồi NCC (BM03), Báo cáo kỹ thuật (BM11). Thời gian lưu hồ sơ: không thời hạn.
-[231] Sơ đồ 9 — Quy trình xử lý nghiệp vụ "Tiếp nhận sửa chữa"
-[234] 10. KPI & Đánh giá lái xe
-[235] Toàn bộ dữ liệu lấy trực tiếp từ GPS, không nhập tay. Điểm KPI = Số chuyến (25%) + Km vận hành (25%) + Giờ máy (25%) + Tiết kiệm nhiên liệu (25%). Hệ thống tự động tổng hợp bảng xếp hạng lái xe theo tháng/quý/năm, làm căn cứ tính lương thưởng công bằng, minh bạch.
-[238] Sơ đồ 10 — Quy trình xử lý nghiệp vụ "KPI & Đánh giá lái xe"
-[244] 11. Báo cáo & Cảnh báo tự động
-[245] Cảnh báo thông minh tự động: vượt định mức nhiên liệu, quá hạn bảo dưỡng, ra khỏi geo-fence, dừng xe bất thường. Xuất báo cáo ra Excel chỉ với một thao tác bấm. Lưu trữ dữ liệu vận hành tối thiểu 2 năm phục vụ tra cứu.
-[248] Sơ đồ 11 — Quy trình xử lý nghiệp vụ "Báo cáo & Cảnh báo tự động"
-[252] 12. Dashboard giám sát vận hành tổng quan
-[253] Tổng hợp báo cáo real-time theo ngày/tuần/tháng cho Ban Lãnh đạo, trả lời các câu hỏi quản trị: số xe đang hoạt động, vị trí từng xe, xe có đang phát sinh năng suất, công việc hiện tại, tài xế đang vận hành, thống kê cuối ngày, và có thể lọc riêng theo từng xí nghiệp.
-[254] Ghi chú: Định nghĩa cụ thể "năng suất" của xe (theo giờ hoạt động, khối lượng công việc, hay diện tích) vẫn cần làm rõ thêm.
-[257] Sơ đồ 12 — Quy trình xử lý nghiệp vụ "Dashboard giám sát vận hành tổng quan"
-[268] 13. App dành cho Tài xế
-[269] Lái xe nhận lệnh điều xe/lệnh sản xuất/lệnh vận chuyển ngay trên điện thoại Android; nhập km bắt đầu (chụp ảnh đồng hồ xác nhận); xác nhận khối lượng công việc hoàn thành theo từng hạng mục; nhập km kết thúc (hệ thống tự động đối chiếu với dữ liệu GPS); có thể báo sự cố khẩn cấp bất kỳ lúc nào chỉ với một thao tác bấm.
-[271] Sơ đồ 13 — Quy trình xử lý nghiệp vụ "App dành cho Tài xế"
-[273] Koun Mom, Tháng 8 năm 2026
-
-=== TABLES (16) ===
-
---- TABLE 1 (5 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Tìm kiếm, lọc thiết bị | Tìm kiếm, lọc thiết bị theo mọi tiêu chí (loại xe, đơn vị, trạng thái...). | Ban CG, CNTT | 
-2 | Thông tin vận hành | Xem giờ máy, số km, hạn bảo dưỡng kế tiếp của từng xe. | Ban CG, CNTT | 
-3 | Trạng thái GPS | Hiển thị trạng thái GPS Live/Offline theo từng thiết bị. | Hệ thống | 
-4 | Cập nhật hồ sơ xe | Thêm xe mới, cập nhật thông tin, xem lý lịch thiết bị (loại xe, biển số, GPS gắn kèm, đơn vị quản lý). | Ban Ô tô Xe máy | 
-
---- TABLE 2 (8 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Lập kế hoạch tuần/ngày | Giám đốc nông trường lập kế hoạch sản xuất theo tuần/ngày, giao xuống đội cơ giới (đội trưởng). | GĐ nông trường | 
-2 | Đội trưởng nhập kế hoạch ngày | Đội trưởng khảo sát thực tế và tự nhập kế hoạch hằng ngày vào hệ thống. | Đội trưởng | 
-3 | Tạo lệnh sản xuất | Tạo lệnh sản xuất kèm định mức công việc, định mức nhiên liệu, theo đúng chuỗi Làm đất → Trồng mới → Thu hoạch. | GĐ nông trường | 
-4 | Xác nhận khối lượng hoàn thành | Đội thực hiện xác nhận khối lượng công việc hoàn thành theo từng hạng mục (tick xác nhận). | Đội thực hiện | 
-5 | Điều xe theo lệnh sản xuất | Bên cơ giới chọn xe phù hợp thực hiện công việc theo đúng kế hoạch/lệnh đã giao. | Ban Xe cơ giới | 
-6 | Điều chỉnh kế hoạch linh hoạt | Cho phép điều chỉnh kế hoạch khi thực tế thay đổi; lưu vết minh chứng (audit trail) và có bước xác nhận thay đổi. | GĐ nông trường | Yêu cầu đặc biệt
-7 | Phân cấp nhập liệu lô/thửa | Giám đốc nông trường phân cấp cho đội trưởng nhập thông tin các lô/thửa. | GĐ nông trường, Đội trưởng | 
-
---- TABLE 3 (5 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Tạo & duyệt lệnh | Tạo và duyệt lệnh điều xe qua Web hoặc App di động. | Quản đốc, Tổ trưởng | 
-2 | Phân công tự động | Gợi ý phân công xe trống và lái xe phù hợp tự động. | Hệ thống | 
-3 | Xác nhận nhận lệnh | Lái xe nhận lệnh trên App Android, xác nhận bằng một thao tác bấm. | Lái xe | 
-4 | Cảnh báo trễ xuất phát | Cảnh báo khi xe chưa xuất phát đúng giờ theo lệnh đã duyệt. | Hệ thống | 
-
---- TABLE 4 (4 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Tạo lệnh vận chuyển | Tạo lệnh vận chuyển gắn với nhu cầu vận chuyển cụ thể. | Ban Xe cơ giới | 
-2 | Giám sát tốc độ & thời gian | Giám sát tốc độ và thời gian di chuyển thực tế của xe. | Hệ thống | 
-3 | Cảnh báo sai lộ trình | Cảnh báo khi xe đi sai lộ trình đã định. | Hệ thống | Ngưỡng cảnh báo: cần làm rõ
-
---- TABLE 5 (5 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Gửi yêu cầu vận chuyển | Xí nghiệp gửi yêu cầu vận chuyển phụ phẩm đến Xí nghiệp Chăn nuôi Bò. | Các xí nghiệp | 
-2 | Điều phối theo kế hoạch rải | Hệ thống tiếp nhận yêu cầu, điều phối xe cơ giới phù hợp theo kế hoạch rải (phân bổ) xe. | Hệ thống, Ban Xe cơ giới | 
-3 | Luồng vận chuyển 3 chặng | Xí nghiệp (phụ phẩm) → Xí nghiệp Chăn nuôi Bò → Trung tâm chế biến thức ăn. | Hệ thống | 
-4 | Xác nhận số lượng nhận | Xác nhận số lượng nguyên liệu thực nhận tại điểm nhận/điểm đến; quy đổi ra tuyến đường vận chuyển tương ứng. | XN Chăn nuôi Bò | 
-
---- TABLE 6 (5 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Vị trí thiết bị real-time | Hiển thị vị trí toàn bộ thiết bị trực tiếp trên bản đồ, cập nhật mỗi 30 giây/lần. | Ban CG, Quản đốc | 
-2 | Phân loại theo chủng loại xe | Phân loại màu sắc icon theo chủng loại xe cơ giới. | Hệ thống | 
-3 | Geo-fence (vùng ranh giới ảo) | Cảnh báo khi xe di chuyển ra khỏi vùng làm việc đã thiết lập. | Hệ thống | 
-4 | Lịch sử hành trình | Lưu và tra cứu lại hành trình từng chuyến theo ngày/ca làm việc. | Ban CG, Quản đốc | 
-
---- TABLE 7 (5 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Định mức theo km GPS | Tính định mức tiêu hao nhiên liệu dựa trên số km GPS thực tế. | Ban CG, Kế toán | 
-2 | Đối chiếu phiếu xuất kho dầu | Tự động đối chiếu số liệu với phiếu xuất kho dầu. | Hệ thống | 
-3 | Cảnh báo vượt định mức | Cảnh báo ngay khi phát hiện tiêu hao vượt định mức cho phép. | Hệ thống | 
-4 | Báo cáo chi phí nhiên liệu | Báo cáo chi phí nhiên liệu theo xe/đơn vị/tháng. | Ban CG, Kế toán | 
-
---- TABLE 8 (6 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Chu kỳ bảo dưỡng | Hệ thống hỗ trợ 2 cấp bảo dưỡng: Cấp 1 (BDC1) thực hiện hằng ngày; Cấp 2 theo chu kỳ giờ máy (50h, 250h, 500h, 750h, 1000h, 1250h, 1500h, 1750h, 2000h) hoặc km (0.5, 5, 10, 15, 20, 25, 30, 35, 40 x1000km) theo Bảng định mức bảo dưỡng THACO AGRI. | Hệ thống | Theo Quy định số 13/2023/QĐ/TGĐ/THACO AGRI
-2 | Nhắc lịch nhiều mốc | Tự động nhắc lịch bảo dưỡng cấp 2 cho Trung tâm/Xưởng bảo trì và đơn vị quản lý sử dụng MMTB-PTVC theo đúng chu kỳ quy định. Cảnh báo khi vượt quá 10% thời gian chu kỳ (yêu cầu biên bản giải trình). | Hệ thống | Theo Điều 5.2 Quy định bảo dưỡng THACO AGRI
-3 | Cảnh báo theo màu | Hiển thị trạng thái bảo dưỡng theo màu: Xanh (còn xa hạn) / Vàng (gần đến chu kỳ) / Đỏ (đến hạn hoặc quá hạn). Đồng hồ hiển thị giờ máy/km trên thiết bị hoặc Sổ nhật ký vận hành (Phụ lục 2) làm căn cứ. | Hệ thống | 
-4 | Hồ sơ lý lịch xe | Mỗi MMTB-PTVC có Sổ nhật ký bảo trì, sửa chữa (Phụ lục 1 - Biểu mẫu nhật ký bảo trì). Nhân viên vận hành ghi chép đầy đủ BDC1 và BDC2. Hệ thống số hóa và lưu trữ toàn bộ lịch sử bảo dưỡng - sửa chữa để tra cứu khi cần. | TT BTSC, Quản đốc | 
-5 | Quản lý phụ tùng, vật tư | Quản lý vật tư bảo dưỡng dự phòng; Trung tâm/Xưởng bảo trì lập ngân sách, đề xuất mua vật tư theo định mức và kế hoạch bảo dưỡng. Hệ thống hỗ trợ tra cứu danh sách vật tư cần thay thế theo từng mục bảo dưỡng (Bảng định mức Chương III). | TT BTSC | 
-
---- TABLE 9 (7 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Phiếu tiếp nhận số hóa | Khi phát sinh sự cố, BP. Vận hành lập Phiếu yêu cầu sửa chữa số hóa (QT.VPĐH.KTCN/01-BM09) ghi đầy đủ: tên thiết bị, mã số, vị trí, loại công việc, mức độ ưu tiên (Sản xuất/An toàn/Chất lượng/Thiết bị), mô tả hiện tượng. | TT BTSC | 
-2 | Theo dõi tiến độ | BP. Sửa chữa tiếp nhận, kiểm tra và đánh giá mức độ hư hỏng: Nhẹ (≤15 phút, không cần vật tư thay thế) xử lý tại chỗ; Nặng chuyển lên kế hoạch sửa chữa. Hệ thống theo dõi trạng thái: Đang sửa chữa / Hoàn thành / Trễ hạn. | TT BTSC | 
-3 | Cảnh báo trễ tiến độ | Hệ thống cảnh báo khi tiến độ sửa chữa trễ so với dự kiến. Lên kế hoạch sửa chữa (kiểm tra bảo hành NCC, phân loại trường hợp A/B theo Quy trình QT.VPĐH.KTCN/06): Trường hợp A - sửa chữa nội bộ; Trường hợp B - thuê đơn vị ngoài hoặc liên hệ NCC. | Hệ thống | 
-4 | Tra cứu phụ tùng | Tra cứu và đề xuất vật tư, phụ tùng cần thay thế theo từng lần sửa chữa. Ghi nhận vào Phiếu sửa chữa (QT.VPĐH.KTCN/06-BM02). Tích hợp quy trình đề nghị cấp vật tư theo biểu mẫu cấp vật tư hiện hành. | TT BTSC | 
-5 | Cập nhật trạng thái xe | Sau sửa chữa, BP. Vận hành và BP. Sửa chữa cùng nghiệm thu thiết bị. Nếu đạt yêu cầu: BP. Vận hành ký xác nhận nghiệm thu, bàn giao thiết bị đưa vào hoạt động sản xuất. Cập nhật trạng thái xe theo thời gian thực. | TT BTSC | Theo Bước 6-7 Quy trình QT.VPĐH.KTCN/06
-6 | Thống kê chi phí BD & SC | BP. Sửa chữa lưu hồ sơ: Phiếu yêu cầu, Biên bản sự việc (QT.VPĐH.KTCN/06-BM01), Phiếu sửa chữa (BM02), Báo cáo phản hồi NCC (BM03), Lịch sử sửa chữa thiết bị (BM10), Báo cáo kỹ thuật (BM11). Thống kê chi phí BD & SC theo tháng/quý. Thời gian lưu: không thời hạn. | TT BTSC | 
-
---- TABLE 10 (5 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Công thức tính điểm | Điểm KPI = Số chuyến (25%) + Km vận hành (25%) + Giờ máy (25%) + Tiết kiệm nhiên liệu (25%). | Hệ thống | Chưa có cách tính điểm KPI
-2 | Bảng xếp hạng tự động | Bảng xếp hạng lái xe theo tháng/quý/năm, tự động tổng hợp từ GPS. | Ban CG, HR | 
-3 | Dữ liệu không chỉnh sửa | Toàn bộ dữ liệu lấy trực tiếp từ GPS — không nhập tay. | Hệ thống | 
-4 | Căn cứ thưởng phạt | Kết quả KPI là căn cứ tính lương thưởng công bằng, minh bạch. | Ban CG, HR | 
-
---- TABLE 11 (4 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Xuất báo cáo Excel | Xuất báo cáo ra Excel chỉ với một thao tác bấm. | Quản đốc | 
-2 | Cảnh báo thông minh | Cảnh báo tự động: vượt định mức nhiên liệu, quá hạn bảo dưỡng, ra khỏi geo-fence, dừng xe bất thường. | Hệ thống | Cảnh báo sai lộ trình/vượt tốc độ: xem module Lệnh vận chuyển
-3 | Lưu trữ dữ liệu | Lưu trữ dữ liệu vận hành tối thiểu 2 năm phục vụ tra cứu. | Hệ thống | 
-
---- TABLE 12 (8 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Số xe đang hoạt động | Hiển thị số lượng xe đang hoạt động tại thời điểm hiện tại. | Ban Xe cơ giới, Lãnh đạo | 
-2 | Vị trí từng xe | Vị trí hiện tại của từng xe. | Hệ thống | 
-3 | Xe có đang phát sinh năng suất | Xác định xe có đang thực hiện công việc (có năng suất) hay không. | Hệ thống | Định nghĩa “năng suất”: cần làm rõ
-4 | Công việc hiện tại | Công việc xe đang thực hiện. | Hệ thống | 
-5 | Tài xế đang vận hành | Xác định tài xế đang lái xe. | Hệ thống | 
-6 | Thống kê cuối ngày | Thống kê lại dữ liệu xe vào cuối ngày. | Hệ thống | 
-7 | Lọc theo từng xí nghiệp | Có thể phân công công việc và lọc báo cáo riêng cho từng xí nghiệp. | Ban Xe cơ giới | 
-
---- TABLE 13 (6 rows, 5 cols) ---
-STT | Tên tính năng | Mô tả chi tiết | Vai trò | Ghi chú
-1 | Nhận lệnh chuyến | Nhận lệnh điều xe / lệnh sản xuất / lệnh vận chuyển ngay trên điện thoại Android. | Lái xe | 
-2 | Nhập km bắt đầu | Nhập km bắt đầu chuyến, chụp ảnh đồng hồ để xác nhận. | Lái xe | 
-3 | Nhập km kết thúc | Nhập km kết thúc chuyến — hệ thống tự động đối chiếu với dữ liệu GPS. | Lái xe, Hệ thống | 
-4 | Xác nhận công việc | Xác nhận khối lượng công việc hoàn thành theo từng hạng mục (tick xác nhận). | Lái xe | Bổ sung từ phỏng vấn
-5 | Báo sự cố khẩn | Báo sự cố khẩn cấp chỉ với một thao tác bấm — quản đốc nhận thông báo ngay. | Lái xe | 
-
---- TABLE 14 (6 rows, 3 cols) ---
-Đơn vị / Vai trò | RACI | Trách nhiệm chính
-Phòng CNTT | A / R | Chủ trì phân tích thiết kế, xây dựng phần mềm, tích hợp GPS, triển khai, đào tạo và vận hành hệ thống sau go-live.
-Ban Ô tô Xe máy CG & PTVC Xếp dỡ | R | Quản trị vận hành (giám sát tuân thủ: đúng tài xế, đúng xe, đúng định mức nhiên liệu); cung cấp danh sách xe & định mức nhiên liệu; phân bổ kế hoạch tổng thể và kiểm soát chất lượng — không trực tiếp điều xe.
-Nông trường (GĐ nông trường / Đội trưởng) | R | Lập kế hoạch sản xuất tuần/ngày; tạo lệnh sản xuất; xác nhận khối lượng công việc hoàn thành theo lô/thửa.
-Xí nghiệp Chăn nuôi Bò & các XN thành viên | R | Trực tiếp điều xe trong phạm vi kế hoạch được phân bổ; gửi/xác nhận yêu cầu vận chuyển phụ phẩm, nguyên liệu thức ăn.
-Trung tâm Bảo trì Sửa chữa (TT BTSC) | R | Cung cấp quy trình tiếp nhận sửa chữa hiện tại, xác nhận danh sách phụ tùng, xác nhận lịch bảo dưỡng, cập nhật trạng thái xe.
-
---- TABLE 15 (7 rows, 3 cols) ---
-STT | Câu hỏi cần làm rõ | Đối tượng cần phỏng vấn
-1 | Định nghĩa cụ thể “năng suất” của xe được tính như thế nào (theo giờ hoạt động, khối lượng công việc, hay diện tích)? | Ban Xe cơ giới, Nông trường
-2 | Các trạng thái xe cần quản lý gồm những trạng thái nào (đang hoạt động, đang sửa chữa, đang bảo dưỡng, ngừng hoạt động...)? | TT BTSC, Ban Xe cơ giới
-3 | Quy trình phê duyệt khi kế hoạch sản xuất thay đổi: ai xác nhận, cần minh chứng gì? | Giám đốc nông trường
-4 | Ngưỡng cảnh báo cụ thể cho tốc độ và sai lệch lộ trình là bao nhiêu? | Ban Xe cơ giới
-5 | Cơ chế phân bổ xe khi nhiều xí nghiệp cùng có nhu cầu điều xe trong cùng thời điểm (ưu tiên theo thứ tự nào)? | Ban Xe cơ giới, các Xí nghiệp
-6 | Có yêu cầu tích hợp với hệ thống chấm công/tính lương theo năng suất xe hay không? | Phòng Nhân sự / Ban lãnh đạo
-
---- TABLE 16 (2 rows, 3 cols) ---
-Phê duyệt | B.Ô tô, Xe máy Cơ giới & PTVC Xếp dỡ | P. CNTT
-Nguyễn Ngọc Anh Tú | Trần Quốc Đạt | Đào Văn Im
+TÀI LIỆU ĐẶC TẢ YÊU CẦU PHẦN MỀM (BRD) YÊU CẦU: QUẢN LÝ XE CƠ GIỚI
+PHÒNG CÔNG NGHỆ THÔNG TIN – KHU LIÊN HỢP KOUN MOM
+NGƯỜI SOẠN: CHAU TIỂU LONG
+MỤC LỤC
+I. TỔNG QUAN DỰ ÁN3
+1. Mục tiêu dự án3
+2. Hiện trạng & Vấn đề3
+3. Phạm vi3
+II. YÊU CẦU NGHIỆP VỤ4
+1. Quản lý danh sách xe4
+2. Lập kế hoạch & Lệnh sản xuất4
+3. Lệnh điều xe số hóa5
+4. Lệnh vận chuyển & Giám sát lộ trình5
+5. Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi6
+6. Bản đồ GPS thời gian thực6
+7. Quản lý nhiên liệu GPS7
+8. Bảo dưỡng theo giờ máy7
+9. Tiếp nhận sửa chữa8
+10. KPI & Đánh giá lái xe9
+11. Báo cáo & Cảnh báo tự động9
+12. Dashboard giám sát vận hành tổng quan10
+13. App dành cho Tài xế10
+III. VAI TRÒ & TRÁCH NHIỆM CÁC BÊN11
+IV. YÊU CẦU PHI CHỨC NĂNG11
+V. CÂU HỎI CẦN LÀM RÕ THÊM (PHỎNG VẤN CHI TIẾT)12
+VI. RỦI RO & GIẢ ĐỊNH12
+1. Giả định12
+2. Rủi ro13
+VII. CÁC ĐIỂM ĐÃ ĐƯỢC XÁC NHẬN RÕ13
+VIII. SƠ ĐỒ QUY TRÌNH NGHIỆP VỤ (FLOWCHART)13
+1. Quản lý danh sách xe14
+2. Lập kế hoạch & Lệnh sản xuất15
+3. Lệnh điều xe số hóa16
+4. Lệnh vận chuyển & Giám sát lộ trình17
+5. Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi18
+6. Bản đồ GPS thời gian thực19
+7. Quản lý nhiên liệu GPS20
+8. Bảo dưỡng theo giờ máy21
+9. Tiếp nhận sửa chữa22
+10. KPI & Đánh giá lái xe23
+11. Báo cáo & Cảnh báo tự động24
+12. Dashboard giám sát vận hành tổng quan25
+13. App dành cho Tài xế26
+I. TỔNG QUAN DỰ ÁN
+1. Mục tiêu dự án
+Số hóa toàn bộ quy trình quản lý xe cơ giới tại Khu liên hợp Koun Mom (Ban Ô tô Xe máy CG & PTVC Xếp dỡ, Nông trường, Xí nghiệp Chăn nuôi Bò, Trung tâm Bảo trì Sửa chữa) từ thủ công sang phần mềm, bao gồm: quản lý vận hành xe (GPS, điều xe), nhiên liệu, bảo dưỡng – sửa chữa, KPI lái xe.
+Số hóa hoàn toàn khâu điều xe bằng phương thức tạo/duyệt lệnh qua Web và App di động, thay thế lệnh miệng thủ công.
+Số hóa khâu khai báo nhiên liệu bằng phương thức đối chiếu tự động theo dữ liệu GPS thực tế, đồng bộ vào hệ thống quản lý.
+Quản lý chặt chẽ bảo dưỡng bằng cơ chế nhắc lịch tự động theo giờ chạy máy, cung cấp hệ thống cảnh báo tự động (đỏ / vàng / xanh).
+Số hóa lập kế hoạch sản xuất và lệnh sản xuất theo chuỗi Làm đất → Trồng mới → Thu hoạch, gắn với điều xe cơ giới thực hiện.
+Số hóa lệnh vận chuyển (giám sát tốc độ, lộ trình) và quy trình vận chuyển nội bộ phục vụ chế biến thức ăn chăn nuôi.
+Hỗ trợ báo cáo hợp nhất (Dashboard) theo thời gian thực về vị trí, năng suất, nhiên liệu, KPI và tình trạng bảo dưỡng cho Ban Lãnh đạo.
+2. Hiện trạng & Vấn đề
+Đang sử dụng Excel và ghi chép sổ tay/lệnh miệng để quản lý xe cơ giới, nhiên liệu và bảo trì.
+Tốn nhiều thời gian đối chiếu, tổng hợp báo cáo cuối tháng. Dữ liệu dễ sai lệch (sai tên tài xế, sai số km/chuyến đi, khai gian định mức nhiên liệu) và khó tra cứu lịch sử vận hành từng xe.
+Tình trạng một xe có thể bị điều động chồng chéo do lệnh miệng không được ghi nhận tập trung, gây nhầm lẫn trong bố trí xe.
+Việc báo cáo xe hư hỏng giữa tài xế và bộ phận sửa chữa (TT BTSC) còn thủ công qua điện thoại/sổ tay, khó theo dõi tiến độ xử lý.
+Kế hoạch sản xuất nông nghiệp thay đổi thường xuyên nhưng chưa có công cụ cập nhật, lưu vết và xác nhận thay đổi một cách hệ thống.
+Ban Ô tô Xe máy hiện chưa tách bạch rõ vai trò quản trị (giám sát tuân thủ) với vai trò điều xe trực tiếp — thực tế việc điều xe do các xí nghiệp/nông trường thực hiện.
+3. Phạm vi
+Đối tượng sử dụng: Ban Lãnh đạo, Ban Ô tô Xe máy CG & PTVC Xếp dỡ, Nông trường (Giám đốc nông trường, Đội trưởng đội cơ giới), Xí nghiệp Chăn nuôi Bò và các xí nghiệp thành viên, Trung tâm Bảo trì Sửa chữa (TT BTSC), Tài xế.
+Nguyên tắc dữ liệu: Phân quyền theo đơn vị — mỗi xí nghiệp/nông trường chỉ xem và thao tác dữ liệu đội xe, kế hoạch của đơn vị mình. Ban Lãnh đạo và Phòng Vận Hành Số có quyền xem hợp nhất toàn bộ hệ thống.
+Phạm vi nền tảng: Hệ thống triển khai trên Web-based (Desktop) cho bộ phận vận hành/quản lý, và App Android cho tài xế (nhận lệnh, nhập km, báo sự cố khẩn).
+II. YÊU CẦU NGHIỆP VỤ
+Yêu cầu nghiệp vụ gồm 13 nghiệp vụ, sắp xếp theo trình tự vận hành: dữ liệu nền về xe → lập kế hoạch, điều xe, vận chuyển → giám sát GPS, nhiên liệu, bảo dưỡng, sửa chữa → đánh giá hiệu suất, báo cáo và Dashboard quản trị → ứng dụng cho tài xế. Toàn bộ nội dung được tổng hợp và thống nhất từ buổi họp kế hoạch triển khai và các buổi phỏng vấn phân tích yêu cầu nghiệp vụ (VHS, tháng 08/2026).
+1. Quản lý danh sách xe
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Tìm kiếm, lọc thiết bị
+Tìm kiếm, lọc thiết bị theo mọi tiêu chí (loại xe, đơn vị, trạng thái...).
+Ban CG, CNTT
+2
+Thông tin vận hành
+Xem giờ máy, số km, hạn bảo dưỡng kế tiếp của từng xe.
+Ban CG, CNTT
+3
+Trạng thái GPS
+Hiển thị trạng thái GPS Live/Offline theo từng thiết bị.
+Hệ thống
+4
+Cập nhật hồ sơ xe
+Thêm xe mới, cập nhật thông tin, xem lý lịch thiết bị (loại xe, biển số, GPS gắn kèm, đơn vị quản lý).
+Ban Ô tô Xe máy
+2. Lập kế hoạch & Lệnh sản xuất
+Số hóa quy trình lập kế hoạch sản xuất nông nghiệp và tạo lệnh sản xuất theo chuỗi cố định: Làm đất → Trồng mới → Thu hoạch.
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Lập kế hoạch tuần/ngày
+Giám đốc nông trường lập kế hoạch sản xuất theo tuần/ngày, giao xuống đội cơ giới (đội trưởng).
+GĐ nông trường
+2
+Đội trưởng nhập kế hoạch ngày
+Đội trưởng khảo sát thực tế và tự nhập kế hoạch hằng ngày vào hệ thống.
+Đội trưởng
+3
+Tạo lệnh sản xuất
+Tạo lệnh sản xuất kèm định mức công việc, định mức nhiên liệu, theo đúng chuỗi Làm đất → Trồng mới → Thu hoạch.
+GĐ nông trường
+4
+Xác nhận khối lượng hoàn thành
+Đội thực hiện xác nhận khối lượng công việc hoàn thành theo từng hạng mục (tick xác nhận).
+Đội thực hiện
+5
+Điều xe theo lệnh sản xuất
+Bên cơ giới chọn xe phù hợp thực hiện công việc theo đúng kế hoạch/lệnh đã giao.
+Ban Xe cơ giới
+6
+Điều chỉnh kế hoạch linh hoạt
+Cho phép điều chỉnh kế hoạch khi thực tế thay đổi; lưu vết minh chứng (audit trail) và có bước xác nhận thay đổi.
+GĐ nông trường
+Yêu cầu đặc biệt
+7
+Phân cấp nhập liệu lô/thửa
+Giám đốc nông trường phân cấp cho đội trưởng nhập thông tin các lô/thửa.
+GĐ nông trường, Đội trưởng
+3. Lệnh điều xe số hóa
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Tạo & duyệt lệnh
+Tạo và duyệt lệnh điều xe qua Web hoặc App di động.
+Quản đốc, Tổ trưởng
+2
+Phân công tự động
+Gợi ý phân công xe trống và lái xe phù hợp tự động.
+Hệ thống
+3
+Xác nhận nhận lệnh
+Lái xe nhận lệnh trên App Android, xác nhận bằng một thao tác bấm.
+Lái xe
+4
+Cảnh báo trễ xuất phát
+Cảnh báo khi xe chưa xuất phát đúng giờ theo lệnh đã duyệt.
+Hệ thống
+4. Lệnh vận chuyển & Giám sát lộ trình
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Tạo lệnh vận chuyển
+Tạo lệnh vận chuyển gắn với nhu cầu vận chuyển cụ thể.
+Ban Xe cơ giới
+2
+Giám sát tốc độ & thời gian
+Giám sát tốc độ và thời gian di chuyển thực tế của xe.
+Hệ thống
+3
+Cảnh báo sai lộ trình
+Cảnh báo khi xe đi sai lộ trình đã định.
+Hệ thống
+Ngưỡng cảnh báo: cần làm rõ
+5. Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Gửi yêu cầu vận chuyển
+Xí nghiệp gửi yêu cầu vận chuyển phụ phẩm đến Xí nghiệp Chăn nuôi Bò.
+Các xí nghiệp
+2
+Điều phối theo kế hoạch rải
+Hệ thống tiếp nhận yêu cầu, điều phối xe cơ giới phù hợp theo kế hoạch rải (phân bổ) xe.
+Hệ thống, Ban Xe cơ giới
+3
+Luồng vận chuyển 3 chặng
+Xí nghiệp (phụ phẩm) → Xí nghiệp Chăn nuôi Bò → Trung tâm chế biến thức ăn.
+Hệ thống
+4
+Xác nhận số lượng nhận
+Xác nhận số lượng nguyên liệu thực nhận tại điểm nhận/điểm đến; quy đổi ra tuyến đường vận chuyển tương ứng.
+XN Chăn nuôi Bò
+Phân quyền điều xe: Xí nghiệp là bên trực tiếp điều xe trong phạm vi kế hoạch được phân bổ; Ban Xe cơ giới chỉ phân bổ kế hoạch tổng thể và kiểm soát chất lượng (đúng tài xế, đúng xe, định mức hợp lý), không trực tiếp điều xe.
+6. Bản đồ GPS thời gian thực
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Vị trí thiết bị real-time
+Hiển thị vị trí toàn bộ thiết bị trực tiếp trên bản đồ, cập nhật mỗi 30 giây/lần.
+Ban CG, Quản đốc
+2
+Phân loại theo chủng loại xe
+Phân loại màu sắc icon theo chủng loại xe cơ giới.
+Hệ thống
+3
+Geo-fence (vùng ranh giới ảo)
+Cảnh báo khi xe di chuyển ra khỏi vùng làm việc đã thiết lập.
+Hệ thống
+4
+Lịch sử hành trình
+Lưu và tra cứu lại hành trình từng chuyến theo ngày/ca làm việc.
+Ban CG, Quản đốc
+7. Quản lý nhiên liệu GPS
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Định mức theo km GPS
+Tính định mức tiêu hao nhiên liệu dựa trên số km GPS thực tế.
+Ban CG, Kế toán
+2
+Đối chiếu phiếu xuất kho dầu
+Tự động đối chiếu số liệu với phiếu xuất kho dầu.
+Hệ thống
+3
+Cảnh báo vượt định mức
+Cảnh báo ngay khi phát hiện tiêu hao vượt định mức cho phép.
+Hệ thống
+4
+Báo cáo chi phí nhiên liệu
+Báo cáo chi phí nhiên liệu theo xe/đơn vị/tháng.
+Ban CG, Kế toán
+Ghi chú: phạm vi yêu cầu của module này giữ nguyên như hiện trạng đã thống nhất — chưa bổ sung thêm yêu cầu mới.
+8. Bảo dưỡng theo giờ máy
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Chu kỳ bảo dưỡng
+Hệ thống hỗ trợ 2 cấp bảo dưỡng: Cấp 1 (BDC1) thực hiện hằng ngày; Cấp 2 theo chu kỳ giờ máy (50h, 250h, 500h, 750h, 1000h, 1250h, 1500h, 1750h, 2000h) hoặc km (0.5, 5, 10, 15, 20, 25, 30, 35, 40 x1000km) theo Bảng định mức bảo dưỡng THACO AGRI.
+Hệ thống
+Theo Quy định số 13/2023/QĐ/TGĐ/THACO AGRI
+2
+Nhắc lịch nhiều mốc
+Tự động nhắc lịch bảo dưỡng cấp 2 cho Trung tâm/Xưởng bảo trì và đơn vị quản lý sử dụng MMTB-PTVC theo đúng chu kỳ quy định. Cảnh báo khi vượt quá 10% thời gian chu kỳ (yêu cầu biên bản giải trình).
+Hệ thống
+Theo Điều 5.2 Quy định bảo dưỡng THACO AGRI
+3
+Cảnh báo theo màu
+Hiển thị trạng thái bảo dưỡng theo màu: Xanh (còn xa hạn) / Vàng (gần đến chu kỳ) / Đỏ (đến hạn hoặc quá hạn). Đồng hồ hiển thị giờ máy/km trên thiết bị hoặc Sổ nhật ký vận hành (Phụ lục 2) làm căn cứ.
+Hệ thống
+4
+Hồ sơ lý lịch xe
+Mỗi MMTB-PTVC có Sổ nhật ký bảo trì, sửa chữa (Phụ lục 1 - Biểu mẫu nhật ký bảo trì). Nhân viên vận hành ghi chép đầy đủ BDC1 và BDC2. Hệ thống số hóa và lưu trữ toàn bộ lịch sử bảo dưỡng - sửa chữa để tra cứu khi cần.
+TT BTSC, Quản đốc
+5
+Quản lý phụ tùng, vật tư
+Quản lý vật tư bảo dưỡng dự phòng; Trung tâm/Xưởng bảo trì lập ngân sách, đề xuất mua vật tư theo định mức và kế hoạch bảo dưỡng. Hệ thống hỗ trợ tra cứu danh sách vật tư cần thay thế theo từng mục bảo dưỡng (Bảng định mức Chương III).
+TT BTSC
+9. Tiếp nhận sửa chữa
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Phiếu tiếp nhận số hóa
+Khi phát sinh sự cố, BP. Vận hành lập Phiếu yêu cầu sửa chữa số hóa (QT.VPĐH.KTCN/01-BM09) ghi đầy đủ: tên thiết bị, mã số, vị trí, loại công việc, mức độ ưu tiên (Sản xuất/An toàn/Chất lượng/Thiết bị), mô tả hiện tượng.
+TT BTSC
+2
+Theo dõi tiến độ
+BP. Sửa chữa tiếp nhận, kiểm tra và đánh giá mức độ hư hỏng: Nhẹ (≤15 phút, không cần vật tư thay thế) xử lý tại chỗ; Nặng chuyển lên kế hoạch sửa chữa. Hệ thống theo dõi trạng thái: Đang sửa chữa / Hoàn thành / Trễ hạn.
+TT BTSC
+3
+Cảnh báo trễ tiến độ
+Hệ thống cảnh báo khi tiến độ sửa chữa trễ so với dự kiến. Lên kế hoạch sửa chữa (kiểm tra bảo hành NCC, phân loại trường hợp A/B theo Quy trình QT.VPĐH.KTCN/06): Trường hợp A - sửa chữa nội bộ; Trường hợp B - thuê đơn vị ngoài hoặc liên hệ NCC.
+Hệ thống
+4
+Tra cứu phụ tùng 
+Tra cứu và đề xuất vật tư, phụ tùng cần thay thế theo từng lần sửa chữa. Ghi nhận vào Phiếu sửa chữa (QT.VPĐH.KTCN/06-BM02). Tích hợp quy trình đề nghị cấp vật tư theo biểu mẫu cấp vật tư hiện hành.
+TT BTSC
+5
+Cập nhật trạng thái xe
+Sau sửa chữa, BP. Vận hành và BP. Sửa chữa cùng nghiệm thu thiết bị. Nếu đạt yêu cầu: BP. Vận hành ký xác nhận nghiệm thu, bàn giao thiết bị đưa vào hoạt động sản xuất. Cập nhật trạng thái xe theo thời gian thực.
+TT BTSC
+Theo Bước 6-7 Quy trình QT.VPĐH.KTCN/06
+6
+Thống kê chi phí BD & SC
+BP. Sửa chữa lưu hồ sơ: Phiếu yêu cầu, Biên bản sự việc (QT.VPĐH.KTCN/06-BM01), Phiếu sửa chữa (BM02), Báo cáo phản hồi NCC (BM03), Lịch sử sửa chữa thiết bị (BM10), Báo cáo kỹ thuật (BM11). Thống kê chi phí BD & SC theo tháng/quý. Thời gian lưu: không thời hạn.
+TT BTSC
+10. KPI & Đánh giá lái xe
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Công thức tính điểm
+Điểm KPI = Số chuyến (25%) + Km vận hành (25%) + Giờ máy (25%) + Tiết kiệm nhiên liệu (25%).
+Hệ thống
+Chưa có cách tính điểm KPI
+2
+Bảng xếp hạng tự động
+Bảng xếp hạng lái xe theo tháng/quý/năm, tự động tổng hợp từ GPS.
+Ban CG, HR
+3
+Dữ liệu không chỉnh sửa
+Toàn bộ dữ liệu lấy trực tiếp từ GPS — không nhập tay.
+Hệ thống
+4
+Căn cứ thưởng phạt
+Kết quả KPI là căn cứ tính lương thưởng công bằng, minh bạch.
+Ban CG, HR
+11. Báo cáo & Cảnh báo tự động
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Xuất báo cáo Excel
+Xuất báo cáo ra Excel chỉ với một thao tác bấm.
+Quản đốc
+2
+Cảnh báo thông minh
+Cảnh báo tự động: vượt định mức nhiên liệu, quá hạn bảo dưỡng, ra khỏi geo-fence, dừng xe bất thường.
+Hệ thống
+Cảnh báo sai lộ trình/vượt tốc độ: xem module Lệnh vận chuyển
+3
+Lưu trữ dữ liệu
+Lưu trữ dữ liệu vận hành tối thiểu 2 năm phục vụ tra cứu.
+Hệ thống
+12. Dashboard giám sát vận hành tổng quan
+Tổng hợp báo cáo real-time theo ngày/tuần/tháng cho Ban Lãnh đạo; hệ thống cần trả lời được các câu hỏi quản trị sau tại mọi thời điểm:
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Số xe đang hoạt động
+Hiển thị số lượng xe đang hoạt động tại thời điểm hiện tại.
+Ban Xe cơ giới, Lãnh đạo
+2
+Vị trí từng xe
+Vị trí hiện tại của từng xe.
+Hệ thống
+3
+Xe có đang phát sinh năng suất
+Xác định xe có đang thực hiện công việc (có năng suất) hay không.
+Hệ thống
+Định nghĩa “năng suất”: cần làm rõ
+4
+Công việc hiện tại
+Công việc xe đang thực hiện.
+Hệ thống
+5
+Tài xế đang vận hành
+Xác định tài xế đang lái xe.
+Hệ thống
+6
+Thống kê cuối ngày
+Thống kê lại dữ liệu xe vào cuối ngày.
+Hệ thống
+7
+Lọc theo từng xí nghiệp
+Có thể phân công công việc và lọc báo cáo riêng cho từng xí nghiệp.
+Ban Xe cơ giới
+13. App dành cho Tài xế
+STT
+Tên tính năng
+Mô tả chi tiết
+Vai trò
+Ghi chú
+1
+Nhận lệnh chuyến
+Nhận lệnh điều xe / lệnh sản xuất / lệnh vận chuyển ngay trên điện thoại Android.
+Lái xe
+2
+Nhập km bắt đầu
+Nhập km bắt đầu chuyến, chụp ảnh đồng hồ để xác nhận.
+Lái xe
+3
+Nhập km kết thúc
+Nhập km kết thúc chuyến — hệ thống tự động đối chiếu với dữ liệu GPS.
+Lái xe, Hệ thống
+4
+Xác nhận công việc
+Xác nhận khối lượng công việc hoàn thành theo từng hạng mục (tick xác nhận).
+Lái xe
+Bổ sung từ phỏng vấn
+5
+Báo sự cố khẩn
+Báo sự cố khẩn cấp chỉ với một thao tác bấm — quản đốc nhận thông báo ngay.
+Lái xe
+III. VAI TRÒ & TRÁCH NHIỆM CÁC BÊN
+Ma trận RACI (A: Phê duyệt / R: Thực hiện, chịu trách nhiệm chính) — đã cập nhật bổ sung Nông trường và làm rõ vai trò Ban Ô tô Xe máy theo nội dung phỏng vấn:
+Đơn vị / Vai trò
+RACI
+Trách nhiệm chính
+Phòng CNTT
+A / R
+Chủ trì phân tích thiết kế, xây dựng phần mềm, tích hợp GPS, triển khai, đào tạo và vận hành hệ thống sau go-live.
+Ban Ô tô Xe máy CG & PTVC Xếp dỡ
+R
+Quản trị vận hành (giám sát tuân thủ: đúng tài xế, đúng xe, đúng định mức nhiên liệu); cung cấp danh sách xe & định mức nhiên liệu; phân bổ kế hoạch tổng thể và kiểm soát chất lượng — không trực tiếp điều xe.
+Nông trường (GĐ nông trường / Đội trưởng)
+R
+Lập kế hoạch sản xuất tuần/ngày; tạo lệnh sản xuất; xác nhận khối lượng công việc hoàn thành theo lô/thửa.
+Xí nghiệp Chăn nuôi Bò & các XN thành viên
+R
+Trực tiếp điều xe trong phạm vi kế hoạch được phân bổ; gửi/xác nhận yêu cầu vận chuyển phụ phẩm, nguyên liệu thức ăn.
+Trung tâm Bảo trì Sửa chữa (TT BTSC)
+R
+Cung cấp quy trình tiếp nhận sửa chữa hiện tại, xác nhận danh sách phụ tùng, xác nhận lịch bảo dưỡng, cập nhật trạng thái xe.
+IV. YÊU CẦU PHI CHỨC NĂNG
+Độ trễ cập nhật vị trí GPS: đề xuất cập nhật mỗi 30 giây/lần — ngưỡng chính thức cần xác nhận thêm.
+Khả năng hoạt động của App tài xế trong điều kiện mạng yếu tại khu vực nông trường (đồng bộ dữ liệu offline).
+Lưu vết (audit trail) đầy đủ cho các thay đổi kế hoạch sản xuất.
+Khả năng mở rộng để bổ sung xí nghiệp/đơn vị mới trong tương lai.
+Bảo mật & phân quyền dữ liệu theo từng xí nghiệp/đơn vị.
+Giao diện Web-based (Desktop) cho vận hành/quản lý; App Android cho tài xế. Ngôn ngữ hiển thị: Tiếng Việt.
+Mọi thao tác quan trọng (điều xe, xuất nhiên liệu, sửa chữa, thay đổi kế hoạch) đều được ghi lại: ai làm, lúc nào, thay đổi gì; dữ liệu không xóa vĩnh viễn.
+V. CÂU HỎI CẦN LÀM RÕ THÊM (PHỎNG VẤN CHI TIẾT)
+STT
+Câu hỏi cần làm rõ
+Đối tượng cần phỏng vấn
+1
+Định nghĩa cụ thể “năng suất” của xe được tính như thế nào (theo giờ hoạt động, khối lượng công việc, hay diện tích)?
+Ban Xe cơ giới, Nông trường
+2
+Các trạng thái xe cần quản lý gồm những trạng thái nào (đang hoạt động, đang sửa chữa, đang bảo dưỡng, ngừng hoạt động...)?
+TT BTSC, Ban Xe cơ giới
+3
+Quy trình phê duyệt khi kế hoạch sản xuất thay đổi: ai xác nhận, cần minh chứng gì?
+Giám đốc nông trường
+4
+Ngưỡng cảnh báo cụ thể cho tốc độ và sai lệch lộ trình là bao nhiêu?
+Ban Xe cơ giới
+5
+Cơ chế phân bổ xe khi nhiều xí nghiệp cùng có nhu cầu điều xe trong cùng thời điểm (ưu tiên theo thứ tự nào)?
+Ban Xe cơ giới, các Xí nghiệp
+6
+Có yêu cầu tích hợp với hệ thống chấm công/tính lương theo năng suất xe hay không?
+Phòng Nhân sự / Ban lãnh đạo
+VI. RỦI RO & GIẢ ĐỊNH
+1. Giả định
+Toàn bộ xe cơ giới trong phạm vi triển khai đều được lắp thiết bị GPS.
+Các xí nghiệp, nông trường và trung tâm bảo trì đều có kết nối mạng để sử dụng hệ thống, ít nhất theo dạng đồng bộ định kỳ.
+2. Rủi ro
+Thông tin thu thập từ cuộc họp còn ở mức trao đổi sơ bộ — có thể phát sinh yêu cầu mới khi phỏng vấn chuyên sâu từng vai trò.
+Việc phân quyền điều xe giữa Ban Xe cơ giới và các xí nghiệp cần được thống nhất rõ ràng để tránh chồng chéo trách nhiệm khi vận hành thực tế.
+Kế hoạch sản xuất thay đổi thường xuyên có thể gây khó khăn trong thiết kế mô hình dữ liệu nếu không được làm rõ ngay từ đầu.
+VII. CÁC ĐIỂM ĐÃ ĐƯỢC XÁC NHẬN RÕ
+9 nghiệp vụ vận hành xe cơ giới cốt lõi (Bản đồ GPS, Lệnh điều xe, Quản lý nhiên liệu, Bảo dưỡng, KPI, Báo cáo & cảnh báo, Danh sách xe, Tiếp nhận sửa chữa, App tài xế) đã được các bên thống nhất tại buổi họp kế hoạch triển khai.
+Ngưỡng bảo dưỡng định kỳ: 250 giờ chạy máy; nhắc lịch tự động theo 3 mốc trước 50 giờ, 30 giờ và 20 giờ.
+Quản lý nhiên liệu GPS: giữ nguyên phạm vi yêu cầu hiện tại, chưa bổ sung thêm.
+Quy trình sản xuất giữ nguyên theo chuỗi cố định: Làm đất → Trồng mới → Thu hoạch.
+Xí nghiệp là bên trực tiếp điều xe trong phạm vi kế hoạch; Ban Xe cơ giới chỉ phân bổ kế hoạch tổng thể và kiểm soát chất lượng.
+Luồng vận chuyển nội bộ chế biến thức ăn: Xí nghiệp → Xí nghiệp Chăn nuôi Bò → Trung tâm chế biến.
+Kế hoạch sản xuất phải hỗ trợ điều chỉnh linh hoạt, có lưu vết minh chứng và bước xác nhận thay đổi.
+Phân quyền theo đơn vị: mỗi xí nghiệp/nông trường hoạt động độc lập, không xem dữ liệu chéo của nhau.
+VIII. SƠ ĐỒ QUY TRÌNH NGHIỆP VỤ (FLOWCHART)
+Toàn bộ sơ đồ dưới đây minh họa trực quan cho 13 nghiệp vụ đã mô tả tại mục II, theo đúng trình tự vận hành: dữ liệu nền về xe → lập kế hoạch, điều xe, vận chuyển → giám sát GPS, nhiên liệu, bảo dưỡng, sửa chữa → đánh giá hiệu suất, báo cáo và dashboard quản trị → ứng dụng cho tài xế.
+Sơ đồ tổng thể. Trình tự vận hành xuyên suốt hệ thống, từ lập kế hoạch sản xuất đến dashboard báo cáo cho Ban Lãnh đạo.
+Sơ đồ 0 — Sơ đồ tổng thể luồng nghiệp vụ Quản lý xe cơ giới KLH Koun Mom
+1. Quản lý danh sách xe
+Dữ liệu nền về xe cơ giới: tìm kiếm/lọc thiết bị theo mọi tiêu chí, xem thông tin vận hành (giờ máy, số km, hạn bảo dưỡng), trạng thái GPS Live/Offline theo từng thiết bị, và cập nhật hồ sơ xe (thêm mới, lý lịch thiết bị).
+Sơ đồ 1 — Quy trình xử lý nghiệp vụ "Quản lý danh sách xe"
+2. Lập kế hoạch & Lệnh sản xuất
+Giám đốc nông trường lập kế hoạch tuần/ngày, đội trưởng khảo sát thực tế và nhập kế hoạch vào hệ thống theo lô/thửa, sau đó tạo lệnh sản xuất theo chuỗi cố định Làm đất → Trồng mới → Thu hoạch, gắn với điều xe cơ giới thực hiện và xác nhận khối lượng hoàn thành.
+Ghi chú: Cho phép điều chỉnh kế hoạch linh hoạt khi thực tế thay đổi, có lưu vết minh chứng (audit trail) và bước xác nhận thay đổi.
+Sơ đồ 2 — Quy trình xử lý nghiệp vụ "Lập kế hoạch & Lệnh sản xuất"
+3. Lệnh điều xe số hóa
+Quản đốc/Tổ trưởng tạo và duyệt lệnh điều xe qua Web hoặc App, thay thế lệnh miệng thủ công. Hệ thống gợi ý phân công xe trống và lái xe phù hợp; lái xe xác nhận nhận lệnh trên App bằng một thao tác bấm; hệ thống cảnh báo khi xe chưa xuất phát đúng giờ.
+Sơ đồ 3 — Quy trình xử lý nghiệp vụ "Lệnh điều xe số hóa"
+4. Lệnh vận chuyển & Giám sát lộ trình
+Ban Xe cơ giới tạo lệnh vận chuyển gắn với nhu cầu cụ thể; hệ thống giám sát tốc độ và thời gian di chuyển thực tế, cảnh báo khi xe đi sai lộ trình đã định.
+Ghi chú: Ngưỡng cảnh báo sai lộ trình/tốc độ cụ thể vẫn cần làm rõ thêm.
+Sơ đồ 4 — Quy trình xử lý nghiệp vụ "Lệnh vận chuyển & Giám sát lộ trình"
+5. Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi
+Xí nghiệp gửi yêu cầu vận chuyển phụ phẩm đến Xí nghiệp Chăn nuôi Bò; hệ thống điều phối xe theo kế hoạch rải; luồng vận chuyển 3 chặng: Xí nghiệp → Xí nghiệp Chăn nuôi Bò → Trung tâm chế biến thức ăn; xác nhận số lượng nguyên liệu thực nhận tại điểm đến.
+Sơ đồ 5 — Quy trình xử lý nghiệp vụ "Vận chuyển nội bộ / Chế biến thức ăn chăn nuôi"
+6. Bản đồ GPS thời gian thực
+Hiển thị vị trí toàn bộ thiết bị trực tiếp trên bản đồ, cập nhật mỗi 30 giây/lần; phân loại màu icon theo chủng loại xe; cảnh báo geo-fence khi xe ra khỏi vùng làm việc đã thiết lập; lưu và tra cứu lịch sử hành trình theo ngày/ca làm việc.
+Sơ đồ 6 — Quy trình xử lý nghiệp vụ "Bản đồ GPS thời gian thực"
+7. Quản lý nhiên liệu GPS
+Tính định mức tiêu hao nhiên liệu dựa trên số km GPS thực tế, tự động đối chiếu với phiếu xuất kho dầu, cảnh báo ngay khi phát hiện tiêu hao vượt định mức cho phép, và báo cáo chi phí nhiên liệu theo xe/đơn vị/tháng.
+Ghi chú: Phạm vi yêu cầu của module này giữ nguyên như hiện trạng đã thống nhất, chưa bổ sung thêm.
+Sơ đồ 7 — Quy trình xử lý nghiệp vụ "Quản lý nhiên liệu GPS"
+8. Bảo dưỡng theo giờ máy
+Hệ thống số hóa bảo dưỡng 2 cấp theo Quy định THACO AGRI: BDC1 (hằng ngày - vệ sinh, kiểm tra, bôi trơn, siết bulong) do nhân viên vận hành thực hiện; BDC2 (định kỳ theo chu kỳ giờ máy/km) do Trung tâm/Xưởng bảo trì thực hiện. Tự động nhắc lịch và cảnh báo màu Xanh/Vàng/Đỏ theo mốc chu kỳ. Số hóa Sổ nhật ký bảo trì, sửa chữa (Phụ lục 1) và Sổ nhật ký vận hành (Phụ lục 2). Quản lý vật tư dự phòng và lập ngân sách bảo dưỡng theo Bảng định mức (Chương III Quy định 13/2023).
+Sơ đồ 8 — Quy trình xử lý nghiệp vụ "Bảo dưỡng theo giờ máy"
+9. Tiếp nhận sửa chữa
+Số hóa toàn bộ Quy trình Sửa chữa Thiết bị (QT.VPĐH.KTCN/06) gồm 8 bước: (1) BP. Vận hành lập Phiếu yêu cầu; (2) BP. Sửa chữa tiếp nhận, đánh giá hư hỏng (nhẹ/nặng); (3) Lên kế hoạch sửa chữa (kiểm tra bảo hành NCC, phân luồng nội bộ/bên ngoài); (4) Thực hiện sửa chữa; (5) Đánh giá kết quả; (6) Nghiệm thu (BP. Vận hành xác nhận); (7) Bàn giao; (8) Lưu hồ sơ. Hệ thống cảnh báo trễ tiến độ và thống kê chi phí BD & SC theo tháng/quý.
+Ghi chú: Biểu mẫu sử dụng trong quy trình: Phiếu yêu cầu (BM09), Biên bản sự việc (BM01), Phiếu sửa chữa (BM02), Lịch sử sửa chữa (BM10), Báo cáo phản hồi NCC (BM03), Báo cáo kỹ thuật (BM11). Thời gian lưu hồ sơ: không thời hạn.
+Sơ đồ 9 — Quy trình xử lý nghiệp vụ "Tiếp nhận sửa chữa"
+10. KPI & Đánh giá lái xe
+Toàn bộ dữ liệu lấy trực tiếp từ GPS, không nhập tay. Điểm KPI = Số chuyến (25%) + Km vận hành (25%) + Giờ máy (25%) + Tiết kiệm nhiên liệu (25%). Hệ thống tự động tổng hợp bảng xếp hạng lái xe theo tháng/quý/năm, làm căn cứ tính lương thưởng công bằng, minh bạch.
+Sơ đồ 10 — Quy trình xử lý nghiệp vụ "KPI & Đánh giá lái xe"
+11. Báo cáo & Cảnh báo tự động
+Cảnh báo thông minh tự động: vượt định mức nhiên liệu, quá hạn bảo dưỡng, ra khỏi geo-fence, dừng xe bất thường. Xuất báo cáo ra Excel chỉ với một thao tác bấm. Lưu trữ dữ liệu vận hành tối thiểu 2 năm phục vụ tra cứu.
+Sơ đồ 11 — Quy trình xử lý nghiệp vụ "Báo cáo & Cảnh báo tự động"
+12. Dashboard giám sát vận hành tổng quan
+Tổng hợp báo cáo real-time theo ngày/tuần/tháng cho Ban Lãnh đạo, trả lời các câu hỏi quản trị: số xe đang hoạt động, vị trí từng xe, xe có đang phát sinh năng suất, công việc hiện tại, tài xế đang vận hành, thống kê cuối ngày, và có thể lọc riêng theo từng xí nghiệp.
+Ghi chú: Định nghĩa cụ thể "năng suất" của xe (theo giờ hoạt động, khối lượng công việc, hay diện tích) vẫn cần làm rõ thêm.
+Sơ đồ 12 — Quy trình xử lý nghiệp vụ "Dashboard giám sát vận hành tổng quan"
+13. App dành cho Tài xế
+Lái xe nhận lệnh điều xe/lệnh sản xuất/lệnh vận chuyển ngay trên điện thoại Android; nhập km bắt đầu (chụp ảnh đồng hồ xác nhận); xác nhận khối lượng công việc hoàn thành theo từng hạng mục; nhập km kết thúc (hệ thống tự động đối chiếu với dữ liệu GPS); có thể báo sự cố khẩn cấp bất kỳ lúc nào chỉ với một thao tác bấm.
+Sơ đồ 13 — Quy trình xử lý nghiệp vụ "App dành cho Tài xế"
+Koun Mom, Tháng 8 năm 2026
+Phê duyệt
+B.Ô tô, Xe máy Cơ giới & PTVC Xếp dỡ
+P. CNTT
+Nguyễn Ngọc Anh Tú
+Trần Quốc Đạt
+Đào Văn Im

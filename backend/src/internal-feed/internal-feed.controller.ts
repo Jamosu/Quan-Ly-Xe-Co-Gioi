@@ -49,8 +49,8 @@ export class InternalFeedController {
   @Public()
   @Post('trips')
   @ApiOperation({ summary: 'Tạo chuyến vận chuyển thức ăn giao đến cụm chuồng bò' })
-  async createTrip(@Body() dto: CreateFeedTripDto) {
-    return this.internalFeedService.createTrip(dto);
+  async createTrip(@Body() dto: CreateFeedTripDto, @CurrentUser() actor: import('../common/utils/operational-access').OperationalActor) {
+    return this.internalFeedService.createTrip(dto, actor);
   }
 
   @Public()

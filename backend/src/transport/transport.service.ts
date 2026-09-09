@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { DriverShiftStatus, OperationalEntityType, Prisma, Role, RouteType, TransportStatus, Unit, VehicleStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { DriverShiftStatus, OperationalEntityType, Prisma, Role, RouteType, TransportStatus, Unit, VehicleStatus, WorkAssignmentMode, WorkOrderStatus, WorkOrderType } from '@prisma/client';
 import { utils as xlsxUtils } from 'xlsx';
 import { OperationalActor, assertOperationalAccess, scopedUnit } from '../common/utils/operational-access';
 import { DispatchOrdersService } from '../dispatch-orders/dispatch-orders.service';
@@ -13,6 +13,7 @@ import { TransportFilterDto } from './dto/transport-filter.dto';
 import { UpdateReturnCargoDto } from './dto/update-return-cargo.dto';
 import { UpdateTransportOrderDto } from './dto/update-transport-order.dto';
 import { UpdateTransportTelemetryDto } from './dto/update-transport-telemetry.dto';
+import { WorkOrdersService } from '../work-orders/work-orders.service';
 
 const transportInclude = {
   vehicle: { include: { vehicleType: true } },
@@ -21,6 +22,7 @@ const transportInclude = {
   approvedBy: { select: { id: true, fullName: true } },
   items: { orderBy: { sourceRowNumber: 'asc' as const } },
   confirmations: true,
+  operationalWorkOrder: true,
 } satisfies Prisma.TransportOrderInclude;
 
 type PreviewTrip = {
@@ -32,19 +34,25 @@ type PreviewTrip = {
 
 @Injectable()
 export class TransportService {
-  constructor(private prisma: PrismaService, private dispatchService: DispatchOrdersService) {}
+  constructor(private prisma: PrismaService, private dispatchService: DispatchOrdersService, @Optional() private workOrders?: WorkOrdersService) {}
 
   async create(dto: CreateTransportOrderDto, actor: OperationalActor) {
     if (await this.prisma.transportOrder.findUnique({ where: { code: dto.code } })) throw new ConflictException(`Vận đơn mã ${dto.code} đã tồn tại.`);
     const unit = scopedUnit(actor, dto.unit) ?? dto.unit;
     const { items, ...order } = dto;
-    return this.prisma.transportOrder.create({ data: { ...order, unit, status: TransportStatus.DRAFT, items: items?.length ? { create: items } : undefined }, include: transportInclude });
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.transportOrder.create({ data: { ...order, unit, status: TransportStatus.DRAFT, items: items?.length ? { create: items } : undefined }, include: transportInclude });
+      if (created.departureTime && created.plannedEndTime) {
+        await tx.operationalWorkOrder.create({ data: { type: WorkOrderType.TRANSPORT, unit, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, status: WorkOrderStatus.DRAFT, plannedStartAt: created.departureTime, plannedEndAt: created.plannedEndTime, transportOrderId: created.id, createdById: actor.id } });
+      }
+      return created;
+    });
   }
 
-  async findAll(filter: TransportFilterDto, actor: OperationalActor) {
+  async findAll(filter: TransportFilterDto, actor?: OperationalActor) {
     const { page = 1, limit = 20, search, routeType, status, returnDriverStatus, isRouteDeviated } = filter;
     const where: Prisma.TransportOrderWhereInput = {};
-    if (actor.role === Role.DRIVER) where.driverId = actor.id;
+    if (actor?.role === Role.DRIVER) where.driverId = actor.id;
     else { const unit = scopedUnit(actor, (filter as TransportFilterDto & { unit?: Unit }).unit); if (unit) where.unit = unit; }
     if (routeType) where.routeType = routeType;
     if (status) where.status = status;
@@ -82,15 +90,13 @@ export class TransportService {
   async assign(id: number, dto: AssignTransportDto, actor: OperationalActor) {
     const order = await this.findOne(id, actor);
     if (order.status !== TransportStatus.APPROVED) throw new BadRequestException('Chỉ phân công vận đơn đã duyệt.');
-    const reasons = await this.dispatchService.validateResources(dto, undefined, id);
-    if (reasons.length) throw new ConflictException({ code: 'RESOURCE_CONFLICT', reasons });
-    return this.prisma.$transaction(async (tx) => {
-      const { implementId, ...assignment } = dto;
-      const updated = await tx.transportOrder.update({ where: { id }, data: { ...assignment, trailerId: implementId, status: TransportStatus.ASSIGNED, assignedAt: new Date() } });
-      await tx.user.update({ where: { id: dto.driverId }, data: { currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH } });
-      await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.TRANSPORT_ORDER, entityId: id, actorId: actor.id, action: 'ASSIGN', newValue: { vehicleId: dto.vehicleId, driverId: dto.driverId, trailerId: dto.implementId } } });
-      return updated;
+    const workOrder = order.operationalWorkOrder ?? await this.prisma.operationalWorkOrder.create({
+      data: { type: WorkOrderType.TRANSPORT, unit: order.unit, status: WorkOrderStatus.APPROVED, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime, transportOrderId: id, createdById: actor.id, approvedById: actor.id, approvedAt: new Date() },
     });
+    if (!this.workOrders) throw new BadRequestException('Work order orchestration chưa sẵn sàng.');
+    await this.workOrders.assign(workOrder.id, { vehicleId: dto.vehicleId, driverId: dto.driverId, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime }, actor);
+    if (dto.implementId) await this.prisma.transportOrder.update({ where: { id }, data: { trailerId: dto.implementId } });
+    return this.findOne(id, actor);
   }
 
   private async transition(id: number, actor: OperationalActor, from: TransportStatus[], to: TransportStatus, reason?: string) {
@@ -111,6 +117,18 @@ export class TransportService {
       if (to === TransportStatus.IN_TRANSIT && order.vehicleId) await tx.vehicle.update({ where: { id: order.vehicleId }, data: { status: VehicleStatus.HOAT_DONG } });
       if (to === TransportStatus.COMPLETED) { if (order.vehicleId) await tx.vehicle.update({ where: { id: order.vehicleId }, data: { status: VehicleStatus.CHO_PHAN_CONG } }); if (order.driverId) await tx.user.update({ where: { id: order.driverId }, data: { currentShiftStatus: DriverShiftStatus.SAN_SANG } }); }
       await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.TRANSPORT_ORDER, entityId: id, actorId: actor.id, action: `${order.status}_TO_${to}`, oldValue: { status: order.status }, newValue: { status: to }, reason } });
+      if (order.operationalWorkOrder) {
+        const workStatus: Partial<Record<TransportStatus, WorkOrderStatus>> = {
+          PENDING_APPROVAL: WorkOrderStatus.PENDING_APPROVAL, APPROVED: WorkOrderStatus.APPROVED,
+          DRIVER_ACCEPTED: WorkOrderStatus.DRIVER_ACCEPTED, AT_PICKUP: WorkOrderStatus.IN_PROGRESS,
+          LOADING: WorkOrderStatus.IN_PROGRESS, DEPARTED: WorkOrderStatus.IN_PROGRESS,
+          IN_TRANSIT: WorkOrderStatus.IN_PROGRESS, AT_DELIVERY: WorkOrderStatus.IN_PROGRESS,
+          UNLOADING: WorkOrderStatus.IN_PROGRESS, DELIVERED: WorkOrderStatus.SUBMITTED_FOR_ACCEPTANCE,
+          ACCEPTED: WorkOrderStatus.ACCEPTED, COMPLETED: WorkOrderStatus.CLOSED,
+          CANCELLED: WorkOrderStatus.CANCELLED,
+        };
+        if (workStatus[to]) await tx.operationalWorkOrder.update({ where: { id: order.operationalWorkOrder.id }, data: { status: workStatus[to], version: { increment: 1 } } });
+      }
       return updated;
     });
   }
@@ -195,5 +213,17 @@ export class TransportService {
     });
   }
 
-  async remove(id: number, actor: OperationalActor) { const order = await this.findOne(id, actor); if (order.status !== TransportStatus.DRAFT) throw new BadRequestException('Chỉ xóa vật lý vận đơn nháp.'); return this.prisma.transportOrder.delete({ where: { id } }); }
+  async remove(id: number, actor: OperationalActor) {
+    const order = await this.findOne(id, actor);
+    if (order.status !== TransportStatus.DRAFT) throw new BadRequestException('Chỉ được hủy vận đơn nháp qua API DELETE tương thích.');
+    if (order.operationalWorkOrder && this.workOrders) {
+      await this.workOrders.cancel(order.operationalWorkOrder.id, 'Hủy vận đơn nháp qua API DELETE tương thích', actor);
+      return this.findOne(id, actor);
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.transportOrder.update({ where: { id }, data: { status: TransportStatus.CANCELLED, cancelledAt: new Date(), cancellationReason: 'Hủy vận đơn nháp qua API DELETE tương thích' } });
+      await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.TRANSPORT_ORDER, entityId: id, actorId: actor.id, action: 'CANCEL', oldValue: { status: order.status }, newValue: { status: TransportStatus.CANCELLED }, reason: 'Hủy vận đơn nháp qua API DELETE tương thích' } });
+      return updated;
+    });
+  }
 }

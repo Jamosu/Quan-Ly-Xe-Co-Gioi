@@ -18,10 +18,17 @@ import {
   BellRing,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { unifiedSchedulingEnabled } from '../config/features';
+
+interface NavSubItem {
+  label: string;
+  path: string;
+}
 
 interface NavItem {
   label: string;
   path: string;
+  children?: NavSubItem[];
 }
 
 interface NavGroup {
@@ -67,6 +74,7 @@ export const Sidebar: React.FC = () => {
         { label: 'Phân bổ xe đơn vị', path: '/doi-xe/phan-xe' },
         { label: 'Thiết bị GPS & Cảm biến', path: '/doi-xe/gps-cam-bien' },
         { label: 'Lịch sử biến động xe', path: '/doi-xe/lich-su' },
+        { label: 'Nhật ký cứu hộ SOS', path: '/doi-xe/quan-li-sos' },
       ],
     },
     {
@@ -74,10 +82,32 @@ export const Sidebar: React.FC = () => {
       icon: <FileSpreadsheet className="w-4 h-4" />,
       title: 'Lệnh điều xe & Vận hành',
       children: [
-        { label: 'Kế hoạch sản xuất', path: '/lenh-dieu-xe/ke-hoach' },
-        { label: 'Lệnh điều xe', path: '/lenh-dieu-xe/danh-sach' },
-        { label: 'Lệnh vận chuyển nội bộ', path: '/lenh-dieu-xe/van-chuyen' },
+        {
+          label: 'Kế hoạch sản xuất',
+          path: '/lenh-dieu-xe/ke-hoach/nong-nghiep',
+          children: [
+            { label: 'Kế hoạch Nông nghiệp', path: '/lenh-dieu-xe/ke-hoach/nong-nghiep' },
+            { label: 'Kế hoạch Công trình', path: '/lenh-dieu-xe/ke-hoach/cong-trinh' },
+            { label: 'Kế hoạch Vận chuyển', path: '/lenh-dieu-xe/ke-hoach/van-chuyen-noi-bo' },
+          ],
+        },
+        {
+          label: 'Lệnh điều xe (Danh mục lệnh)',
+          path: '/lenh-dieu-xe/danh-sach',
+          children: [
+            { label: 'Tất cả lệnh (Tổng hợp)', path: '/lenh-dieu-xe/danh-sach' },
+            { label: 'Lệnh điều xe Nông nghiệp', path: '/lenh-dieu-xe/lenh-nong-nghiep' },
+            { label: 'Lệnh điều xe Công trình', path: '/lenh-dieu-xe/lenh-cong-trinh' },
+            { label: 'Lệnh điều xe Nội bộ', path: '/lenh-dieu-xe/lenh-noi-bo' },
+          ],
+        },
         { label: 'Xác nhận khối lượng & Cân', path: '/lenh-dieu-xe/phieu-can' },
+        ...(unifiedSchedulingEnabled
+          ? [
+              { label: 'Lịch xe & tài xế', path: '/lenh-dieu-xe/lich-tai-nguyen' },
+              { label: 'Hàng chờ nghiệm thu', path: '/lenh-dieu-xe/nghiem-thu' },
+            ]
+          : []),
       ],
     },
     {
@@ -148,8 +178,24 @@ export const Sidebar: React.FC = () => {
         { label: 'Danh mục quản lý dự án', path: '/danh-muc/quan-ly-du-an' },
         { label: 'Chức danh', path: '/danh-muc/chuc-danh' },
         { label: 'Chủng loại xe', path: '/danh-muc/loai-xe' },
-        { label: 'Loại công việc & Lệnh', path: '/danh-muc/loai-cong-viec' },
-        { label: 'Lô thửa & Tuyến đường', path: '/danh-muc/lo-thua-tuyen-duong' },
+        {
+          label: 'Loại công việc & Lệnh',
+          path: '/danh-muc/loai-cong-viec/nong-nghiep',
+          children: [
+            { label: 'Cơ giới Nông nghiệp', path: '/danh-muc/loai-cong-viec/nong-nghiep' },
+            { label: 'Máy Công trình', path: '/danh-muc/loai-cong-viec/cong-trinh' },
+            { label: 'Vận chuyển nội bộ', path: '/danh-muc/loai-cong-viec/van-chuyen' },
+          ],
+        },
+        {
+          label: 'Lô thửa & Tuyến đường',
+          path: '/danh-muc/lo-thua-tuyen-duong/nong-nghiep',
+          children: [
+            { label: 'Lô thửa Nông nghiệp', path: '/danh-muc/lo-thua-tuyen-duong/nong-nghiep' },
+            { label: 'Khu vực Công trình', path: '/danh-muc/lo-thua-tuyen-duong/cong-trinh' },
+            { label: 'Tuyến đường Vận chuyển', path: '/danh-muc/lo-thua-tuyen-duong/van-chuyen' },
+          ],
+        },
         { label: 'Vật tư & Phụ tùng BTSC', path: '/danh-muc/vat-tu-phu-tung' },
         { label: 'Định mức kỹ thuật', path: '/danh-muc/dinh-muc-ky-thuat' },
       ],
@@ -175,8 +221,31 @@ export const Sidebar: React.FC = () => {
     }
     const initial: Record<string, boolean> = {};
     NAV_MODULES.forEach((mod) => {
-      const isChildActive = mod.children?.some((c) => location.pathname === c.path || (c.path !== '/dashboard' && location.pathname.startsWith(c.path)));
+      const isChildActive = mod.children?.some(
+        (c) =>
+          location.pathname === c.path ||
+          (c.path !== '/dashboard' && location.pathname.startsWith(c.path)) ||
+          c.children?.some((sub) => location.pathname === sub.path || location.pathname.startsWith(sub.path))
+      );
       if (isChildActive) initial[mod.id] = true;
+    });
+    return initial;
+  });
+
+  // Sub-accordion state for items with sub-children (Loại công việc & Lệnh, Lô thửa & Tuyến đường...)
+  const [openSubGroups, setOpenSubGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    NAV_MODULES.forEach((mod) => {
+      mod.children?.forEach((child) => {
+        if (child.children && child.children.length > 0) {
+          const isSubActive = child.children.some(
+            (sub) => location.pathname === sub.path || location.pathname.startsWith(sub.path)
+          );
+          if (isSubActive) {
+            initial[child.path] = true;
+          }
+        }
+      });
     });
     return initial;
   });
@@ -185,12 +254,35 @@ export const Sidebar: React.FC = () => {
   React.useEffect(() => {
     if (location.pathname === '/dashboard' || location.pathname === '/') {
       setOpenGroups({});
+      setOpenSubGroups({});
     } else {
       const activeGroup = NAV_MODULES.find((mod) =>
-        mod.children?.some((c) => location.pathname === c.path || (c.path !== '/dashboard' && location.pathname.startsWith(c.path)))
+        mod.children?.some(
+          (c) =>
+            location.pathname === c.path ||
+            (c.path !== '/dashboard' && location.pathname.startsWith(c.path)) ||
+            c.children?.some((sub) => location.pathname === sub.path || location.pathname.startsWith(sub.path))
+        )
       );
+
       if (activeGroup) {
         setOpenGroups({ [activeGroup.id]: true });
+
+        // Tự động gộp (collapse) các sub-group không thuộc trang đang xem
+        const newSubState: Record<string, boolean> = {};
+        activeGroup.children?.forEach((child) => {
+          if (child.children && child.children.length > 0) {
+            const isSubActive = child.children.some(
+              (sub) => location.pathname === sub.path || location.pathname.startsWith(sub.path)
+            );
+            if (isSubActive) {
+              newSubState[child.path] = true;
+            }
+          }
+        });
+        setOpenSubGroups(newSubState);
+      } else {
+        setOpenSubGroups({});
       }
     }
   }, [location.pathname]);
@@ -281,7 +373,12 @@ export const Sidebar: React.FC = () => {
 
           // Expandable Group with Sub-items
           const isGroupOpen = !!openGroups[group.id];
-          const hasActiveChild = group.children.some((c) => location.pathname === c.path || (c.path !== '/dashboard' && location.pathname.startsWith(c.path)));
+          const hasActiveChild = group.children.some(
+            (c) =>
+              location.pathname === c.path ||
+              (c.path !== '/dashboard' && location.pathname.startsWith(c.path)) ||
+              c.children?.some((sub) => location.pathname === sub.path || location.pathname.startsWith(sub.path))
+          );
 
           return (
             <div key={group.id} className="mb-0.5">
@@ -323,15 +420,72 @@ export const Sidebar: React.FC = () => {
               {!isSidebarCollapsed && isGroupOpen && (
                 <div className="pl-8 pr-1 py-1 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
                   {group.children.map((child) => {
+                    if (child.children && child.children.length > 0) {
+                      const isSubGroupActive =
+                        location.pathname === child.path ||
+                        child.children.some(
+                          (sub) => location.pathname === sub.path || location.pathname.startsWith(sub.path)
+                        );
+                      const isSubGroupOpen = !!openSubGroups[child.path];
+
+                      return (
+                        <div key={child.path} className="space-y-0.5 my-1">
+                          <NavLink
+                            to={child.path}
+                            onClick={() => {
+                              setOpenSubGroups((prev) => ({
+                                ...prev,
+                                [child.path]: !prev[child.path],
+                              }));
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-[11.5px] font-semibold transition-all ${
+                              isSubGroupActive
+                                ? 'text-[#B8D83D] font-bold bg-white/10 border border-white/25 shadow-xs'
+                                : 'text-slate-300 hover:text-white hover:bg-white/5 border border-transparent'
+                            }`}
+                          >
+                            <span className="truncate">{child.label}</span>
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                                isSubGroupOpen ? 'rotate-180 text-[#B8D83D]' : ''
+                              }`}
+                            />
+                          </NavLink>
+
+                          {/* Sub-children list — chỉ hiển thị khi sub-group được mở */}
+                          {isSubGroupOpen && (
+                            <div className="pl-3.5 ml-2 border-l border-white/15 space-y-0.5 py-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                              {child.children.map((sub) => {
+                                const isSubActive = location.pathname === sub.path;
+                                return (
+                                  <NavLink
+                                    key={sub.path}
+                                    to={sub.path}
+                                    className={`block px-2.5 py-1 rounded-md text-[11px] transition-all relative ${
+                                      isSubActive
+                                        ? 'text-white font-bold bg-white/15 before:content-[""] before:absolute before:left-[-15px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:rounded-full before:bg-[#B8D83D]'
+                                        : 'text-slate-300 hover:text-white hover:bg-white/5 font-normal'
+                                    }`}
+                                  >
+                                    {sub.label}
+                                  </NavLink>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     const isChildActive = location.pathname === child.path;
                     return (
                       <NavLink
                         key={child.path}
                         to={child.path}
-                        className={`block px-2.5 py-1.5 rounded-lg text-[11px] transition-all relative ${
+                        className={`block px-2.5 py-1.5 rounded-xl text-[11.5px] font-semibold transition-all relative ${
                           isChildActive
-                            ? 'text-white font-bold bg-white/10 before:content-[""] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:rounded-full before:bg-[#B8D83D]'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                            ? 'text-[#B8D83D] font-bold bg-white/10 border border-white/25 shadow-xs before:content-[""] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:rounded-full before:bg-[#B8D83D]'
+                            : 'text-slate-300 hover:text-white hover:bg-white/5 border border-transparent'
                         }`}
                       >
                         {child.label}

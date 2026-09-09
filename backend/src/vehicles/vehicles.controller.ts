@@ -22,13 +22,23 @@ import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleFilterDto } from './dto/vehicle-filter.dto';
 import { VehicleFilterOptionsDto } from './dto/vehicle-filter-options.dto';
 import { VehiclesService } from './vehicles.service';
+import { AvailabilityService } from '../availability/availability.service';
+import { TimelineQueryDto } from '../availability/dto/timeline-query.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { OperationalActor } from '../common/utils/operational-access';
 
 @ApiTags('Vehicles - Quản lý Xe Cơ Giới & PTVC')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('vehicles')
 export class VehiclesController {
-  constructor(private readonly vehiclesService: VehiclesService) {}
+  constructor(private readonly vehiclesService: VehiclesService, private readonly availabilityService: AvailabilityService) {}
+
+  @Get(':id/timeline')
+  @ApiOperation({ summary: 'Timeline bận/rảnh và khung giờ phù hợp của xe' })
+  timeline(@Param('id', ParseIntPipe) id: number, @Query() query: TimelineQueryDto, @CurrentUser() actor: OperationalActor) {
+    return this.availabilityService.vehicleTimeline(id, query.from, query.to, actor, query.excludeWorkOrderId, query.requiredDurationMinutes);
+  }
 
   @Public()
   @Post()
@@ -80,6 +90,13 @@ export class VehiclesController {
   @ApiOperation({ summary: 'Thống kê tổng quan tình trạng đội xe (Sẵn sàng, Đang chạy, 250h)' })
   async getStatistics(@Query() filter?: VehicleFilterDto) {
     return this.vehiclesService.getStatistics(filter);
+  }
+
+  @Public()
+  @Get('sos-alerts')
+  @ApiOperation({ summary: 'Lấy danh sách các cảnh báo cứu hộ SOS từ cơ sở dữ liệu' })
+  async getSosAlerts() {
+    return this.vehiclesService.getSosAlerts();
   }
 
   // --------------------------------------------------------------------------

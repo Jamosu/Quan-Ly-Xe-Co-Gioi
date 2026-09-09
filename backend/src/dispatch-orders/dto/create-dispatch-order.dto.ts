@@ -66,4 +66,14 @@ export class CreateDispatchOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ example: 'Kế hoạch dự thảo chuẩn bị mặt bằng mở rộng' })
+  @IsOptional()
+  @IsString()
+  planNotes?: string;
+
+  @ApiPropertyOptional({ example: 'Cày lật sâu 30-35cm khử chua tầng đáy' })
+  @IsOptional()
+  @IsString()
+  taskNotes?: string;
 }

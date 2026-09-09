@@ -12,19 +12,24 @@ export interface FilterCriteria {
 export function matchesKLH(item: any, selectedKLH?: string): boolean {
   if (!selectedKLH || selectedKLH === 'ALL') return true;
 
-  const itemKLH = (item.klhId || item.klhCode || item.klh || item.unitId || item.complexCode || '').toString().toUpperCase();
-  if (itemKLH && itemKLH === selectedKLH.toUpperCase()) return true;
+  const itemKLH = (item.complexCode || item.klhId || item.klhCode || item.klh || item.unitId || '').toString().toUpperCase();
+  if (itemKLH) {
+    if (itemKLH === selectedKLH.toUpperCase()) return true;
+    if (selectedKLH === 'KOUN_MOM' && ['KOUN_MOM', 'KLH_KM', 'KM'].includes(itemKLH)) return true;
+    if (selectedKLH === 'SNOUL' && ['SNOUL', 'KLH_SN', 'SN'].includes(itemKLH)) return true;
+    if (selectedKLH === 'NAM_LAO' && ['NAM_LAO', 'KLH_NL', 'NL', 'HAGL_AGRI'].includes(itemKLH)) return true;
+  }
 
   const klhKeywords: Record<string, string[]> = {
-    SNOUL: ['snoul', 'snuol', 'sn', 'kratie'],
-    KOUN_MOM: ['koun mom', 'km', 'ratanakiri'],
-    NAM_LAO: ['nam lào', 'nam lao', 'lao', 'attapeu', 'at', 'hagl'],
-    HAGL_AGRI: ['attapeu', 'at', 'hagl', 'nam lào'],
+    SNOUL: ['snoul', 'snuol', 'sn', 'kratie', 'memot'],
+    KOUN_MOM: ['koun mom', 'kounmom', 'km', 'ratanakiri', 'lumphat', 'erc'],
+    NAM_LAO: ['nam lào', 'nam lao', 'lao', 'attapeu', 'at', 'paksong', 'hagl'],
+    HAGL_AGRI: ['attapeu', 'at', 'hagl', 'nam lào', 'paksong'],
     IA_PUCH: ['ia puch', 'ip', 'gia lai'],
   };
 
   const keywords = klhKeywords[selectedKLH] || [selectedKLH.toLowerCase()];
-  const textToCheck = `${item.klhName || ''} ${item.unitName || ''} ${item.location || ''} ${item.address || ''} ${item.code || ''} ${item.internalCode || ''} ${item.teamUnit || ''} ${item.fromLocation || ''} ${item.toLocation || ''} ${item.assignedUnitCode || ''} ${item.regionCode || ''}`.toLowerCase();
+  const textToCheck = `${item.complexName || ''} ${item.complexCode || ''} ${item.enterpriseName || ''} ${item.farmName || ''} ${item.unit || ''} ${item.unitName || ''} ${item.klhName || ''} ${item.location || ''} ${item.address || ''} ${item.code || ''} ${item.internalCode || ''} ${item.teamUnit || ''} ${item.fromLocation || ''} ${item.toLocation || ''} ${item.origin || ''} ${item.destination || ''} ${item.projectName || ''} ${item.locationDetails || ''} ${item.purpose || ''} ${item.notes || ''} ${item.planTitle || ''} ${item.taskPlot || ''} ${item.assignedUnitCode || ''} ${item.regionCode || ''}`.toLowerCase();
 
   return keywords.some((kw) => textToCheck.includes(kw));
 }

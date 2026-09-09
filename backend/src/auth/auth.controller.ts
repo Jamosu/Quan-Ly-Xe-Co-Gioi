@@ -9,9 +9,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 import { Response } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { AllowAnonymous } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -22,7 +24,7 @@ import { RegisterDto } from './dto/register.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Public()
+  @Roles(Role.SUPER_ADMIN)
   @Post('register')
   @ApiOperation({ summary: 'Đăng ký tài khoản người dùng nội bộ' })
   @ApiResponse({ status: 201, description: 'Tạo tài khoản thành công' })
@@ -30,7 +32,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  @Public()
+  @AllowAnonymous()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Đăng nhập hệ thống (Lấy JWT Token)' })

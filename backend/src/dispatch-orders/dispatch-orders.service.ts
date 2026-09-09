@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { DispatchStatus, DriverEmploymentStatus, DriverShiftStatus, OperationalEntityType, Prisma, Role, TransportStatus, VehicleStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { DispatchStatus, DriverEmploymentStatus, DriverShiftStatus, OperationalEntityType, Prisma, Role, TransportStatus, VehicleStatus, WorkAssignmentMode, WorkOrderStatus, WorkOrderType } from '@prisma/client';
 import { assertOperationalAccess, OperationalActor, scopedUnit } from '../common/utils/operational-access';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignDispatchDto } from './dto/assign-dispatch.dto';
@@ -7,17 +7,24 @@ import { AvailableResourcesDto } from './dto/available-resources.dto';
 import { CreateDispatchOrderDto } from './dto/create-dispatch-order.dto';
 import { DispatchFilterDto } from './dto/dispatch-filter.dto';
 import { UpdateDispatchOrderDto } from './dto/update-dispatch-order.dto';
+import { WorkOrdersService } from '../work-orders/work-orders.service';
 
 const dispatchInclude = {
   requester: { select: { id: true, fullName: true, role: true } },
   vehicle: { include: { vehicleType: true } },
   driver: { select: { id: true, fullName: true, phone: true, licenseClass: true, licenseExpiryDate: true, healthCheckExpiryDate: true } },
   implement: true,
-  productionOrder: true,
+  productionOrder: {
+    include: {
+      plan: { select: { id: true, code: true, title: true, notes: true } },
+      planItem: { select: { id: true, jobCode: true, jobName: true, notes: true } },
+    },
+  },
   approvedBy: { select: { id: true, fullName: true } },
   assignedBy: { select: { id: true, fullName: true } },
   acceptedBy: { select: { id: true, fullName: true } },
   confirmations: true,
+  operationalWorkOrder: true,
 } satisfies Prisma.DispatchOrderInclude;
 
 const ACTIVE_DISPATCH = [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.WORKING];
@@ -25,18 +32,38 @@ const ACTIVE_TRANSPORT = [TransportStatus.ASSIGNED, TransportStatus.DRIVER_ACCEP
 
 @Injectable()
 export class DispatchOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, @Optional() private workOrders?: WorkOrdersService) {}
 
   async create(dto: CreateDispatchOrderDto, actor: OperationalActor) {
     if (await this.prisma.dispatchOrder.findUnique({ where: { code: dto.code } })) throw new ConflictException(`Lệnh điều xe mã ${dto.code} đã tồn tại.`);
     const unit = scopedUnit(actor, dto.unit) ?? dto.unit;
-    return this.prisma.dispatchOrder.create({ data: { ...dto, unit, requesterId: actor.id, status: DispatchStatus.DRAFT }, include: dispatchInclude });
+    const { planNotes, taskNotes, ...restDto } = dto;
+    let finalNotes = restDto.notes;
+    if (planNotes || taskNotes) {
+      const parts: string[] = [];
+      if (planNotes) parts.push(`[Ghi chú kế hoạch]: ${planNotes}`);
+      if (taskNotes) parts.push(`[Ghi chú công việc]: ${taskNotes}`);
+      if (restDto.notes && !parts.some((p) => restDto.notes?.includes(p))) {
+        parts.push(restDto.notes);
+      }
+      finalNotes = parts.join('\n');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.dispatchOrder.create({
+        data: { ...restDto, notes: finalNotes, unit, requesterId: actor.id, status: DispatchStatus.DRAFT },
+        include: dispatchInclude,
+      });
+      if (order.departureTime && order.plannedEndTime) {
+        await tx.operationalWorkOrder.create({ data: { type: WorkOrderType.DISPATCH, unit, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, status: WorkOrderStatus.DRAFT, plannedStartAt: order.departureTime, plannedEndAt: order.plannedEndTime, dispatchOrderId: order.id, createdById: actor.id } });
+      }
+      return order;
+    });
   }
 
   async findAll(filter: DispatchFilterDto, actor: OperationalActor) {
     const { page = 1, limit = 20, search, unit, status, isDelayed } = filter;
     const where: Prisma.DispatchOrderWhereInput = {};
-    if (actor.role === Role.DRIVER) where.driverId = actor.id;
+    if (actor?.role === Role.DRIVER) where.driverId = actor.id;
     else { const effectiveUnit = scopedUnit(actor, unit); if (effectiveUnit) where.unit = effectiveUnit; }
     if (status) where.status = status;
     if (isDelayed !== undefined) where.isDelayed = isDelayed;
@@ -59,7 +86,22 @@ export class DispatchOrdersService {
     const order = await this.findOne(id, actor);
     if (!([DispatchStatus.DRAFT, DispatchStatus.REJECTED] as DispatchStatus[]).includes(order.status)) throw new BadRequestException('Chỉ sửa trực tiếp lệnh nháp hoặc bị từ chối.');
     if (dto.unit) scopedUnit(actor, dto.unit);
-    return this.prisma.dispatchOrder.update({ where: { id }, data: dto, include: dispatchInclude });
+    const { planNotes, taskNotes, ...restDto } = dto;
+    let finalNotes = restDto.notes;
+    if (planNotes !== undefined || taskNotes !== undefined) {
+      const parts: string[] = [];
+      if (planNotes) parts.push(`[Ghi chú kế hoạch]: ${planNotes}`);
+      if (taskNotes) parts.push(`[Ghi chú công việc]: ${taskNotes}`);
+      if (restDto.notes && !parts.some((p) => restDto.notes?.includes(p))) {
+        parts.push(restDto.notes);
+      }
+      finalNotes = parts.join('\n');
+    }
+    return this.prisma.dispatchOrder.update({
+      where: { id },
+      data: { ...restDto, ...(finalNotes !== undefined ? { notes: finalNotes } : {}) },
+      include: dispatchInclude,
+    });
   }
 
   private conflict(reasons: Array<Record<string, unknown>>): never {
@@ -116,14 +158,12 @@ export class DispatchOrdersService {
   async assign(id: number, dto: AssignDispatchDto, actor: OperationalActor) {
     const order = await this.findOne(id, actor);
     if (order.status !== DispatchStatus.APPROVED) throw new BadRequestException('Chỉ phân công lệnh đã được duyệt.');
-    const reasons = await this.validateResources(dto, id);
-    if (reasons.length) this.conflict(reasons);
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.dispatchOrder.update({ where: { id }, data: { ...dto, status: DispatchStatus.ASSIGNED, assignedById: actor.id, assignedAt: new Date() } });
-      await tx.user.update({ where: { id: dto.driverId }, data: { currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH } });
-      await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.DISPATCH_ORDER, entityId: id, actorId: actor.id, action: 'ASSIGN', newValue: { vehicleId: dto.vehicleId, driverId: dto.driverId } } });
-      return updated;
+    const workOrder = order.operationalWorkOrder ?? await this.prisma.operationalWorkOrder.create({
+      data: { type: WorkOrderType.DISPATCH, unit: order.unit, status: WorkOrderStatus.APPROVED, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime, dispatchOrderId: id, createdById: order.requesterId, approvedById: actor.id, approvedAt: new Date() },
     });
+    if (!this.workOrders) throw new BadRequestException('Work order orchestration chưa sẵn sàng.');
+    await this.workOrders.assign(workOrder.id, { vehicleId: dto.vehicleId, driverId: dto.driverId, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime }, actor);
+    return this.findOne(id, actor);
   }
 
   private async transition(id: number, actor: OperationalActor, from: DispatchStatus[], to: DispatchStatus, reason?: string) {
@@ -150,6 +190,16 @@ export class DispatchOrdersService {
         if (order.driverId) await tx.user.update({ where: { id: order.driverId }, data: { currentShiftStatus: DriverShiftStatus.SAN_SANG } });
       }
       await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.DISPATCH_ORDER, entityId: id, actorId: actor.id, action: `${order.status}_TO_${to}`, oldValue: { status: order.status }, newValue: { status: to }, reason } });
+      if (order.operationalWorkOrder) {
+        const workStatus: Partial<Record<DispatchStatus, WorkOrderStatus>> = {
+          PENDING_APPROVAL: WorkOrderStatus.PENDING_APPROVAL, APPROVED: WorkOrderStatus.APPROVED,
+          DRIVER_ACCEPTED: WorkOrderStatus.DRIVER_ACCEPTED, DEPARTED: WorkOrderStatus.IN_PROGRESS,
+          WORKING: WorkOrderStatus.IN_PROGRESS, COMPLETED: WorkOrderStatus.SUBMITTED_FOR_ACCEPTANCE,
+          ACCEPTED: WorkOrderStatus.ACCEPTED, CLOSED: WorkOrderStatus.CLOSED,
+          REJECTED: WorkOrderStatus.REJECTED, CANCELLED: WorkOrderStatus.CANCELLED,
+        };
+        if (workStatus[to]) await tx.operationalWorkOrder.update({ where: { id: order.operationalWorkOrder.id }, data: { status: workStatus[to], version: { increment: 1 } } });
+      }
       return updated;
     });
   }
@@ -171,5 +221,17 @@ export class DispatchOrdersService {
     return { updatedCount: delayed.count };
   }
 
-  async remove(id: number, actor: OperationalActor) { const order = await this.findOne(id, actor); if (order.status !== DispatchStatus.DRAFT) throw new BadRequestException('Chỉ xóa vật lý lệnh nháp.'); return this.prisma.dispatchOrder.delete({ where: { id } }); }
+  async remove(id: number, actor: OperationalActor) {
+    const order = await this.findOne(id, actor);
+    if (order.status !== DispatchStatus.DRAFT) throw new BadRequestException('Chỉ được hủy lệnh nháp qua API DELETE tương thích.');
+    if (order.operationalWorkOrder && this.workOrders) {
+      await this.workOrders.cancel(order.operationalWorkOrder.id, 'Hủy lệnh nháp qua API DELETE tương thích', actor);
+      return this.findOne(id, actor);
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.dispatchOrder.update({ where: { id }, data: { status: DispatchStatus.CANCELLED, cancelledAt: new Date(), rejectionReason: 'Hủy lệnh nháp qua API DELETE tương thích' } });
+      await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.DISPATCH_ORDER, entityId: id, actorId: actor.id, action: 'CANCEL', oldValue: { status: order.status }, newValue: { status: DispatchStatus.CANCELLED }, reason: 'Hủy lệnh nháp qua API DELETE tương thích' } });
+      return updated;
+    });
+  }
 }
