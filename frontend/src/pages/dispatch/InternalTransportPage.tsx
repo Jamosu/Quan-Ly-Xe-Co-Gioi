@@ -244,6 +244,39 @@ export const InternalTransportPage: React.FC = () => {
         syncAllApprovedSpecializedPlans();
       } catch {}
 
+      // Nạp các lệnh vận chuyển từ CSDL backend dispatch-orders (chuẩn MySQL DB)
+      try {
+        const dispatchRes = await operationsApi.dispatchOrders({ page: 1, limit: 100 });
+        const dispatchList = Array.isArray(dispatchRes) ? dispatchRes : (dispatchRes?.items || []);
+        dispatchList
+          .filter((item: any) =>
+            item.code?.startsWith('LDX-VC-') ||
+            item.code?.startsWith('VC-') ||
+            item.orderCategory === 'VAN_CHUYEN' ||
+            item.sourceType === 'TRANSPORT_ORDER'
+          )
+          .forEach((item: any) => {
+            if (!sanitizedItems.some((s: any) => s.code === item.code)) {
+              sanitizedItems.push({
+                id: item.id || Math.floor(Math.random() * 100000),
+                code: item.code,
+                unit: item.unit || 'BAN_CO_GIOI',
+                cargoType: item.purpose || 'Vận chuyển hàng hóa nội bộ',
+                origin: item.origin || 'Kho xuất phát',
+                destination: item.destination || 'Điểm giao',
+                departureTime: item.departureTime || new Date().toISOString(),
+                plannedEndTime: item.plannedEndTime,
+                status: (item.status === 'CHO_PHAN_CONG' || item.status === 'DRAFT' ? 'PENDING' : item.status === 'WORKING' ? 'IN_TRANSIT' : item.status === 'COMPLETED' ? 'COMPLETED' : 'APPROVED') as any,
+                tonnage: Number(item.workVolumeTarget) || 10,
+                vehiclePlate: item.vehicle?.plate || item.vehicle?.code || 'Chưa điều xe',
+                driverName: item.driver?.fullName || 'Chưa phân công',
+                notes: item.notes,
+                items: [],
+              } as any);
+            }
+          });
+      } catch {}
+
       // Nạp thêm các lệnh vận chuyển nội bộ sinh từ kế hoạch chuyên dùng trong localStorage nếu chưa có
       try {
         const storedMasterRaw = localStorage.getItem('thaco_all_dispatch_orders_master_v4');

@@ -123,11 +123,145 @@ const TRANSPORT_CATEGORIES = [
   { code: 'KHAC', name: 'Hàng hóa khác' },
 ];
 
-// Dữ liệu khởi tạo chuẩn cho Kế hoạch Công trình (rỗng, không dùng dữ liệu ảo)
-export const INITIAL_CONSTRUCTION_PLANS: SpecializedWeeklyPlan[] = [];
+// Dữ liệu khởi tạo chuẩn cho Kế hoạch Công trình Tuần 37
+export const INITIAL_CONSTRUCTION_PLANS: SpecializedWeeklyPlan[] = [
+  {
+    id: 'PLAN-CT-2026-W37',
+    code: 'KH-CT-2026-W37',
+    title: 'Kế hoạch cơ giới thi công công trình Tuần 37 (2026)',
+    complexCode: 'KOUN_MOM',
+    complexName: 'Khu liên hợp Koun Mom',
+    enterpriseName: 'Xí nghiệp Cơ giới Công trình',
+    farmName: 'Đội xe công trình Koun Mom',
+    categoryCode: 'SAN_GAT',
+    categoryName: 'San gạt & Lu lèn nền đường',
+    weekNumber: 37,
+    year: 2026,
+    startDate: '2026-09-07T00:00:00.000Z',
+    endDate: '2026-09-13T23:59:59.000Z',
+    status: 'APPROVED',
+    notes: 'Kế hoạch thi công duy tu hệ thống đường giao thông nội đồng và mương thoát nước phân khu chuối',
+    createdAt: '2026-09-07T08:00:00.000Z',
+    createdBy: 'Nguyễn Ngọc Anh Tú',
+    tasks: [
+      {
+        id: '1',
+        jobCode: 'DAO_MUONG',
+        jobName: 'Đào và nạo vét bùn mương thoát nước chính',
+        location: 'Lô CN-A12 (Thửa 03)',
+        machineType: 'Máy xúc đào bánh xích',
+        scheduledDays: 'Thứ 2',
+        assignedVehiclesCount: 1,
+        durationHours: 8,
+        targetQuantity: 450,
+        targetUnit: 'm³',
+        status: 'DISPATCHED',
+        notes: 'Máy đào gàu 1.2m3 thi công nạo vét bùn đất',
+      },
+      {
+        id: '2',
+        jobCode: 'SAN_GAT',
+        jobName: 'Rải cấp phối đá dăm và đầm nén đường trục',
+        location: 'Đường trục chính nội đồng',
+        machineType: 'Máy san gạt & Máy lu',
+        scheduledDays: 'Thứ 4 - Chủ Nhật',
+        assignedVehiclesCount: 1,
+        durationHours: 40,
+        targetQuantity: 1200,
+        targetUnit: 'm³',
+        status: 'DISPATCHED',
+        notes: 'San gạt và đầm nén 5 ngày liên tục',
+      },
+      {
+        id: '3',
+        jobCode: 'DE_BAO',
+        jobName: 'Đắp bờ bao ngăn lũ và đê ngăn nước tràn',
+        location: 'Bờ bao phân khu phía Tây',
+        machineType: 'Máy ủi & Máy đào',
+        scheduledDays: 'Thứ 4 - Chủ Nhật',
+        assignedVehiclesCount: 1,
+        durationHours: 40,
+        targetQuantity: 800,
+        targetUnit: 'm³',
+        status: 'DISPATCHED',
+        notes: 'Gia cố bờ bao ngăn lũ cho lô chuối mới trồng',
+      },
+    ],
+  },
+];
 
-// Dữ liệu khởi tạo chuẩn cho Kế hoạch Vận chuyển nội bộ (rỗng, không dùng dữ liệu ảo)
-export const INITIAL_TRANSPORT_PLANS: SpecializedWeeklyPlan[] = [];
+// Dữ liệu khởi tạo chuẩn cho Kế hoạch Vận chuyển nội bộ Tuần 37
+export const INITIAL_TRANSPORT_PLANS: SpecializedWeeklyPlan[] = [
+  {
+    id: 'PLAN-VC-2026-W37',
+    code: 'KH-VC-2026-W37',
+    title: 'Kế hoạch vận tải & chuyển hàng nội bộ Tuần 37 (2026)',
+    complexCode: 'KOUN_MOM',
+    complexName: 'Khu liên hợp Koun Mom',
+    enterpriseName: 'Đội Vận tải Cơ giới',
+    farmName: 'Đội vận chuyển nội bộ',
+    categoryCode: 'NHIEN_LIEU',
+    categoryName: 'Nhiên liệu & Nước sinh hoạt',
+    weekNumber: 37,
+    year: 2026,
+    startDate: '2026-09-07T00:00:00.000Z',
+    endDate: '2026-09-13T23:59:59.000Z',
+    status: 'APPROVED',
+    notes: 'Kế hoạch vận chuyển nước sinh hoạt, ống tưới và vật tư kỹ thuật Tuần 37',
+    createdAt: '2026-09-07T08:00:00.000Z',
+    createdBy: 'Nguyễn Ngọc Anh Tú',
+    tasks: [
+      {
+        id: '1',
+        jobCode: 'TIEP_NUOC',
+        jobName: 'Tiếp nước sinh hoạt và nước tưới trạm sơ chế',
+        location: 'Nhà máy sơ chế Chuối ERC 1',
+        origin: 'Trạm bơm trung tâm',
+        destination: 'Nhà máy sơ chế Chuối ERC 1',
+        machineType: 'Xe bồn tiếp nước',
+        scheduledDays: 'Thứ 2 - Chủ Nhật',
+        assignedVehiclesCount: 1,
+        durationHours: 56,
+        targetQuantity: 70,
+        targetUnit: 'Tấn',
+        status: 'DISPATCHED',
+        notes: 'Chạy hàng ngày từ T2 đến CN (7 ca)',
+      },
+      {
+        id: '2',
+        jobCode: 'CAP_ONG_TUOI',
+        jobName: 'Cấp phát ống tưới nhỏ giọt, béc phun và phụ tùng cơ giới',
+        location: 'Nông trường 1 & 2',
+        origin: 'Kho vật tư nông nghiệp',
+        destination: 'Nông trường 1 & 2',
+        machineType: 'Xe tải thùng 8 tấn',
+        scheduledDays: 'Thứ 4 - Chủ Nhật',
+        assignedVehiclesCount: 1,
+        durationHours: 40,
+        targetQuantity: 25,
+        targetUnit: 'Tấn',
+        status: 'DISPATCHED',
+        notes: 'Cấp phát vật tư cho các tổ thi công tưới',
+      },
+      {
+        id: '3',
+        jobCode: 'TIEP_NUOC_PHU',
+        jobName: 'Tiếp nước sinh hoạt và nước tưới trạm sơ chế',
+        location: 'Khu vực sơ chế đóng gói',
+        origin: 'Kho bồn nước sạch',
+        destination: 'Khu vực sơ chế đóng gói',
+        machineType: 'Xe bồn tiếp nước',
+        scheduledDays: 'Thứ 4 - Chủ Nhật',
+        assignedVehiclesCount: 1,
+        durationHours: 40,
+        targetQuantity: 50,
+        targetUnit: 'Tấn',
+        status: 'DISPATCHED',
+        notes: 'Cung cấp nước phụ trợ cho đóng gói',
+      },
+    ],
+  },
+];
 
 const STORAGE_KEYS: Record<SpecializedPlanKind, string> = {
   CONSTRUCTION: 'thaco_weekly_construction_plans_v3',
@@ -217,6 +351,12 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
     } catch {}
     const initial = isConstruction ? INITIAL_CONSTRUCTION_PLANS : INITIAL_TRANSPORT_PLANS;
     setPlans(normalizeSpecializedPlanStatuses(initial));
+    if (initial && initial.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEYS[kind], JSON.stringify(initial));
+        syncAllApprovedSpecializedPlans();
+      } catch {}
+    }
     setSelectedCategory('ALL');
   }, [kind, isConstruction]);
 
