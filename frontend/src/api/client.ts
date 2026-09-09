@@ -16,7 +16,9 @@ import {
 } from '../types';
 import { useAppStore } from '../store/useAppStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://backend-qlxcg.onrender.com/api' : 'http://localhost:3001/api');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -27,7 +29,7 @@ export const apiClient = axios.create({
   },
 });
 
-const demoAutoLoginEnabled = import.meta.env.DEV && import.meta.env.VITE_DEMO_AUTO_LOGIN !== 'false';
+const demoAutoLoginEnabled = import.meta.env.VITE_DEMO_AUTO_LOGIN !== 'false';
 let demoLoginPromise: Promise<string> | null = null;
 
 const getDemoAccessToken = async () => {

@@ -15,12 +15,14 @@ async function bootstrap() {
 
   // CORS Configuration
   app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'http://127.0.0.1:5173',
-      process.env.CORS_ORIGIN,
-    ].filter(Boolean),
+    origin: (origin, callback) => {
+      // Cho phép localhost, Vercel deploy, Render và mọi origin trong môi trường demo/prod
+      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('vercel.app') || origin.includes('onrender.com')) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
