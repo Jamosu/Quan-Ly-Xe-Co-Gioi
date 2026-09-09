@@ -35,7 +35,10 @@ export class DispatchOrdersService {
   constructor(private prisma: PrismaService, @Optional() private workOrders?: WorkOrdersService) {}
 
   async create(dto: CreateDispatchOrderDto, actor: OperationalActor) {
-    if (await this.prisma.dispatchOrder.findUnique({ where: { code: dto.code } })) throw new ConflictException(`Lệnh điều xe mã ${dto.code} đã tồn tại.`);
+    const existing = await this.prisma.dispatchOrder.findUnique({
+      where: { code: dto.code },
+      include: dispatchInclude,
+    });
     const unit = scopedUnit(actor, dto.unit) ?? dto.unit;
     const { planNotes, taskNotes, ...restDto } = dto;
     let finalNotes = restDto.notes;
@@ -48,6 +51,19 @@ export class DispatchOrdersService {
       }
       finalNotes = parts.join('\n');
     }
+
+    if (existing) {
+      return this.prisma.dispatchOrder.update({
+        where: { id: existing.id },
+        data: {
+          ...restDto,
+          notes: finalNotes || existing.notes,
+          unit: unit || existing.unit,
+        },
+        include: dispatchInclude,
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.dispatchOrder.create({
         data: { ...restDto, notes: finalNotes, unit, requesterId: actor.id, status: DispatchStatus.DRAFT },

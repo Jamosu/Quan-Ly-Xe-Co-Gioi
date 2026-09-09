@@ -99,10 +99,13 @@ apiClient.interceptors.response.use(
     const msg = errorData?.message || errorData?.error?.message || error.message || 'Không thể kết nối máy chủ.';
     const cleanMsg = typeof msg === 'string' ? msg : JSON.stringify(msg);
 
-    useAppStore.getState().setHeaderAlert({
-      type: 'error',
-      message: `Lỗi kết nối máy chủ (${status || 'Network'}): ${cleanMsg}`,
-    });
+    // Bỏ qua hiển thị cảnh báo đỏ xâm lấn nếu là xung đột 409 (bản ghi/mã đã tồn tại) hoặc hủy request
+    if (status !== 409 && !axios.isCancel(error)) {
+      useAppStore.getState().setHeaderAlert({
+        type: 'error',
+        message: `Lỗi kết nối máy chủ (${status || 'Network'}): ${cleanMsg}`,
+      });
+    }
 
     return Promise.reject(error);
   }

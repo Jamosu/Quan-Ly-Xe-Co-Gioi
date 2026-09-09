@@ -36,12 +36,15 @@ export const syncSpecializedPlanTasksToDispatch = (
     const planWeek = plan.weekNumber || getWeekNumber(plan.startDate || new Date());
     const cleanPlanCode = (plan.code || '')
       .replace(/^KH-/, '')
-      .replace(/^(20\d\d-)?W\d+-?/, '')
+      .replace(/^(VC|CT)-?/i, '')
+      .replace(/20\d\d-?/g, '')
+      .replace(/W\d+-?/gi, '')
       .replace(/KOUN_MOM/g, 'KM')
       .replace(/SNOUL/g, 'SN')
       .replace(/NAM_LAO/g, 'NL')
-      .replace(/-+/g, '-');
-    const planIdPart = cleanPlanCode || (plan.id ? String(plan.id).replace(/^PLAN-/, '').slice(-4) : '0001');
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    const planIdPart = cleanPlanCode || (plan.id ? String(plan.id).replace(/^PLAN-/, '').slice(-4) : '01');
 
     // Xóa các lệnh cũ của chính kế hoạch này trong storage để nạp lại chuẩn xác
     const orderPrefix = `LDX-${isCt ? 'CT' : 'VC'}-${planYear}-W${planWeek}`;
