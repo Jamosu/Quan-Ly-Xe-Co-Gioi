@@ -143,7 +143,6 @@ export const Sidebar: React.FC = () => {
         { label: 'Cấp phát dầu tại xe & Lô', path: '/nhien-lieu/phieu-cap' },
         { label: 'Định mức tiêu hao theo xe', path: '/nhien-lieu/dinh-muc' },
         { label: 'Đối chiếu GPS vs Que đo dầu', path: '/nhien-lieu/doi-chieu' },
-        { label: 'Cảnh báo sụt dầu & Hút trộm', path: '/nhien-lieu/canh-bao-sut-dau' },
       ],
     },
     {
@@ -151,6 +150,7 @@ export const Sidebar: React.FC = () => {
       icon: <BellRing className="w-4 h-4" />,
       title: 'Cảnh báo & Thông báo',
       children: [
+        { label: 'Cảnh báo sụt dầu & Hút trộm', path: '/nhien-lieu/canh-bao-sut-dau' },
         { label: 'Cảnh báo chưa xử lý (SOS)', path: '/canh-bao/chua-xu-ly' },
         { label: 'Lịch sử cảnh báo', path: '/canh-bao/lich-su' },
         { label: 'Cấu hình ngưỡng an toàn', path: '/canh-bao/cau-hinh' },
