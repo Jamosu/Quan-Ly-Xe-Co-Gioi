@@ -1,9 +1,17 @@
 import * as XLSX from 'xlsx';
-import { PrismaClient, ImplementCategory, ImplementStatus, TechnicalCondition, Unit } from '@prisma/client';
+import {
+  EquipmentUsageMode,
+  PrismaClient,
+  ImplementCategory,
+  ImplementStatus,
+  TechnicalCondition,
+  Unit,
+  VehicleCategory,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-interface ExcelImplementRow {
+export interface ExcelImplementRow {
   code: string;
   name: string;
   subType: string;
@@ -65,6 +73,28 @@ function inferUnitEnum(unitName: string): Unit {
   if (u.includes('BÒ') || u.includes('BO') || u.includes('AD')) return Unit.XN_BO;
   if (u.includes('BTSC') || u.includes('SC')) return Unit.TT_BTSC;
   return Unit.BAN_CO_GIOI;
+}
+
+export function inferUsageMode(raw: ExcelImplementRow): EquipmentUsageMode {
+  const code = raw.code.toUpperCase();
+  const name = raw.name.toLowerCase();
+  if (
+    code.startsWith('CHT-CNA-') || code.startsWith('CHT-BDU-') || code.startsWith('CHT-GĐH-') || code.startsWith('CHT-ĐTL-') ||
+    name.includes('gắn sau') || /^(dàn|giàn|thiết bị|rơ mooc|rơ-moóc|smrm|gầu|búa|đầm|bộ bánh)(\s|$)/i.test(raw.name)
+  ) return EquipmentUsageMode.ATTACHABLE;
+  if (/^(máy kéo chuối|máy cao áp|máy nổ|cối trộn|súng phun|máy tời)(\s|$)/i.test(raw.name) || /máy băm.*cố định/i.test(raw.name)) {
+    return EquipmentUsageMode.STANDALONE;
+  }
+  return EquipmentUsageMode.UNCLASSIFIED;
+}
+
+export function compatibleCategories(raw: ExcelImplementRow, usageMode: EquipmentUsageMode): VehicleCategory[] {
+  if (usageMode !== EquipmentUsageMode.ATTACHABLE) return [];
+  const code = raw.code.toUpperCase();
+  if (code.startsWith('CHT-CNA-')) return [VehicleCategory.MAY_UI];
+  if (code.startsWith('CHT-BDU-') || code.startsWith('CHT-GĐH-') || code.startsWith('CHT-ĐTL-')) return [VehicleCategory.MAY_DAO];
+  if (code.startsWith('TND-') || /^SMRM(\s|$)/i.test(raw.name)) return [VehicleCategory.XE_CONTAINER];
+  return [VehicleCategory.MAY_KEO, VehicleCategory.MAY_CAY];
 }
 
 async function main() {
@@ -152,6 +182,10 @@ async function main() {
   await prisma.implementAttachmentLog.deleteMany({});
   await prisma.agriculturalImplement.deleteMany({});
 
+  const vehicleTypes = await prisma.vehicleType.findMany({
+    select: { id: true, category: true },
+  });
+
   let countInDepot = 0;
   let countMaintenance = 0;
 
@@ -169,6 +203,10 @@ async function main() {
 
     const category = inferCategory(raw.name, raw.subType);
     const unitEnum = inferUnitEnum(raw.unit);
+    const usageMode = inferUsageMode(raw);
+    const compatibilityIds = vehicleTypes
+      .filter((vehicleType) => vehicleType.category && compatibleCategories(raw, usageMode).includes(vehicleType.category))
+      .map((vehicleType) => vehicleType.id);
 
     // Kiểm tra tình trạng hư hỏng
     const condLower = raw.condition.toLowerCase();
@@ -219,6 +257,11 @@ async function main() {
         name: raw.name,
         category,
         unit: unitEnum,
+        usageMode,
+        sourceGroup: raw.subType,
+        compatibleVehicleTypes: compatibilityIds.length
+          ? { create: compatibilityIds.map((vehicleTypeId) => ({ vehicleTypeId, source: 'WORKBOOK_RULE' })) }
+          : undefined,
         currentVehicleId: null, // Không gắn xe ảo nào!
         status,
         technicalCondition,
@@ -237,6 +280,8 @@ async function main() {
   console.log(`- Xe cơ giới gắn ảo: 0 (Đúng 100% thực tế, sẵn sàng cho nghiệp vụ gán xe khi cần)`);
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+if (require.main === module) {
+  main()
+    .catch(console.error)
+    .finally(() => prisma.$disconnect());
+}

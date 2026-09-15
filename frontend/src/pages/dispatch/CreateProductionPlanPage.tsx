@@ -29,13 +29,11 @@ import { Button } from '../../components/common/Button';
 import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
 import { StatusBadge } from '../../components/operations/OperationUi';
 import { operationsApi } from '../../api/operations';
-import { apiClient } from '../../api/client';
 import {
   WeeklyPlanItem,
   WeeklyTaskItem,
   STANDARD_JOBS,
   STAGES,
-  INITIAL_WEEKLY_PLANS,
   getMonday,
   getWeekNumber,
   toDateKey,
@@ -44,13 +42,13 @@ import {
   getWeeksOfYear,
   WeekOption,
 } from './ProductionPlanPage';
-import { getStoredPlots } from '../../data/locationCatalogData';
-import { getStoredJobs, getStoredStages } from '../../data/jobCatalogData';
+import { getStoredPlots } from '../../data/dispatchPlanningData';
+import { getStoredJobs, getStoredStages } from '../../data/dispatchPlanningData';
 import {
   mockComplexes,
   mockEnterprises,
   mockFarms,
-} from '../../data/catalogData';
+} from '../../data/dispatchPlanningData';
 
 // Các thứ trong tuần làm việc cơ giới
 export const DAYS_OF_WEEK = [
@@ -153,17 +151,31 @@ export const CreateProductionPlanPage: React.FC = () => {
   const mode = searchParams.get('mode');
   const isViewMode = mode === 'view';
 
-  // Quản lý danh sách kế hoạch từ localStorage
-  const [plans, setPlans] = useState<WeeklyPlanItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('thaco_weekly_agri_plans_v7');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch { }
-    return INITIAL_WEEKLY_PLANS;
-  });
+  const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
+
+  useEffect(() => {
+    if (!editPlanId) return;
+    operationsApi.getPlan(editPlanId).then((plan) => {
+      setPlans([{
+        id: String(plan.id), code: plan.code, title: plan.title,
+        complexCode: plan.complexCode, complexName: plan.complexName || plan.complexCode,
+        enterpriseCode: plan.enterpriseCode || '', enterpriseName: plan.enterpriseName || '',
+        farmCode: plan.farmCode || '', farmName: plan.farmName || '',
+        stageCode: plan.stage, stageName: STAGES[plan.stage]?.label || plan.stage,
+        defaultPlot: plan.lotPlot, weekNumber: plan.weekNumber || getWeekNumber(plan.startDate),
+        startDate: plan.startDate.slice(0, 10), endDate: plan.endDate.slice(0, 10),
+        status: plan.status as WeeklyPlanItem['status'], notes: plan.notes || '', createdAt: '',
+        tasks: plan.items.map((item) => ({
+          id: String(item.id), jobCode: item.jobCode || '', jobName: item.jobName,
+          stageCode: item.stage, stageName: STAGES[item.stage]?.label || item.stage,
+          lotPlot: item.plotName, implementGroup: '', recommendedVehicle: item.machineType || '',
+          targetAreaHa: item.targetQuantity, assignedVehiclesCount: item.plannedVehicleCount,
+          scheduledDays: item.scheduledDays || 'Thứ 2', notes: item.notes || '',
+          status: (item.taskStatus || 'PENDING') as WeeklyTaskItem['status'],
+        })),
+      }]);
+    }).catch(() => alert('Không thể tải kế hoạch từ máy chủ.'));
+  }, [editPlanId]);
 
   const editingPlan = useMemo(() => {
     if (!editPlanId) return null;
@@ -670,6 +682,10 @@ export const CreateProductionPlanPage: React.FC = () => {
   // Tự động đồng bộ các công việc của kế hoạch đã duyệt sang Danh sách Lệnh Điều Xe
   // NGUYÊN TẮC: MỖI KẾ HOẠCH CON (TASK) LÀ ĐÚNG 1 LỆNH ĐIỀU XE ĐỘC LẬP
   const syncPlanTasksToDispatch = (plan: WeeklyPlanItem, tasks: WeeklyTaskItem[]) => {
+    void plan;
+    void tasks;
+    return;
+    /* legacy browser-side generator disabled; approval now generates orders atomically on the backend
     try {
       const storageKey = 'thaco_all_dispatch_orders_master_v4';
       const existing = JSON.parse(localStorage.getItem(storageKey) || '[]') as any[];
@@ -827,6 +843,7 @@ export const CreateProductionPlanPage: React.FC = () => {
     } catch (err) {
       console.warn('Sync to dispatch master failed:', err);
     }
+    */
   };
 
   // Xóa dòng công việc
@@ -895,7 +912,8 @@ export const CreateProductionPlanPage: React.FC = () => {
       farmCode,
       farmName,
       defaultPlot: firstPlot,
-      status: status || 'APPROVED',
+      planType: 'AGRICULTURE',
+      status: 'DRAFT',
       notes,
       weekNumber: selectedWeekNumber,
       items: normalizedTasks.map((t) => ({
@@ -922,7 +940,15 @@ export const CreateProductionPlanPage: React.FC = () => {
       if (editingPlan) {
         const numId = Number(editingPlan.id);
         if (!isNaN(numId) && numId > 0) {
-          await operationsApi.updatePlan(numId, dbPayload);
+          const isAdjustment = editingPlan.status === 'APPROVED' || editingPlan.status === 'IN_PROGRESS';
+          if (isAdjustment) {
+            const reason = window.prompt('Nhập lý do điều chỉnh kế hoạch đã duyệt:')?.trim();
+            if (!reason || reason.length < 3) return;
+            await operationsApi.adjustPlan(numId, { ...dbPayload, reason });
+          } else {
+            await operationsApi.updatePlan(numId, dbPayload);
+          }
+          savedDbId = String(numId);
         }
       } else {
         const created = await operationsApi.createPlan(dbPayload);
@@ -930,10 +956,26 @@ export const CreateProductionPlanPage: React.FC = () => {
           savedDbId = String((created as any).id);
         }
       }
+      if (!savedDbId) throw new Error('Máy chủ không trả mã kế hoạch.');
+      let generated = 0;
+      if (status === 'APPROVED') {
+        const isAdjustment = editingPlan?.status === 'APPROVED' || editingPlan?.status === 'IN_PROGRESS';
+        if (!isAdjustment) await operationsApi.submitPlan(savedDbId);
+        const approved = await operationsApi.approvePlan(savedDbId);
+        generated = approved.generation?.createdCount || 0;
+      }
+      alert(status === 'APPROVED'
+        ? `Đã phê duyệt kế hoạch ${planCode} và sinh ${generated} lệnh từ máy chủ.`
+        : `Đã lưu bản nháp kế hoạch ${planCode}.`);
+      navigate('/lenh-dieu-xe/ke-hoach/nong-nghiep');
+      return;
     } catch (apiErr) {
-      console.warn('Backend sync failed, saving locally:', apiErr);
+      console.error('Không thể lưu kế hoạch vào máy chủ:', apiErr);
+      alert('Không thể lưu kế hoạch. Dữ liệu chưa được ghi; vui lòng kiểm tra kết nối và thử lại.');
+      return;
     }
 
+    /* legacy local persistence disabled; the API is the only source of truth
     // Đọc danh sách mới nhất từ localStorage để không bị ghi đè
     let currentStored: WeeklyPlanItem[] = [];
     try {
@@ -1020,6 +1062,7 @@ export const CreateProductionPlanPage: React.FC = () => {
     );
 
     navigate('/lenh-dieu-xe/ke-hoach/nong-nghiep');
+    */
   };
 
   return (

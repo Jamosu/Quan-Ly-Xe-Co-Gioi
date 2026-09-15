@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -48,35 +48,46 @@ export class ProductionPlansController {
 
   @Public()
   @Post(':id/submit')
+  @HttpCode(HttpStatus.OK)
   submit(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.submit(id, actor); }
 
   @Public()
   @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
   approve(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.approve(id, actor); }
 
   @Public()
   @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
   reject(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionDto, @CurrentUser() actor?: OperationalActor) { return this.service.reject(id, actor, dto.reason); }
 
   @Public()
   @Post(':id/start')
+  @HttpCode(HttpStatus.OK)
   start(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.start(id, actor); }
 
   @Public()
   @Post(':id/complete')
+  @HttpCode(HttpStatus.OK)
   complete(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.complete(id, actor); }
 
   @Public()
   @Post(':id/adjust')
+  @HttpCode(HttpStatus.OK)
   adjust(@Param('id', ParseIntPipe) id: number, @Body() dto: AdjustPlanDto, @CurrentUser() actor?: OperationalActor) { return this.service.adjust(id, dto, actor); }
 
   @Public()
   @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
   cancel(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionDto, @CurrentUser() actor?: OperationalActor) { return this.service.cancel(id, actor, dto.reason); }
 
   @Public()
   @Post(':id/items')
   createItem(@Param('id', ParseIntPipe) id: number, @Body() dto: CreatePlanItemDto, @CurrentUser() actor?: OperationalActor) { return this.service.createItem(id, dto, actor); }
+
+  @Public()
+  @Get(':id/items/:itemId/generated-orders')
+  generatedOrders(@Param('id', ParseIntPipe) id: number, @Param('itemId', ParseIntPipe) itemId: number, @CurrentUser() actor?: OperationalActor) { return this.service.generatedOrders(id, itemId, actor); }
 
   @Public()
   @Patch(':id/items/:itemId')

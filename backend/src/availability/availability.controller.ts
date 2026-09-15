@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -6,6 +6,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { OperationalActor } from '../common/utils/operational-access';
 import { AvailabilityService } from './availability.service';
 import { AvailabilitySearchDto } from './dto/availability-search.dto';
+import { ProximityRecommendationDto } from './dto/proximity-recommendation.dto';
 
 @ApiTags('Availability - Lịch xe và tài xế')
 @ApiBearerAuth()
@@ -15,7 +16,14 @@ export class AvailabilityController {
   constructor(private readonly service: AvailabilityService) {}
 
   @Post('search')
+  @HttpCode(HttpStatus.OK)
   search(@Body() dto: AvailabilitySearchDto, @CurrentUser() actor: OperationalActor) {
     return this.service.search(dto, actor);
+  }
+
+  @Post('recommendations')
+  @HttpCode(HttpStatus.OK)
+  recommendations(@Body() dto: ProximityRecommendationDto, @CurrentUser() actor: OperationalActor) {
+    return this.service.recommendVehicles(dto, actor);
   }
 }

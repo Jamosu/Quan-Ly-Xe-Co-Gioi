@@ -10,9 +10,14 @@ export class CreateRepairDto {
   code: string;
 
   @ApiProperty({ example: 1, description: 'ID phương tiện sửa chữa' })
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  vehicleId: number;
+  vehicleId?: number;
+
+  @ApiPropertyOptional({ example: 1, description: 'ID thiết bị phụ trợ; chỉ chọn một trong vehicleId/implementId' })
+  @IsOptional()
+  @IsNumber()
+  implementId?: number;
 
   @ApiPropertyOptional({ example: 2, description: 'ID tài xế báo hỏng' })
   @IsOptional()
@@ -47,6 +52,16 @@ export class CreateRepairDto {
   })
   @IsOptional()
   replacedPartsJson?: any;
+
+  @ApiPropertyOptional({ description: 'Ảnh hiện trường khi báo hỏng' })
+  @IsOptional()
+  @IsString()
+  incidentPhotoUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Vị trí phát sinh sự cố' })
+  @IsOptional()
+  @IsString()
+  incidentLocation?: string;
 
   @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()

@@ -24,7 +24,6 @@ import { TransportService } from './transport.service';
 export class TransportController {
   constructor(private readonly service: TransportService) {}
 
-  @Public()
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   create(@Body() dto: CreateTransportOrderDto, @CurrentUser() actor?: OperationalActor) { return this.service.create(dto, actor); }

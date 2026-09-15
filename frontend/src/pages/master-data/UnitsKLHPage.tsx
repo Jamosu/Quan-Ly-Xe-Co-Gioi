@@ -63,7 +63,11 @@ export const UnitsKLHPage: React.FC = () => {
     {
       key: 'status',
       title: 'TRẠNG THÁI',
-      render: () => <Badge variant="green">Đang hoạt động</Badge>,
+      render: (row) => (
+        <Badge variant={row.status === 'active' ? 'green' : 'gray'}>
+          {row.status === 'active' ? 'Còn hoạt động' : 'Ngưng hoạt động'}
+        </Badge>
+      ),
     },
   ];
 

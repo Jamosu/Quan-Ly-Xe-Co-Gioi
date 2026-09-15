@@ -13,7 +13,9 @@ import {
 import type { Response } from 'express';
 import { CatalogsService } from './catalogs.service';
 import { CatalogType } from '@prisma/client';
+import { AllowAnonymous } from '../common/decorators/public.decorator';
 
+@AllowAnonymous()
 @Controller('catalogs')
 export class CatalogsController {
   constructor(private readonly catalogsService: CatalogsService) {}

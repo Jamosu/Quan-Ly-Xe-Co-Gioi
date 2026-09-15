@@ -84,7 +84,11 @@ export class CatalogsService {
   async findAll(type?: CatalogType, search?: string, parentCode?: string) {
     const where: any = {};
     if (type) {
-      where.type = type;
+      if (Object.values(CatalogType).includes(type as CatalogType)) {
+        where.type = type;
+      } else {
+        return [];
+      }
     }
     if (parentCode && parentCode !== 'ALL') {
       where.OR = [

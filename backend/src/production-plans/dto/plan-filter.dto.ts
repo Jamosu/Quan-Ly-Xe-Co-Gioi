@@ -1,9 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PlanStatus, ProductionStage, Unit } from '@prisma/client';
+import { PlanStatus, PlanType, ProductionStage, Unit } from '@prisma/client';
 import { IsEnum, IsOptional } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class PlanFilterDto extends PaginationDto {
+  @ApiPropertyOptional({ enum: PlanType })
+  @IsOptional()
+  @IsEnum(PlanType)
+  planType?: PlanType;
+
   @ApiPropertyOptional({ enum: ProductionStage, description: 'Giai đoạn (Làm đất/Trồng mới/Thu hoạch)' })
   @IsOptional()
   @IsEnum(ProductionStage)

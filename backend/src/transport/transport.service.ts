@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { DriverShiftStatus, OperationalEntityType, Prisma, Role, RouteType, TransportStatus, Unit, VehicleStatus, WorkAssignmentMode, WorkOrderStatus, WorkOrderType } from '@prisma/client';
+import { AlertCategory, AlertSeverity, DispatchSourceType, DriverShiftStatus, OperationalEntityType, Prisma, Role, RouteType, TransportStatus, Unit, VehicleStatus, WorkAssignmentMode, WorkOrderCategory, WorkOrderStatus, WorkOrderType } from '@prisma/client';
 import { utils as xlsxUtils } from 'xlsx';
 import { OperationalActor, assertOperationalAccess, scopedUnit } from '../common/utils/operational-access';
 import { DispatchOrdersService } from '../dispatch-orders/dispatch-orders.service';
@@ -14,15 +14,21 @@ import { UpdateReturnCargoDto } from './dto/update-return-cargo.dto';
 import { UpdateTransportOrderDto } from './dto/update-transport-order.dto';
 import { UpdateTransportTelemetryDto } from './dto/update-transport-telemetry.dto';
 import { WorkOrdersService } from '../work-orders/work-orders.service';
+import { AlertsService } from '../alerts/alerts.service';
 
 const transportInclude = {
-  vehicle: { include: { vehicleType: true } },
+  vehicle: { include: { vehicleType: true, homeDepot: true } },
+  originLocation: true,
+  destinationLocation: true,
+  returnOriginLocation: true,
+  returnDestinationLocation: true,
   driver: { select: { id: true, fullName: true, phone: true, licenseClass: true, licenseExpiryDate: true, healthCheckExpiryDate: true } },
   trailer: true,
   approvedBy: { select: { id: true, fullName: true } },
   items: { orderBy: { sourceRowNumber: 'asc' as const } },
   confirmations: true,
   operationalWorkOrder: true,
+  productionOrder: { include: { plan: { select: { id: true, code: true, title: true, planType: true, complexCode: true, complexName: true, unit: true } }, planItem: { select: { id: true, jobCode: true, jobName: true } } } },
 } satisfies Prisma.TransportOrderInclude;
 
 type PreviewTrip = {
@@ -34,30 +40,49 @@ type PreviewTrip = {
 
 @Injectable()
 export class TransportService {
-  constructor(private prisma: PrismaService, private dispatchService: DispatchOrdersService, @Optional() private workOrders?: WorkOrdersService) {}
+  constructor(private prisma: PrismaService, private dispatchService: DispatchOrdersService, @Optional() private workOrders?: WorkOrdersService, @Optional() private alerts?: AlertsService) {}
 
   async create(dto: CreateTransportOrderDto, actor: OperationalActor) {
+    if (!actor?.id) throw new BadRequestException('Tạo lệnh vận chuyển yêu cầu người dùng đã đăng nhập.');
+    const sourceType = dto.sourceType ?? DispatchSourceType.MANUAL_EXCEPTION;
+    if (sourceType !== DispatchSourceType.MANUAL_EXCEPTION || !dto.exceptionReason?.trim()) {
+      throw new BadRequestException('Lệnh vận chuyển ngoài kế hoạch phải có nguồn MANUAL_EXCEPTION và lý do phát sinh.');
+    }
     if (await this.prisma.transportOrder.findUnique({ where: { code: dto.code } })) throw new ConflictException(`Vận đơn mã ${dto.code} đã tồn tại.`);
     const unit = scopedUnit(actor, dto.unit) ?? dto.unit;
-    const { items, ...order } = dto;
+    const { items, exceptionReason, ...order } = dto;
     return this.prisma.$transaction(async (tx) => {
-      const created = await tx.transportOrder.create({ data: { ...order, unit, status: TransportStatus.DRAFT, items: items?.length ? { create: items } : undefined }, include: transportInclude });
+      const matchedOrigin = order.originLocationId || !order.origin ? null : await tx.operationalLocation.findFirst({ where: { name: order.origin, active: true } });
+      const matchedDestination = order.destinationLocationId || !order.destination ? null : await tx.operationalLocation.findFirst({ where: { name: order.destination, active: true } });
+      const matchedReturnOrigin = order.returnOriginLocationId || !order.returnOrigin ? null : await tx.operationalLocation.findFirst({ where: { name: order.returnOrigin, active: true } });
+      const matchedReturnDestination = order.returnDestinationLocationId || !order.returnDestination ? null : await tx.operationalLocation.findFirst({ where: { name: order.returnDestination, active: true } });
+      const created = await tx.transportOrder.create({ data: { ...order, originLocationId: order.originLocationId ?? matchedOrigin?.id, destinationLocationId: order.destinationLocationId ?? matchedDestination?.id, returnOriginLocationId: order.returnOriginLocationId ?? matchedReturnOrigin?.id, returnDestinationLocationId: order.returnDestinationLocationId ?? matchedReturnDestination?.id, sourceType, unit, status: TransportStatus.DRAFT, items: items?.length ? { create: items } : undefined }, include: transportInclude });
       if (created.departureTime && created.plannedEndTime) {
-        await tx.operationalWorkOrder.create({ data: { type: WorkOrderType.TRANSPORT, unit, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, status: WorkOrderStatus.DRAFT, plannedStartAt: created.departureTime, plannedEndAt: created.plannedEndTime, transportOrderId: created.id, createdById: actor.id } });
+        await tx.operationalWorkOrder.create({ data: { type: WorkOrderType.TRANSPORT, unit, category: WorkOrderCategory.TRANSPORT, sourceType, jobName: created.cargoType || 'Vận chuyển nội bộ', workLocationId: created.destinationLocationId, workLocationText: created.destination, targetQuantity: created.tonnage, targetUnit: 'Tấn', assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, status: WorkOrderStatus.DRAFT, plannedStartAt: created.departureTime, plannedEndAt: created.plannedEndTime, transportOrderId: created.id, createdById: actor.id } });
       }
+      await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.TRANSPORT_ORDER, entityId: created.id, actorId: actor.id, action: 'CREATE_MANUAL_EXCEPTION', newValue: { status: created.status, sourceType }, reason: exceptionReason } });
       return created;
     });
   }
 
   async findAll(filter: TransportFilterDto, actor?: OperationalActor) {
-    const { page = 1, limit = 20, search, routeType, status, returnDriverStatus, isRouteDeviated } = filter;
+    const { page = 1, limit = 20, search, routeType, status, returnDriverStatus, isRouteDeviated, planId, planType, year, weekNumber } = filter;
     const where: Prisma.TransportOrderWhereInput = {};
     if (actor?.role === Role.DRIVER) where.driverId = actor.id;
     else { const unit = scopedUnit(actor, (filter as TransportFilterDto & { unit?: Unit }).unit); if (unit) where.unit = unit; }
     if (routeType) where.routeType = routeType;
     if (status) where.status = status;
+    else where.status = { not: TransportStatus.CANCELLED };
     if (returnDriverStatus) where.returnDriverStatus = returnDriverStatus;
     if (isRouteDeviated !== undefined) where.isRouteDeviated = isRouteDeviated;
+    if (planId || planType || year || weekNumber) {
+      const plan: Prisma.ProductionPlanWhereInput = {};
+      if (planId) plan.id = planId;
+      if (planType) plan.planType = planType;
+      if (weekNumber) plan.weekNumber = weekNumber;
+      if (year) plan.startDate = { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) };
+      where.productionOrder = { is: { plan: { is: plan } } };
+    }
     if (search) where.OR = [{ code: { contains: search } }, { cargoType: { contains: search } }, { origin: { contains: search } }, { destination: { contains: search } }, { items: { some: { OR: [{ materialCode: { contains: search } }, { cargoName: { contains: search } }] } } }];
     const [total, items] = await Promise.all([
       this.prisma.transportOrder.count({ where }),
@@ -76,7 +101,7 @@ export class TransportService {
   async update(id: number, dto: UpdateTransportOrderDto, actor: OperationalActor) {
     const order = await this.findOne(id, actor);
     if (order.status !== TransportStatus.DRAFT) throw new BadRequestException('Chỉ sửa trực tiếp vận đơn nháp.');
-    const { items, ...data } = dto as UpdateTransportOrderDto & { items?: CreateTransportItemDto[] };
+    const { items, exceptionReason: _exceptionReason, ...data } = dto as UpdateTransportOrderDto & { items?: CreateTransportItemDto[] };
     return this.prisma.$transaction(async (tx) => {
       if (items) { await tx.transportItem.deleteMany({ where: { transportOrderId: id } }); await tx.transportItem.createMany({ data: items.map((item) => ({ ...item, transportOrderId: id })) }); }
       return tx.transportOrder.update({ where: { id }, data, include: transportInclude });
@@ -89,13 +114,25 @@ export class TransportService {
 
   async assign(id: number, dto: AssignTransportDto, actor: OperationalActor) {
     const order = await this.findOne(id, actor);
-    if (order.status !== TransportStatus.APPROVED) throw new BadRequestException('Chỉ phân công vận đơn đã duyệt.');
+    const assignableStatuses: TransportStatus[] = [TransportStatus.DRAFT, TransportStatus.PENDING_APPROVAL, TransportStatus.APPROVED];
+    if (!assignableStatuses.includes(order.status)) {
+      throw new BadRequestException('Chỉ phân công vận đơn ở trạng thái chờ duyệt hoặc đã duyệt.');
+    }
+    const reasons = await this.dispatchService.validateResources(dto, undefined, id);
+    if (reasons.length) throw new ConflictException({ code: 'RESOURCE_CONFLICT', reasons });
     const workOrder = order.operationalWorkOrder ?? await this.prisma.operationalWorkOrder.create({
-      data: { type: WorkOrderType.TRANSPORT, unit: order.unit, status: WorkOrderStatus.APPROVED, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime, transportOrderId: id, createdById: actor.id, approvedById: actor.id, approvedAt: new Date() },
+      data: { type: WorkOrderType.TRANSPORT, unit: order.unit, category: WorkOrderCategory.TRANSPORT, sourceType: order.sourceType, jobName: order.cargoType || 'Vận chuyển nội bộ', workLocationId: order.destinationLocationId, workLocationText: order.destination, targetQuantity: order.tonnage, targetUnit: 'Tấn', status: WorkOrderStatus.APPROVED, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime, transportOrderId: id, createdById: actor.id, approvedById: actor.id, approvedAt: new Date() },
     });
     if (!this.workOrders) throw new BadRequestException('Work order orchestration chưa sẵn sàng.');
+    await this.workOrders.ensureApprovedForAssignment(workOrder.id, actor);
     await this.workOrders.assign(workOrder.id, { vehicleId: dto.vehicleId, driverId: dto.driverId, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, plannedStartAt: dto.departureTime, plannedEndAt: dto.plannedEndTime }, actor);
-    if (dto.implementId) await this.prisma.transportOrder.update({ where: { id }, data: { trailerId: dto.implementId } });
+    await this.prisma.transportOrder.update({
+      where: { id },
+      data: {
+        ...(dto.implementId ? { trailerId: dto.implementId } : {}),
+        ...(!order.approvedAt ? { approvedAt: new Date(), approvedById: actor.id } : {}),
+      },
+    });
     return this.findOne(id, actor);
   }
 
@@ -150,7 +187,30 @@ export class TransportService {
   async scheduler(query: SchedulerFilterDto, actor: OperationalActor) { const unit = scopedUnit(actor); return this.prisma.transportOrder.findMany({ where: { ...(unit ? { unit } : {}), departureTime: { lt: query.end }, plannedEndTime: { gt: query.start } }, include: transportInclude, orderBy: { departureTime: 'asc' } }); }
 
   async updateReturnCargo(id: number, dto: UpdateReturnCargoDto, actor: OperationalActor) { await this.findOne(id, actor); return this.prisma.transportOrder.update({ where: { id }, data: dto }); }
-  async updateTelemetry(id: number, dto: UpdateTransportTelemetryDto, actor: OperationalActor) { const order = await this.findOne(id, actor); const deviated = dto.isRouteDeviated ?? (order.isRouteDeviated || (!!dto.speedKmH && dto.speedKmH > order.maxSpeedLimit)); return this.prisma.transportOrder.update({ where: { id }, data: { speedKmH: dto.speedKmH ?? order.speedKmH, isRouteDeviated: deviated, deviationReason: dto.deviationReason ?? order.deviationReason } }); }
+  async updateTelemetry(id: number, dto: UpdateTransportTelemetryDto, actor: OperationalActor) {
+    const order = await this.findOne(id, actor);
+    const speedKmH = dto.speedKmH ?? order.speedKmH;
+    const isRouteDeviated = dto.isRouteDeviated ?? order.isRouteDeviated;
+    const updated = await this.prisma.transportOrder.update({
+      where: { id },
+      data: { speedKmH, isRouteDeviated, deviationReason: dto.deviationReason ?? order.deviationReason },
+    });
+    if (this.alerts) {
+      const context = {
+        sourceType: 'TransportOrder', sourceId: String(id), category: AlertCategory.GPS,
+        vehicleId: order.vehicleId || undefined, driverId: order.driverId || undefined,
+        unit: order.vehicle?.unit || order.unit, complexCode: order.vehicle?.complexCode || undefined,
+        targetUrl: '/gps/speed-alert',
+      };
+      if (speedKmH > order.maxSpeedLimit) {
+        await this.alerts.emit({ ...context, ruleCode: 'GPS_OVERSPEED', dedupeKey: `GPS:SPEED:${id}`, alertType: 'OVERSPEED', severity: AlertSeverity.WARNING, title: `Xe ${order.vehicle?.plate || order.vehicle?.code || order.code} quá tốc độ`, message: `Ghi nhận ${speedKmH} km/h, giới hạn ${order.maxSpeedLimit} km/h.`, metricValue: speedKmH, thresholdValue: order.maxSpeedLimit, metricUnit: 'km/h' });
+      } else await this.alerts.resolveByDedupeKey(`GPS:SPEED:${id}`);
+      if (isRouteDeviated) {
+        await this.alerts.emit({ ...context, ruleCode: 'GPS_ROUTE_DEVIATION', dedupeKey: `GPS:ROUTE:${id}`, alertType: 'ROUTE_DEVIATION', severity: AlertSeverity.WARNING, title: `Vận đơn ${order.code} lệch tuyến`, message: dto.deviationReason || order.deviationReason || 'Telemetry ghi nhận xe đi lệch lộ trình.' });
+      } else await this.alerts.resolveByDedupeKey(`GPS:ROUTE:${id}`);
+    }
+    return updated;
+  }
 
   async getStatistics(actor: OperationalActor) {
     const unit = scopedUnit(actor); const where = unit ? { unit } : {};

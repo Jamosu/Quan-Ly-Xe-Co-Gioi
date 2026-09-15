@@ -39,8 +39,10 @@ import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
 import { StatusBadge, ViewSwitcher } from '../../components/operations/OperationUi';
 import { SearchableSelect } from '../../components/common/SearchableSelect';
-import { SosRescueModal } from '../../components/dispatch/SosRescueModal';
 import { useAppStore } from '../../store/useAppStore';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { operationsApi } from '../../api/operations';
 import { matchesKLH } from '../../utils/filterUtils';
 import type { TransportOrderRecord } from '../../types';
 import { getStoredJobs } from '../../data/jobCatalogData';
@@ -51,7 +53,6 @@ import {
   toDateKey,
   getWeeksOfYear,
 } from './ProductionPlanPage';
-import { syncAllApprovedSpecializedPlans } from './specializedPlanSync';
 
 export type SpecializedPlanKind = 'CONSTRUCTION' | 'TRANSPORT';
 export type SpecializedPlanStatus = 'DRAFT' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
@@ -320,43 +321,33 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
   }, [catalogJobs, isConstruction]);
 
   // Quản lý danh sách kế hoạch tuần lưu vào LocalStorage
-  const [plans, setPlans] = useState<SpecializedWeeklyPlan[]>(() => {
-    try {
-      const cached = localStorage.getItem(STORAGE_KEYS[kind]);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return normalizeSpecializedPlanStatuses(parsed);
-      }
-    } catch {}
-    const initial = isConstruction ? INITIAL_CONSTRUCTION_PLANS : INITIAL_TRANSPORT_PLANS;
-    return normalizeSpecializedPlanStatuses(initial);
-  });
+  const [plans, setPlans] = useState<SpecializedWeeklyPlan[]>([]);
 
   // Tự động đồng bộ và nạp đúng dữ liệu theo loại kế hoạch (Công trình / Vận chuyển)
   useEffect(() => {
-    try {
-      syncAllApprovedSpecializedPlans();
-    } catch {}
-
-    try {
-      const cached = localStorage.getItem(STORAGE_KEYS[kind]);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPlans(normalizeSpecializedPlanStatuses(parsed));
-          setSelectedCategory('ALL');
-          return;
-        }
-      }
-    } catch {}
-    const initial = isConstruction ? INITIAL_CONSTRUCTION_PLANS : INITIAL_TRANSPORT_PLANS;
-    setPlans(normalizeSpecializedPlanStatuses(initial));
-    if (initial && initial.length > 0) {
-      try {
-        localStorage.setItem(STORAGE_KEYS[kind], JSON.stringify(initial));
-        syncAllApprovedSpecializedPlans();
-      } catch {}
-    }
+    const planType = isConstruction ? 'CONSTRUCTION' : 'INTERNAL_TRANSPORT';
+    operationsApi.plans({ limit: 100, planType }).then((response) => {
+      setPlans(normalizeSpecializedPlanStatuses(response.items.map((plan) => ({
+        id: String(plan.id), code: plan.code, title: plan.title,
+        complexCode: (['KOUN_MOM', 'SNOUL', 'NAM_LAO'].includes(plan.complexCode) ? plan.complexCode : 'KOUN_MOM') as SpecializedWeeklyPlan['complexCode'], complexName: plan.complexName || plan.complexCode,
+        enterpriseName: plan.enterpriseName || '', farmName: plan.farmName || '',
+        categoryCode: plan.categoryCode || 'ALL', categoryName: plan.categoryName || '',
+        weekNumber: plan.weekNumber || getWeekNumber(plan.startDate), year: new Date(plan.startDate).getFullYear(),
+        startDate: plan.startDate.slice(0, 10), endDate: plan.endDate.slice(0, 10),
+        status: plan.status as SpecializedWeeklyPlan['status'], notes: plan.notes || '', createdAt: '',
+        tasks: plan.items.map((item) => ({
+          id: String(item.id), jobCode: item.jobCode || '', jobName: item.jobName,
+          location: item.location || item.plotName, origin: item.origin, destination: item.destination,
+          machineType: item.machineType || '', durationHours: item.durationHours || item.plannedMachineHours || 0,
+          targetQuantity: item.targetQuantity, targetUnit: item.targetUnit,
+          assignedVehiclesCount: item.plannedVehicleCount, scheduledDays: item.scheduledDays || 'Thứ 2',
+          notes: item.notes || '', status: (item.taskStatus || 'PENDING') as SpecializedTaskItem['status'],
+        })),
+      }))));
+    }).catch(() => {
+      setPlans([]);
+      useAppStore.getState().setHeaderAlert({ type: 'error', message: 'Không thể tải kế hoạch từ máy chủ.' });
+    });
     setSelectedCategory('ALL');
   }, [kind, isConstruction]);
 
@@ -379,7 +370,6 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
   const [editingPlan, setEditingPlan] = useState<SpecializedWeeklyPlan | null>(null);
   const [viewingPlan, setViewingPlan] = useState<SpecializedWeeklyPlan | null>(null);
   const [addingTaskPlan, setAddingTaskPlan] = useState<SpecializedWeeklyPlan | null>(null);
-  const [showSosModal, setShowSosModal] = useState(false);
   const [createJobCode, setCreateJobCode] = useState(catalogJobs[0]?.code || '');
   const [createLocationCode, setCreateLocationCode] = useState(catalogLocations[0]?.code || '');
   const [addJobCode, setAddJobCode] = useState(catalogJobs[0]?.code || '');
@@ -393,7 +383,6 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
   const savePlans = (next: SpecializedWeeklyPlan[]) => {
     const normalized = normalizeSpecializedPlanStatuses(next);
     setPlans(normalized);
-    localStorage.setItem(STORAGE_KEYS[kind], JSON.stringify(normalized));
   };
 
   // Lùi / Tiến tuần
@@ -494,6 +483,14 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
 
   // Phát lệnh điều xe cho 1 hoặc nhiều nhiệm vụ
   const issueTasksToDispatch = (plan: SpecializedWeeklyPlan, tasksToIssue: SpecializedTaskItem[]) => {
+    if (tasksToIssue.length === 1) {
+      const cat = isConstruction ? 'CONSTRUCTION' : 'TRANSPORT';
+      navigate(`/lenh-dieu-xe/tao-moi?planId=${encodeURIComponent(plan.id)}&itemId=${encodeURIComponent(tasksToIssue[0].id)}&category=${cat}`);
+      return;
+    }
+    navigate(`/lenh-dieu-xe/danh-sach?planId=${encodeURIComponent(plan.id)}&planCode=${encodeURIComponent(plan.code)}`);
+    return;
+    /* legacy local generator intentionally disabled; backend approval is authoritative
     if (tasksToIssue.length === 0) return;
 
     if (isConstruction) {
@@ -596,13 +593,19 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
       savePlans(nextPlans);
       navigate('/lenh-dieu-xe/lenh-noi-bo');
     }
+    */
   };
 
   // Xóa kế hoạch
-  const handleDeletePlan = (planId: string, planTitle: string) => {
+  const handleDeletePlan = async (planId: string, planTitle: string) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa kế hoạch "${planTitle}"?`)) {
-      const next = plans.filter((p) => p.id !== planId);
-      savePlans(next);
+      try {
+        await operationsApi.deletePlan(planId);
+        setPlans((current) => current.filter((p) => p.id !== planId));
+      } catch (error) {
+        console.error('Không thể xóa kế hoạch:', error);
+        alert('Chỉ có thể xóa kế hoạch nháp hoặc bị từ chối. Kế hoạch đã duyệt phải được hủy để giữ lịch sử.');
+      }
     }
   };
 
@@ -801,7 +804,7 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
 
   return (
     <div className="space-y-4">
-      {/* 1. BỘ CHUYỂN ĐỔI 3 LOẠI KẾ HOẠCH + NÚT CỨU HỘ SOS */}
+      {/* 1. BỘ CHUYỂN ĐỔI 3 LOẠI KẾ HOẠCH */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-3 rounded-2xl shadow-xs">
         <div className="flex items-center gap-2">
           {/* Tab 1: Nông nghiệp */}
@@ -1368,7 +1371,7 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate('/lenh-dieu-xe/danh-sach')}
+                        onClick={() => issueTasksToDispatch(plan, plan.tasks)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl shadow-2xs cursor-pointer transition-all active:scale-98"
                         title="Xem các lệnh điều xe của kế hoạch này"
                       >
@@ -1482,7 +1485,7 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => navigate('/lenh-dieu-xe/danh-sach')}
+                              onClick={() => issueTasksToDispatch(plan, [task])}
                               className="inline-flex items-center gap-1 h-7 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer px-2.5 shadow-2xs transition-colors"
                               title="Nhiệm vụ đã tự động nạp sang danh sách điều xe"
                             >
@@ -1561,10 +1564,9 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
                   <th className="py-2.5 px-3 min-w-[170px]">{isConstruction ? 'Tuyến / Vị trí thi công' : 'Tuyến nhận – giao'}</th>
                   <th className="py-2.5 px-3 min-w-[160px]">{isConstruction ? 'Thiết bị & Nông cụ' : 'Chủng loại phương tiện'}</th>
                   <th className="py-2.5 px-2 text-center w-24">{isConstruction ? 'Giờ máy' : 'Khối lượng'}</th>
-                  <th className="py-2.5 px-2 text-center w-24">Nhu cầu xe</th>
-                  <th className="py-2.5 px-2 text-center w-24">Lịch thực hiện</th>
                   <th className="py-2.5 px-2 text-center w-24">Trạng thái</th>
-                  <th className="py-2.5 px-2 text-center w-24">Thao tác</th>
+                  <th className="py-2.5 px-2 text-center w-16">USER</th>
+                  <th className="py-2.5 px-2 text-center w-32">TÁC VỤ</th>
                 </tr>
               </thead>
               <tbody>
@@ -1611,15 +1613,42 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
                         </span>
                       </td>
                       <td className="py-2 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => navigate('/lenh-dieu-xe/danh-sach')}
-                          className="inline-flex items-center gap-1 h-7 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer px-2.5 shadow-2xs transition-colors"
-                          title="Nhiệm vụ đã tự động nạp sang danh sách điều xe"
-                        >
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                          <span>Tự động nạp</span>
-                        </button>
+                        <AuditUserPopover
+                          createdDate="14-03-2026"
+                          createdUser="admin"
+                          updatedDate="01-08-2026"
+                          updatedUser="admin"
+                          title={`Xem thông tin tạo/sửa kế hoạch ${plan.code}`}
+                        />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <TableRowActions
+                            onView={() => setViewingPlan(plan)}
+                            onEdit={() =>
+                              navigate(
+                                `${
+                                  isConstruction
+                                    ? '/lenh-dieu-xe/ke-hoach/cong-trinh/tao-moi'
+                                    : '/lenh-dieu-xe/ke-hoach/van-chuyen-noi-bo/tao-moi'
+                                }?editPlanId=${plan.id}`
+                              )
+                            }
+                            onDelete={() => handleDeletePlan(plan.id, plan.title)}
+                            viewTitle="Xem chi tiết kế hoạch"
+                            editTitle="Chỉnh sửa kế hoạch"
+                            deleteTitle="Xóa kế hoạch"
+                          />
+                          {/* Giữ nguyên icon điều xe */}
+                          <button
+                            type="button"
+                            onClick={() => issueTasksToDispatch(plan, [task])}
+                            className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 cursor-pointer transition-colors"
+                            title="Nhiệm vụ đã tự động nạp sang danh sách điều xe"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1701,7 +1730,7 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
                 icon={<Truck className="h-3.5 w-3.5" />}
                 onClick={() => {
                   setViewingPlan(null);
-                  navigate('/lenh-dieu-xe/danh-sach');
+                  if (viewingPlan) issueTasksToDispatch(viewingPlan, viewingPlan.tasks);
                 }}
               >
                 Xem danh sách điều xe
@@ -1993,8 +2022,6 @@ export const SpecializedPlansPage: React.FC<{ kind: SpecializedPlanKind }> = ({ 
         </form>
       </Modal>
 
-      {/* 9. MODAL CỨU HỘ SOS KHẨN CẤP */}
-      <SosRescueModal isOpen={showSosModal} onClose={() => setShowSosModal(false)} />
     </div>
   );
 };

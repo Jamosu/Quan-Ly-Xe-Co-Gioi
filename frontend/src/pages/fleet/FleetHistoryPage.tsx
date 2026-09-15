@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
@@ -6,6 +6,11 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { StatCard } from '../../components/data-display/StatCard';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { apiService } from '../../api/client';
+import { useAppStore } from '../../store/useAppStore';
+import { useFilterStore } from '../../store/useFilterStore';
 import {
   History,
   Download,
@@ -13,84 +18,213 @@ import {
   Clock,
   ArrowRightLeft,
   UserCheck,
-  ShieldCheck,
-  Wrench,
-  Tractor,
+  Fuel,
+  Truck,
   Calendar,
   FileText,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
-interface FleetTimelineEvent {
+export interface FleetTimelineEvent {
   id: string;
+  code?: string;
   title: string;
   description: string;
   meta: string;
   actionText: string;
-  badgeType: 'bts' | 'driver' | 'sensor' | 'delivery';
+  badgeType: 'bts' | 'driver' | 'sensor' | 'delivery' | 'fuel';
+  createdAt?: string;
+  vehicleId?: number;
+  vehicleCode?: string;
+  vehicleName?: string;
+  plate?: string | null;
+  unit?: string;
+  complexCode?: string;
 }
 
-const INITIAL_FLEET_EVENTS: FleetTimelineEvent[] = [
-  {
-    id: 'EVT-001',
-    title: 'Bàn giao & Điều chuyển đơn vị xe CHT-MĐA-090',
-    description: 'Bàn giao quyền sử dụng và quản lý kỹ thuật từ Ban ĐTXD AD sang Xí Nghiệp Bò 1 theo Quyết định số QĐ-ĐC/2026/090.',
-    meta: '15:06 02/09/2026 • Ban Cơ Giới KLH • Người thực hiện: Nguyễn Văn Thắng',
-    actionText: 'Xem biên bản bàn giao',
-    badgeType: 'delivery',
-  },
-  {
-    id: 'EVT-002',
-    title: 'Bảo dưỡng định kỳ mốc 250 giờ máy (Lần 2)',
-    description: 'Thay lọc dầu động cơ, dầu thủy lực và kiểm tra độ chùng xích xe đào Komatsu PC200 tại Xưởng cơ điện Trung tâm.',
-    meta: '09:30 28/08/2026 • Xưởng BTSC Trung Tâm • KTV: Trần Quốc Tuấn',
-    actionText: 'Xem phiếu xưởng',
-    badgeType: 'bts',
-  },
-  {
-    id: 'EVT-003',
-    title: 'Phân công lại nhân sự lái xe chính',
-    description: 'Chuyển giao quyền điều khiển phương tiện cho lái xe Lê Hoàng Nam (GPLX Hạng FC - Hạn 2029) thay cho tài xế nghỉ phép.',
-    meta: '07:45 20/08/2026 • Đội xe Nông Trường 2 • Quản lý: Phạm Ngọc Hải',
-    actionText: 'Xem hồ sơ lái xe',
-    badgeType: 'driver',
-  },
-  {
-    id: 'EVT-004',
-    title: 'Lắp đặt cảm biến que đo nhiên liệu GPS siêu âm',
-    description: 'Hoàn tất nghiệm thu cảm biến đo mức nhiên liệu bình dầu chính xác 99.5% và hiệu chuẩn đường truyền 4G IoT.',
-    meta: '14:20 15/07/2026 • Đội Kỹ Thuật Viễn Thông THACO • KS: Đặng Hữu Thành',
-    actionText: 'Xem thông số cảm biến',
-    badgeType: 'sensor',
-  },
-  {
-    id: 'EVT-005',
-    title: 'Tiếp nhận xe mới xuất xưởng từ Chu Lai',
-    description: 'Nhập kho tài sản Ban Cơ Giới KLH, cấp mã tài sản định danh kỹ thuật và dán tem giám sát RFID.',
-    meta: '08:00 01/01/2025 • Tổng kho Cơ Giới KLH • Người duyệt: Ban Giám Đốc',
-    actionText: 'Xem phiếu nhập kho',
-    badgeType: 'delivery',
-  },
-];
-
 export const FleetHistoryPage: React.FC = () => {
+  const { selectedKLH } = useAppStore();
+  const { searchTerm, setSearchTerm, selectedUnit } = useFilterStore();
+
   const [activeTab, setActiveTab] = useState<'timeline' | 'table'>('timeline');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
   const [showLookupModal, setShowLookupModal] = useState(false);
+  const [vinLookupInput, setVinLookupInput] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<FleetTimelineEvent | null>(null);
-  const [eventsList, setEventsList] = useState<FleetTimelineEvent[]>(INITIAL_FLEET_EVENTS);
+
+  const [eventsList, setEventsList] = useState<FleetTimelineEvent[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize] = useState<number>(30);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [stats, setStats] = useState({
+    totalEvents: 0,
+    btsCount: 0,
+    driverCount: 0,
+    fuelCount: 0,
+    deliveryCount: 0,
+  });
+
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, unknown> = {
+        complexCode: selectedKLH === 'ALL' || selectedKLH === 'ALL_KLH' ? undefined : selectedKLH,
+        unit: selectedUnit === 'ALL' ? undefined : selectedUnit,
+        search: searchTerm.trim() || undefined,
+        type: selectedTypeFilter,
+        page,
+        limit: pageSize,
+      };
+
+      const res = await apiService.getFleetHistoryEvents(params);
+      if (res && res.data) {
+        setEventsList(res.data);
+        setTotalCount(res.total || 0);
+        setTotalPages(res.totalPages || Math.ceil((res.total || 0) / pageSize) || 1);
+        if (res.stats) {
+          setStats(res.stats);
+        }
+      } else if (Array.isArray(res)) {
+        setEventsList(res);
+        setTotalCount(res.length);
+        setTotalPages(1);
+      }
+    } catch (err) {
+      console.error('Lỗi truy vấn lịch sử biến động từ API:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedKLH, selectedUnit, searchTerm, selectedTypeFilter, page, pageSize]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const handleExportCSV = () => {
+    if (!eventsList || eventsList.length === 0) return;
+
+    const headers = ['Mã sự kiện', 'Tiêu đề', 'Nội dung', 'Thời gian & Đơn vị', 'Phân loại', 'Mã xe', 'Biển số'];
+    const rows = eventsList.map((e) => [
+      `"${e.code || e.id}"`,
+      `"${e.title.replace(/"/g, '""')}"`,
+      `"${e.description.replace(/"/g, '""')}"`,
+      `"${e.meta.replace(/"/g, '""')}"`,
+      `"${e.badgeType}"`,
+      `"${e.vehicleCode || ''}"`,
+      `"${e.plate || ''}"`,
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `So_Ly_Lich_Bien_Dong_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleVinLookupSubmit = () => {
+    if (vinLookupInput.trim()) {
+      setSearchTerm(vinLookupInput.trim());
+      setPage(1);
+    }
+    setShowLookupModal(false);
+  };
 
   const columns: Column<FleetTimelineEvent>[] = [
-    { key: 'title', title: 'SỰ KIỆN BIẾN ĐỘNG', sortable: true, render: (row) => <strong className="text-slate-900 font-bold">{row.title}</strong> },
-    { key: 'description', title: 'NỘI DUNG CHI TIẾT', render: (row) => <span className="text-xs text-slate-600">{row.description}</span> },
-    { key: 'meta', title: 'THỜI GIAN & ĐƠN VỊ THỰC HIỆN', render: (row) => <span className="text-xs text-slate-500">{row.meta}</span> },
+    {
+      key: 'code',
+      title: 'MÃ SỰ KIỆN',
+      width: '130px',
+      render: (row) => (
+        <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs font-bold text-slate-800">
+          {row.code || row.id}
+        </span>
+      ),
+    },
+    {
+      key: 'title',
+      title: 'SỰ KIỆN BIẾN ĐỘNG',
+      sortable: true,
+      render: (row) => (
+        <div className="space-y-0.5">
+          <button
+            type="button"
+            onClick={() => setSelectedEvent(row)}
+            className="text-left font-bold text-slate-900 hover:text-primary transition-colors text-xs line-clamp-1"
+          >
+            {row.title}
+          </button>
+          {row.vehicleCode && (
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
+              <span className="font-bold text-primary">{row.vehicleCode}</span>
+              {row.plate && <span className="text-slate-400">· Biển số: {row.plate}</span>}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'description',
+      title: 'NỘI DUNG CHI TIẾT',
+      render: (row) => <span className="text-xs text-slate-600 line-clamp-2">{row.description}</span>,
+    },
+    {
+      key: 'meta',
+      title: 'THỜI GIAN & ĐƠN VỊ THỰC HIỆN',
+      render: (row) => (
+        <div className="text-xs text-slate-500 flex items-center gap-1">
+          <Calendar className="w-3 h-3 text-slate-400 flex-shrink-0" />
+          <span className="line-clamp-1">{row.meta}</span>
+        </div>
+      ),
+    },
     {
       key: 'badgeType',
       title: 'PHÂN LOẠI',
+      width: '140px',
       render: (row) => {
         if (row.badgeType === 'bts') return <Badge variant="red">Bảo dưỡng BTSC</Badge>;
         if (row.badgeType === 'driver') return <Badge variant="blue">Đổi tài xế</Badge>;
-        if (row.badgeType === 'sensor') return <Badge variant="green">Gắn cảm biến</Badge>;
-        return <Badge variant="amber">Nhận xe mới</Badge>;
+        if (row.badgeType === 'fuel') return <Badge variant="amber">Cấp nhiên liệu</Badge>;
+        if (row.badgeType === 'delivery') return <Badge variant="green">Bàn giao & Phân bổ</Badge>;
+        return <Badge variant="gray">Biến động khác</Badge>;
       },
+    },
+    {
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
+      render: (row) => (
+        <AuditUserPopover
+          createdDate={row.createdAt ? new Date(row.createdAt).toLocaleDateString('vi-VN') : '15-09-2026'}
+          createdUser="Hệ thống CSDL"
+          updatedDate={row.createdAt ? new Date(row.createdAt).toLocaleDateString('vi-VN') : '15-09-2026'}
+          updatedUser="KTV Vận Hành"
+          title={`Thông tin sự kiện ${row.code || row.id}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '90px',
+      align: 'center',
+      render: (row) => (
+        <TableRowActions
+          onView={() => setSelectedEvent(row)}
+          viewTitle="Xem chi tiết sự kiện biến động"
+        />
+      ),
     },
   ];
 
@@ -99,73 +233,134 @@ export const FleetHistoryPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading">
-            Lịch sử biến động & Thay đổi xe
-          </h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading">
+              Lịch sử biến động & Thay đổi xe
+            </h1>
+            <span className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-800">
+              {stats.totalEvents} sự kiện
+            </span>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Nhật ký truy vết toàn bộ quá trình bàn giao, chuyển xí nghiệp, thay đổi tài xế phụ trách và hoán cải nông cụ.
+            Dữ liệu truy vết trực tiếp từ CSDL: sửa chữa BTSC, phân công tài xế, cấp phát nhiên liệu và điều chuyển phương tiện.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md" icon={<Download className="w-4 h-4" />}>
+          <Button
+            variant="outline"
+            size="md"
+            icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+            onClick={() => fetchEvents()}
+          >
+            Làm mới
+          </Button>
+          <Button
+            variant="outline"
+            size="md"
+            icon={<Download className="w-4 h-4" />}
+            onClick={handleExportCSV}
+            disabled={eventsList.length === 0}
+          >
             Xuất sổ lý lịch
           </Button>
-          <Button variant="primary" size="md" icon={<Search className="w-4 h-4" />} onClick={() => setShowLookupModal(true)}>
-            Tra cứu số VIN
+          <Button
+            variant="primary"
+            size="md"
+            icon={<Search className="w-4 h-4" />}
+            onClick={() => setShowLookupModal(true)}
+          >
+            Tra cứu số VIN / Xe
           </Button>
         </div>
       </div>
 
       {/* Global FilterBar */}
       <FilterBar
+        searchPlaceholder="Tìm kiếm mã xe, biển số, mã phiếu, tài xế..."
         extraFilters={
           <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Đã xác thực dữ liệu lý lịch xe</span>
+            <span>Dữ liệu thực tế từ MySQL ({stats.totalEvents} sự kiện)</span>
           </div>
         }
       />
 
-      {/* 4 Stats Cards */}
+      {/* 4 Stats Cards với dữ liệu thực tế từ DB */}
       <KPIGrid cols={4}>
         <StatCard
           label="Tổng sự kiện biến động"
-          value={`${eventsList.length} sự kiện`}
-          subValue="Nhật ký hệ thống"
+          value={`${stats.totalEvents} sự kiện`}
+          subValue="Toàn bộ lịch sử phương tiện"
           icon={<Clock className="w-5 h-5" />}
           iconBgColor="bg-emerald-50"
           iconColor="text-primary"
         />
         <StatCard
           label="Bảo dưỡng & Sửa chữa"
-          value={`${eventsList.filter(e => e.badgeType === 'bts').length} lần`}
-          subValue="Phiếu xưởng BTSC"
+          value={`${stats.btsCount} lượt`}
+          subValue="Phiếu xưởng BTSC & BDC"
           icon={<ArrowRightLeft className="w-5 h-5" />}
+          iconBgColor="bg-rose-50"
+          iconColor="text-rose-600"
+        />
+        <StatCard
+          label="Phân công & Đổi tài xế"
+          value={`${stats.driverCount} lượt`}
+          subValue="Biên bản giao quyền điều khiển"
+          icon={<UserCheck className="w-5 h-5" />}
           iconBgColor="bg-sky-50"
           iconColor="text-sky-600"
         />
         <StatCard
-          label="Đổi tài xế phụ trách"
-          value={`${eventsList.filter(e => e.badgeType === 'driver').length} lần`}
-          subValue="Biên bản bàn giao xe"
-          icon={<UserCheck className="w-5 h-5" />}
+          label="Cấp phát nhiên liệu"
+          value={`${stats.fuelCount} lượt`}
+          subValue="Phiếu xuất kho DO & Xăng"
+          icon={<Fuel className="w-5 h-5" />}
           iconBgColor="bg-amber-50"
           iconColor="text-amber-600"
         />
-        <StatCard
-          label="Tình trạng hồ sơ"
-          value="100% hợp lệ"
-          subValue="Đủ kiểm định & bảo hiểm"
-          icon={<ShieldCheck className="w-5 h-5" />}
-          iconBgColor="bg-emerald-50"
-          iconColor="text-emerald-700"
-        />
       </KPIGrid>
 
-      {/* View Switcher */}
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2">
+      {/* Type Filter Buttons & View Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-2">
+        {/* Filter categories */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { id: 'ALL', label: 'Tất cả', count: stats.totalEvents },
+            { id: 'bts', label: 'Bảo dưỡng BTSC', count: stats.btsCount },
+            { id: 'driver', label: 'Phân công lái xe', count: stats.driverCount },
+            { id: 'fuel', label: 'Cấp nhiên liệu', count: stats.fuelCount },
+            { id: 'delivery', label: 'Bàn giao & Phân bổ', count: stats.deliveryCount },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => {
+                setSelectedTypeFilter(cat.id);
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedTypeFilter === cat.id
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <span>{cat.label}</span>
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                  selectedTypeFilter === cat.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {cat.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* View Switcher: Timeline vs Table */}
+        <div className="flex items-center gap-1.5 self-end sm:self-auto">
           <button
             onClick={() => setActiveTab('timeline')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -175,7 +370,7 @@ export const FleetHistoryPage: React.FC = () => {
             }`}
           >
             <History className="w-3.5 h-3.5" />
-            Dòng Thời Gian Lý Lịch (Timeline)
+            Dòng Thời Gian (Timeline)
           </button>
           <button
             onClick={() => setActiveTab('table')}
@@ -186,67 +381,154 @@ export const FleetHistoryPage: React.FC = () => {
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            Bảng Nhật Ký Biến Động (Table)
+            Bảng Nhật Ký (Table)
           </button>
         </div>
-
-        <span className="text-xs font-bold text-slate-500 hidden sm:inline">
-          Toàn bộ lịch sử biến động phương tiện
-        </span>
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="bg-white rounded-2xl p-12 border border-slate-200 shadow-card text-center">
+          <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
+          <p className="text-xs font-bold text-slate-600 mt-2">Đang truy vấn lịch sử biến động từ CSDL...</p>
+        </div>
+      )}
+
       {/* TIMELINE VIEW */}
-      {activeTab === 'timeline' && (
+      {!loading && activeTab === 'timeline' && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-card">
           {eventsList.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <Clock className="w-12 h-12 mx-auto mb-3 opacity-40 text-slate-400" />
-              <p className="text-sm font-bold text-slate-600">Chưa có nhật ký biến động nào cho phương tiện này</p>
-              <p className="text-xs text-slate-400 mt-1">Các sự kiện bàn giao, hoán cải và bảo dưỡng sẽ được tự động ghi nhận khi phát sinh.</p>
+              <p className="text-sm font-bold text-slate-600">Không tìm thấy sự kiện biến động nào phù hợp</p>
+              <p className="text-xs text-slate-400 mt-1">Vui lòng kiểm tra lại bộ lọc Khu liên hợp hoặc từ khóa tìm kiếm.</p>
             </div>
           ) : (
-            <div className="relative border-l-2 border-primary/40 pl-6 space-y-6 ml-3">
-              {eventsList.map((event) => (
-                <div key={event.id} className="relative group">
-                  {/* Dot Icon */}
-                  <div className="absolute -left-[31px] top-0 w-4 h-4 rounded-full bg-white border-4 border-primary group-hover:scale-125 transition-transform" />
+            <div className="space-y-6">
+              <div className="relative border-l-2 border-primary/40 pl-6 space-y-5 ml-3">
+                {eventsList.map((event) => {
+                  const badgeColorClass =
+                    event.badgeType === 'bts'
+                      ? 'border-rose-300 text-rose-700 bg-rose-50'
+                      : event.badgeType === 'driver'
+                      ? 'border-sky-300 text-sky-700 bg-sky-50'
+                      : event.badgeType === 'fuel'
+                      ? 'border-amber-300 text-amber-700 bg-amber-50'
+                      : 'border-emerald-300 text-emerald-700 bg-emerald-50';
 
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/90 group-hover:border-primary/50 group-hover:bg-emerald-50/30 transition-all">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-                      <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-primary transition-colors">
-                        {event.title}
-                      </h3>
-                      <button
-                        onClick={() => setSelectedEvent(event)}
-                        className="text-xs font-bold text-primary hover:underline self-start sm:self-auto"
-                      >
-                        {event.actionText} →
-                      </button>
+                  const badgeLabel =
+                    event.badgeType === 'bts'
+                      ? 'Bảo dưỡng BTSC'
+                      : event.badgeType === 'driver'
+                      ? 'Đổi tài xế'
+                      : event.badgeType === 'fuel'
+                      ? 'Cấp nhiên liệu'
+                      : 'Bàn giao xe';
+
+                  return (
+                    <div key={event.id} className="relative group">
+                      {/* Dot Icon */}
+                      <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-white border-4 border-primary group-hover:scale-125 transition-transform" />
+
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/90 group-hover:border-primary/50 group-hover:bg-emerald-50/30 transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded px-1.5 py-0.5">
+                              {event.code || event.id}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badgeColorClass}`}>
+                              {badgeLabel}
+                            </span>
+                            <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-primary transition-colors">
+                              {event.title}
+                            </h3>
+                          </div>
+                          <button
+                            onClick={() => setSelectedEvent(event)}
+                            className="text-xs font-bold text-primary hover:underline self-start sm:self-auto flex items-center gap-1"
+                          >
+                            <span>{event.actionText}</span>
+                            <span>→</span>
+                          </button>
+                        </div>
+
+                        <p className="text-xs text-slate-600 leading-relaxed mb-2.5">
+                          {event.description}
+                        </p>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/60 text-[11px] text-slate-500">
+                          <div className="flex items-center gap-1.5 font-medium">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{event.meta}</span>
+                          </div>
+                          {event.vehicleCode && (
+                            <div className="flex items-center gap-2 font-mono">
+                              <span className="font-bold text-slate-700">{event.vehicleName || event.vehicleCode}</span>
+                              {event.plate && (
+                                <span className="bg-white border border-slate-200 rounded px-1.5 py-0.2 text-slate-600 font-semibold">
+                                  {event.plate}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    <p className="text-xs text-slate-600 leading-relaxed mb-2">
-                      {event.description}
-                    </p>
-
-                    <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{event.meta}</span>
-                    </div>
+              {/* Timeline Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 border-t border-slate-200 text-xs text-slate-600">
+                  <span>
+                    Hiển thị <b>{(page - 1) * pageSize + 1}</b> - <b>{Math.min(page * pageSize, totalCount)}</b> trên <b>{totalCount}</b> sự kiện
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={<ChevronLeft className="w-4 h-4" />}
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      Trang trước
+                    </Button>
+                    <span className="px-3 font-bold text-slate-800">
+                      Trang {page} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                      Trang sau
+                      <ChevronRight className="w-4 h-4 ml-1 inline" />
+                    </Button>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
       )}
 
       {/* TABLE VIEW */}
-      {activeTab === 'table' && (
+      {!loading && activeTab === 'table' && (
         <DataTable
           title="Nhật Ký Biến Động Lý Lịch Phương Tiện"
-          subtitle="Dữ liệu lưu vết lịch sử vận hành giúp tra cứu kiểm toán và đánh giá hao mòn tài sản"
+          subtitle={`Dữ liệu lưu vết lịch sử vận hành thực tế từ cơ sở dữ liệu (${totalCount} bản ghi)`}
           columns={columns}
           data={eventsList}
+          pageSize={pageSize}
+          showSearch={false}
+          showExport={false}
+          actions={
+            <span className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-800">
+              {totalCount} sự kiện
+            </span>
+          }
         />
       )}
 
@@ -255,18 +537,56 @@ export const FleetHistoryPage: React.FC = () => {
         <Modal
           isOpen={!!selectedEvent}
           onClose={() => setSelectedEvent(null)}
-          title={`Hồ Sơ Chứng Từ: ${selectedEvent.title}`}
-          subtitle={selectedEvent.meta}
+          title={`Hồ Sơ Chứng Từ: ${selectedEvent.code || selectedEvent.id}`}
+          subtitle={selectedEvent.title}
           size="md"
         >
           <div className="space-y-3.5 text-xs text-slate-700">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-              <p className="font-semibold">{selectedEvent.description}</p>
-              <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-200">
-                Chứng từ số: <b>CT-THACO-2026-{selectedEvent.id}</b> · Đã lưu trữ trên máy chủ dữ liệu trung tâm.
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <span className="font-bold text-slate-500">Mã chứng từ:</span>
+                <span className="font-mono font-extrabold text-slate-900 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                  {selectedEvent.code || selectedEvent.id}
+                </span>
+              </div>
+
+              {selectedEvent.vehicleName && (
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <span className="font-bold text-slate-500">Phương tiện:</span>
+                  <span className="font-bold text-slate-900 text-right">
+                    {selectedEvent.vehicleName} ({selectedEvent.vehicleCode})
+                  </span>
+                </div>
+              )}
+
+              {selectedEvent.plate && (
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <span className="font-bold text-slate-500">Biển số:</span>
+                  <span className="font-mono font-bold text-primary bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                    {selectedEvent.plate}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <span className="font-bold text-slate-500">Thời gian & Đơn vị:</span>
+                <span className="font-semibold text-slate-700 text-right">{selectedEvent.meta}</span>
+              </div>
+
+              <div className="pt-1">
+                <span className="font-bold text-slate-500 block mb-1">Nội dung chi tiết:</span>
+                <p className="font-medium text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed">
+                  {selectedEvent.description}
+                </p>
+              </div>
+
+              <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-200 flex items-center justify-between">
+                <span>Trạng thái: <b>Đã xác thực trong CSDL</b></span>
+                <span>Khu liên hợp: <b>{selectedEvent.complexCode || 'KOUN_MOM'}</b></span>
               </div>
             </div>
-            <div className="flex justify-end pt-2">
+
+            <div className="flex justify-end gap-2 pt-2">
               <Button variant="primary" size="sm" onClick={() => setSelectedEvent(null)}>
                 Đóng
               </Button>
@@ -275,26 +595,41 @@ export const FleetHistoryPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* Tra cứu số VIN Modal */}
+      {/* Tra cứu số VIN / Biển số Modal */}
       <Modal
         isOpen={showLookupModal}
         onClose={() => setShowLookupModal(false)}
-        title="Tra Cứu Sổ Lý Lịch Theo Số VIN / Biển Số"
-        subtitle="Truy xuất dữ liệu lịch sử phương tiện từ hệ thống ERP THACO AGRI"
+        title="Tra Cứu Sổ Lý Lịch Theo Mã Xe / Biển Số"
+        subtitle="Truy xuất dữ liệu lịch sử phương tiện từ hệ thống cơ sở dữ liệu thực tế"
         size="md"
       >
         <div className="space-y-3 text-xs">
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Nhập số VIN hoặc Biển số xe:</label>
-            <input type="text" placeholder="Ví dụ: JD6140B-9982 hoặc XC-JD-024" className="w-full p-2 border border-slate-200 rounded-xl bg-slate-50 font-bold" />
+            <label className="font-bold text-slate-700 block mb-1">
+              Nhập mã phương tiện, biển số hoặc từ khóa:
+            </label>
+            <input
+              type="text"
+              value={vinLookupInput}
+              onChange={(e) => setVinLookupInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleVinLookupSubmit();
+              }}
+              placeholder="Ví dụ: CHT-MDA-002, 6140B, hoặc tên xe..."
+              className="w-full p-2.5 border border-slate-300 rounded-xl bg-slate-50 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+              autoFocus
+            />
           </div>
           <div className="flex justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setShowLookupModal(false)}>Hủy</Button>
-            <Button variant="primary" size="sm" onClick={() => setShowLookupModal(false)}>Tra Cứu Ngay</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowLookupModal(false)}>
+              Hủy
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleVinLookupSubmit}>
+              Tra Cứu Ngay
+            </Button>
           </div>
         </div>
       </Modal>
     </div>
   );
 };
-

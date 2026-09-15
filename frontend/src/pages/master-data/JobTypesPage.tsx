@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
 import { Column, DataTable } from '../../components/data-display/DataTable';
 import { useAppStore } from '../../store/useAppStore';
 import {
@@ -34,6 +36,9 @@ import {
   getNextJobCode,
   getStoredStages,
 } from '../../data/jobCatalogData';
+import { catalogsApi } from '../../api/catalogsApi';
+import { CatalogItem, mockComplexes } from '../../data/catalogData';
+import { getStoredData } from '../../utils/storage';
 import {
   AgriculturalPlotItem,
   AgriculturalTeamItem,
@@ -77,6 +82,7 @@ export interface JobItem {
   fuelUnit: string;
   complexCode: string; // Thuộc KLH
   description?: string;
+  status?: 'active' | 'inactive' | string;
 }
 
 export interface StageItem {
@@ -132,254 +138,123 @@ export interface TransportRouteItem {
   notes?: string;
 }
 
-const KLH_OPTIONS = [
-  { code: 'ALL', name: 'Tất cả Khu liên hợp' },
-  { code: 'KOUN_MOM', name: 'Khu liên hợp Koun Mom' },
-  { code: 'SNOUL', name: 'Khu liên hợp Snoul' },
-  { code: 'NAM_LAO', name: 'Khu liên hợp Nam Lào' },
-];
+// CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI DỮ LIỆU TỪ DATABASE API (CatalogItem) <-> MODEL MÀN HÌNH
+const mapCatalogItemToStage = (item: CatalogItem): StageItem => ({
+  id: item.id,
+  code: item.code,
+  name: item.name,
+  planType: (item.parentCode as JobPlanType) || 'NONG_NGHIEP',
+  description: item.description || '',
+  sequence: parseInt(item.systemId || '1', 10) || 1,
+  status: item.status === 'TAM_DUNG' ? 'inactive' : 'active',
+});
 
-export const STAGES_BY_PLAN_TYPE: Record<JobPlanType, { code: string; name: string }[]> = {
-  NONG_NGHIEP: [
-    { code: 'LAM_DAT', name: '1. Làm đất' },
-    { code: 'TRONG_MOI', name: '2. Trồng mới & Chăm sóc' },
-    { code: 'THU_HOACH', name: '3. Thu hoạch' },
-  ],
-  CONG_TRINH: [
-    { code: 'DAO_DAP', name: '1. Đào đắp mương máng & hồ đập' },
-    { code: 'SAN_LAP', name: '2. San lấp mặt bằng & tạo cos nền' },
-    { code: 'GIAO_THONG', name: '3. Mở đường & Lu lèn giao thông nội bộ' },
-    { code: 'BAO_DUONG', name: '4. Nạo vét & Duy tu hạ tầng công trình' },
-  ],
-  VAN_CHUYEN: [
-    { code: 'CHUYEN_CHUOI', name: '1. Vận chuyển chuối xuất khẩu' },
-    { code: 'CHUYEN_THUC_AN', name: '2. Vận chuyển thức ăn gia súc (Bò)' },
-    { code: 'CHUYEN_VAT_TU', name: '3. Vận chuyển phân bón & vật tư' },
-    { code: 'CHUYEN_NOI_BO', name: '4. Tiếp liệu & Điều chuyển cơ giới' },
-  ],
+const renderJobStatusBadge = (status?: string | boolean) => {
+  const isInactive = status === 'inactive' || status === 'NGUNG_HOAT_DONG' || status === 'TAM_DUNG' || status === false;
+  return (
+    <span
+      className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+        isInactive ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-800'
+      }`}
+    >
+      {isInactive ? 'Ngưng hoạt động' : 'Còn hoạt động'}
+    </span>
+  );
 };
 
-// DỮ LIỆU KHỞI TẠO CHO CÁC GIAI ĐOẠN / PHÂN LOẠI CÔNG VIỆC CẢ 3 LOẠI KẾ HOẠCH
-const INITIAL_STAGES: StageItem[] = [
-  // Nông nghiệp
-  { id: 'STG-NN-01', code: 'LAM_DAT', name: '1. Làm đất', planType: 'NONG_NGHIEP', description: 'Cày sâu 30cm, bừa đĩa tơi xốp, phay xới tạo luống', sequence: 1, status: 'active' },
-  { id: 'STG-NN-02', code: 'TRONG_MOI', name: '2. Trồng mới & Chăm sóc', planType: 'NONG_NGHIEP', description: 'Khoan hố đặt bầu, rải vôi khử trùng, bón lót hữu cơ, phun thuốc BVTV', sequence: 2, status: 'active' },
-  { id: 'STG-NN-03', code: 'THU_HOACH', name: '3. Thu hoạch', planType: 'NONG_NGHIEP', description: 'Cắt buồng chuối, gom kéo mooc về trạm đóng gói, băm nghiền thân cây', sequence: 3, status: 'active' },
+const mapStageToCatalogItem = (stage: StageItem): CatalogItem => ({
+  id: stage.id,
+  code: stage.code,
+  name: stage.name,
+  type: 'JOB_TYPE',
+  parentCode: stage.planType,
+  parentName:
+    stage.planType === 'NONG_NGHIEP'
+      ? 'Cơ giới Nông nghiệp'
+      : stage.planType === 'CONG_TRINH'
+      ? 'Máy Công trình'
+      : 'Vận chuyển nội bộ',
+  description: stage.description,
+  systemId: String(stage.sequence),
+  status: stage.status === 'active' ? 'HOAT_DONG' : 'TAM_DUNG',
+});
 
-  // Công trình
-  { id: 'STG-CT-01', code: 'DAO_DAP', name: '1. Đào đắp mương máng & hồ đập', planType: 'CONG_TRINH', description: 'Đào mương trục chính, nạo vét bùn lắng, đào hố móng hồ lắng sinh học', sequence: 1, status: 'active' },
-  { id: 'STG-CT-02', code: 'SAN_LAP', name: '2. San lấp mặt bằng & tạo cos nền', planType: 'CONG_TRINH', description: 'Ủi gạt tạo mặt bằng sân bãi, đắp bờ bao ngăn lũ và kè chống sạt lở', sequence: 2, status: 'active' },
-  { id: 'STG-CT-03', code: 'GIAO_THONG', name: '3. Mở đường & Lu lèn giao thông nội bộ', planType: 'CONG_TRINH', description: 'Bù vê tạo mặt đường, rải cấp phối đá dăm và lu rung đạt K95', sequence: 3, status: 'active' },
-  { id: 'STG-CT-04', code: 'BAO_DUONG', name: '4. Nạo vét & Duy tu hạ tầng công trình', planType: 'CONG_TRINH', description: 'Duy tu định kỳ đường trục nội bộ và hệ thống mương máng mùa mưa lũ', sequence: 4, status: 'active' },
+const mapCatalogItemToImplement = (item: CatalogItem): ImplementGroupItem => {
+  const [desc, comp] = (item.description || '').split('| Xe tương thích: ');
+  return {
+    id: item.id,
+    code: item.code,
+    name: item.name,
+    planType: (item.parentCode as JobPlanType) || 'NONG_NGHIEP',
+    category: item.parentName || 'Chung',
+    compatibleVehicles: comp?.trim() || 'Xe cơ giới phù hợp',
+    description: desc?.trim() || item.description || '',
+    status: item.status === 'TAM_DUNG' ? 'inactive' : 'active',
+  };
+};
 
-  // Vận chuyển
-  { id: 'STG-VC-01', code: 'CHUYEN_CHUOI', name: '1. Vận chuyển chuối xuất khẩu', planType: 'VAN_CHUYEN', description: 'Chở buồng tươi về xưởng đóng gói và chở cont lạnh 40ft về kho trung tâm', sequence: 1, status: 'active' },
-  { id: 'STG-VC-02', code: 'CHUYEN_THUC_AN', name: '2. Vận chuyển thức ăn gia súc (Bò)', planType: 'VAN_CHUYEN', description: 'Chở thân lá chuối tươi, bắp sinh khối về hầm ủ chua và trại bò thịt', sequence: 2, status: 'active' },
-  { id: 'STG-VC-03', code: 'CHUYEN_VAT_TU', name: '3. Vận chuyển phân bón & vật tư', planType: 'VAN_CHUYEN', description: 'Vận chuyển phân bón, vôi, ống tưới, bao buồng từ kho tổng về chòi tập kết', sequence: 3, status: 'active' },
-  { id: 'STG-VC-04', code: 'CHUYEN_NOI_BO', name: '4. Tiếp liệu & Điều chuyển cơ giới', planType: 'VAN_CHUYEN', description: 'Tiếp ứng dầu Diesel, nước sinh hoạt và điều chuyển máy móc nông cụ', sequence: 4, status: 'active' },
-];
+const mapImplementToCatalogItem = (imp: ImplementGroupItem): CatalogItem => ({
+  id: imp.id,
+  code: imp.code,
+  name: imp.name,
+  type: 'VEHICLE_CATEGORY',
+  parentCode: imp.planType,
+  parentName: imp.category,
+  description: `${imp.description} | Xe tương thích: ${imp.compatibleVehicles}`,
+  status: imp.status === 'active' ? 'HOAT_DONG' : 'TAM_DUNG',
+});
 
-// DỮ LIỆU KHỞI TẠO CHO DANH MỤC NÔNG CỤ & THIẾT BỊ PHỤ TRỢ (3 LOẠI KẾ HOẠCH)
-const INITIAL_IMPLEMENTS: ImplementGroupItem[] = [
-  // Nông nghiệp
-  { id: 'IMP-NN-01', code: 'NC-CAY-01', name: 'Dàn cày 3 - 4 chảo', planType: 'NONG_NGHIEP', category: 'Cày xới đất', compatibleVehicles: 'Máy kéo 70 - 90HP', description: 'Cày phá lâm, khử chua tầng đáy', status: 'active' },
-  { id: 'IMP-NN-02', code: 'NC-BUA-01', name: 'Dàn bừa đĩa 24 chảo', planType: 'NONG_NGHIEP', category: 'Làm mịn đất', compatibleVehicles: 'Máy kéo 70 - 90HP', description: 'Bừa tơi xốp mặt đất sau cày lật', status: 'active' },
-  { id: 'IMP-NN-03', code: 'NC-XOI-01', name: 'Dàn xới đất phay', planType: 'NONG_NGHIEP', category: 'Làm mịn đất', compatibleVehicles: 'Máy kéo 50 - 70HP', description: 'Phay xới mặt luống đặt bầu chuối', status: 'active' },
-  { id: 'IMP-NN-04', code: 'NC-LUONG-01', name: 'Dàn lên luống 2 tim', planType: 'NONG_NGHIEP', category: 'Tạo luống', compatibleVehicles: 'Máy kéo 70 - 90HP', description: 'Lên luống cao 35cm chuẩn thoát nước', status: 'active' },
-  { id: 'IMP-NN-05', code: 'NC-KHOAN-01', name: 'Dàn khoan hố tự hành', planType: 'NONG_NGHIEP', category: 'Trồng mới', compatibleVehicles: 'Máy kéo nhỏ 40 - 50HP', description: 'Khoan hố đặt bầu chuối cấy mô', status: 'active' },
-  { id: 'IMP-NN-06', code: 'NC-RAIPHAN-01', name: 'Dàn rải phân / vôi đĩa quay', planType: 'NONG_NGHIEP', category: 'Chăm sóc', compatibleVehicles: 'Máy kéo 40 - 50HP', description: 'Rải vôi bột và phân hữu cơ vi sinh', status: 'active' },
-  { id: 'IMP-NN-07', code: 'NC-PHUN-01', name: 'Dàn phun thuốc boom 12m', planType: 'NONG_NGHIEP', category: 'BVTV', compatibleVehicles: 'Máy kéo bánh cao 50 - 60HP', description: 'Phun phòng trừ nấm bệnh Sigatoka', status: 'active' },
-  { id: 'IMP-NN-08', code: 'NC-MOOC-01', name: 'Rơ-moóc chuyên dụng treo chuối', planType: 'NONG_NGHIEP', category: 'Thu hoạch', compatibleVehicles: 'Máy kéo 50 - 70HP', description: 'Đệm mút giảm chấn chống trầy xước buồng chuối', status: 'active' },
-  { id: 'IMP-NN-09', code: 'NC-BAM-01', name: 'Dàn băm thân cây PTO', planType: 'NONG_NGHIEP', category: 'Thu hoạch', compatibleVehicles: 'Máy kéo 70 - 90HP', description: 'Băm mịn thân cây rải đều mặt ruộng', status: 'active' },
-  { id: 'IMP-NN-10', code: 'NC-NONE-01', name: 'Không gắn nông cụ (Xe tự hành)', planType: 'NONG_NGHIEP', category: 'Khác', compatibleVehicles: 'Mọi dòng máy kéo', description: 'Xe di chuyển không mang theo nông cụ', status: 'active' },
+// CÁC HÀM TIỆN ÍCH CHUYỂN ĐỔI HẠNG MỤC CÔNG VIỆC, LỆNH ĐIỀU XE, TUYẾN ĐƯỜNG TỪ DATABASE API
+const mapCatalogItemToJob = (item: CatalogItem): JobItem => ({
+  id: item.id,
+  code: item.code,
+  name: item.name,
+  planType: (item.parentCode as JobPlanType) || 'NONG_NGHIEP',
+  stageCode: item.enterpriseName || 'LAM_DAT',
+  stageName: item.parentName || '',
+  hasImplement: !(item.farmName || '').includes('Không gắn'),
+  implementGroup: item.farmName || '',
+  recommendedVehicle: item.plotStatus || '',
+  defaultUnit: item.systemId || 'ha',
+  quotaPerShift: item.managerName || '',
+  fuelQuota: item.areaHa || 0,
+  fuelUnit: item.address || 'Lít/ha',
+  complexCode: item.phone || 'KOUN_MOM',
+  description: item.description || '',
+  status: item.status === 'TAM_DUNG' ? 'inactive' : 'active',
+});
 
-  // Công trình
-  { id: 'IMP-CT-01', code: 'TB-NONE-CT', name: 'Không gắn nông cụ (Xe cơ giới thi công độc lập)', planType: 'CONG_TRINH', category: 'Thi công', compatibleVehicles: 'Máy ủi, máy đào, máy san', description: 'Thi công với trang bị nguyên bản của xe', status: 'active' },
-  { id: 'IMP-CT-02', code: 'TB-GAU-01', name: 'Gầu đào 0.5 - 0.8m³', planType: 'CONG_TRINH', category: 'Đào đắp', compatibleVehicles: 'Máy đào bánh xích PC200', description: 'Đào mương máng thoát nước, vét bùn', status: 'active' },
-  { id: 'IMP-CT-03', code: 'TB-LUI-01', name: 'Lưỡi ủi san phẳng đất', planType: 'CONG_TRINH', category: 'San gạt', compatibleVehicles: 'Máy ủi D6R, D6', description: 'San lấp mặt bằng, đắp bờ bao ngăn lũ', status: 'active' },
-  { id: 'IMP-CT-04', code: 'TB-BUA-01', name: 'Búa đập đá thủy lực', planType: 'CONG_TRINH', category: 'Phá vỡ', compatibleVehicles: 'Máy đào PC200', description: 'Phá đá móng công trình, san lấp nền', status: 'active' },
-  { id: 'IMP-CT-05', code: 'TB-LU-01', name: 'Trống lu rung thép', planType: 'CONG_TRINH', category: 'Đầm nén', compatibleVehicles: 'Xe lu rung 14T', description: 'Đầm nén nền đường nội bộ K95', status: 'active' },
+const mapCatalogItemToOrderType = (item: CatalogItem): OrderTypeItem => ({
+  id: item.id,
+  code: item.code,
+  name: item.name,
+  orderGroup: (item.parentCode as any) || 'NONG_NGHIEP',
+  category: item.parentName || item.name,
+  measuringMethod: item.description?.match(/Ca máy:\s*([^|]+)/)?.[1]?.trim() || 'Theo ca máy (8 - 12h) / Héc-ta (ha)',
+  fuelQuotaType: item.description?.match(/Định mức:\s*([^|]+)/)?.[1]?.trim() || '18.5 L/ha cày ải (hoặc Lít/h)',
+  isEmergency: item.code === 'LL-LĐX',
+  requiresImplement: item.parentCode === 'NONG_NGHIEP' || item.code === 'LL-LĐX',
+  requiresLotPlot: item.parentCode === 'NONG_NGHIEP' || item.code === 'LL-LĐX',
+  requiresRoute: item.parentCode === 'VAN_CHUYEN',
+  targetScope: item.description?.split('|')[0]?.trim() || 'Xe cơ giới phù hợp',
+  description: item.description || '',
+  status: item.status === 'HOAT_DONG' ? 'active' : 'inactive',
+});
 
-  // Vận chuyển
-  { id: 'IMP-VC-01', code: 'MOOC-CH-01', name: 'Rơ-moóc chuyên dụng chở chuối', planType: 'VAN_CHUYEN', category: 'Nông sản', compatibleVehicles: 'Xe đầu kéo, máy kéo', description: 'Chở chuối tươi từ lô về xưởng sơ chế', status: 'active' },
-  { id: 'IMP-VC-02', code: 'MOOC-SAN-01', name: 'Sơ-mi rơ-moóc sàn 40ft', planType: 'VAN_CHUYEN', category: 'Vật tư', compatibleVehicles: 'Đầu kéo container', description: 'Chở vật tư cồng kềnh, cuộn ống tưới, phân bón', status: 'active' },
-  { id: 'IMP-VC-03', code: 'MOOC-CONT-01', name: 'Sơ-mi rơ-moóc xương chở cont', planType: 'VAN_CHUYEN', category: 'Container', compatibleVehicles: 'Đầu kéo container', description: 'Kéo container 40ft chuối lạnh xuất khẩu', status: 'active' },
-  { id: 'IMP-VC-04', code: 'THUNG-BEN-01', name: 'Thùng ben tự đổ 8 - 15 tấn', planType: 'VAN_CHUYEN', category: 'Ben tự đổ', compatibleVehicles: 'Xe ben 10 - 15T', description: 'Chở phân bón, đất đá san lấp, phế phẩm', status: 'active' },
-  { id: 'IMP-VC-05', code: 'XITEC-BON-01', name: 'Bồn xitec chuyên dụng bơm xả lưu động', planType: 'VAN_CHUYEN', category: 'Nhiên liệu & Nước', compatibleVehicles: 'Xe bồn xitec 5 khối', description: 'Tiếp dầu diesel và nước cho máy ngoài đồng', status: 'active' },
-];
-
-// DỮ LIỆU KHỞI TẠO CHUẨN XÁC TỪ MASTER_JOBS
-const INITIAL_JOBS: JobItem[] = MASTER_JOBS.map((j) => ({
-  id: j.id,
-  code: j.code,
-  name: j.name,
-  planType: j.planType,
-  stageCode: j.categoryCode,
-  stageName: j.categoryName,
-  hasImplement: !j.implementGroup.includes('Không gắn'),
-  implementGroup: j.implementGroup,
-  recommendedVehicle: j.recommendedVehicle,
-  defaultUnit: j.defaultUnit,
-  quotaPerShift: j.quotaPerShift,
-  fuelQuota: j.fuelQuota,
-  fuelUnit: j.fuelUnit,
-  complexCode: j.complexCode,
-  description: j.description,
-}));
-
-const INITIAL_ORDER_TYPES: OrderTypeItem[] = [
-  {
-    id: 'ORD-01',
-    code: 'LL-LSX',
-    name: 'Lệnh Sản Xuất Nông Nghiệp',
-    orderGroup: 'NONG_NGHIEP',
-    category: 'Lệnh sản xuất nông nghiệp (Làm đất → Trồng mới → Thu hoạch)',
-    measuringMethod: 'Theo ca máy (8 - 12h) / Héc-ta (ha)',
-    fuelQuotaType: '18.5 L/ha cày ải (hoặc Lít/h)',
-    isEmergency: false,
-    requiresImplement: true,
-    requiresLotPlot: true,
-    requiresRoute: false,
-    targetScope: 'Máy kéo bánh hơi / bánh xích (40 - 90HP) + Nông cụ',
-    description: 'Điều động máy móc làm đất, trồng mới, thu hoạch theo kế hoạch tuần gắn Lô/Thửa.',
-    status: 'active',
-  },
-  {
-    id: 'ORD-02',
-    code: 'LL-LCT',
-    name: 'Lệnh Điều Xe Công Trình & Ca Máy',
-    orderGroup: 'CONG_TRINH',
-    category: 'Lệnh thi công công trình & hạ tầng',
-    measuringMethod: 'Theo giờ máy (8h/ca) / Khối lượng đào đắp',
-    fuelQuotaType: 'Lít/giờ máy (14.5 L/h)',
-    isEmergency: false,
-    requiresImplement: false,
-    requiresLotPlot: false,
-    requiresRoute: false,
-    targetScope: 'Máy ủi, Máy xúc đào, Máy san gạt, Máy lu',
-    description: 'Quản lý ca máy san gạt đường nội đồng, nạo vét kênh mương, làm mặt bằng theo giờ máy.',
-    status: 'active',
-  },
-  {
-    id: 'ORD-03',
-    code: 'LL-LVC',
-    name: 'Lệnh Vận Chuyển Nội Bộ',
-    orderGroup: 'VAN_TAI',
-    category: 'Lệnh vận chuyển nội bộ (Luồng 3 chặng phụ phẩm & chuối)',
-    measuringMethod: 'Theo chuyến (Km & Tấn) / Cont',
-    fuelQuotaType: '30.0 L/100km Howo (hoặc Lít/chuyến)',
-    isEmergency: false,
-    requiresImplement: false,
-    requiresLotPlot: false,
-    requiresRoute: true,
-    targetScope: 'Xe tải thùng, Xe ben, Đầu kéo Container, Xe bồn, Sơ-mi rơ-moóc',
-    description: 'Vận chuyển vật tư kho, phân bón, dầu diesel, bao bì, chuối xuất khẩu, luồng 3 chặng TĂCN bò.',
-    status: 'active',
-  },
-  {
-    id: 'ORD-04',
-    code: 'LL-LĐX',
-    name: 'Lệnh Điều Xe Công Tác & Cứu Hộ',
-    orderGroup: 'CUU_HO',
-    category: 'Lệnh điều động công tác & ứng cứu khẩn cấp',
-    measuringMethod: 'Theo đợt công tác / Giờ kéo cứu hộ',
-    fuelQuotaType: 'Theo cự ly GPS thực tế / Khoán sự vụ',
-    isEmergency: true,
-    requiresImplement: true,
-    requiresLotPlot: true,
-    requiresRoute: false,
-    targetScope: 'Xe bán tải, Xe chỉ huy, Máy kéo công suất lớn (90 - 110HP) + Cáp cứu hộ',
-    description: 'Điều xe công tác liên nông trường và kéo cứu hộ máy móc sự cố ngoài đồng; kích hoạt tức thì.',
-    status: 'active',
-  },
-];
-
-const INITIAL_ROUTES: TransportRouteItem[] = [
-  {
-    id: 'RTE-KM-01',
-    code: 'TD-KM-01',
-    name: 'Nông trường 1 ➔ Xí nghiệp Bò Koun Mom',
-    complexCode: 'KOUN_MOM',
-    complexName: 'Khu liên hợp Koun Mom',
-    origin: 'Kho phụ phẩm Nông trường 1 (Lô A/B)',
-    destination: 'Trại Bò thịt - Xí nghiệp Chăn nuôi Bò',
-    distanceKm: 12.5,
-    cargoType: 'Thân & lá chuối tươi (thức ăn thô xanh)',
-    speedLimitKmH: 35,
-    status: 'active',
-    notes: 'Tuyến đường đất cấp phối, chạy cẩn thận khi trời mưa.',
-  },
-  {
-    id: 'RTE-KM-02',
-    code: 'TD-KM-02',
-    name: 'Nông trường 2 ➔ Trung tâm Chế biến Thức ăn (TĂCN)',
-    complexCode: 'KOUN_MOM',
-    complexName: 'Khu liên hợp Koun Mom',
-    origin: 'Cánh đồng bắp sinh khối NT2 (Lô C)',
-    destination: 'Hầm ủ chua - TT Chế biến TĂCN',
-    distanceKm: 18.0,
-    cargoType: 'Bắp sinh khối sau thu hoạch',
-    speedLimitKmH: 40,
-    status: 'active',
-    notes: 'Yêu cầu phủ bạt kín tránh rơi vãi dọc trục đường chính.',
-  },
-  {
-    id: 'RTE-KM-03',
-    code: 'TD-KM-03',
-    name: 'Lô thu hoạch ➔ Trạm sơ chế đóng gói chuối',
-    complexCode: 'KOUN_MOM',
-    complexName: 'Khu liên hợp Koun Mom',
-    origin: 'Cụm Lô thu hoạch (Lô D01 - D03)',
-    destination: 'Xưởng đóng gói Chuối xuất khẩu',
-    distanceKm: 4.5,
-    cargoType: 'Đoàn rơ-moóc buồng chuối tươi',
-    speedLimitKmH: 15,
-    status: 'active',
-    notes: 'Tốc độ tối đa 15 km/h để chống trầy xước buồng chuối.',
-  },
-  {
-    id: 'RTE-KM-04',
-    code: 'TD-KM-04',
-    name: 'Kho Tổng KLH ➔ Chòi tập kết Nông trường',
-    complexCode: 'KOUN_MOM',
-    complexName: 'Khu liên hợp Koun Mom',
-    origin: 'Kho Tổng Vật tư KLH Koun Mom',
-    destination: 'Kho đệm Đội cơ giới NT1 & NT2',
-    distanceKm: 8.0,
-    cargoType: 'Phân bón vô cơ, vôi bột, bao buồng',
-    speedLimitKmH: 35,
-    status: 'active',
-    notes: 'Vận chuyển kèm phiếu xuất kho vật tư.',
-  },
-  {
-    id: 'RTE-SN-01',
-    code: 'TD-SN-01',
-    name: 'Nông trường Cao su Snoul ➔ Xưởng chế biến mủ',
-    complexCode: 'SNOUL',
-    complexName: 'Khu liên hợp Snoul',
-    origin: 'Trạm mủ NT Cao su Snoul',
-    destination: 'Nhà máy chế biến mủ Snoul',
-    distanceKm: 14.2,
-    cargoType: 'Mủ cao su đông đặc',
-    speedLimitKmH: 40,
-    status: 'active',
-    notes: 'Kiểm tra bồn chứa kín trước khi xuất phát.',
-  },
-  {
-    id: 'RTE-NL-01',
-    code: 'TD-NL-01',
-    name: 'Khu nông nghiệp Paksong ➔ Trại bò Nam Lào',
-    complexCode: 'NAM_LAO',
-    complexName: 'Khu liên hợp Nam Lào',
-    origin: 'Vùng đệm cỏ voi Paksong',
-    destination: 'Trại Bò giống Nam Lào',
-    distanceKm: 22.0,
-    cargoType: 'Cỏ voi ủ chua & phụ phẩm bắp',
-    speedLimitKmH: 45,
-    status: 'active',
-    notes: 'Tuyến đường đèo dốc nhẹ, chú ý hệ thống phanh xe ben.',
-  },
-];
+const mapCatalogItemToRoute = (item: CatalogItem): TransportRouteItem => ({
+  id: item.id,
+  code: item.code,
+  name: item.name,
+  complexCode: item.parentCode || 'KOUN_MOM',
+  complexName: item.parentName || 'Khu liên hợp Koun Mom',
+  origin: item.address?.split('➔')[0]?.trim() || '',
+  destination: item.address?.split('➔')[1]?.trim() || '',
+  distanceKm: parseFloat(item.description?.match(/Cự ly:\s*([\d.]+)/)?.[1] || '10') || 10,
+  cargoType: item.description?.match(/Hàng:\s*([^|]+)/)?.[1]?.trim() || 'Hàng hóa nội bộ',
+  speedLimitKmH: parseInt(item.description?.match(/Tốc độ GPS:\s*(\d+)/)?.[1] || '35', 10) || 35,
+  status: item.status === 'HOAT_DONG' ? 'active' : 'inactive',
+  notes: item.description || '',
+});
 
 // DANH MỤC LỰA CHỌN GỢI Ý CHO CÁC FIELD KHÔNG THUỘC DIỆN TAB (LƯU KẾT QUẢ VÀO LOCALSTORAGE)
 const DEFAULT_RECOMMENDED_VEHICLES = [
@@ -467,37 +342,120 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     }
   }, [selectedJobPlanType, activeTab, setSearchParams]);
 
-  // Bộ lọc Khu liên hợp (Đồng bộ trực tiếp với chọn KLH trên Topbar hệ thống)
+  // Bộ lọc Khu liên hợp (Đồng bộ trực tiếp với chọn KLH trên Topbar hệ thống và Danh mục dự án)
   const selectedKLH = useAppStore((state) => state.selectedKLH) || 'ALL';
+  const currentUser = useAppStore((state) => state.currentUser);
+  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.username === 'admin';
 
-  // States lưu danh mục vào LocalStorage
+  // 1. Danh mục Khu liên hợp lấy từ http://localhost:5173/danh-muc/quan-ly-du-an?tab=khu-lien-hop
+  const [complexCatalog, setComplexCatalog] = useState<CatalogItem[]>(() =>
+    getStoredData<CatalogItem[]>('catalogs_complexes', mockComplexes)
+  );
+
+  const complexOptions = useMemo<{ code: string; name: string }[]>(() => {
+    return [
+      { code: 'ALL', name: 'Tất cả Khu liên hợp' },
+      ...complexCatalog.map((c) => ({ code: c.code, name: c.name })),
+    ];
+  }, [complexCatalog]);
+
+  // States lưu danh mục vào LocalStorage / Database API
   const [jobs, setJobs] = useState<JobItem[]>(() => {
     try {
       const saved = localStorage.getItem('thaco_job_items_v5');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return INITIAL_JOBS;
+    return [];
   });
 
-  // Tải danh mục Giai đoạn chuẩn từ helper đã khử trùng lặp tuyệt đối
+  // 2. Tải danh mục Giai đoạn chuẩn từ Database API (/api/catalogs?type=JOB_TYPE)
   const [stages, setStages] = useState<StageItem[]>(() => {
+    const stored = getStoredData<CatalogItem[]>('catalogs_job_types', []);
+    if (Array.isArray(stored) && stored.length > 0) {
+      return stored.map(mapCatalogItemToStage);
+    }
     return getStoredStages();
   });
 
+  // 3. Tải danh mục Nông cụ & Thiết bị phụ trợ từ Database API (/api/catalogs?type=VEHICLE_CATEGORY)
   const [implementsList, setImplementsList] = useState<ImplementGroupItem[]>(() => {
+    const stored = getStoredData<CatalogItem[]>('catalogs_vehicle_categories', []);
+    if (Array.isArray(stored) && stored.length > 0) {
+      return stored.map(mapCatalogItemToImplement);
+    }
     try {
       const saved = localStorage.getItem('thaco_job_implements_v5');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return INITIAL_IMPLEMENTS;
+    return [];
   });
+
+  // Map động các giai đoạn theo loại kế hoạch (tính toán động từ Database, không fix cứng trong code)
+  const stagesByPlanType = useMemo<Record<JobPlanType, { code: string; name: string }[]>>(() => {
+    const map: Record<JobPlanType, { code: string; name: string }[]> = {
+      NONG_NGHIEP: [],
+      CONG_TRINH: [],
+      VAN_CHUYEN: [],
+    };
+    stages.forEach((s) => {
+      if (map[s.planType]) {
+        map[s.planType].push({ code: s.code, name: s.name });
+      }
+    });
+    return map;
+  }, [stages]);
+
+  // Tải danh mục Khu liên hợp (COMPLEX), Giai đoạn (JOB_TYPE), Nông cụ (VEHICLE_CATEGORY), Công việc (JOB_ITEM), Lệnh (ORDER_TYPE), Tuyến đường (ROUTE) từ API Backend
+  useEffect(() => {
+    // 1. Khu liên hợp (Lấy từ Danh mục dự án / Khu liên hợp)
+    catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes', mockComplexes).then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setComplexCatalog(items);
+      }
+    });
+
+    // 2. Giai đoạn sản xuất (Lấy từ DB / API)
+    catalogsApi.getCatalogs('JOB_TYPE', 'catalogs_job_types').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setStages(items.map(mapCatalogItemToStage));
+      }
+    });
+
+    // 3. Nông cụ & thiết bị phụ trợ (Lấy từ DB / API)
+    catalogsApi.getCatalogs('VEHICLE_CATEGORY', 'catalogs_vehicle_categories').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setImplementsList(items.map(mapCatalogItemToImplement));
+      }
+    });
+
+    // 4. Hạng mục công việc cơ giới & định mức (Lấy từ DB / API)
+    catalogsApi.getCatalogs('JOB_ITEM', 'catalogs_job_items').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setJobs(items.map(mapCatalogItemToJob));
+      }
+    });
+
+    // 5. Loại lệnh điều xe (Lấy từ DB / API)
+    catalogsApi.getCatalogs('ORDER_TYPE', 'catalogs_order_types').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setOrderTypes(items.map(mapCatalogItemToOrderType));
+      }
+    });
+
+    // 6. Tuyến đường vận chuyển nội bộ (Lấy từ DB / API)
+    catalogsApi.getCatalogs('ROUTE', 'catalogs_routes').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setRoutes(items.map(mapCatalogItemToRoute));
+      }
+    });
+  }, []);
 
   const [orderTypes, setOrderTypes] = useState<OrderTypeItem[]>(() => {
     try {
       const saved = localStorage.getItem('thaco_job_order_types_v5');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return INITIAL_ORDER_TYPES;
+    return [];
   });
 
   const [routes, setRoutes] = useState<TransportRouteItem[]>(() => {
@@ -505,7 +463,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       const saved = localStorage.getItem('thaco_job_routes_v4');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return INITIAL_ROUTES;
+    return [];
   });
 
   const [sites, setSites] = useState<ConstructionSiteItem[]>(() => {
@@ -1136,8 +1094,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
 
   // Options lọc cho Lô / Thửa canh tác nông nghiệp
   const plotKlhFilterOptions: SelectOption[] = useMemo(() => {
-    return KLH_OPTIONS.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
-  }, []);
+    return complexOptions.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
+  }, [complexOptions]);
 
   const plotEnterpriseFilterOptions: SelectOption[] = useMemo(() => {
     let list = plots;
@@ -1167,8 +1125,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
 
   // Options lọc cho Đội xe cơ giới nông nghiệp
   const agriTeamKlhFilterOptions: SelectOption[] = useMemo(() => {
-    return KLH_OPTIONS.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
-  }, []);
+    return complexOptions.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
+  }, [complexOptions]);
 
   const agriTeamEnterpriseFilterOptions: SelectOption[] = useMemo(() => {
     let list = agriTeams;
@@ -1198,8 +1156,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
 
   // Options lọc cho Khu vực thi công công trình
   const siteKlhFilterOptions: SelectOption[] = useMemo(() => {
-    return KLH_OPTIONS.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
-  }, []);
+    return complexOptions.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
+  }, [complexOptions]);
 
   const siteCategoryFilterOptions: SelectOption[] = useMemo(() => {
     return [
@@ -1229,8 +1187,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
 
   // Options lọc cho Đội thi công Ban Xây dựng
   const teamKlhFilterOptions: SelectOption[] = useMemo(() => {
-    return KLH_OPTIONS.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
-  }, []);
+    return complexOptions.filter((k) => k.code !== 'ALL').map((k) => ({ value: k.code, label: k.name }));
+  }, [complexOptions]);
 
   const teamManagingUnitFilterOptions: SelectOption[] = useMemo(() => {
     let list = teams;
@@ -1266,7 +1224,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       return;
     }
 
-    const stageObj = stages.find((s) => s.code === formStageCode) || STAGES_BY_PLAN_TYPE[formPlanType]?.find((s) => s.code === formStageCode);
+    const stageObj = stages.find((s) => s.code === formStageCode) || stagesByPlanType[formPlanType]?.find((s) => s.code === formStageCode);
     const stageName = stageObj?.name || formStageCode || 'Chung';
 
     const implementGroup = formHasImplement
@@ -1355,21 +1313,28 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       return;
     }
 
+    const stageItem: StageItem = editingStage
+      ? { ...editingStage, code, name, planType, description, sequence }
+      : {
+          id: `STG-${planType.slice(0, 2)}-${Date.now().toString().slice(-4)}`,
+          code,
+          name,
+          planType,
+          description,
+          sequence,
+          status: 'active',
+        };
+
+    const currentCatalog = getStoredData<CatalogItem[]>('catalogs_job_types', []);
+    const catalogItem = mapStageToCatalogItem(stageItem);
+    catalogsApi.saveCatalogItem(catalogItem, 'catalogs_job_types', currentCatalog).then((updated) => {
+      setStages(updated.map(mapCatalogItemToStage));
+    });
+
     if (editingStage) {
-      setStages((prev) =>
-        prev.map((s) => (s.id === editingStage.id ? { ...s, code, name, planType, description, sequence } : s))
-      );
+      setStages((prev) => prev.map((s) => (s.id === editingStage.id ? stageItem : s)));
     } else {
-      const newStage: StageItem = {
-        id: `STG-${Date.now().toString().slice(-4)}`,
-        code,
-        name,
-        planType,
-        description,
-        sequence,
-        status: 'active',
-      };
-      setStages((prev) => [...prev, newStage]);
+      setStages((prev) => [...prev, stageItem]);
     }
 
     setShowStageModal(false);
@@ -1387,24 +1352,29 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const compatibleVehicles = String(form.get('compatibleVehicles') || '').trim();
     const description = String(form.get('description') || '').trim();
 
+    const impItem: ImplementGroupItem = editingImplement
+      ? { ...editingImplement, code, name, planType, category, compatibleVehicles, description }
+      : {
+          id: `IMP-${planType.slice(0, 2)}-${Date.now().toString().slice(-4)}`,
+          code,
+          name,
+          planType,
+          category,
+          compatibleVehicles,
+          description,
+          status: 'active',
+        };
+
+    const currentCatalog = getStoredData<CatalogItem[]>('catalogs_vehicle_categories', []);
+    const catalogItem = mapImplementToCatalogItem(impItem);
+    catalogsApi.saveCatalogItem(catalogItem, 'catalogs_vehicle_categories', currentCatalog).then((updated) => {
+      setImplementsList(updated.map(mapCatalogItemToImplement));
+    });
+
     if (editingImplement) {
-      setImplementsList((prev) =>
-        prev.map((i) =>
-          i.id === editingImplement.id ? { ...i, code, name, planType, category, compatibleVehicles, description } : i
-        )
-      );
+      setImplementsList((prev) => prev.map((i) => (i.id === editingImplement.id ? impItem : i)));
     } else {
-      const newImp: ImplementGroupItem = {
-        id: `IMP-${Date.now().toString().slice(-4)}`,
-        code,
-        name,
-        planType,
-        category,
-        compatibleVehicles,
-        description,
-        status: 'active',
-      };
-      setImplementsList((prev) => [...prev, newImp]);
+      setImplementsList((prev) => [...prev, impItem]);
     }
 
     setShowImplementModal(false);
@@ -1483,7 +1453,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const code = String(form.get('code')).trim().toUpperCase();
     const name = String(form.get('name')).trim();
     const complexCode = String(form.get('complexCode') || 'KOUN_MOM');
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || complexCode;
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || complexCode;
     const origin = String(form.get('origin') || '').trim();
     const destination = String(form.get('destination') || '').trim();
     const distanceKm = Number(form.get('distanceKm') || 0);
@@ -1552,7 +1522,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       completed: 'Đã nghiệm thu',
     };
 
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
 
     if (!code || !name) {
       alert('Vui lòng nhập Mã khu vực và Tên khu vực thi công!');
@@ -1631,7 +1601,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       maintenance: 'Bảo dưỡng / Sửa chữa',
     };
 
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
 
     if (!code || !name) {
       alert('Vui lòng nhập Mã đội và Tên đội thi công!');
@@ -1708,7 +1678,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       replanting: 'Tái canh',
     };
 
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
 
     if (!code || !name) {
       alert('Vui lòng nhập Mã Lô/Thửa và Tên Lô/Thửa!');
@@ -1793,7 +1763,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       maintenance: 'Bảo dưỡng',
     };
 
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || 'Khu liên hợp Koun Mom';
 
     if (!code || !name) {
       alert('Vui lòng nhập Mã đội và Tên đội xe cơ giới nông nghiệp!');
@@ -1867,12 +1837,16 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
   const handleDeleteStage = (id: string, name: string) => {
     if (window.confirm(`Xác nhận xóa phân nhóm / giai đoạn "${name}"?`)) {
       setStages((prev) => prev.filter((s) => s.id !== id));
+      const currentCatalog = getStoredData<CatalogItem[]>('catalogs_job_types', []);
+      catalogsApi.deleteCatalogItem(id, 'catalogs_job_types', currentCatalog).catch(() => {});
     }
   };
 
   const handleDeleteImplement = (id: string, name: string) => {
     if (window.confirm(`Xác nhận xóa nhóm nông cụ/thiết bị "${name}"?`)) {
       setImplementsList((prev) => prev.filter((i) => i.id !== id));
+      const currentCatalog = getStoredData<CatalogItem[]>('catalogs_vehicle_categories', []);
+      catalogsApi.deleteCatalogItem(id, 'catalogs_vehicle_categories', currentCatalog).catch(() => {});
     }
   };
 
@@ -2227,40 +2201,41 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'status',
+      title: 'Trạng thái',
       align: 'center',
-      width: '160px',
+      width: '120px',
+      render: (item) => renderJobStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
-            title="Xem chi tiết quy trình"
-            onClick={() => setSelectedJobDetail(item)}
-          >
-            <Settings2 className="h-3 w-3 text-slate-500" />
-            <span>Xem</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa quy trình"
-            onClick={() => handleOpenEditJob(item)}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa quy trình"
-            onClick={() => handleDeleteJob(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => setSelectedJobDetail(item)}
+          onEdit={() => handleOpenEditJob(item)}
+          onDelete={() => handleDeleteJob(item.id, item.name)}
+          viewTitle="Xem chi tiết quy trình"
+          editTitle="Sửa quy trình"
+          deleteTitle="Xóa quy trình"
+        />
       ),
     },
   ];
@@ -2317,34 +2292,47 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       render: (item) => <span className="text-xs text-slate-600">{item.description}</span>,
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'status',
+      title: 'Trạng thái',
       align: 'center',
-      width: '130px',
+      width: '120px',
+      render: (item) => renderJobStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa"
-            onClick={() => {
-              setEditingStage(item);
-              setShowStageModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa"
-            onClick={() => handleDeleteStage(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingStage(item);
+            setShowStageModal(true);
+          }}
+          onEdit={() => {
+            setEditingStage(item);
+            setShowStageModal(true);
+          }}
+          onDelete={() => handleDeleteStage(item.id, item.name)}
+          viewTitle="Xem giai đoạn"
+          editTitle="Sửa giai đoạn"
+          deleteTitle="Xóa giai đoạn"
+        />
       ),
     },
   ];
@@ -2396,34 +2384,47 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       render: (item) => <span className="text-xs text-slate-600">{item.compatibleVehicles}</span>,
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'status',
+      title: 'Trạng thái',
       align: 'center',
-      width: '130px',
+      width: '120px',
+      render: (item) => renderJobStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa"
-            onClick={() => {
-              setEditingImplement(item);
-              setShowImplementModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa"
-            onClick={() => handleDeleteImplement(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingImplement(item);
+            setShowImplementModal(true);
+          }}
+          onEdit={() => {
+            setEditingImplement(item);
+            setShowImplementModal(true);
+          }}
+          onDelete={() => handleDeleteImplement(item.id, item.name)}
+          viewTitle="Xem nông cụ"
+          editTitle="Sửa nông cụ"
+          deleteTitle="Xóa nông cụ"
+        />
       ),
     },
   ];
@@ -2516,34 +2517,47 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       render: (item) => <span className="text-xs text-slate-600">{item.targetScope}</span>,
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'status',
+      title: 'Trạng thái',
       align: 'center',
-      width: '130px',
+      width: '120px',
+      render: (item) => renderJobStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa"
-            onClick={() => {
-              setEditingOrderType(item);
-              setShowOrderTypeModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa"
-            onClick={() => handleDeleteOrderType(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingOrderType(item);
+            setShowOrderTypeModal(true);
+          }}
+          onEdit={() => {
+            setEditingOrderType(item);
+            setShowOrderTypeModal(true);
+          }}
+          onDelete={() => handleDeleteOrderType(item.id, item.name)}
+          viewTitle="Xem loại lệnh"
+          editTitle="Sửa loại lệnh"
+          deleteTitle="Xóa loại lệnh"
+        />
       ),
     },
   ];
@@ -2629,34 +2643,47 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'status',
+      title: 'Trạng thái',
       align: 'center',
-      width: '130px',
+      width: '120px',
+      render: (item) => renderJobStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa tuyến"
-            onClick={() => {
-              setEditingRoute(item);
-              setShowRouteModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa tuyến"
-            onClick={() => handleDeleteRoute(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingRoute(item);
+            setShowRouteModal(true);
+          }}
+          onEdit={() => {
+            setEditingRoute(item);
+            setShowRouteModal(true);
+          }}
+          onDelete={() => handleDeleteRoute(item.id, item.name)}
+          viewTitle="Xem tuyến"
+          editTitle="Sửa tuyến"
+          deleteTitle="Xóa tuyến"
+        />
       ),
     },
   ];
@@ -2765,34 +2792,40 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       },
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
       align: 'center',
-      width: '130px',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa khu vực"
-            onClick={() => {
-              setEditingSite(item);
-              setShowSiteModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa khu vực"
-            onClick={() => handleDeleteSite(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingSite(item);
+            setShowSiteModal(true);
+          }}
+          onEdit={() => {
+            setEditingSite(item);
+            setShowSiteModal(true);
+          }}
+          onDelete={() => handleDeleteSite(item.id, item.name)}
+          viewTitle="Xem khu vực"
+          editTitle="Sửa khu vực"
+          deleteTitle="Xóa khu vực"
+        />
       ),
     },
   ];
@@ -2907,34 +2940,40 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       },
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
       align: 'center',
-      width: '130px',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa đội thi công"
-            onClick={() => {
-              setEditingTeam(item);
-              setShowTeamModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa đội thi công"
-            onClick={() => handleDeleteTeam(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingTeam(item);
+            setShowTeamModal(true);
+          }}
+          onEdit={() => {
+            setEditingTeam(item);
+            setShowTeamModal(true);
+          }}
+          onDelete={() => handleDeleteTeam(item.id, item.name)}
+          viewTitle="Xem đội thi công"
+          editTitle="Sửa đội thi công"
+          deleteTitle="Xóa đội thi công"
+        />
       ),
     },
   ];
@@ -3042,34 +3081,40 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       },
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
       align: 'center',
-      width: '130px',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa lô thửa"
-            onClick={() => {
-              setEditingPlot(item);
-              setShowPlotModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa lô thửa"
-            onClick={() => handleDeletePlot(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingPlot(item);
+            setShowPlotModal(true);
+          }}
+          onEdit={() => {
+            setEditingPlot(item);
+            setShowPlotModal(true);
+          }}
+          onDelete={() => handleDeletePlot(item.id, item.name)}
+          viewTitle="Xem lô thửa"
+          editTitle="Sửa lô thửa"
+          deleteTitle="Xóa lô thửa"
+        />
       ),
     },
   ];
@@ -3185,34 +3230,40 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       },
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
       align: 'center',
-      width: '130px',
+      width: '70px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa đội cơ giới"
-            onClick={() => {
-              setEditingAgriTeam(item);
-              setShowAgriTeamModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa đội cơ giới"
-            onClick={() => handleDeleteAgriTeam(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingAgriTeam(item);
+            setShowAgriTeamModal(true);
+          }}
+          onEdit={() => {
+            setEditingAgriTeam(item);
+            setShowAgriTeamModal(true);
+          }}
+          onDelete={() => handleDeleteAgriTeam(item.id, item.name)}
+          viewTitle="Xem đội cơ giới"
+          editTitle="Sửa đội cơ giới"
+          deleteTitle="Xóa đội cơ giới"
+        />
       ),
     },
   ];
@@ -3256,7 +3307,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         {
           label: '5. Lô / Thửa canh tác Nông nghiệp',
           value: filteredPlots.length,
-          sub: selectedKLH === 'ALL' ? 'Toàn bộ Lô/Thửa các KLH' : KLH_OPTIONS.find((k) => k.code === selectedKLH)?.name || '',
+          sub: selectedKLH === 'ALL' ? 'Toàn bộ Lô/Thửa các KLH' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
           icon: MapPin,
           tab: 'plots' as const,
           color: 'text-teal-700 bg-teal-50',
@@ -3264,7 +3315,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         {
           label: '6. Đội Xe Cơ giới Nông nghiệp',
           value: filteredAgriTeams.length,
-          sub: selectedKLH === 'ALL' ? 'Đội cơ giới Nông trường' : KLH_OPTIONS.find((k) => k.code === selectedKLH)?.name || '',
+          sub: selectedKLH === 'ALL' ? 'Đội cơ giới Nông trường' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
           icon: Tractor,
           tab: 'teams' as const,
           color: 'text-emerald-700 bg-emerald-50',
@@ -3309,7 +3360,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         {
           label: '5. Khu vực thi công',
           value: filteredSites.length,
-          sub: selectedKLH === 'ALL' ? 'Toàn bộ khu vực thuộc Ban Xây dựng' : KLH_OPTIONS.find((k) => k.code === selectedKLH)?.name || '',
+          sub: selectedKLH === 'ALL' ? 'Toàn bộ khu vực thuộc Ban Xây dựng' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
           icon: MapPin,
           tab: 'sites' as const,
           color: 'text-rose-700 bg-rose-50',
@@ -3317,7 +3368,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         {
           label: '6. Đội thi công cơ giới',
           value: filteredTeams.length,
-          sub: selectedKLH === 'ALL' ? 'Đội thi công trực thuộc Ban Xây dựng' : KLH_OPTIONS.find((k) => k.code === selectedKLH)?.name || '',
+          sub: selectedKLH === 'ALL' ? 'Đội thi công trực thuộc Ban Xây dựng' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
           icon: HardHat,
           tab: 'teams' as const,
           color: 'text-orange-700 bg-orange-50',
@@ -3362,7 +3413,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       {
         label: '5. Tuyến đường vận chuyển nội bộ',
         value: filteredRoutes.length,
-        sub: selectedKLH === 'ALL' ? 'Toàn bộ tuyến KLH' : KLH_OPTIONS.find((k) => k.code === selectedKLH)?.name || '',
+        sub: selectedKLH === 'ALL' ? 'Toàn bộ tuyến KLH' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
         icon: Navigation,
         tab: 'routes' as const,
         color: 'text-teal-700 bg-teal-50',
@@ -3380,6 +3431,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     filteredPlots.length,
     filteredAgriTeams.length,
     selectedKLH,
+    complexOptions,
   ]);
 
   return (
@@ -3429,10 +3481,10 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
               {activeTab === 'stages' && 'Danh mục Giai đoạn mùa vụ & Phân loại thi công/vận chuyển'}
               {activeTab === 'implements' && 'Danh mục Nông cụ & Thiết bị phụ trợ kèm theo (Đồng bộ Select)'}
               {activeTab === 'orderTypes' && 'Danh mục Loại lệnh điều động cơ giới (3 Lệnh chính + 1 Cứu hộ SOS)'}
-              {activeTab === 'routes' && `Danh mục Tuyến đường vận chuyển nội bộ (${KLH_OPTIONS.find(k => k.code === selectedKLH)?.name})`}
-              {activeTab === 'sites' && `Danh mục Khu vực thi công công trình - Ban Quản lý Xây dựng (${KLH_OPTIONS.find(k => k.code === selectedKLH)?.name})`}
-              {activeTab === 'plots' && `Danh mục Lô / Thửa canh tác Nông nghiệp (${KLH_OPTIONS.find(k => k.code === selectedKLH)?.name})`}
-              {activeTab === 'teams' && (selectedJobPlanType === 'NONG_NGHIEP' ? `Danh mục Đội Xe Cơ giới Nông nghiệp - Nông trường (${KLH_OPTIONS.find(k => k.code === selectedKLH)?.name})` : `Danh mục Đội thi công cơ giới - Trực thuộc Ban Xây dựng (${KLH_OPTIONS.find(k => k.code === selectedKLH)?.name})`)}
+              {activeTab === 'routes' && `Danh mục Tuyến đường vận chuyển nội bộ (${complexOptions.find(k => k.code === selectedKLH)?.name})`}
+              {activeTab === 'sites' && `Danh mục Khu vực thi công công trình - Ban Quản lý Xây dựng (${complexOptions.find(k => k.code === selectedKLH)?.name})`}
+              {activeTab === 'plots' && `Danh mục Lô / Thửa canh tác Nông nghiệp (${complexOptions.find(k => k.code === selectedKLH)?.name})`}
+              {activeTab === 'teams' && (selectedJobPlanType === 'NONG_NGHIEP' ? `Danh mục Đội Xe Cơ giới Nông nghiệp - Nông trường (${complexOptions.find(k => k.code === selectedKLH)?.name})` : `Danh mục Đội thi công cơ giới - Trực thuộc Ban Xây dựng (${complexOptions.find(k => k.code === selectedKLH)?.name})`)}
             </span>
             {selectedItems.length > 0 && (
               <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
@@ -3452,7 +3504,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
               />
             </div>
 
-            {selectedItems.length > 0 && (
+            {isAdmin && selectedItems.length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
@@ -4343,11 +4395,10 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
               <SearchableSelect
                 value={formComplexCode}
                 onChange={(val) => setFormComplexCode(val)}
-                options={[
-                  { value: 'KOUN_MOM', label: 'Khu liên hợp Koun Mom' },
-                  { value: 'SNOUL', label: 'Khu liên hợp Snoul' },
-                  { value: 'NAM_LAO', label: 'Khu liên hợp Nam Lào' },
-                ]}
+                options={complexOptions.filter((k) => k.code !== 'ALL').map((k) => ({
+                  value: k.code,
+                  label: k.name,
+                }))}
                 placeholder="Chọn Khu liên hợp..."
                 allowCustomInput={false}
                 icon={<MapPin className="w-3.5 h-3.5" />}
@@ -4930,9 +4981,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
                 defaultValue={editingRoute?.complexCode || (selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM')}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs font-bold focus:border-primary focus:outline-none h-9"
               >
-                <option value="KOUN_MOM">Khu liên hợp Koun Mom</option>
-                <option value="SNOUL">Khu liên hợp Snoul</option>
-                <option value="NAM_LAO">Khu liên hợp Nam Lào</option>
+                {complexOptions.filter((k) => k.code !== 'ALL').map((k) => (
+                  <option key={k.code} value={k.code}>{k.name}</option>
+                ))}
               </select>
             </div>
 
@@ -5049,9 +5100,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
                 defaultValue={editingSite?.complexCode || (selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM')}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs font-bold focus:border-primary focus:outline-none h-9"
               >
-                <option value="KOUN_MOM">Khu liên hợp Koun Mom</option>
-                <option value="SNOUL">Khu liên hợp Snoul</option>
-                <option value="NAM_LAO">Khu liên hợp Nam Lào</option>
+                {complexOptions.filter((k) => k.code !== 'ALL').map((k) => (
+                  <option key={k.code} value={k.code}>{k.name}</option>
+                ))}
               </select>
             </div>
 
@@ -5220,9 +5271,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
                 defaultValue={editingTeam?.complexCode || (selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM')}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs font-bold focus:border-primary focus:outline-none h-9"
               >
-                <option value="KOUN_MOM">Khu liên hợp Koun Mom</option>
-                <option value="SNOUL">Khu liên hợp Snoul</option>
-                <option value="NAM_LAO">Khu liên hợp Nam Lào</option>
+                {complexOptions.filter((k) => k.code !== 'ALL').map((k) => (
+                  <option key={k.code} value={k.code}>{k.name}</option>
+                ))}
               </select>
             </div>
 
@@ -5383,9 +5434,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
                 defaultValue={editingPlot?.complexCode || (selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM')}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs font-bold focus:border-primary focus:outline-none h-9"
               >
-                <option value="KOUN_MOM">Khu liên hợp Koun Mom</option>
-                <option value="SNOUL">Khu liên hợp Snoul</option>
-                <option value="NAM_LAO">Khu liên hợp Nam Lào</option>
+                {complexOptions.filter((k) => k.code !== 'ALL').map((k) => (
+                  <option key={k.code} value={k.code}>{k.name}</option>
+                ))}
               </select>
             </div>
 
@@ -5549,9 +5600,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
                 defaultValue={editingAgriTeam?.complexCode || (selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM')}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs font-bold focus:border-primary focus:outline-none h-9"
               >
-                <option value="KOUN_MOM">Khu liên hợp Koun Mom</option>
-                <option value="SNOUL">Khu liên hợp Snoul</option>
-                <option value="NAM_LAO">Khu liên hợp Nam Lào</option>
+                {complexOptions.filter((k) => k.code !== 'ALL').map((k) => (
+                  <option key={k.code} value={k.code}>{k.name}</option>
+                ))}
               </select>
             </div>
 

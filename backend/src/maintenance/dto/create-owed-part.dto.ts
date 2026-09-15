@@ -3,15 +3,25 @@ import { Type } from 'class-transformer';
 import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateOwedPartDto {
-  @ApiProperty({ example: 1, description: 'ID phiếu bảo dưỡng' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 1, description: 'ID phiếu bảo dưỡng cũ (tương thích)' })
+  @IsOptional()
   @IsNumber()
-  maintenanceRecordId: number;
+  maintenanceRecordId?: number;
 
-  @ApiProperty({ example: 1, description: 'ID xe' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 1, description: 'ID yêu cầu xưởng thống nhất' })
+  @IsOptional()
   @IsNumber()
-  vehicleId: number;
+  workshopRequestId?: number;
+
+  @ApiPropertyOptional({ example: 1, description: 'ID xe' })
+  @IsOptional()
+  @IsNumber()
+  vehicleId?: number;
+
+  @ApiPropertyOptional({ example: 1, description: 'ID thiết bị' })
+  @IsOptional()
+  @IsNumber()
+  implementId?: number;
 
   @ApiProperty({ example: 'Lọc tách nước Donaldson P550881', description: 'Tên phụ tùng còn thiếu nợ lại' })
   @IsNotEmpty()

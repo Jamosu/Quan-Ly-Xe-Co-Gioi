@@ -9,6 +9,11 @@ export class RepairFilterDto extends PaginationDto {
   @IsNumber()
   vehicleId?: number;
 
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsNumber()
+  implementId?: number;
+
   @ApiPropertyOptional({ enum: RepairTier })
   @IsOptional()
   @IsEnum(RepairTier)

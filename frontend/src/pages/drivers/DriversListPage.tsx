@@ -40,11 +40,14 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { apiService } from '../../api/client';
+import { driverManagementApi, DriverManagementUnit } from '../../api/driverManagementApi';
 import { catalogsApi } from '../../api/catalogsApi';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { StatusToggle } from '../../components/common/StatusToggle';
 import { Column, DataTable } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
@@ -106,6 +109,9 @@ interface DriverListItem {
   complianceStatus: ComplianceStatus;
   assignedVehicle?: VehicleSummary | null;
   employee?: EmployeeSummary | null;
+  managementUnit?: DriverManagementUnit | null;
+  teamUnit?: DriverManagementUnit | null;
+  managementAssignment?: { managementUnitId: number; teamUnitId?: number | null } | null;
 }
 
 interface DriverProfile extends DriverListItem {
@@ -138,10 +144,11 @@ interface DriverOptions {
   positions: string[];
   units: string[];
   vehicles: VehicleSummary[];
+  managementUnits: DriverManagementUnit[];
 }
 
 const EMPTY_OPTIONS: DriverOptions = {
-  complexes: [], enterprises: [], farms: [], teams: [], positions: [], units: [], vehicles: [],
+  complexes: [], enterprises: [], farms: [], teams: [], positions: [], units: [], vehicles: [], managementUnits: [],
 };
 
 const UNIT_LABELS: Record<string, string> = {
@@ -149,8 +156,13 @@ const UNIT_LABELS: Record<string, string> = {
   TT_BTSC: 'Trung tâm BTSC', BAN_CO_GIOI: 'Ban Cơ giới', TOAN_KLH: 'Toàn KLH',
 };
 const LICENSE_LABELS: Record<string, string> = {
-  BANG_MAY_NONG_NGHIEP: 'Máy nông nghiệp', HANG_C: 'Hạng C', HANG_FC: 'Hạng FC',
-  HANG_B2: 'Hạng B2', HANG_D: 'Hạng D',
+  HANG_A: 'Hạng A (Mô tô >125CC, 3 bánh)',
+  HANG_B1: 'Hạng B1 (Xe con ≤3.5T số tự động)',
+  HANG_B2: 'Hạng B2 (Máy cày, ô tô con <9 chỗ, tải <3.5T)',
+  HANG_C: 'Hạng C (Xe tải >3.5T)',
+  HANG_CE: 'Hạng CE (Đầu kéo, container)',
+  HANG_D1: 'Hạng D1 (Xe chở người ≤20 chỗ)',
+  HANG_D2: 'Hạng D2 (Xe chở người >20 chỗ)',
 };
 const SHIFT_LABELS: Record<string, string> = {
   DANG_VAN_HANH: 'Đang vận hành', SAN_SANG: 'Sẵn sàng', NGHI_PHEP_CA: 'Nghỉ ca',
@@ -170,6 +182,19 @@ const calculateTenure = (joinedDate?: string | null, endedDate?: string | null) 
   if (end.getDate() < start.getDate()) months -= 1;
   months = Math.max(0, months);
   return `${Math.floor(months / 12)} năm ${months % 12} tháng`;
+};
+
+export const hasDriverVehicleAssigned = (driver: DriverListItem): boolean => {
+  if (driver.assignedVehicle && (driver.assignedVehicle.plate || driver.assignedVehicle.code || driver.assignedVehicle.id)) {
+    return true;
+  }
+  if (Array.isArray((driver as any).drivenVehicles) && (driver as any).drivenVehicles.length > 0) {
+    return true;
+  }
+  if (Array.isArray((driver as any).secondaryVehicles) && (driver as any).secondaryVehicles.length > 0) {
+    return true;
+  }
+  return false;
 };
 
 const employmentBadge = (status: string) => status === 'DA_NGHI_VIEC'
@@ -203,6 +228,7 @@ const FORM_STEPS = ['Nhận diện', 'Công tác', 'GPLX & Bằng', 'Sức khỏ
 const defaultForm = () => ({
   code: '', username: '', password: '', fullName: '', phone: '', unit: 'NT1', joinedDate: inputDate(new Date().toISOString()),
   employmentStatus: 'DANG_LAM_VIEC', businessUnit: '', complex: '', enterprise: '', farm: '', team: '', position: '',
+  managementUnitId: '', teamUnitId: '',
   email: '', idCardNumber: '', idCardIssueDate: '', idCardIssuePlace: '', avatarUrl: '', licenseClass: '', licenseNumber: '',
   licenseIssueDate: '', licenseIssuePlace: '', licenseExpiryDate: '',
   machineryCertType: '', machineryCertNumber: '', machineryCertIssuer: '', machineryCertDate: '',
@@ -212,12 +238,14 @@ const defaultForm = () => ({
   resignedDate: '', resignedReason: '', notes: '',
 });
 
-type CardFilterType = 'ALL' | 'OPERATING' | 'READY' | 'INACTIVE' | 'COMPLIANCE_ALERT';
+type CardFilterType = 'ALL' | 'OPERATING' | 'READY' | 'INACTIVE' | 'UNASSIGNED_VEHICLE' | 'COMPLIANCE_ALERT';
 
 export const DriversListPage: React.FC = () => {
   const globalKLH = useAppStore((state) => state.selectedKLH);
+  const currentUser = useAppStore((state) => state.currentUser);
+  const canEditDriverProfile = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'FARM_MANAGER';
   const [drivers, setDrivers] = useState<DriverListItem[]>([]);
-  const [summary, setSummary] = useState({ total: 0, operating: 0, ready: 0, inactive: 0, complianceAlerts: 0 });
+  const [summary, setSummary] = useState({ total: 0, operating: 0, ready: 0, inactive: 0, complianceAlerts: 0, unassignedVehicle: 0 });
   const [options, setOptions] = useState<DriverOptions>(EMPTY_OPTIONS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -259,8 +287,8 @@ export const DriversListPage: React.FC = () => {
         limit: 250,
         ...(filters.search ? { search: filters.search } : {}),
         ...(activeComplex ? { complex: activeComplex } : {}),
-        ...(filters.enterprise ? { enterprise: filters.enterprise } : {}),
-        ...(filters.team ? { team: filters.team } : {}),
+        ...(filters.enterprise ? { managementUnitId: Number(filters.enterprise) } : {}),
+        ...(filters.team ? { teamUnitId: Number(filters.team) } : {}),
         ...(filters.position ? { position: filters.position } : {}),
         ...(filters.employmentStatus ? { employmentStatus: filters.employmentStatus } : {}),
       });
@@ -307,15 +335,6 @@ export const DriversListPage: React.FC = () => {
   const [catalogComplexes, setCatalogComplexes] = useState<CatalogItem[]>(() =>
     getStoredData('catalogs_complexes', mockComplexes)
   );
-  const [catalogEnterprises, setCatalogEnterprises] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_enterprises', mockEnterprises)
-  );
-  const [catalogFarms, setCatalogFarms] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_farms', mockFarms)
-  );
-  const [catalogTeams, setCatalogTeams] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_teams', mockTeams)
-  );
   const [catalogPositions, setCatalogPositions] = useState<CatalogItem[]>(() =>
     getStoredData('catalogs_positions', mockPositions)
   );
@@ -324,80 +343,39 @@ export const DriversListPage: React.FC = () => {
     catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes', mockComplexes).then((data) => {
       if (Array.isArray(data) && data.length > 0) setCatalogComplexes(data);
     });
-    catalogsApi.getCatalogs('ENTERPRISE', 'catalogs_enterprises', mockEnterprises).then((data) => {
-      if (Array.isArray(data) && data.length > 0) setCatalogEnterprises(data);
-    });
-    catalogsApi.getCatalogs('FARM', 'catalogs_farms', mockFarms).then((data) => {
-      if (Array.isArray(data) && data.length > 0) setCatalogFarms(data);
-    });
-    catalogsApi.getCatalogs('TEAM', 'catalogs_teams', mockTeams).then((data) => {
-      if (Array.isArray(data) && data.length > 0) setCatalogTeams(data);
-    });
-    catalogsApi.getCatalogs('JOB_TYPE', 'catalogs_job_types', mockPositions).then((data) => {
+    catalogsApi.getCatalogs('POSITION', 'catalogs_positions', mockPositions).then((data) => {
       if (Array.isArray(data) && data.length > 0) setCatalogPositions(data);
     });
   }, []);
 
   // Options for Form Step 2 (Công tác) - Lấy chuẩn từ Danh mục
   const formComplexOptions = useMemo<SelectOption[]>(() => {
-    return catalogComplexes.map((c) => ({
-      value: c.name,
-      label: c.code ? `${c.code} - ${c.name}` : c.name,
+    const codes = [...new Set(options.managementUnits.map((unit) => unit.complexCode))];
+    return codes.map((code) => ({
+      value: code,
+      label: catalogComplexes.find((item) => item.code === code)?.name ? `${code} - ${catalogComplexes.find((item) => item.code === code)!.name}` : code,
     }));
-  }, [catalogComplexes]);
+  }, [catalogComplexes, options.managementUnits]);
 
   const formEnterpriseOptions = useMemo<SelectOption[]>(() => {
-    let list = catalogEnterprises;
-    if (form.complex) {
-      const comp = catalogComplexes.find((c) => c.name === form.complex || c.code === form.complex);
-      const compCode = comp ? comp.code : form.complex;
-      const compName = comp ? comp.name : form.complex;
-      list = list.filter((e) => e.parentCode === compCode || e.parentName === compName || !e.parentCode);
-    }
-    return list.map((e) => ({
-      value: e.name,
-      label: e.code ? `${e.code} - ${e.name}` : e.name,
-      subLabel: e.parentName ? `KLH: ${e.parentName}` : undefined,
+    const list = options.managementUnits.filter((unit) => unit.level === 'OWNER' && unit.status === 'ACTIVE' && (!form.complex || unit.complexCode === form.complex));
+    return list.map((unit) => ({
+      value: String(unit.id),
+      label: `${unit.code} - ${unit.name}`,
+      subLabel: `KLH: ${unit.complexCode}`,
     }));
-  }, [catalogEnterprises, catalogComplexes, form.complex]);
-
-  const formFarmOptions = useMemo<SelectOption[]>(() => {
-    let list = catalogFarms;
-    if (form.enterprise) {
-      const ent = catalogEnterprises.find((e) => e.name === form.enterprise || e.code === form.enterprise);
-      const entCode = ent ? ent.code : form.enterprise;
-      const entName = ent ? ent.name : form.enterprise;
-      list = list.filter((f) => f.parentCode === entCode || f.parentName === entName || !f.parentCode);
-    }
-    return list.map((f) => ({
-      value: f.name,
-      label: f.code ? `${f.code} - ${f.name}` : f.name,
-      subLabel: f.parentName ? `XN: ${f.parentName}` : undefined,
-    }));
-  }, [catalogFarms, catalogEnterprises, form.enterprise]);
+  }, [options.managementUnits, form.complex]);
 
   const formTeamOptions = useMemo<SelectOption[]>(() => {
-    return catalogTeams.map((t) => ({
-      value: t.name,
-      label: t.code ? `${t.code} - ${t.name}` : t.name,
+    return options.managementUnits.filter((unit) => unit.level === 'TEAM' && unit.status === 'ACTIVE' && unit.parentId === Number(form.managementUnitId)).map((unit) => ({
+      value: String(unit.id),
+      label: `${unit.code} - ${unit.name}`,
     }));
-  }, [catalogTeams]);
+  }, [options.managementUnits, form.managementUnitId]);
 
   const formPositionOptions = useMemo<SelectOption[]>(() => {
-    const defaultPositions = [
-      'Lái máy kéo nông nghiệp',
-      'Lái xe tải ben / đầu kéo',
-      'Lái xe bồn nước / bồn cám',
-      'Thợ vận hành máy đào / ủi',
-      'Lái xe công vụ / bán tải',
-      'Thợ cơ khí / sửa chữa',
-      'Tổ trưởng tổ xe / cơ giới',
-      'Lái xe vận chuyển nội bộ',
-      'Nhân viên lái xe',
-    ];
     const catPositions = catalogPositions.map((p) => p.name).filter(Boolean);
-    const combined = Array.from(new Set([...catPositions, ...defaultPositions]));
-    return combined.map((p) => ({
+    return Array.from(new Set(catPositions)).map((p) => ({
       value: p,
       label: p,
     }));
@@ -436,51 +414,21 @@ export const DriversListPage: React.FC = () => {
 
   // Danh sách Đơn vị công tác (Kết hợp Danh mục & Dữ liệu Lái xe có thực tế)
   const enterpriseSelectOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
-    klhFilteredDrivers.forEach((d) => {
-      const ent = d.enterprise || UNIT_LABELS[d.unit] || d.unit;
-      if (ent) counts[ent] = (counts[ent] || 0) + 1;
-    });
-
-    const catalogItems = getStoredData<CatalogItem[]>('catalogs_enterprises', mockEnterprises);
-    const unitNames = new Set<string>();
-    klhFilteredDrivers.forEach((d) => {
-      const ent = d.enterprise || UNIT_LABELS[d.unit] || d.unit;
-      if (ent) unitNames.add(ent);
-    });
-    catalogItems.forEach((c) => {
-      if (c.name && counts[c.name]) unitNames.add(c.name);
-    });
-
-    return Array.from(unitNames).map((name) => ({
-      value: name,
-      label: `${name} (${counts[name] || 0})`,
+    return options.managementUnits.filter((unit) => unit.level === 'OWNER' && unit.status === 'ACTIVE').map((unit) => ({
+      value: String(unit.id),
+      label: `${unit.complexCode} · ${unit.name} (${klhFilteredDrivers.filter((d) => d.managementAssignment?.managementUnitId === unit.id).length})`,
     }));
-  }, [klhFilteredDrivers]);
+  }, [klhFilteredDrivers, options.managementUnits]);
 
   // Danh sách Đội/Tổ công tác (Kết hợp Danh mục Đội & Dữ liệu Lái xe có thực tế)
   const teamSelectOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
-    klhFilteredDrivers.forEach((d) => {
-      if (d.team) counts[d.team] = (counts[d.team] || 0) + 1;
-    });
-
-    const catalogTeams = getStoredData<CatalogItem[]>('catalogs_teams', mockTeams);
-    const teamNames = new Set<string>();
-    klhFilteredDrivers.forEach((d) => {
-      if (d.team) teamNames.add(d.team);
-    });
-    catalogTeams.forEach((t) => {
-      if (t.name && counts[t.name]) teamNames.add(t.name);
-    });
-
-    return Array.from(teamNames).map((name) => ({
-      value: name,
-      label: `${name} (${counts[name] || 0})`,
+    return options.managementUnits.filter((unit) => unit.level === 'TEAM' && unit.status === 'ACTIVE' && (!filters.enterprise || unit.parentId === Number(filters.enterprise))).map((unit) => ({
+      value: String(unit.id),
+      label: `${unit.name} (${klhFilteredDrivers.filter((d) => d.managementAssignment?.teamUnitId === unit.id).length})`,
     }));
-  }, [klhFilteredDrivers]);
+  }, [klhFilteredDrivers, options.managementUnits, filters.enterprise]);
 
-  // Danh sách Chức danh công tác (Kết hợp Danh mục Chức danh & Dữ liệu Lái xe có thực tế)
+  // Danh sách Chức danh công tác (Lấy từ Danh mục Chức danh chuẩn & thống kê thực tế)
   const positionSelectOptions = useMemo(() => {
     const counts: Record<string, number> = {};
     klhFilteredDrivers.forEach((d) => {
@@ -489,16 +437,16 @@ export const DriversListPage: React.FC = () => {
 
     const catalogPositions = getStoredData<CatalogItem[]>('catalogs_positions', mockPositions);
     const posNames = new Set<string>();
+    catalogPositions.forEach((p) => {
+      if (p.name) posNames.add(p.name);
+    });
     klhFilteredDrivers.forEach((d) => {
       if (d.position) posNames.add(d.position);
-    });
-    catalogPositions.forEach((p) => {
-      if (p.name && counts[p.name]) posNames.add(p.name);
     });
 
     return Array.from(posNames).map((name) => ({
       value: name,
-      label: `${name} (${counts[name] || 0})`,
+      label: counts[name] ? `${name} (${counts[name]})` : `${name} (0)`,
     }));
   }, [klhFilteredDrivers]);
 
@@ -524,6 +472,9 @@ export const DriversListPage: React.FC = () => {
       (d) => d.employmentStatus !== 'DA_NGHI_VIEC' && d.currentShiftStatus === 'DANG_VAN_HANH',
     ).length;
     const ready = Math.max(0, total - inactive - operating);
+    const unassignedVehicle = klhFilteredDrivers.filter(
+      (d) => d.employmentStatus !== 'DA_NGHI_VIEC' && !hasDriverVehicleAssigned(d),
+    ).length;
     const complianceAlerts = klhFilteredDrivers.filter(
       (d) => d.complianceStatus && d.complianceStatus !== 'VALID',
     ).length;
@@ -533,6 +484,7 @@ export const DriversListPage: React.FC = () => {
       operating,
       ready,
       inactive,
+      unassignedVehicle,
       complianceAlerts,
     };
   }, [klhFilteredDrivers]);
@@ -556,7 +508,7 @@ export const DriversListPage: React.FC = () => {
       d.code,
       `"${d.fullName}"`,
       d.phone || '',
-      `"${d.enterprise || UNIT_LABELS[d.unit] || d.unit}"`,
+      `"${d.managementUnit?.name || 'Chưa phân loại'}"`,
       `"${d.team || ''}"`,
       `"${d.position || ''}"`,
       `"${LICENSE_LABELS[d.licenseClass] || d.licenseClass || ''}"`,
@@ -637,6 +589,9 @@ export const DriversListPage: React.FC = () => {
       if (cardFilter === 'INACTIVE') {
         if (item.employmentStatus !== 'DA_NGHI_VIEC') return false;
       }
+      if (cardFilter === 'UNASSIGNED_VEHICLE') {
+        if (item.employmentStatus === 'DA_NGHI_VIEC' || hasDriverVehicleAssigned(item)) return false;
+      }
       if (cardFilter === 'COMPLIANCE_ALERT') {
         if (!item.complianceStatus || item.complianceStatus === 'VALID') return false;
       }
@@ -660,12 +615,11 @@ export const DriversListPage: React.FC = () => {
 
       // 3. Lọc theo Đơn vị
       if (filters.enterprise) {
-        const ent = item.enterprise || UNIT_LABELS[item.unit] || item.unit;
-        if (ent !== filters.enterprise && item.unit !== filters.enterprise) return false;
+        if (item.managementAssignment?.managementUnitId !== Number(filters.enterprise)) return false;
       }
 
       // 4. Lọc theo Đội/Tổ
-      if (filters.team && item.team !== filters.team) return false;
+      if (filters.team && item.managementAssignment?.teamUnitId !== Number(filters.team)) return false;
 
       // 5. Lọc theo Chức danh
       if (filters.position && item.position !== filters.position) return false;
@@ -726,10 +680,12 @@ export const DriversListPage: React.FC = () => {
       joinedDate: inputDate(detail.joinedDate),
       employmentStatus: detail.employmentStatus,
       businessUnit: detail.employee?.businessUnit || '',
-      complex: detail.employee?.complex || '',
+      complex: detail.managementUnit?.complexCode || '',
       enterprise: detail.employee?.enterprise || '',
       farm: detail.employee?.farm || '',
       team: detail.employee?.team || '',
+      managementUnitId: detail.managementAssignment?.managementUnitId ? String(detail.managementAssignment.managementUnitId) : '',
+      teamUnitId: detail.managementAssignment?.teamUnitId ? String(detail.managementAssignment.teamUnitId) : '',
       position: detail.employee?.position || '',
       email: detail.employee?.email || '',
       idCardNumber: detail.employee?.idCardNumber || '',
@@ -752,6 +708,11 @@ export const DriversListPage: React.FC = () => {
     setSelected(null);
     setFormStep(0);
     setEditorOpen(true);
+  };
+
+  const openEditAssignVehicle = async (driver: DriverListItem | DriverProfile) => {
+    await openEdit(driver);
+    setFormStep(5);
   };
 
   const setField = (name: string, value: string) => setForm((current) => ({ ...current, [name]: value }));
@@ -798,6 +759,14 @@ export const DriversListPage: React.FC = () => {
     setSaving(true);
     setError('');
     const payload: Record<string, unknown> = { ...form };
+    if (form.managementUnitId) payload.managementUnitId = Number(form.managementUnitId);
+    else delete payload.managementUnitId;
+    if (form.teamUnitId) payload.teamUnitId = Number(form.teamUnitId);
+    else delete payload.teamUnitId;
+    delete payload.businessUnit;
+    delete payload.enterprise;
+    delete payload.farm;
+    delete payload.team;
     if (!payload.username || !(payload.username as string).trim()) {
       payload.username = (form.code || 'driver').toLowerCase().replace(/[^a-z0-9]/g, '_');
     }
@@ -811,19 +780,8 @@ export const DriversListPage: React.FC = () => {
     // Mặc định vai trò luôn là Tài xế khi tạo/sửa ở hồ sơ lái xe
     payload.role = 'DRIVER';
 
-    // Tự động suy ra đơn vị hệ thống theo Xí nghiệp / Nông trường được chọn
-    const entStr = `${form.enterprise || ''} ${form.farm || ''}`.toLowerCase();
-    if (entStr.includes('bò') || entStr.includes('xn_bo')) {
-      payload.unit = 'XN_BO';
-    } else if (entStr.includes('nông trường 2') || entStr.includes('nt2')) {
-      payload.unit = 'NT2';
-    } else if (entStr.includes('nông trường 1') || entStr.includes('nt1')) {
-      payload.unit = 'NT1';
-    } else if (entStr.includes('btsc') || entStr.includes('xưởng')) {
-      payload.unit = 'TT_BTSC';
-    } else {
-      payload.unit = form.unit || 'BAN_CO_GIOI';
-    }
+    // User.unit được giữ cho tương thích vận hành; không suy diễn từ tên đơn vị hồ sơ.
+    payload.unit = form.unit || 'BAN_CO_GIOI';
 
     if (!payload.assignedVehicleId) delete payload.assignedVehicleId;
     else payload.assignedVehicleId = Number(payload.assignedVehicleId);
@@ -831,14 +789,27 @@ export const DriversListPage: React.FC = () => {
       if (!payload[key]) delete payload[key];
     });
     try {
-      if (editingId) await apiService.updateDriverProfile(editingId, payload);
-      else await apiService.createDriverProfile(payload);
+      const saved = editingId ? await apiService.updateDriverProfile(editingId, payload) : await apiService.createDriverProfile(payload);
+      const driverId = editingId || saved?.id;
+      if (driverId && form.managementUnitId) {
+        await driverManagementApi.assignDriver({ driverId, managementUnitId: Number(form.managementUnitId), teamUnitId: form.teamUnitId ? Number(form.teamUnitId) : undefined, reason: editingId ? 'Cập nhật hồ sơ tài xế' : 'Tiếp nhận hồ sơ tài xế' });
+      }
       setEditorOpen(false);
       await loadDrivers();
     } catch (requestError: any) {
       setError(requestError?.response?.data?.message || 'Không thể lưu hồ sơ. Vui lòng kiểm tra các trường bắt buộc.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteDriver = async (driver: DriverListItem) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn chuyển tài xế "${driver.fullName}" (${driver.code}) sang trạng thái thôi việc?`)) return;
+    try {
+      await apiService.updateDriverProfile(driver.id, { employmentStatus: 'DA_NGHI_VIEC', resignedDate: new Date().toISOString().slice(0, 10) });
+      await loadDrivers();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Không thể cập nhật trạng thái thôi việc.');
     }
   };
 
@@ -868,7 +839,27 @@ export const DriversListPage: React.FC = () => {
         }
 
         if (vehicles.length === 0) {
-          return <span className="text-slate-400 text-xs italic">Chưa bàn giao</span>;
+          return (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                Chưa gắn xe
+              </span>
+              {canEditDriverProfile && row.employmentStatus !== 'DA_NGHI_VIEC' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void openEditAssignVehicle(row);
+                  }}
+                  className="px-1.5 py-0.5 text-[10px] font-bold text-primary hover:text-primary-700 hover:bg-primary-50 rounded border border-dashed border-primary/40 transition cursor-pointer"
+                  title="Gán xe phụ trách cho nhân sự này"
+                >
+                  + Gán xe
+                </button>
+              )}
+            </div>
+          );
         }
 
         const primary = vehicles[0];
@@ -899,16 +890,38 @@ export const DriversListPage: React.FC = () => {
         );
       },
     },
-    { key: 'team', title: 'ĐỘI', render: (row) => row.team || 'Chưa cập nhật' },
-    { key: 'position', title: 'CHỨC DANH', render: (row) => row.position || 'Chưa cập nhật' },
+    {
+      key: 'enterprise',
+      title: 'ĐƠN VỊ CHỦ QUẢN',
+      render: (row) => row.managementUnit?.name ? (
+        <span className="font-semibold text-slate-800">{row.managementUnit.name}</span>
+      ) : (
+        <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-semibold border border-amber-200">Chưa phân loại</span>
+      ),
+    },
+    {
+      key: 'team',
+      title: 'ĐỘI / TỔ',
+      render: (row) => row.teamUnit?.name || row.team || (row.managementUnit ? '—' : 'Chưa phân loại'),
+    },
+    { key: 'position', title: 'CHỨC DANH', render: (row) => row.position || '—' },
     { key: 'employmentStatus', title: 'TRẠNG THÁI', render: (row) => employmentBadge(row.employmentStatus) },
-    { key: 'actions', title: 'THAO TÁC', align: 'right', render: (row) => (
-      <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-        <Button variant="ghost" size="sm" icon={<Eye className="h-3.5 w-3.5" />} onClick={() => void openDetail(row)}>Xem</Button>
-        <Button variant="outline" size="sm" icon={<Edit className="h-3.5 w-3.5" />} onClick={() => void openEdit(row)}>Sửa</Button>
-      </div>
-    ) },
-  ], []);
+    {
+      key: 'actions',
+      title: 'THAO TÁC',
+      align: 'center',
+      render: (row) => (
+        <TableRowActions
+          onView={() => void openDetail(row)}
+          onEdit={canEditDriverProfile ? () => void openEdit(row) : undefined}
+          onDelete={canEditDriverProfile ? () => void handleDeleteDriver(row) : undefined}
+          viewTitle="Xem chi tiết hồ sơ"
+          editTitle="Chỉnh sửa hồ sơ"
+          deleteTitle="Thôi việc / Xóa hồ sơ"
+        />
+      ),
+    },
+  ], [canEditDriverProfile]);
 
   return (
     <div className="space-y-4">
@@ -918,6 +931,9 @@ export const DriversListPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setCardFilter('ALL')}
+          aria-pressed={cardFilter === 'ALL'}
+          aria-label="Lọc tất cả nhân sự. Nhấn để hiển thị danh sách đầy đủ."
+          title="Nhấn để hiển thị toàn bộ nhân sự"
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
             cardFilter === 'ALL'
               ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/25 shadow-sm scale-[1.01]'
@@ -943,6 +959,9 @@ export const DriversListPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'OPERATING' ? 'ALL' : 'OPERATING'))}
+          aria-pressed={cardFilter === 'OPERATING'}
+          aria-label="Lọc tài xế đang vận hành. Nhấn để lọc; nhấn lại để bỏ lọc."
+          title="Nhấn để lọc nhân sự đang vận hành; nhấn lại để bỏ lọc"
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
             cardFilter === 'OPERATING'
               ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/25 shadow-sm scale-[1.01]'
@@ -968,6 +987,9 @@ export const DriversListPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'READY' ? 'ALL' : 'READY'))}
+          aria-pressed={cardFilter === 'READY'}
+          aria-label="Lọc tài xế sẵn sàng nhận ca. Nhấn để lọc; nhấn lại để bỏ lọc."
+          title="Nhấn để lọc nhân sự sẵn sàng; nhấn lại để bỏ lọc"
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
             cardFilter === 'READY'
               ? 'border-teal-500 bg-teal-50/40 ring-2 ring-teal-500/25 shadow-sm scale-[1.01]'
@@ -993,6 +1015,9 @@ export const DriversListPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'INACTIVE' ? 'ALL' : 'INACTIVE'))}
+          aria-pressed={cardFilter === 'INACTIVE'}
+          aria-label="Lọc hồ sơ đã nghỉ việc. Nhấn để lọc; nhấn lại để bỏ lọc."
+          title="Nhấn để lọc nhân sự đã nghỉ việc; nhấn lại để bỏ lọc"
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
             cardFilter === 'INACTIVE'
               ? 'border-slate-500 bg-slate-100 ring-2 ring-slate-400/25 shadow-sm scale-[1.01]'
@@ -1014,28 +1039,31 @@ export const DriversListPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 5: Cảnh báo hồ sơ (Rose Theme) */}
+        {/* Card 5: Chưa gắn xe (Amber Theme) */}
         <button
           type="button"
-          onClick={() => setCardFilter((curr) => (curr === 'COMPLIANCE_ALERT' ? 'ALL' : 'COMPLIANCE_ALERT'))}
+          onClick={() => setCardFilter((curr) => (curr === 'UNASSIGNED_VEHICLE' ? 'ALL' : 'UNASSIGNED_VEHICLE'))}
+          aria-pressed={cardFilter === 'UNASSIGNED_VEHICLE'}
+          aria-label="Lọc nhanh danh sách hồ sơ: Chưa gắn xe (nhân sự chưa được phân bổ xe phụ trách). Nhấn để lọc hoặc bỏ lọc."
+          title="Nhấn để lọc các nhân sự chưa được gắn xe; nhấn lại để bỏ lọc"
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            cardFilter === 'COMPLIANCE_ALERT'
-              ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/25 shadow-sm scale-[1.01]'
+            cardFilter === 'UNASSIGNED_VEHICLE'
+              ? 'border-amber-500 bg-amber-50/50 ring-2 ring-amber-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-rose-500" />
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-700">Cảnh báo hồ sơ</span>
-            <div className="rounded-xl p-2 bg-rose-50 text-rose-600">
-              <AlertTriangle className="w-5 h-5" />
+            <span className="text-xs font-bold text-amber-700">Chưa gắn xe</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <Truck className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-black text-rose-700">
-            {stats.complianceAlerts.toLocaleString('vi-VN')}
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {stats.unassignedVehicle.toLocaleString('vi-VN')}
           </div>
-          <div className="mt-1 text-[11px] font-semibold text-rose-600 truncate">
-            Thiếu hoặc sắp/quá hạn
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Chưa phân xe phụ trách
           </div>
         </button>
       </div>
@@ -1173,14 +1201,14 @@ export const DriversListPage: React.FC = () => {
         {/* HÀNG 3: CÁC Ô SELECT TEXT (DÙNG SEARCHABLE SELECT ĐÚNG 4 CỘT THEO HÌNH) */}
         {showAdvancedFilters && (
           <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            {/* 1. ĐƠN VỊ SỬ DỤNG (XÍ NGHIỆP / ĐỘI) */}
+            {/* 1. ĐƠN VỊ CHỦ QUẢN HỒ SƠ */}
             <div>
               <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                Đơn vị sử dụng (Xí nghiệp / Đội)
+                Đơn vị chủ quản hồ sơ
               </label>
               <SearchableSelect
                 value={filters.enterprise}
-                onChange={(val) => setFilters({ ...filters, enterprise: val === 'ALL' ? '' : val })}
+                onChange={(val) => setFilters({ ...filters, enterprise: val === 'ALL' ? '' : val, team: '' })}
                 options={enterpriseSelectOptions}
                 placeholder={`Tất cả đơn vị (${enterpriseSelectOptions.length})`}
                 emptyOptionLabel={`Tất cả đơn vị (${enterpriseSelectOptions.length})`}
@@ -1192,7 +1220,7 @@ export const DriversListPage: React.FC = () => {
             {/* 2. ĐỘI / TỔ CÔNG TÁC */}
             <div>
               <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                Đội / Tổ công tác ({teamSelectOptions.length} đội/tổ)
+                Đội / Tổ trực thuộc ({teamSelectOptions.length} đội/tổ)
               </label>
               <SearchableSelect
                 value={filters.team}
@@ -1242,6 +1270,32 @@ export const DriversListPage: React.FC = () => {
 
       {error && <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700"><ShieldAlert className="h-4 w-4" />{error}<button className="ml-auto" onClick={() => setError('')}><X className="h-4 w-4" /></button></div>}
 
+      {/* Thông báo hướng dẫn khi đang lọc nhân sự chưa gắn xe */}
+      {cardFilter === 'UNASSIGNED_VEHICLE' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-xs text-amber-900 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl bg-amber-100 p-2 text-amber-700 shrink-0">
+              <Truck className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="font-bold text-amber-900">
+                Đang quản lý danh sách nhân sự chưa được gắn xe cơ giới ({displayDrivers.length} nhân sự)
+              </div>
+              <div className="text-[11px] text-amber-700">
+                Nhấn vào nút <span className="font-bold text-primary">+ Gán xe</span> trên từng dòng hoặc mở hồ sơ để phân bổ phương tiện phụ trách.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCardFilter('ALL')}
+            className="shrink-0 rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition cursor-pointer"
+          >
+            Bỏ lọc (Xem tất cả)
+          </button>
+        </div>
+      )}
+
       {/* 3. Bảng danh sách hồ sơ */}
       <DataTable
         title="Danh sách lái xe / lái máy / thợ vận hành"
@@ -1274,9 +1328,11 @@ export const DriversListPage: React.FC = () => {
                 <Button variant="outline" size="sm" onClick={() => setSelected(null)}>
                   Đóng
                 </Button>
-                <Button size="sm" icon={<Edit className="h-3.5 w-3.5" />} onClick={() => void openEdit(selected)}>
-                  Chỉnh sửa hồ sơ
-                </Button>
+                {canEditDriverProfile && (
+                  <Button size="sm" icon={<Edit className="h-3.5 w-3.5" />} onClick={() => void openEdit(selected)}>
+                    Chỉnh sửa hồ sơ
+                  </Button>
+                )}
               </div>
             </div>
           }
@@ -1360,8 +1416,8 @@ export const DriversListPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
                   <span className="text-slate-400 flex items-center gap-1"><Building2 className="w-3 h-3" /> Đơn vị:</span>
-                  <span className="font-semibold text-slate-800 truncate max-w-[120px]" title={selected.employee?.enterprise || UNIT_LABELS[selected.unit] || selected.unit}>
-                    {selected.employee?.enterprise || UNIT_LABELS[selected.unit] || selected.unit}
+                  <span className="font-semibold text-slate-800 truncate max-w-[120px]" title={selected.managementUnit?.name || 'Chưa phân loại'}>
+                    {selected.managementUnit?.name || 'Chưa phân loại'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
@@ -1376,15 +1432,17 @@ export const DriversListPage: React.FC = () => {
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-xs font-bold"
-                icon={<Edit className="w-3.5 h-3.5" />}
-                onClick={() => void openEdit(selected)}
-              >
-                Chỉnh sửa hồ sơ
-              </Button>
+              {canEditDriverProfile && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs font-bold"
+                  icon={<Edit className="w-3.5 h-3.5" />}
+                  onClick={() => void openEdit(selected)}
+                >
+                  Chỉnh sửa hồ sơ
+                </Button>
+              )}
             </div>
 
             {/* CỘT PHẢI: THÔNG TIN CHI TIẾT VỚI TAB CỐ ĐỊNH */}
@@ -1431,11 +1489,10 @@ export const DriversListPage: React.FC = () => {
 
                 {detailTab === 1 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <InfoItem label="Khu liên hợp" value={selected.employee?.complex || 'Snoul (Campuchia)'} />
-                    <InfoItem label="Xí nghiệp / Đơn vị" value={selected.employee?.enterprise || selected.employee?.businessUnit || UNIT_LABELS[selected.unit] || selected.unit} />
-                    <InfoItem label="Nông trường trực thuộc" value={selected.employee?.farm || 'Nông trường 1'} />
-                    <InfoItem label="Đội / Tổ sản xuất" value={selected.employee?.team || 'Đội Cơ giới 01'} />
-                    <InfoItem label="Chức danh đảm nhiệm" value={selected.employee?.position || 'Lái xe cơ giới'} />
+                    <InfoItem label="Khu liên hợp" value={selected.managementUnit?.complexCode || selected.employee?.complex || 'Chưa phân loại'} />
+                    <InfoItem label="Đơn vị chủ quản hồ sơ" value={selected.managementUnit?.name || 'Chưa phân loại'} />
+                    <InfoItem label="Đội / Tổ trực thuộc" value={selected.teamUnit?.name || (selected.managementUnit ? '—' : 'Chưa phân loại')} />
+                    <InfoItem label="Chức danh đảm nhiệm" value={selected.employee?.position || selected.position || 'Chưa phân loại'} />
                     <InfoItem label="Trạng thái công tác" value={employmentBadge(selected.employmentStatus)} />
                     <InfoItem label="Ngày gia nhập" value={formatDate(selected.joinedDate)} />
                     <InfoItem label="Thâm niên công tác" value={calculateTenure(selected.joinedDate, selected.resignedDate)} />
@@ -1451,8 +1508,8 @@ export const DriversListPage: React.FC = () => {
                 {detailTab === 2 && (
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <InfoItem label="Hạng Giấy phép lái xe" value={selected.licenseClass ? LICENSE_LABELS[selected.licenseClass] || selected.licenseClass : 'Hạng FC'} />
-                      <InfoItem label="Số GPLX / Chứng chỉ nghề" value={selected.licenseNumber || '790182736412'} />
+                      <InfoItem label="Hạng Giấy phép lái xe" value={selected.licenseClass ? LICENSE_LABELS[selected.licenseClass] || selected.licenseClass : 'Chưa khai báo'} />
+                      <InfoItem label="Số GPLX / Chứng chỉ nghề" value={selected.licenseNumber || 'Chưa cập nhật'} />
                       <InfoItem label="Ngày hết hạn GPLX" value={formatDate(selected.licenseExpiryDate)} />
                       <InfoItem label="Trạng thái hồ sơ GPLX" value={complianceBadge(selected.complianceStatus)} />
                       <InfoItem label="Hạn khám sức khỏe định kỳ" value={formatDate(selected.healthCheckExpiryDate)} />
@@ -1740,7 +1797,7 @@ export const DriversListPage: React.FC = () => {
                 <div className="font-bold text-xs text-slate-800 truncate">{form.fullName || 'Chưa nhập họ tên'}</div>
                 <div className="text-[11px] font-mono text-primary font-bold">{form.code || 'Mã NV: —'}</div>
                 <div className="text-[11px] text-slate-600 truncate">{form.position || 'Chức danh: —'}</div>
-                <div className="text-[11px] text-slate-600 truncate">{form.team || 'Đội: —'}</div>
+                <div className="text-[11px] text-slate-600 truncate">{options.managementUnits.find((u) => u.id === Number(form.teamUnitId))?.name || 'Đội/Tổ: —'}</div>
                 <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[10px]">
                   <span className="text-slate-500">Xe quản lý:</span>
                   <span className="font-bold text-emerald-700">{form.assignedVehicleIds.length} xe</span>
@@ -1781,13 +1838,15 @@ export const DriversListPage: React.FC = () => {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <TextField label="Ngày vào công ty *" type="date" required value={form.joinedDate} onChange={(e) => setField('joinedDate', e.target.value)} />
                       
-                      <label className="text-xs font-bold text-slate-700">
-                        Trạng thái làm việc
-                        <select value={form.employmentStatus} onChange={(e) => setField('employmentStatus', e.target.value)} className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-normal outline-none focus:border-primary focus:bg-white">
-                          <option value="DANG_LAM_VIEC">Đang làm việc</option>
-                          <option value="DA_NGHI_VIEC">Đã nghỉ việc</option>
-                        </select>
-                      </label>
+                      <StatusToggle
+                        label="Trạng thái làm việc"
+                        value={form.employmentStatus === 'DA_NGHI_VIEC' ? 'INACTIVE' : 'ACTIVE'}
+                        onChange={(status) => setField('employmentStatus', status === 'ACTIVE' ? 'DANG_LAM_VIEC' : 'DA_NGHI_VIEC')}
+                        activeValue="ACTIVE"
+                        inactiveValue="INACTIVE"
+                        activeLabel="Đang làm việc"
+                        inactiveLabel="Đã nghỉ việc"
+                      />
 
                       <div>
                         <label className="mb-1 block text-xs font-bold text-slate-700">
@@ -1797,62 +1856,40 @@ export const DriversListPage: React.FC = () => {
                           value={form.complex}
                           onChange={(val) => {
                             setField('complex', val);
-                            setField('enterprise', '');
-                            setField('farm', '');
-                            setField('team', '');
+                            setField('managementUnitId', '');
+                            setField('teamUnitId', '');
                           }}
                           options={formComplexOptions}
-                          placeholder="Chọn hoặc nhập Khu liên hợp..."
-                          allowCustomInput={true}
+                          placeholder="Chọn Khu liên hợp..."
                           heightClass="h-9"
                         />
                       </div>
 
                       <div>
                         <label className="mb-1 block text-xs font-bold text-slate-700">
-                          Xí nghiệp/Đơn vị
+                          Đơn vị chủ quản hồ sơ
                         </label>
                         <SearchableSelect
-                          value={form.enterprise}
+                          value={form.managementUnitId}
                           onChange={(val) => {
-                            setField('enterprise', val);
-                            setField('farm', '');
-                            setField('team', '');
+                            setField('managementUnitId', val);
+                            setField('teamUnitId', '');
                           }}
                           options={formEnterpriseOptions}
-                          placeholder="Chọn hoặc nhập Xí nghiệp/Đơn vị..."
-                          allowCustomInput={true}
+                          placeholder="Chọn đơn vị đã được xác minh..."
                           heightClass="h-9"
                         />
                       </div>
 
                       <div>
                         <label className="mb-1 block text-xs font-bold text-slate-700">
-                          Nông trường
+                          Đội/Tổ trực thuộc
                         </label>
                         <SearchableSelect
-                          value={form.farm}
-                          onChange={(val) => {
-                            setField('farm', val);
-                            setField('team', '');
-                          }}
-                          options={formFarmOptions}
-                          placeholder="Chọn hoặc nhập Nông trường..."
-                          allowCustomInput={true}
-                          heightClass="h-9"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs font-bold text-slate-700">
-                          Đội/Tổ công tác (Độc lập)
-                        </label>
-                        <SearchableSelect
-                          value={form.team}
-                          onChange={(val) => setField('team', val)}
+                          value={form.teamUnitId}
+                          onChange={(val) => setField('teamUnitId', val)}
                           options={formTeamOptions}
-                          placeholder="Chọn hoặc nhập Đội/Tổ..."
-                          allowCustomInput={true}
+                          placeholder="Không bắt buộc"
                           heightClass="h-9"
                         />
                       </div>
@@ -2223,7 +2260,7 @@ export const DriversListPage: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <InfoItem label="Nhân sự" value={`${form.code || '—'} · ${form.fullName || '—'}`} />
-                      <InfoItem label="Đơn vị / Đội" value={`${form.enterprise || UNIT_LABELS[form.unit] || form.unit} · ${form.team || 'Chưa cập nhật'}`} />
+                      <InfoItem label="Đơn vị / Đội" value={`${options.managementUnits.find((u) => u.id === Number(form.managementUnitId))?.name || 'Chưa phân loại'} · ${options.managementUnits.find((u) => u.id === Number(form.teamUnitId))?.name || 'Chưa gán Đội/Tổ'}`} />
                       <InfoItem label="Chức danh" value={form.position || 'Tài xế'} />
                       <InfoItem label="Ngày vào công ty / Thâm niên" value={`${formatDate(form.joinedDate)} · ${calculateTenure(form.joinedDate, form.resignedDate)}`} />
                       <InfoItem label="GPLX & Bằng lái" value={`${LICENSE_LABELS[form.licenseClass] || 'Chưa khai báo'} · ${form.licenseNumber || 'Chưa có số'}`} />

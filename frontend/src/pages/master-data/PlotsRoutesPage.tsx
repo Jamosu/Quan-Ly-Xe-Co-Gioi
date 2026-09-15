@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import {
   MapPin,
   Plus,
@@ -37,43 +38,99 @@ import {
   getNextSiteCode,
   getNextRouteCode,
 } from '../../data/locationCatalogData';
-import { mockEnterprises, mockFarms } from '../../data/catalogData';
+import { mockEnterprises, mockFarms, CatalogItem } from '../../data/catalogData';
+import { catalogsApi } from '../../api/catalogsApi';
+import { getStoredData } from '../../utils/storage';
 import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
 
-export type LocationCatalogTab = 'plots' | 'construction' | 'transport';
+export type LocationCatalogTab = 'construction' | 'transport';
 
 interface PlotsRoutesPageProps {
   defaultTab?: LocationCatalogTab;
 }
 
-const KLH_OPTIONS = [
-  { code: 'ALL', name: 'Tất cả Khu liên hợp' },
-  { code: 'KOUN_MOM', name: 'Khu liên hợp Koun Mom' },
-  { code: 'SNOUL', name: 'Khu liên hợp Snoul' },
-  { code: 'NAM_LAO', name: 'Khu liên hợp Nam Lào' },
-];
+const mapCatalogToPlot = (c: CatalogItem): AgriculturalPlotItem => ({
+  id: c.id,
+  code: c.code,
+  name: c.name,
+  complexCode: (c.parentCode as any) || 'KOUN_MOM',
+  complexName: c.parentName || 'Khu liên hợp Koun Mom',
+  enterpriseName: c.enterpriseName || '',
+  farmName: c.farmName || '',
+  areaHa: c.areaHa || 0,
+  cropType: c.description?.split('|')[0]?.trim() || '',
+  irrigationSystem: c.description?.split('|')[1]?.trim() || '',
+  soilCondition: 'Đất đỏ bazan',
+  status: c.status === 'HOAT_DONG' ? 'active' : 'preparing',
+  statusLabel: c.status === 'HOAT_DONG' ? 'Đang canh tác' : 'Tạm dừng',
+  notes: c.description || '',
+});
+
+const mapCatalogToSite = (c: CatalogItem): ConstructionSiteItem => ({
+  id: c.id,
+  code: c.code,
+  name: c.name,
+  category: 'DAO_DAP',
+  categoryName: c.description?.split('|')[0]?.trim() || 'Hạng mục thi công',
+  complexCode: (c.parentCode as any) || 'KOUN_MOM',
+  complexName: c.parentName || 'Khu liên hợp Koun Mom',
+  unitOwner: c.enterpriseName || '',
+  targetScope: c.description?.split('|')[1]?.trim() || '',
+  targetUnit: 'm³',
+  recommendedMachines: c.description?.split('|')[2]?.trim() || '',
+  estimatedDays: 30,
+  status: c.status === 'HOAT_DONG' ? 'in_progress' : 'completed',
+  statusLabel: c.status === 'HOAT_DONG' ? 'Đang thi công' : 'Hoàn thành',
+  notes: c.description || '',
+});
+
+const mapCatalogToRoute = (c: CatalogItem): TransportRouteItem => ({
+  id: c.id,
+  code: c.code,
+  name: c.name,
+  origin: c.address?.split('➔')[0]?.trim() || '',
+  destination: c.address?.split('➔')[1]?.trim() || '',
+  distanceKm: parseFloat(c.description?.match(/Cự ly:\s*([\d.]+)/)?.[1] || '10') || 10,
+  complexCode: (c.parentCode as any) || 'KOUN_MOM',
+  complexName: c.parentName || 'Khu liên hợp Koun Mom',
+  cargoType: c.description?.match(/Hàng:\s*([^|]+)/)?.[1]?.trim() || 'Hàng hóa nội bộ',
+  speedLimitKmH: parseInt(c.description?.match(/Tốc độ GPS:\s*(\d+)/)?.[1] || '35', 10) || 35,
+  recommendedVehicles: 'Xe tải thùng & Đầu kéo',
+  status: c.status === 'HOAT_DONG' ? 'active' : 'maintenance',
+  statusLabel: c.status === 'HOAT_DONG' ? 'Hoạt động' : 'Bảo trì',
+  notes: c.description || '',
+});
 
 export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Danh mục Khu liên hợp lấy động từ API
+  const [complexCatalog, setComplexCatalog] = useState<CatalogItem[]>(() =>
+    getStoredData<CatalogItem[]>('catalogs_complexes', [])
+  );
+
+  const complexOptions = useMemo(() => [
+    { code: 'ALL', name: 'Tất cả Khu liên hợp' },
+    ...complexCatalog.map((c) => ({ code: c.code, name: c.name })),
+  ], [complexCatalog]);
+
   // Xác định activeTab dựa trên URL pathname hoặc query param ?tab=
   const activeTab: LocationCatalogTab = useMemo(() => {
-    if (location.pathname.endsWith('/nong-nghiep')) return 'plots';
-    if (location.pathname.endsWith('/cong-trinh')) return 'construction';
     if (location.pathname.endsWith('/van-chuyen')) return 'transport';
-    if (defaultTab) return defaultTab;
+    if (location.pathname.endsWith('/cong-trinh')) return 'construction';
+    if (defaultTab && defaultTab !== ('plots' as any)) return defaultTab;
     const tabParam = searchParams.get('tab') as LocationCatalogTab;
-    if (tabParam && ['plots', 'construction', 'transport'].includes(tabParam)) {
+    if (tabParam && ['construction', 'transport'].includes(tabParam)) {
       return tabParam;
     }
-    return 'plots';
+    return 'construction';
   }, [location.pathname, defaultTab, searchParams]);
 
   const handleTabChange = (tab: LocationCatalogTab) => {
-    if (location.pathname.includes('/nong-nghiep') || location.pathname.includes('/cong-trinh') || location.pathname.includes('/van-chuyen')) {
-      const suffix = tab === 'plots' ? 'nong-nghiep' : tab === 'construction' ? 'cong-trinh' : 'van-chuyen';
+    if (location.pathname.includes('/cong-trinh') || location.pathname.includes('/van-chuyen') || location.pathname.includes('/nong-nghiep')) {
+      const suffix = tab === 'construction' ? 'cong-trinh' : 'van-chuyen';
       navigate(`/danh-muc/lo-thua-tuyen-duong/${suffix}`);
     } else {
       setSearchParams({ tab });
@@ -85,6 +142,22 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
   const [plots, setPlots] = useState<AgriculturalPlotItem[]>(getStoredPlots);
   const [sites, setSites] = useState<ConstructionSiteItem[]>(getStoredConstructionSites);
   const [routes, setRoutes] = useState<TransportRouteItem[]>(getStoredTransportRoutes);
+
+  // Tải dữ liệu từ backend API
+  useEffect(() => {
+    catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes').then((items) => {
+      if (Array.isArray(items) && items.length > 0) setComplexCatalog(items);
+    });
+    catalogsApi.getCatalogs('PLOT', 'catalogs_plots').then((items) => {
+      if (Array.isArray(items) && items.length > 0) setPlots(items.map(mapCatalogToPlot));
+    });
+    catalogsApi.getCatalogs('CONSTRUCTION_SITE', 'catalogs_construction_sites').then((items) => {
+      if (Array.isArray(items) && items.length > 0) setSites(items.map(mapCatalogToSite));
+    });
+    catalogsApi.getCatalogs('ROUTE', 'catalogs_transport_routes').then((items) => {
+      if (Array.isArray(items) && items.length > 0) setRoutes(items.map(mapCatalogToRoute));
+    });
+  }, []);
 
   // Lưu LocalStorage
   useEffect(() => {
@@ -135,7 +208,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
 
   const [detailItem, setDetailItem] = useState<{
     type: LocationCatalogTab;
-    data: AgriculturalPlotItem | ConstructionSiteItem | TransportRouteItem;
+    data: ConstructionSiteItem | TransportRouteItem;
   } | null>(null);
 
   // Danh sách Xí nghiệp gợi ý theo Khu liên hợp đang chọn trong Modal
@@ -359,7 +432,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
     e.preventDefault();
     // Nếu người dùng không nhập mã hoặc xóa trống thì tự động cấp mã tăng dần
     const code = plotCode.trim().toUpperCase() || getNextPlotCode(plotComplexCode, plots);
-    const complexName = KLH_OPTIONS.find((k) => k.code === plotComplexCode)?.name || plotComplexCode;
+    const complexName = complexOptions.find((k) => k.code === plotComplexCode)?.name || plotComplexCode;
     const name = plotName.trim() || `Lô ${code} - ${plotFarm || 'Nông trường'}`;
     const statusLabel = plotStatus === 'active' ? 'Đang canh tác' : plotStatus === 'preparing' ? 'Đang làm đất' : 'Tái canh';
 
@@ -420,7 +493,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const complexCode = String(form.get('complexCode') || 'KOUN_MOM') as 'KOUN_MOM' | 'SNOUL' | 'NAM_LAO';
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || complexCode;
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || complexCode;
     const code = String(form.get('code') || '').trim().toUpperCase() || getNextSiteCode(sites);
     const name = String(form.get('name') || '').trim() || `Khu vực thi công ${code}`;
     const category = (form.get('category') as ConstructionSiteItem['category']) || 'DAO_DAP';
@@ -486,7 +559,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const complexCode = String(form.get('complexCode') || 'KOUN_MOM') as 'KOUN_MOM' | 'SNOUL' | 'NAM_LAO';
-    const complexName = KLH_OPTIONS.find((k) => k.code === complexCode)?.name || complexCode;
+    const complexName = complexOptions.find((k) => k.code === complexCode)?.name || complexCode;
     const code = String(form.get('code') || '').trim().toUpperCase() || getNextRouteCode(complexCode, routes);
     const origin = String(form.get('origin') || '').trim() || 'Kho trung tâm';
     const destination = String(form.get('destination') || '').trim() || 'Nông trường / Xưởng';
@@ -548,12 +621,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
   // Xuất file CSV
   const handleExportCSV = () => {
     let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
-    if (activeTab === 'plots') {
-      csvContent += 'Mã Lô,Tên Lô Thửa,Khu Liên Hợp,Xí Nghiệp,Nông Trường,Diện Tích (ha),Cây Trồng,Hệ Thống Tưới,Trạng Thái\n';
-      filteredPlots.forEach((p) => {
-        csvContent += `"${p.code}","${p.name}","${p.complexName}","${p.enterpriseName}","${p.farmName}","${p.areaHa}","${p.cropType}","${p.irrigationSystem}","${p.statusLabel}"\n`;
-      });
-    } else if (activeTab === 'construction') {
+    if (activeTab === 'construction') {
       csvContent += 'Mã Khu Vực,Tên Khu Vực Thi Công,Hạng Mục,Khu Liên Hợp,Đơn Vị Phụ Trách,Quy Mô,Trạng Thái\n';
       filteredSites.forEach((s) => {
         csvContent += `"${s.code}","${s.name}","${s.categoryName}","${s.complexName}","${s.unitOwner}","${s.targetScope}","${s.statusLabel}"\n`;
@@ -573,151 +641,6 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
     document.body.removeChild(link);
   };
 
-  // ============================================================================
-  // CỘT BẢNG: 1. LÔ THỬA NÔNG NGHIỆP
-  // ============================================================================
-  const plotColumns: Column<AgriculturalPlotItem>[] = [
-    {
-      key: 'code',
-      title: 'Mã Lô (Tăng dần)',
-      sortable: true,
-      width: '135px',
-      render: (item) => (
-        <span className="font-mono font-extrabold text-emerald-800 text-xs bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
-          {item.code}
-        </span>
-      ),
-    },
-    {
-      key: 'name',
-      title: 'Tên Lô thửa canh tác',
-      sortable: true,
-      render: (item) => (
-        <div className="min-w-[200px]">
-          <strong className="text-slate-900 block text-xs font-bold">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
-            {item.complexName}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'hierarchy',
-      title: 'Xí nghiệp ➔ Nông trường trực thuộc',
-      render: (item) => (
-        <div className="text-xs text-slate-700">
-          <div className="font-bold text-emerald-950 flex items-center gap-1">
-            <Building2 className="w-3 h-3 text-emerald-700 shrink-0" />
-            <span>{item.enterpriseName}</span>
-          </div>
-          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>{item.farmName}</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'areaHa',
-      title: 'Diện tích (ha)',
-      sortable: true,
-      align: 'center',
-      render: (item) => (
-        <span className="font-black text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-          {item.areaHa.toFixed(1)} ha
-        </span>
-      ),
-    },
-    {
-      key: 'cropType',
-      title: 'Loại cây trồng / Giống',
-      sortable: true,
-      render: (item) => (
-        <span className="text-xs font-bold text-emerald-900">
-          🌾 {item.cropType}
-        </span>
-      ),
-    },
-    {
-      key: 'irrigationSystem',
-      title: 'Hệ thống tưới & Đất',
-      render: (item) => (
-        <div className="text-[11px] text-slate-600 max-w-[200px]">
-          <div className="font-semibold text-slate-800 truncate">{item.irrigationSystem}</div>
-          <div className="text-slate-400 truncate mt-0.5">{item.soilCondition}</div>
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      title: 'Tình trạng',
-      align: 'center',
-      render: (item) => {
-        switch (item.status) {
-          case 'active':
-            return (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                Đang canh tác
-              </span>
-            );
-          case 'preparing':
-            return (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
-                <Clock className="w-3 h-3 text-amber-600" />
-                Đang làm đất
-              </span>
-            );
-          case 'replanting':
-            return (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[11px] font-bold text-blue-700">
-                <RefreshCw className="w-3 h-3 text-blue-600" />
-                Tái canh
-              </span>
-            );
-          default:
-            return null;
-        }
-      },
-    },
-    {
-      key: 'actions',
-      title: 'Thao tác',
-      align: 'center',
-      width: '150px',
-      render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
-            title="Xem chi tiết"
-            onClick={() => setDetailItem({ type: 'plots', data: item })}
-          >
-            <Settings2 className="h-3 w-3 text-slate-500" />
-            <span>Xem</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa"
-            onClick={() => handleOpenEditPlot(item)}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa"
-            onClick={() => handleDeletePlot(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
-      ),
-    },
-  ];
 
   // ============================================================================
   // CỘT BẢNG: 2. KHU VỰC THI CÔNG CÔNG TRÌNH
@@ -784,6 +707,14 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
       title: 'Trạng thái',
       align: 'center',
       render: (item) => {
+        const s = item.status as string;
+        if (s === 'inactive' || s === 'TAM_DUNG' || s === 'maintenance') {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+              Ngưng hoạt động
+            </span>
+          );
+        }
         switch (item.status) {
           case 'in_progress':
             return (
@@ -807,7 +738,11 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
               </span>
             );
           default:
-            return null;
+            return (
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+                Ngưng hoạt động
+              </span>
+            );
         }
       },
     },
@@ -815,40 +750,19 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
       key: 'actions',
       title: 'Thao tác',
       align: 'center',
-      width: '150px',
+      width: '120px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
-            title="Xem chi tiết"
-            onClick={() => setDetailItem({ type: 'construction', data: item })}
-          >
-            <Settings2 className="h-3 w-3 text-slate-500" />
-            <span>Xem</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa"
-            onClick={() => {
-              setEditingSite(item);
-              setShowSiteModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa"
-            onClick={() => handleDeleteSite(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => setDetailItem({ type: 'construction', data: item })}
+          onEdit={() => {
+            setEditingSite(item);
+            setShowSiteModal(true);
+          }}
+          onDelete={() => handleDeleteSite(item.id, item.name)}
+          viewTitle="Xem chi tiết điểm/công trình"
+          editTitle="Sửa điểm/công trình"
+          deleteTitle="Xóa điểm/công trình"
+        />
       ),
     },
   ];
@@ -924,11 +838,11 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
         item.status === 'active' ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            Hoạt động
+            Còn hoạt động
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
-            Bảo trì
+            Ngưng hoạt động
           </span>
         )
       ),
@@ -937,40 +851,19 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
       key: 'actions',
       title: 'Thao tác',
       align: 'center',
-      width: '150px',
+      width: '120px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
-            title="Xem chi tiết"
-            onClick={() => setDetailItem({ type: 'transport', data: item })}
-          >
-            <Settings2 className="h-3 w-3 text-slate-500" />
-            <span>Xem</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
-            title="Chỉnh sửa"
-            onClick={() => {
-              setEditingRoute(item);
-              setShowRouteModal(true);
-            }}
-          >
-            <Edit2 className="h-3 w-3 text-blue-600" />
-            <span>Sửa</span>
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors cursor-pointer"
-            title="Xóa"
-            onClick={() => handleDeleteRoute(item.id, item.name)}
-          >
-            <Trash2 className="h-3 w-3 text-rose-600" />
-            <span>Xóa</span>
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => setDetailItem({ type: 'transport', data: item })}
+          onEdit={() => {
+            setEditingRoute(item);
+            setShowRouteModal(true);
+          }}
+          onDelete={() => handleDeleteRoute(item.id, item.name)}
+          viewTitle="Xem chi tiết tuyến đường"
+          editTitle="Sửa tuyến đường"
+          deleteTitle="Xóa tuyến đường"
+        />
       ),
     },
   ];
@@ -989,7 +882,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý riêng biệt cho 3 phân hệ: Lô thửa Nông nghiệp (theo Xí nghiệp / Nông trường), Khu vực Công trình và Tuyến đường Vận chuyển.
+            Quản lý riêng biệt cho 2 phân hệ: Khu vực Công trình và Tuyến đường Vận chuyển.
           </p>
         </div>
 
@@ -1006,7 +899,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
                 setFilterPlotKLH(e.target.value);
               }}
             >
-              {KLH_OPTIONS.map((k) => (
+              {complexOptions.map((k) => (
                 <option key={k.code} value={k.code}>
                   {k.name}
                 </option>
@@ -1020,31 +913,8 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
         </div>
       </div>
 
-      {/* 2. STATS CARDS - 3 PHÂN HỆ ĐỊA BÀN RIÊNG BIỆT */}
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => handleTabChange('plots')}
-          className={`rounded-2xl border p-4 text-left transition-all hover:shadow-md cursor-pointer ${
-            activeTab === 'plots'
-              ? 'border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-600/20 shadow-xs'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-600">🌾 Lô thửa Nông nghiệp</span>
-            <div className="rounded-xl p-2 bg-emerald-50 text-emerald-700 shrink-0">
-              <Tractor className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 text-2xl font-black text-slate-900">
-            {filteredPlots.length} <span className="text-sm font-semibold text-slate-500">lô</span>
-          </div>
-          <div className="mt-1 text-[11px] text-emerald-800 font-medium truncate">
-            Tổng diện tích: {filteredPlots.reduce((acc, p) => acc + p.areaHa, 0).toFixed(1)} ha canh tác chuối & cỏ
-          </div>
-        </button>
-
+      {/* 2. STATS CARDS - 2 PHÂN HỆ ĐỊA BÀN RIÊNG BIỆT */}
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => handleTabChange('construction')}
@@ -1092,23 +962,11 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
         </button>
       </div>
 
-      {/* 3. MAIN TABLE SECTION VỚI THANH PHÂN ĐOẠN 3 TAB */}
+      {/* 3. MAIN TABLE SECTION VỚI THANH PHÂN ĐOẠN 2 TAB */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          {/* 3 Tabs Phân đoạn */}
+          {/* 2 Tabs Phân đoạn */}
           <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => handleTabChange('plots')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'plots'
-                  ? 'bg-white text-emerald-800 shadow-xs ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Tractor className="h-3.5 w-3.5 text-emerald-600" />
-              🌾 Lô thửa Nông nghiệp ({plots.length})
-            </button>
             <button
               type="button"
               onClick={() => handleTabChange('construction')}
@@ -1143,9 +1001,7 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={
-                  activeTab === 'plots'
-                    ? 'Tìm mã lô, tên lô, nông trường...'
-                    : activeTab === 'construction'
+                  activeTab === 'construction'
                     ? 'Tìm mã khu vực, tên hạng mục...'
                     : 'Tìm mã tuyến, điểm đi, điểm đến...'
                 }
@@ -1166,17 +1022,6 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
             </Button>
 
             {/* NÚT THÊM MỚI THEO TỪNG TAB */}
-            {activeTab === 'plots' && (
-              <Button
-                size="sm"
-                className="h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs"
-                icon={<Plus className="h-3.5 w-3.5" />}
-                onClick={handleOpenCreatePlot}
-              >
-                Thêm Lô thửa mới
-              </Button>
-            )}
-
             {activeTab === 'construction' && (
               <Button
                 size="sm"
@@ -1206,112 +1051,6 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
             )}
           </div>
         </div>
-
-        {/* TAB 1: LÔ THỬA NÔNG NGHIỆP - QUẢN LÝ PHÂN CẤP: KLH ➔ XÍ NGHIỆP ➔ NÔNG TRƯỜNG */}
-        {activeTab === 'plots' && (
-          <div className="space-y-3">
-            {/* Bộ lọc tiêu chí phân cấp trực quan cho Lô thửa */}
-            <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-red-600 uppercase tracking-wide">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  <span>Quản lý phân cấp: Khu liên hợp ➔ Xí nghiệp ➔ Nông trường ➔ Lô thửa</span>
-                </div>
-                {(filterPlotEnterprise || filterPlotFarm || filterPlotCode || filterPlotKLH !== 'ALL') && (
-                  <button
-                    type="button"
-                    onClick={handleResetPlotFilters}
-                    className="text-[11px] text-slate-500 hover:text-red-600 flex items-center gap-1 cursor-pointer font-medium"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    Xóa lọc
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Khu liên hợp
-                  </label>
-                  <SearchableSelect
-                    value={filterPlotKLH}
-                    onChange={(val) => {
-                      setFilterPlotKLH(val);
-                      setFilterPlotEnterprise('');
-                      setFilterPlotFarm('');
-                    }}
-                    options={[
-                      { value: 'ALL', label: 'Tất cả Khu liên hợp' },
-                      { value: 'KOUN_MOM', label: 'Khu liên hợp Koun Mom' },
-                      { value: 'SNOUL', label: 'Khu liên hợp Snoul' },
-                      { value: 'NAM_LAO', label: 'Khu liên hợp Nam Lào' },
-                    ]}
-                    emptyOptionLabel="Tất cả Khu liên hợp"
-                    heightClass="h-9"
-                    icon={<Building2 className="w-3.5 h-3.5" />}
-                    allowCustomInput={false}
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Xí nghiệp trực thuộc
-                  </label>
-                  <SearchableSelect
-                    value={filterPlotEnterprise}
-                    onChange={(val) => {
-                      setFilterPlotEnterprise(val);
-                      setFilterPlotFarm('');
-                    }}
-                    options={[{ value: '', label: '-- Tất cả xí nghiệp --' }, ...enterprisesForFilter]}
-                    placeholder="Tất cả xí nghiệp"
-                    emptyOptionLabel="Tất cả xí nghiệp"
-                    heightClass="h-9"
-                    icon={<Building2 className="w-3.5 h-3.5" />}
-                    allowCustomInput={true}
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Nông trường / Vùng trồng
-                  </label>
-                  <SearchableSelect
-                    value={filterPlotFarm}
-                    onChange={(val) => setFilterPlotFarm(val)}
-                    options={[{ value: '', label: '-- Tất cả nông trường --' }, ...farmsForFilter]}
-                    placeholder="Tất cả nông trường"
-                    emptyOptionLabel="Tất cả nông trường"
-                    heightClass="h-9"
-                    icon={<MapPin className="w-3.5 h-3.5" />}
-                    allowCustomInput={true}
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Mã Lô (Tăng dần)
-                  </label>
-                  <SearchableSelect
-                    value={filterPlotCode}
-                    onChange={(val) => setFilterPlotCode(val)}
-                    options={[{ value: '', label: '-- Tất cả mã lô --' }, ...plotCodeFilterOptions]}
-                    placeholder={`Tất cả mã (${plots.length})`}
-                    emptyOptionLabel={`Tất cả mã (${plots.length})`}
-                    heightClass="h-9"
-                    icon={<Tractor className="w-3.5 h-3.5" />}
-                    allowCustomInput={true}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <DataTable data={filteredPlots} columns={plotColumns} pageSize={15} showSearch={false} showExport={false} useGlobalFilters={false} />
-            </div>
-          </div>
-        )}
 
         {activeTab === 'construction' && (
           <div className="overflow-x-auto">
@@ -1875,8 +1614,8 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
             <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-slate-400 text-[11px] font-medium">Tên phân hệ địa bàn</span>
-                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 text-emerald-800 text-[10.5px] font-bold px-2 py-0.5 border border-emerald-300">
-                  {detailItem.type === 'plots' ? '🌾 Lô thửa Nông nghiệp' : detailItem.type === 'construction' ? '🚜 Khu vực Công trình' : '🚚 Tuyến đường Vận chuyển'}
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 text-amber-800 text-[10.5px] font-bold px-2 py-0.5 border border-amber-300">
+                  {detailItem.type === 'construction' ? '🚜 Khu vực Công trình' : '🚚 Tuyến đường Vận chuyển'}
                 </span>
               </div>
               <h3 className="font-extrabold text-base text-slate-900">{detailItem.data.name}</h3>
@@ -1884,38 +1623,6 @@ export const PlotsRoutesPage: React.FC<PlotsRoutesPageProps> = ({ defaultTab }) 
                 <p className="text-slate-600 text-xs mt-1 leading-relaxed">{detailItem.data.notes}</p>
               )}
             </div>
-
-            {detailItem.type === 'plots' && (() => {
-              const p = detailItem.data as AgriculturalPlotItem;
-              return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-slate-400 text-[11px] block">Xí nghiệp trực thuộc:</span>
-                    <span className="font-bold text-slate-900">{p.enterpriseName}</span>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-slate-400 text-[11px] block">Nông trường / Vùng:</span>
-                    <span className="font-bold text-slate-900">{p.farmName}</span>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-slate-400 text-[11px] block">Diện tích canh tác:</span>
-                    <span className="font-black text-emerald-700 text-sm">{p.areaHa} ha</span>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-slate-400 text-[11px] block">Loại cây trồng:</span>
-                    <span className="font-bold text-slate-900">{p.cropType}</span>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-slate-400 text-[11px] block">Hệ thống tưới:</span>
-                    <span className="font-semibold text-slate-800">{p.irrigationSystem}</span>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-slate-400 text-[11px] block">Chất đất:</span>
-                    <span className="font-semibold text-slate-800">{p.soilCondition}</span>
-                  </div>
-                </div>
-              );
-            })()}
 
             {detailItem.type === 'construction' && (() => {
               const s = detailItem.data as ConstructionSiteItem;

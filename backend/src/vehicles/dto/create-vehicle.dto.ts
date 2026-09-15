@@ -186,6 +186,12 @@ export class CreateVehicleDto {
   @IsNumber()
   currentLng?: number;
 
+  @ApiPropertyOptional({ example: 1, description: 'ID bãi tập kết quản lý của xe' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  homeDepotId?: number;
+
   @ApiPropertyOptional({ example: 'ĐQSD', description: 'Mã MMTB cũ' })
   @IsOptional()
   @IsString()

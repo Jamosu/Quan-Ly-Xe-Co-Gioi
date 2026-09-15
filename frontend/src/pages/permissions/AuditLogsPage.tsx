@@ -6,6 +6,8 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { StatCard } from '../../components/data-display/StatCard';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
 import {
   History,
   Download,
@@ -28,23 +30,93 @@ interface AuditEventItem {
   actionBtnText: string;
 }
 
+const DEFAULT_AUDIT_EVENTS: AuditEventItem[] = [
+  {
+    id: 'AUD-01',
+    title: 'Phê duyệt lệnh điều xe LDX-2026-001',
+    description: 'Điều động 2 máy kéo John Deere phục vụ cày ngầm tại Nông trường 1',
+    timeString: '14:30 14/09/2026',
+    ipAddress: '192.168.1.45',
+    actor: 'admin',
+    actionType: 'dispatch',
+    actionBtnText: 'Xem vết lệnh',
+  },
+  {
+    id: 'AUD-02',
+    title: 'Xuất phiếu cấp phát nhiên liệu DO-089',
+    description: 'Cấp 150 lít dầu DO 0.05S cho xe xúc lật Komatsu WA200',
+    timeString: '11:15 14/09/2026',
+    ipAddress: '192.168.1.88',
+    actor: 'thu_kho_dau',
+    actionType: 'fuel',
+    actionBtnText: 'Xem vết cấp dầu',
+  },
+  {
+    id: 'AUD-03',
+    title: 'Điều chỉnh định mức tiêu hao dầu Nông nghiệp',
+    description: 'Cập nhật định mức làm đất sâu từ 28 lít/ha sang 27.5 lít/ha',
+    timeString: '09:00 13/09/2026',
+    ipAddress: '192.168.1.12',
+    actor: 'quanly.kounmom',
+    actionType: 'plan_change',
+    actionBtnText: 'Xem thay đổi',
+  },
+];
+
 export const AuditLogsPage: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<AuditEventItem | null>(null);
   const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
-  const [eventsList, setEventsList] = useState<AuditEventItem[]>([]);
+  const [eventsList, setEventsList] = useState<AuditEventItem[]>(DEFAULT_AUDIT_EVENTS);
 
   const columns: Column<AuditEventItem>[] = [
-    { key: 'timeString', title: 'THỜI GIAN', sortable: true, render: (row) => <span className="font-mono text-xs text-slate-600">{row.timeString}</span> },
-    { key: 'title', title: 'HÀNH ĐỘNG AUDIT', sortable: true, render: (row) => <strong className="text-slate-900 text-xs">{row.title}</strong> },
-    { key: 'actor', title: 'NGƯỜI THỰC HIỆN', render: (row) => <strong className="text-primary text-xs">{row.actor}</strong> },
-    { key: 'ipAddress', title: 'IP TRUY CẬP', render: (row) => <span className="font-mono text-xs text-slate-500">{row.ipAddress}</span> },
+    { key: 'timeString', title: 'Thời gian', sortable: true, render: (row) => <span className="font-mono text-xs text-slate-600">{row.timeString}</span> },
+    { key: 'title', title: 'Hành động Audit', sortable: true, render: (row) => <strong className="text-slate-900 text-xs">{row.title}</strong> },
+    { key: 'actor', title: 'Người thực hiện', render: (row) => <strong className="text-primary text-xs">{row.actor}</strong> },
+    { key: 'ipAddress', title: 'IP truy cập', render: (row) => <span className="font-mono text-xs text-slate-500">{row.ipAddress}</span> },
     {
-      key: 'actionBtnText',
-      title: 'THAO TÁC',
+      key: 'status',
+      title: 'Trạng thái',
+      align: 'center',
+      width: '110px',
+      render: () => (
+        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+          Thành công
+        </span>
+      ),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (row) => (
-        <Button variant="outline" size="sm" onClick={() => setSelectedEvent(row)}>
-          {row.actionBtnText}
-        </Button>
+        <AuditUserPopover
+          createdDate={row.timeString.split(' ')[1] || '14-09-2026'}
+          createdUser={row.actor}
+          updatedDate={row.timeString.split(' ')[1] || '14-09-2026'}
+          updatedUser={row.actor}
+          title={`Xem thông tin audit của ${row.title}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (row) => (
+        <TableRowActions
+          onView={() => setSelectedEvent(row)}
+          onEdit={() => setSelectedEvent(row)}
+          onDelete={() => {
+            if (window.confirm(`Xóa bản ghi nhật ký: "${row.title}"?`)) {
+              setEventsList((prev) => prev.filter((e) => e.id !== row.id));
+            }
+          }}
+          viewTitle="Xem chi tiết nhật ký"
+          editTitle="Xem sự kiện"
+          deleteTitle="Xóa nhật ký"
+        />
       ),
     },
   ];

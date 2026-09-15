@@ -38,14 +38,13 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { DataTable, Column } from '../../components/data-display/DataTable';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
 import { StatusBadge, ViewSwitcher } from '../../components/operations/OperationUi';
 import { useAppStore } from '../../store/useAppStore';
 import { operationsApi } from '../../api/operations';
-import { SosRescueModal } from '../../components/dispatch/SosRescueModal';
-import type { DispatchOrderRecord } from '../../types';
-import { parseScheduledDays, getDaysInRange, getDayActualDate } from './CreateProductionPlanPage';
 import { matchesKLH } from '../../utils/filterUtils';
 
 // ============================================================================
@@ -501,27 +500,14 @@ export function normalizePlanStatuses(items: WeeklyPlanItem[]): WeeklyPlanItem[]
 export const ProductionPlanPage: React.FC = () => {
   const navigate = useNavigate();
   const [view, setView] = useState<'weekly_cards' | 'table'>('weekly_cards');
-  const [showSosModal, setShowSosModal] = useState(false);
 
   // Quản lý danh sách kế hoạch tuần lấy từ Database
-  const [plans, setPlans] = useState<WeeklyPlanItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('thaco_weekly_agri_plans_v7');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const pure = parsed.filter(isPureAgriPlan);
-          if (pure.length > 0) return normalizePlanStatuses(pure);
-        }
-      }
-    } catch {}
-    return [];
-  });
+  const [plans, setPlans] = useState<WeeklyPlanItem[]>([]);
 
   // Tải danh sách kế hoạch: Ưu tiên nạp từ API nếu có, đồng thời giữ các kế hoạch người dùng vừa tạo
   const loadPlansFromApi = useCallback(async (isRefresh = false) => {
     try {
-      const res = await operationsApi.plans({ limit: 100 });
+      const res = await operationsApi.plans({ limit: 100, planType: 'AGRICULTURE' });
       let apiPlans: WeeklyPlanItem[] = [];
       if (res && Array.isArray(res.items) && res.items.length > 0) {
         apiPlans = res.items
@@ -562,23 +548,8 @@ export const ProductionPlanPage: React.FC = () => {
           .filter(isPureAgriPlan);
       }
 
-      // Đọc các kế hoạch do người dùng vừa tạo (nếu có)
-      let localPlans: WeeklyPlanItem[] = [];
-      try {
-        const saved = localStorage.getItem('thaco_weekly_agri_plans_v7');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) localPlans = parsed.filter(isPureAgriPlan);
-        }
-      } catch {}
-
-      const planMap = new Map<string, WeeklyPlanItem>();
-      apiPlans.forEach((p) => planMap.set(p.code, p));
-      localPlans.forEach((p) => planMap.set(p.code, p));
-
-      const combined = normalizePlanStatuses(Array.from(planMap.values()));
+      const combined = normalizePlanStatuses(apiPlans);
       setPlans(combined);
-      localStorage.setItem('thaco_weekly_agri_plans_v7', JSON.stringify(combined));
 
       if (isRefresh && combined.length > 0) {
         useAppStore.getState().setHeaderAlert({
@@ -597,9 +568,6 @@ export const ProductionPlanPage: React.FC = () => {
     loadPlansFromApi();
   }, [loadPlansFromApi]);
 
-  useEffect(() => {
-    localStorage.setItem('thaco_weekly_agri_plans_v7', JSON.stringify(plans));
-  }, [plans]);
 
   // Lắng nghe sự kiện làm mới từ nút trên Header
   useEffect(() => {
@@ -721,6 +689,8 @@ export const ProductionPlanPage: React.FC = () => {
 
   // Khởi tạo Modal thêm mới
   const handleOpenCreateModal = () => {
+    navigate('/lenh-dieu-xe/ke-hoach/nong-nghiep/tao-moi');
+    return;
     setEditingPlan(null);
     const mon = getMonday(new Date());
     const monStr = toDateKey(mon);
@@ -784,6 +754,8 @@ export const ProductionPlanPage: React.FC = () => {
 
   // Mở modal sửa kế hoạch
   const handleOpenEditModal = (plan: WeeklyPlanItem) => {
+    navigate(`/lenh-dieu-xe/ke-hoach/nong-nghiep/tao-moi?editPlanId=${plan.id}`);
+    return;
     setEditingPlan(plan);
     const planMon = getMonday(new Date(plan.startDate));
     setFormYear(planMon.getFullYear());
@@ -976,128 +948,22 @@ export const ProductionPlanPage: React.FC = () => {
         }
       } catch (err) {
         console.warn('Could not delete plan from backend:', err);
+        alert('Không thể xóa kế hoạch đã duyệt. Hãy dùng nghiệp vụ hủy kế hoạch để giữ lịch sử.');
+        return;
       }
       setPlans((prev) => prev.filter((p) => p.id !== id));
       if (selectedPlanDetail?.id === id) setSelectedPlanDetail(null);
     }
   };
 
-  const issueAgricultureOrders = (plan: WeeklyPlanItem, requestedTasks: WeeklyTaskItem[]) => {
-    const storageKey = 'thaco_agriculture_dispatch_orders_v1';
-    const existing = JSON.parse(localStorage.getItem(storageKey) || '[]') as DispatchOrderRecord[];
-    const created: DispatchOrderRecord[] = [];
-    requestedTasks.filter((task) => task.status !== 'DISPATCHED').forEach((task, tIdx) => {
-      const count = Math.max(1, task.assignedVehiclesCount || 1);
-      const { fromDay, toDay } = parseScheduledDays(task.scheduledDays);
-      const days = getDaysInRange(fromDay, toDay);
-      const totalDays = days.length;
-
-      days.forEach((dayName, dayIdx) => {
-        const dayDate = getDayActualDate(dayName, plan.startDate);
-        const dayDateStr = dayDate.toISOString().slice(0, 10);
-        const dayDateDisplay = `${String(dayDate.getDate()).padStart(2, '0')}/${String(dayDate.getMonth() + 1).padStart(2, '0')}`;
-        const noteParts: string[] = [];
-        if (plan.notes) noteParts.push(`[Ghi chú kế hoạch]: ${plan.notes}`);
-        if (task.notes) noteParts.push(`[Ghi chú công việc]: ${task.notes}`);
-
-        const planYear = plan.startDate ? new Date(plan.startDate).getFullYear() : new Date().getFullYear();
-        const planWeek = plan.weekNumber || getWeekNumber(plan.startDate || new Date());
-        const planMatch = (plan.code || '').match(/([A-Za-z0-9]+)$/);
-        const planIdPart = planMatch ? planMatch[1] : (plan.id ? String(plan.id).slice(-4) : '0001');
-
-        for (let index = 1; index <= count; index += 1) {
-          const code = `LDX-NN-${planYear}-W${planWeek}-${planIdPart}-D${dayIdx + 1}-${index}`;
-          if (existing.some((order) => order.code === code) || created.some((order) => order.code === code)) continue;
-          created.push({
-            id: Date.now() + created.length + tIdx * 100 + dayIdx * 10 + index,
-            code,
-            sourceType: 'PRODUCTION_ORDER',
-            unit: plan.farmCode?.endsWith('02') ? 'NT2' : 'NT1',
-            purpose: totalDays > 1
-              ? `${task.jobName} (Xe ${index}/${count}) - ${dayName} (${dayDateDisplay} • Ngày ${dayIdx + 1}/${totalDays})`
-              : `${task.jobName} (Xe ${index}/${count}) - ${dayName} (${dayDateDisplay})`,
-            origin: `Bãi máy ${plan.farmName || plan.enterpriseName || plan.complexName}`,
-            destination: task.lotPlot,
-            departureTime: new Date(`${dayDateStr}T07:00:00.000Z`).toISOString(),
-            plannedEndTime: new Date(`${dayDateStr}T17:00:00.000Z`).toISOString(),
-            status: 'PENDING_APPROVAL',
-            isDelayed: false,
-            notes: noteParts.length > 0 ? noteParts.join('\n') : undefined,
-            planNotes: plan.notes || '',
-            taskNotes: task.notes || '',
-          });
-        }
-      });
-    });
-    localStorage.setItem(storageKey, JSON.stringify([...created, ...existing]));
-
-    // Đồng bộ vào Master Dispatch Orders Storage
-    try {
-      const masterKey = 'thaco_all_dispatch_orders_master_v4';
-      const masterExisting = JSON.parse(localStorage.getItem(masterKey) || '[]') as any[];
-      const masterCreated: any[] = [];
-      requestedTasks.forEach((task, tIdx) => {
-        const count = Math.max(1, task.assignedVehiclesCount || 1);
-        const { fromDay, toDay } = parseScheduledDays(task.scheduledDays);
-        const days = getDaysInRange(fromDay, toDay);
-        const totalDays = days.length;
-
-        days.forEach((dayName, dayIdx) => {
-          const dayDate = getDayActualDate(dayName, plan.startDate);
-          const dayDateStr = dayDate.toISOString().slice(0, 10);
-          const dayDateDisplay = `${String(dayDate.getDate()).padStart(2, '0')}/${String(dayDate.getMonth() + 1).padStart(2, '0')}`;
-          const noteParts: string[] = [];
-          if (plan.notes) noteParts.push(`[Ghi chú kế hoạch]: ${plan.notes}`);
-          if (task.notes) noteParts.push(`[Ghi chú công việc]: ${task.notes}`);
-
-          const planYear = plan.startDate ? new Date(plan.startDate).getFullYear() : new Date().getFullYear();
-          const planWeek = plan.weekNumber || getWeekNumber(plan.startDate || new Date());
-          const planMatch = (plan.code || '').match(/([A-Za-z0-9]+)$/);
-          const planIdPart = planMatch ? planMatch[1] : (plan.id ? String(plan.id).slice(-4) : '0001');
-
-          for (let index = 1; index <= count; index += 1) {
-            const code = `LDX-NN-${planYear}-W${planWeek}-${planIdPart}-D${dayIdx + 1}-${index}`;
-            if (masterExisting.some((order) => order.code === code) || masterCreated.some((order) => order.code === code)) continue;
-            masterCreated.push({
-              id: Date.now() + masterCreated.length + tIdx * 100 + dayIdx * 10 + index,
-              code,
-              orderCategory: 'NONG_NGHIEP',
-              categoryLabel: 'Nông nghiệp',
-              sourceType: 'PRODUCTION_ORDER',
-              unit: plan.farmName || plan.enterpriseName || 'Nông trường 1',
-              purpose: totalDays > 1
-                ? `${task.jobName} (Xe ${index}/${count}) - ${dayName} (${dayDateDisplay} • Ngày ${dayIdx + 1}/${totalDays})`
-                : `${task.jobName} (Xe ${index}/${count}) - ${dayName} (${dayDateDisplay})`,
-              origin: `Bãi máy ${plan.farmName || plan.enterpriseName || plan.complexName || 'Trung tâm'}`,
-              destination: task.lotPlot || 'Lô quy hoạch',
-              departureTime: new Date(`${dayDateStr}T06:30:00.000Z`).toISOString(),
-              plannedEndTime: new Date(`${dayDateStr}T17:30:00.000Z`).toISOString(),
-              status: 'CHO_PHAN_CONG',
-              isDelayed: false,
-              workVolumeTarget: totalDays > 1 ? Math.round((Number(task.targetAreaHa) / totalDays) * 10) / 10 : Number(task.targetAreaHa) || 0,
-              workVolumeUnit: 'Ha',
-              notes: noteParts.length > 0 ? noteParts.join('\n') : (task.notes || 'Nạp tự động từ Kế hoạch cơ giới sản xuất tuần'),
-              planNotes: plan.notes || '',
-              taskNotes: task.notes || '',
-            });
-          }
-        });
-      });
-      if (masterCreated.length > 0) {
-        localStorage.setItem(masterKey, JSON.stringify([...masterCreated, ...masterExisting]));
-      }
-    } catch (mErr) {
-      console.warn('Sync master dispatch failed:', mErr);
-    }
-
-    setPlans((current) => current.map((item) => item.id === plan.id ? {
-      ...item,
-      status: item.status === 'APPROVED' ? 'IN_PROGRESS' : item.status,
-      tasks: item.tasks.map((task) => requestedTasks.some((requested) => requested.id === task.id) ? { ...task, status: 'DISPATCHED' } : task),
-    } : item));
-    useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã nạp ${created.length} lệnh nông nghiệp sang hàng chờ phân công.` });
+  const openGeneratedOrders = (plan: WeeklyPlanItem) => {
     setSelectedPlanDetail(null);
-    navigate(`/lenh-dieu-xe/danh-sach?week=${plan.weekNumber}&planCode=${encodeURIComponent(plan.code)}`);
+    navigate(`/lenh-dieu-xe/danh-sach?planId=${encodeURIComponent(plan.id)}&week=${plan.weekNumber}&planCode=${encodeURIComponent(plan.code)}`);
+  };
+
+  const openGeneratedTaskOrder = (plan: WeeklyPlanItem, task: WeeklyTaskItem) => {
+    setSelectedPlanDetail(null);
+    navigate(`/lenh-dieu-xe/tao-moi?planId=${encodeURIComponent(plan.id)}&itemId=${encodeURIComponent(task.id)}&category=AGRICULTURE`);
   };
 
   // Lọc kế hoạch theo Tìm kiếm, KLH, Trạng thái, Giai đoạn và Tuần
@@ -1441,49 +1307,43 @@ export const ProductionPlanPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: <span className="whitespace-nowrap font-bold text-slate-700">Thao tác</span>,
+      key: 'user',
+      title: 'User',
+      width: '70px',
       align: 'center',
-      width: '115px',
       render: (row) => (
-        <div className="flex flex-col items-center justify-center gap-1.5 whitespace-nowrap py-1">
-          {/* Hàng trên: Các nút icon Xem chi tiết, Chỉnh sửa, Xóa */}
-          <div className="flex items-center justify-center gap-1.5">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center h-6.5 w-6.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-              title="Xem chi tiết kế hoạch"
-              onClick={() => navigate(`/lenh-dieu-xe/ke-hoach/tao-moi?editPlanId=${row.planId}&mode=view`)}
-            >
-              <Eye className="h-3.5 w-3.5 text-slate-500" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center h-6.5 w-6.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer"
-              title="Chỉnh sửa kế hoạch"
-              onClick={() => navigate(`/lenh-dieu-xe/ke-hoach/tao-moi?editPlanId=${row.planId}`)}
-            >
-              <Edit2 className="h-3.5 w-3.5 text-blue-600" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center h-6.5 w-6.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors cursor-pointer"
-              title="Xóa kế hoạch"
-              onClick={() => handleDeletePlan(row.planId, row.planTitle)}
-            >
-              <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-            </button>
-          </div>
-
-          {/* Hàng dưới: Trạng thái nạp điều xe */}
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa kế hoạch ${row.planCode}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '140px',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap py-1">
+          <TableRowActions
+            onView={() => navigate(`/lenh-dieu-xe/ke-hoach/tao-moi?editPlanId=${row.planId}&mode=view`)}
+            onEdit={() => navigate(`/lenh-dieu-xe/ke-hoach/tao-moi?editPlanId=${row.planId}`)}
+            onDelete={() => handleDeletePlan(row.planId, row.planTitle)}
+            viewTitle="Xem chi tiết kế hoạch"
+            editTitle="Chỉnh sửa kế hoạch"
+            deleteTitle="Xóa kế hoạch"
+          />
+          {/* Giữ nguyên icon điều xe */}
           <button
             type="button"
-            onClick={() => issueAgricultureOrders(row.rawPlan, [row.rawTask])}
-            className="h-6 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-md border border-emerald-200 cursor-pointer px-2 shrink-0 flex items-center gap-1 shadow-2xs transition-colors"
-            title="Nạp công việc này sang danh sách điều xe"
+            onClick={() => openGeneratedTaskOrder(row.rawPlan, row.rawTask)}
+            className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 cursor-pointer transition-colors"
+            title="Xem lệnh điều xe được sinh từ kế hoạch"
           >
-            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
-            <span>Tự động nạp</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           </button>
         </div>
       ),
@@ -1992,12 +1852,12 @@ export const ProductionPlanPage: React.FC = () => {
                         <td className="py-2 px-2 text-center">
                           <button
                             type="button"
-                            onClick={() => issueAgricultureOrders(plan, [task])}
+                            onClick={() => openGeneratedTaskOrder(plan, task)}
                             className="inline-flex items-center gap-1 h-7 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer px-2.5 shadow-2xs transition-colors"
-                            title="Nạp công việc này sang danh sách điều xe"
+                            title="Xem lệnh được sinh từ kế hoạch"
                           >
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                            <span>Tự động nạp</span>
+                            <span>Xem lệnh</span>
                           </button>
                         </td>
                       </tr>
@@ -2138,7 +1998,7 @@ export const ProductionPlanPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => issueAgricultureOrders(plan, plan.tasks)}
+                        onClick={() => openGeneratedOrders(plan)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl shadow-2xs cursor-pointer transition-all active:scale-98"
                         title="Xem các lệnh điều xe của kế hoạch này"
                       >
@@ -2219,12 +2079,12 @@ export const ProductionPlanPage: React.FC = () => {
                             <td className="py-2.5 px-3 text-center">
                               <button
                                 type="button"
-                                onClick={() => issueAgricultureOrders(plan, [task])}
+                                onClick={() => openGeneratedTaskOrder(plan, task)}
                                 className="inline-flex items-center gap-1 h-7 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer px-2.5 shadow-2xs transition-colors"
-                                title="Nạp công việc này sang danh sách điều xe"
+                                title="Xem lệnh được sinh từ kế hoạch"
                               >
                                 <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                <span>Tự động nạp</span>
+                                <span>Xem lệnh</span>
                               </button>
                             </td>
                           </tr>
@@ -2845,8 +2705,8 @@ export const ProductionPlanPage: React.FC = () => {
                 size="sm"
                 icon={<Truck className="h-3.5 w-3.5" />}
                 onClick={() => {
+                  if (selectedPlanDetail) openGeneratedOrders(selectedPlanDetail);
                   setSelectedPlanDetail(null);
-                  navigate('/lenh-dieu-xe/danh-sach');
                 }}
               >
                 Xem danh sách điều xe
@@ -2856,11 +2716,6 @@ export const ProductionPlanPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* SOS Emergency Rescue Modal */}
-      <SosRescueModal
-        isOpen={showSosModal}
-        onClose={() => setShowSosModal(false)}
-      />
     </div>
   );
 };

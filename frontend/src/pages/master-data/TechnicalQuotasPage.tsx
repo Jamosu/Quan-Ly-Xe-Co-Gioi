@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
@@ -6,7 +6,12 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { StatCard } from '../../components/data-display/StatCard';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { catalogsApi } from '../../api/catalogsApi';
+import { CatalogItem } from '../../data/catalogData';
 import {
+  FileSpreadsheet,
   FileText,
   Plus,
   Download,
@@ -14,6 +19,10 @@ import {
   Truck,
   Wrench,
   Calendar,
+  CheckCircle2,
+  AlertTriangle,
+  Sliders,
+  Award,
 } from 'lucide-react';
 
 interface TechQuotaStandard {
@@ -28,10 +37,30 @@ interface TechQuotaStandard {
   status: 'active' | 'reviewing';
 }
 
+const mapCatalogToTechnicalQuota = (item: CatalogItem): TechQuotaStandard => ({
+  id: item.id,
+  quotaCode: item.code,
+  quotaName: item.name,
+  targetObject: item.description?.match(/Đối tượng:\s*([^|]+)/)?.[1]?.trim() || 'Xe máy cơ giới',
+  productivityPerShift: item.description?.match(/Năng suất:\s*([^|]+)/)?.[1]?.trim() || 'Theo ca 8h',
+  laborHoursQuota: item.description?.match(/Giờ công:\s*([^|]+)/)?.[1]?.trim() || '8 giờ / ca',
+  tolerance: item.description?.match(/Dung sai:\s*([^|]+)/)?.[1]?.trim() || '± 5%',
+  effectiveDate: item.description?.match(/Ngày ban hành:\s*([^|]+)/)?.[1]?.trim() || '01/01/2026',
+  status: item.status === 'HOAT_DONG' ? 'active' : 'reviewing',
+});
+
 export const TechnicalQuotasPage: React.FC = () => {
   const [selectedQuota, setSelectedQuota] = useState<TechQuotaStandard | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [quotasList, setQuotasList] = useState<TechQuotaStandard[]>([]);
+
+  useEffect(() => {
+    catalogsApi.getCatalogs('TECHNICAL_QUOTA', 'catalogs_technical_quotas').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setQuotasList(items.map(mapCatalogToTechnicalQuota));
+      }
+    });
+  }, []);
 
   const columns: Column<TechQuotaStandard>[] = [
     {
@@ -52,8 +81,49 @@ export const TechnicalQuotasPage: React.FC = () => {
     { key: 'effectiveDate', title: 'NGÀY BAN HÀNH' },
     {
       key: 'status',
-      title: 'TRẠNG THÁI',
-      render: () => <Badge variant="green">Đang áp dụng</Badge>,
+      title: 'Trạng thái',
+      align: 'center',
+      width: '110px',
+      render: () => (
+        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+          Hoạt động
+        </span>
+      ),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (row) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${row.quotaName}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (row) => (
+        <TableRowActions
+          onView={() => setSelectedQuota(row)}
+          onEdit={() => setSelectedQuota(row)}
+          onDelete={() => {
+            if (window.confirm(`Xóa định mức: "${row.quotaName}"?`)) {
+              setQuotasList((prev) => prev.filter((q) => q.id !== row.id));
+            }
+          }}
+          viewTitle="Xem định mức"
+          editTitle="Sửa định mức"
+          deleteTitle="Xóa định mức"
+        />
+      ),
     },
   ];
 

@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
-  Search,
   ChevronDown,
   User,
   Shield,
@@ -13,26 +12,160 @@ import {
   CheckCircle2,
   Info,
   X,
+  MapPin,
 } from 'lucide-react';
 import { useAppStore, HeaderAlert } from '../store/useAppStore';
-import { MOCK_SYSTEM_ALERTS } from '../api/mockData';
+import { apiClient } from '../api/client';
 
 import { KlhHeaderFilter } from '../components/filters/KlhHeaderFilter';
-import { SosRescueModal } from '../components/dispatch/SosRescueModal';
+
+const alertDisplayDate = (alert: { category?: string; metadataJson?: { expiryDate?: string } | null; createdAt?: string | Date }) => {
+  if (alert.category === 'COMPLIANCE' && alert.metadataJson?.expiryDate) {
+    const [year, month, day] = alert.metadataJson.expiryDate.split('-');
+    return `${day}/${month}/${year}`;
+  }
+  return alert.createdAt
+    ? new Date(alert.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+    : '';
+};
 
 export const Topbar: React.FC = () => {
   const {
     activeEmergencyCount,
+    systemAlerts,
     selectedKLH,
     isGlobalRefreshing,
     setGlobalRefreshing,
     headerAlert,
     setHeaderAlert,
+    setSystemAlerts,
+    markAlertRead,
+    currentUser,
+    logout,
   } = useAppStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showSosModal, setShowSosModal] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Đóng dropdown khi click bên ngoài
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
+  // Tự động đóng dropdown khi chuyển trang
+  useEffect(() => {
+    setShowNotifications(false);
+    setShowUserMenu(false);
+  }, [location.pathname]);
+
+  // ── Fetch real alerts from /alerts API ──────────────────────────────────
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const complexParam = selectedKLH !== 'ALL' ? selectedKLH : undefined;
+      const res = await apiClient.get('/alerts', { params: { limit: 50, complexCode: complexParam } });
+      const payload = res.data?.data || res.data;
+      const items = Array.isArray(payload) ? payload : payload?.items || [];
+      if (Array.isArray(items)) {
+        setSystemAlerts(items);
+      }
+    } catch {
+      // Silent fail – bell badge stays at 0 if API unreachable
+    }
+  }, [selectedKLH, setSystemAlerts]);
+
+  useEffect(() => {
+    void fetchAlerts();
+    // Re-poll every 60 seconds to keep badge fresh
+    const timer = setInterval(() => void fetchAlerts(), 60_000);
+    const refresh = () => void fetchAlerts();
+    window.addEventListener('thaco_alerts_refresh', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('thaco_alerts_refresh', refresh);
+    };
+  }, [fetchAlerts]);
+
+  const unreadAlerts = systemAlerts.filter((alert) => !alert.isRead);
+  const openAlert = async (alert: (typeof systemAlerts)[number]) => {
+    if (!alert.isRead) {
+      try {
+        const response = await apiClient.patch(`/alerts/${alert.id}/read`);
+        const payload = response.data?.data || response.data;
+        markAlertRead(alert.id, payload?.readAt);
+      } catch {
+        return;
+      }
+    }
+    setShowNotifications(false);
+    navigate(`/canh-bao/chua-xu-ly?alertId=${alert.id}`);
+  };
+
+  const handleLogout = () => {
+    setShowUserMenu(false);
+    logout();
+    navigate('/login');
+  };
+
+  const getRoleBadge = (role?: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return { label: 'Quản trị viên', color: 'bg-purple-100 text-purple-800' };
+      case 'FARM_MANAGER':
+      case 'DISPATCHER':
+      case 'WORKSHOP_MANAGER':
+      case 'FUEL_STOREKEEPER':
+        return { label: 'Nhân sự quản lý', color: 'bg-emerald-100 text-emerald-800' };
+      case 'DRIVER':
+        return { label: 'Tài xế', color: 'bg-amber-100 text-amber-800' };
+      default:
+        return { label: 'Người dùng', color: 'bg-slate-100 text-slate-800' };
+    }
+  };
+
+  const roleInfo = getRoleBadge(currentUser?.role);
+  const displayName = currentUser?.fullName || currentUser?.username || 'Người dùng';
+  const displayEmail = currentUser?.email || `${currentUser?.username || 'user'}@thacoagri.com.vn`;
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(-2)
+    .join('')
+    .toUpperCase() || 'QL';
+
+  const getKlhName = () => {
+    if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.username === 'admin') {
+      return 'Toàn bộ 3 KLH';
+    }
+    const raw = (currentUser?.assignedUnit || currentUser?.unit || currentUser?.complexName || currentUser?.complexCode || currentUser?.username || '').toUpperCase();
+    if (raw.includes('SNOUL') || raw.includes('SN')) return 'KLH Snoul';
+    if (raw.includes('NAMLAO') || raw.includes('NAM_LAO') || raw.includes('LAO') || raw.includes('NL')) return 'KLH Nam Lào';
+    return 'KLH Koun Mom';
+  };
+  const klhName = getKlhName();
 
   // Listen to custom header alert events from any page / component
   useEffect(() => {
@@ -61,12 +194,18 @@ export const Topbar: React.FC = () => {
     };
   }, [setHeaderAlert]);
 
-  // Auto-dismiss success / info alerts after 4 seconds (error and warning persist until dismissed or refreshed)
+  // Tự động xóa cảnh báo cũ khi chuyển trang
   useEffect(() => {
-    if (headerAlert && (headerAlert.type === 'success' || headerAlert.type === 'info')) {
+    setHeaderAlert(null);
+  }, [location.pathname, setHeaderAlert]);
+
+  // Tự động ẩn thông báo: success/info sau 4s, error/warning sau 5s (người dùng không cần bấm tắt thủ công)
+  useEffect(() => {
+    if (headerAlert) {
+      const duration = headerAlert.type === 'error' || headerAlert.type === 'warning' ? 5000 : 4000;
       const timer = setTimeout(() => {
         setHeaderAlert(null);
-      }, 4000);
+      }, duration);
       return () => clearTimeout(timer);
     }
   }, [headerAlert, setHeaderAlert]);
@@ -86,9 +225,6 @@ export const Topbar: React.FC = () => {
       window.location.reload();
     }, 350);
   };
-
-  // Dynamic breadcrumb label
-  const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between min-w-0">
@@ -173,7 +309,7 @@ export const Topbar: React.FC = () => {
       <div className="flex items-center gap-2.5 shrink-0">
 
         {/* SOS Emergency Bell */}
-        <div className="relative">
+        <div className="relative" ref={notificationRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 relative transition-colors"
@@ -189,13 +325,17 @@ export const Topbar: React.FC = () => {
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-50 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="absolute right-0 mt-2 w-[360px] bg-white rounded-xl shadow-xl border border-slate-200 z-50 animate-in fade-in zoom-in-95 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/80">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-xs text-slate-900 font-heading">Cảnh báo vận hành cần xử lý</span>
-                  <span className="bg-rose-100 text-rose-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                    {MOCK_SYSTEM_ALERTS.length} mới
-                  </span>
+                  <Bell className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="font-bold text-xs text-slate-900">Cảnh báo vận hành cần xử lý</span>
+                  {unreadAlerts.length > 0 && (
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                      {unreadAlerts.length}
+                    </span>
+                  )}
                 </div>
                 <NavLink
                   to="/canh-bao/chua-xu-ly"
@@ -206,18 +346,60 @@ export const Topbar: React.FC = () => {
                 </NavLink>
               </div>
 
-              <div className="divide-y divide-slate-100 my-2 max-h-72 overflow-y-auto">
-                {MOCK_SYSTEM_ALERTS.map((alert) => (
-                  <div key={alert.id} className="py-2.5 hover:bg-slate-50 px-2 rounded-lg transition-colors cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-900">{alert.plateNumber}</span>
-                      <span className="text-[10px] text-slate-400">{alert.occurredAt.slice(11, 16)}</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-1 line-clamp-2">{alert.description}</p>
-                    <div className="text-[10px] text-emerald-700 font-semibold mt-1">📍 {alert.location}</div>
+              {/* Alert list */}
+              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                {unreadAlerts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-300" />
+                    <p className="text-xs font-semibold text-slate-500">Không có cảnh báo tồn đọng</p>
+                    <p className="text-[11px] text-slate-400">Hệ thống đang hoạt động an toàn</p>
                   </div>
-                ))}
+                ) : (
+                  unreadAlerts.slice(0, 8).map((alert, idx) => {
+                    const isCrit = alert.severity === 'CRITICAL';
+                    const isWarn = alert.severity === 'WARNING';
+                    return (
+                      <div
+                        key={String(alert.id) || idx}
+                        className="px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
+                        onClick={() => void openAlert(alert)}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black border ${
+                            isCrit ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : isWarn ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}>
+                            {isCrit ? '!' : isWarn ? '⚠' : 'ℹ'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">{alert.title}</p>
+                            {alert.vehicle?.plate && (
+                              <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                <span className="font-mono font-semibold text-slate-700">{alert.vehicle.plate}</span>
+                                {alert.location && <><span className="text-slate-300">·</span><MapPin className="w-2.5 h-2.5 text-slate-400" /><span className="truncate">{alert.location}</span></>}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                            {alertDisplayDate(alert)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
+
+              {/* Footer */}
+              {unreadAlerts.length > 8 && (
+                <div className="px-4 py-2 border-t border-slate-100 text-center">
+                  <NavLink to="/canh-bao/chua-xu-ly" onClick={() => setShowNotifications(false)}
+                    className="text-[11px] font-semibold text-emerald-700 hover:underline">
+                    Xem thêm {unreadAlerts.length - 8} cảnh báo khác
+                  </NavLink>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -225,27 +407,44 @@ export const Topbar: React.FC = () => {
         <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
         {/* User Profile */}
-        <div className="relative">
+        <div className="relative" ref={userMenuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-lg hover:bg-slate-50 transition-all text-left"
+            className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-xl hover:bg-slate-50 transition-all text-left border border-transparent hover:border-slate-200"
           >
-            <div className="w-8 h-8 rounded-full bg-[#dcebe4] text-[#135c3f] flex items-center justify-center font-bold text-xs shrink-0">
-              LT
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0 border border-emerald-200">
+              {initials}
             </div>
             <div className="hidden md:block">
-              <div className="text-xs font-bold text-slate-800 leading-tight">Chau Tiểu Long</div>
-              <div className="text-[10px] text-slate-400">Quản trị hệ thống</div>
+              <div className="text-xs font-bold text-slate-800 leading-tight flex items-center gap-1.5">
+                {displayName}
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${roleInfo.color}`}>
+                  {roleInfo.label}
+                </span>
+                <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  {klhName}
+                </span>
+              </div>
             </div>
             <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block" />
           </button>
 
           {/* User Profile Dropdown Menu */}
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in zoom-in-95">
+            <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in zoom-in-95">
               <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                <div className="text-xs font-bold text-slate-800">Chau Tiểu Long</div>
-                <div className="text-[10px] text-slate-400 truncate">long.ct@thacoagri.com.vn</div>
+                <div className="text-xs font-bold text-slate-800">{displayName}</div>
+                <div className="text-[10px] text-slate-400 truncate">{displayEmail}</div>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${roleInfo.color}`}>
+                    {roleInfo.label}
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {klhName}
+                  </span>
+                </div>
               </div>
               <NavLink
                 to="/phan-quyen/nguoi-dung"
@@ -253,7 +452,7 @@ export const Topbar: React.FC = () => {
                 className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg"
               >
                 <User className="w-3.5 h-3.5 text-slate-400" />
-                Hồ sơ tài khoản
+                Quản lý người dùng
               </NavLink>
               <NavLink
                 to="/phan-quyen/vai-tro"
@@ -261,12 +460,12 @@ export const Topbar: React.FC = () => {
                 className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg"
               >
                 <Shield className="w-3.5 h-3.5 text-slate-400" />
-                Phân quyền vai trò
+                Ma trận 3 vai trò
               </NavLink>
               <div className="border-t border-slate-100 my-1"></div>
               <button
-                onClick={() => setShowUserMenu(false)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg text-left"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg text-left cursor-pointer transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5 text-rose-500" />
                 Đăng xuất
@@ -276,12 +475,6 @@ export const Topbar: React.FC = () => {
         </div>
       </div>
 
-      {/* SOS Emergency Rescue Modal */}
-      <SosRescueModal
-        isOpen={showSosModal}
-        onClose={() => setShowSosModal(false)}
-      />
     </header>
   );
 };
-

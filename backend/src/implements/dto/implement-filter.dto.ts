@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ImplementCategory, ImplementStatus, TechnicalCondition, Unit } from '@prisma/client';
+import { EquipmentUsageMode, ImplementCategory, ImplementStatus, TechnicalCondition, Unit } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -32,4 +32,15 @@ export class ImplementFilterDto extends PaginationDto {
   @IsOptional()
   @IsEnum(TechnicalCondition)
   technicalCondition?: TechnicalCondition;
+
+  @ApiPropertyOptional({ description: 'ID xe đang gắn thiết bị' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  vehicleId?: number;
+
+  @ApiPropertyOptional({ enum: EquipmentUsageMode })
+  @IsOptional()
+  @IsEnum(EquipmentUsageMode)
+  usageMode?: EquipmentUsageMode;
 }

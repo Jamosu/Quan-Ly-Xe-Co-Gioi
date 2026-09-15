@@ -4,15 +4,25 @@ import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsObject, IsOptional } from 'class-validator';
 
 export class CreateMaintenanceDto {
+  @ApiPropertyOptional({ description: 'Kỳ BDC2 được tạo từ lịch nhắc bảo dưỡng' })
+  @IsOptional()
+  @IsNumber()
+  occurrenceId?: number;
+
   @ApiProperty({ example: 1, description: 'ID phương tiện cần bảo dưỡng' })
   @IsNotEmpty()
   @IsNumber()
   vehicleId: number;
 
-  @ApiProperty({ example: 252.5, description: 'Số giờ máy thực tế lúc đưa vào bảo dưỡng' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 252.5, description: 'Số giờ máy thực tế lúc đưa vào bảo dưỡng' })
+  @IsOptional()
   @IsNumber()
-  currentHours: number;
+  currentHours?: number;
+
+  @ApiPropertyOptional({ example: 210500, description: 'ODO thực tế lúc đưa xe vào bảo dưỡng' })
+  @IsOptional()
+  @IsNumber()
+  currentKm?: number;
 
   @ApiPropertyOptional({
     example: {

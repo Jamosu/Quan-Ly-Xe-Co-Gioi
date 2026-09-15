@@ -26,9 +26,11 @@ export class DashboardController {
 
   @Public()
   @Get('live-fleet')
-  @ApiOperation({ summary: 'Vị trí trực tuyến toàn bộ 168 thiết bị trên không ảnh vệ tinh GPS' })
+  @ApiOperation({ summary: 'Vị trí trực tuyến toàn bộ thiết bị trên không ảnh vệ tinh GPS' })
   @ApiQuery({ name: 'unit', enum: Unit, required: false })
-  async getLiveFleet(@Query('unit') unit?: Unit) {
-    return this.dashboardService.getLiveFleetMap(unit);
+  @ApiQuery({ name: 'complexCode', type: String, required: false })
+  async getLiveFleet(@Query('unit') unit?: Unit, @Query('complexCode') complexCode?: string) {
+    return this.dashboardService.getLiveFleetMap(unit, complexCode);
   }
 }
+

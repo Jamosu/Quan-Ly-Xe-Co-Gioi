@@ -48,14 +48,6 @@ import {
   Area,
 } from 'recharts';
 import {
-  mockCompanyEntities,
-  mockComplexes,
-  mockDepartments,
-  mockEnterprises,
-  mockFarms,
-  mockTeams,
-  mockPlots,
-  mockLandParcels,
   CompanyEntity,
   CatalogItem,
 } from '../../data/catalogData';
@@ -86,36 +78,32 @@ export const ProjectCatalogsDashboardPage: React.FC = () => {
 
   // Master State loaded from API or local storage
   const [companies, setCompanies] = useState<CompanyEntity[]>(() =>
-    getStoredData('catalogs_companies', mockCompanyEntities)
+    getStoredData('catalogs_companies', [])
   );
   const [complexes, setComplexes] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_complexes', mockComplexes)
+    getStoredData('catalogs_complexes', [])
   );
   const [departments, setDepartments] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_departments', mockDepartments)
+    getStoredData('catalogs_departments', [])
   );
   const [enterprises, setEnterprises] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_enterprises', mockEnterprises)
+    getStoredData('catalogs_enterprises', [])
   );
   const [farms, setFarms] = useState<CatalogItem[]>(() => {
-    const data = getStoredData<CatalogItem[]>('catalogs_farms', mockFarms);
-    return Array.isArray(data) ? data.filter((f) => !f.id?.startsWith('farm-upload-')) : mockFarms;
+    const data = getStoredData<CatalogItem[]>('catalogs_farms', []);
+    return Array.isArray(data) ? data.filter((f) => !f.id?.startsWith('farm-upload-')) : [];
   });
   const [teams, setTeams] = useState<CatalogItem[]>(() => {
-    const stored = getStoredData<CatalogItem[] | null>('catalogs_teams', null);
-    if (!stored || !Array.isArray(stored) || stored.length < mockTeams.length || stored.some((t: any) => t.code === 'DOI_CG_01')) {
-      setStoredData('catalogs_teams', mockTeams);
-      return mockTeams;
-    }
-    return stored;
+    const stored = getStoredData<CatalogItem[] | null>('catalogs_teams', []);
+    return Array.isArray(stored) ? stored : [];
   });
   const [plots, setPlots] = useState<CatalogItem[]>(() => {
-    const data = getStoredData<CatalogItem[]>('catalogs_plots', mockPlots);
-    return Array.isArray(data) ? data.filter((p) => !p.id?.startsWith('plot-upload-')) : mockPlots;
+    const data = getStoredData<CatalogItem[]>('catalogs_plots', []);
+    return Array.isArray(data) ? data.filter((p) => !p.id?.startsWith('plot-upload-')) : [];
   });
   const [landParcels, setLandParcels] = useState<CatalogItem[]>(() => {
-    const data = getStoredData<CatalogItem[]>('catalogs_land_parcels', mockLandParcels);
-    return Array.isArray(data) ? data.filter((p) => !p.id?.startsWith('parcel-upload-')) : mockLandParcels;
+    const data = getStoredData<CatalogItem[]>('catalogs_land_parcels', []);
+    return Array.isArray(data) ? data.filter((p) => !p.id?.startsWith('parcel-upload-')) : [];
   });
 
   // Fetch latest data from backend
@@ -132,14 +120,14 @@ export const ProjectCatalogsDashboardPage: React.FC = () => {
         plotsData,
         parcelsData,
       ] = await Promise.all([
-        catalogsApi.getCompanies(mockCompanyEntities),
-        catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes', mockComplexes),
-        catalogsApi.getCatalogs('DEPARTMENT', 'catalogs_departments', mockDepartments),
-        catalogsApi.getCatalogs('ENTERPRISE', 'catalogs_enterprises', mockEnterprises),
-        catalogsApi.getCatalogs('FARM', 'catalogs_farms', mockFarms),
-        catalogsApi.getCatalogs('TEAM', 'catalogs_teams', mockTeams),
-        catalogsApi.getCatalogs('PLOT', 'catalogs_plots', mockPlots),
-        catalogsApi.getCatalogs('LAND_PARCEL', 'catalogs_land_parcels', mockLandParcels),
+        catalogsApi.getCompanies(),
+        catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes'),
+        catalogsApi.getCatalogs('DEPARTMENT', 'catalogs_departments'),
+        catalogsApi.getCatalogs('ENTERPRISE', 'catalogs_enterprises'),
+        catalogsApi.getCatalogs('FARM', 'catalogs_farms'),
+        catalogsApi.getCatalogs('TEAM', 'catalogs_teams'),
+        catalogsApi.getCatalogs('PLOT', 'catalogs_plots'),
+        catalogsApi.getCatalogs('LAND_PARCEL', 'catalogs_land_parcels'),
       ]);
       if (compData) setCompanies(compData);
       if (complexesData) setComplexes(complexesData);

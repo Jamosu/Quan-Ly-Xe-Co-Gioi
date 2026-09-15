@@ -7,6 +7,8 @@ import { Modal } from '../../components/common/Modal';
 import { apiClient, apiService } from '../../api/client';
 import { catalogsApi } from '../../api/catalogsApi';
 import { useAppStore } from '../../store/useAppStore';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import {
   Plus,
   Download,
@@ -44,7 +46,8 @@ interface UnitAssignmentRecord {
   id: string;
   code?: string;
   vehicleCode: string;
-  plateNumber?: string;
+  plateNumber: string;
+  vehicleName?: string;
   vehicleType: string;
   assetGroup?: string;
   complexCode?: string;
@@ -60,7 +63,7 @@ interface UnitAssignmentRecord {
   assignedDate: string;
   purpose: string;
   transferHistory?: string;
-  status: 'active' | 'newly_assigned' | 'repair' | 'unassigned';
+  status: 'active' | 'newly_assigned' | 'maintenance' | 'repair' | 'unassigned';
 }
 
 interface ImplementItemRecord {
@@ -73,16 +76,16 @@ interface ImplementItemRecord {
   gatheringLocation?: string | null;
   managerName?: string | null;
   managerPhone?: string | null;
-  status: 'ATTACHED' | 'IN_DEPOT' | 'MAINTENANCE' | 'UNASSIGNED';
+  status: 'ATTACHED' | 'IN_DEPOT' | 'MAINTENANCE' | 'REPAIR' | 'UNASSIGNED';
   technicalCondition?: string;
   attachedVehicleCode?: string;
   attachedVehicleName?: string;
 }
 
 type CardFilter =
-  | 'ALL' | 'RUNNING' | 'WAITING' | 'REPAIR' | 'UNASSIGNED_UNIT'
+  | 'ALL' | 'RUNNING' | 'WAITING' | 'MAINTENANCE' | 'REPAIR' | 'UNASSIGNED_UNIT'
   // Row 2 — Thiết bị phụ trợ / Nông cụ đính kèm (Máy gắn: Dàn cày, Dàn bừa, Rơ-moóc...)
-  | 'EQUIP_ALL' | 'EQUIP_RUNNING' | 'EQUIP_WAITING' | 'EQUIP_REPAIR' | 'EQUIP_UNASSIGNED';
+  | 'EQUIP_ALL' | 'EQUIP_RUNNING' | 'EQUIP_WAITING' | 'EQUIP_MAINTENANCE' | 'EQUIP_REPAIR' | 'EQUIP_UNASSIGNED';
 
 export const UnitAssignmentPage: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState<UnitAssignmentRecord | null>(null);
@@ -111,6 +114,7 @@ export const UnitAssignmentPage: React.FC = () => {
     assignedUnit: 0,
     running: 0,
     waiting: 0,
+    maintenance: 0,
     repair: 0,
     unassignedUnit: 0,
     gpsAttached: 0,
@@ -121,12 +125,13 @@ export const UnitAssignmentPage: React.FC = () => {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const selectedKLH = useAppStore((state) => state.selectedKLH);
 
-  // Thống kê Hồ sơ Thiết bị & Nông cụ đính kèm (Lấy trực tiếp từ API /implements/statistics — 694 máy gắn)
+  // Thống kê Hồ sơ Thiết bị & Nông cụ đính kèm (Lấy trực tiếp từ API /implements/statistics — 1.026 thiết bị & nông cụ)
   const [implementStats, setImplementStats] = React.useState({
-    total: 694,
-    running: 683,
+    total: 1026,
+    running: 1006,
     waiting: 0,
-    maintenance: 11,
+    maintenance: 19,
+    repair: 20,
     unassigned: 0,
   });
 
@@ -326,6 +331,7 @@ export const UnitAssignmentPage: React.FC = () => {
             assignedUnit: statData.assignedUnit || 0,
             running: statData.running || 0,
             waiting: statData.waitingDispatch || 0,
+            maintenance: statData.maintenance || 0,
             repair: statData.repair || 0,
             unassignedUnit: statData.unassignedUnit || 0,
             gpsAttached: statData.gpsAttached || 0,
@@ -402,6 +408,7 @@ export const UnitAssignmentPage: React.FC = () => {
             assignedUnit: statData.assignedUnit || 0,
             running: statData.running || 0,
             waiting: statData.waitingDispatch || 0,
+            maintenance: statData.maintenance || 0,
             repair: statData.repair || 0,
             unassignedUnit: statData.unassignedUnit || 0,
             gpsAttached: statData.gpsAttached || 0,
@@ -410,28 +417,30 @@ export const UnitAssignmentPage: React.FC = () => {
       })
       .catch(() => null);
 
-    // 1.1. Fetch statistics for Agricultural Implements (Row 2 — 694 máy gắn đính kèm)
+    // 1.1. Fetch statistics for Agricultural Implements (Row 2 — 1.026 thiết bị & nông cụ)
     apiService
       .getImplementStatistics()
       .then((data) => {
         if (data) {
-          const total = data.totalImplements || 694;
-          const maint = data.maintenance || 11;
+          const total = data.totalImplements || 1026;
+          const maint = data.condition?.wornOut ?? (data.maintenance || 19);
+          const rep = data.condition?.needRepair || 20;
           const unassigned = 0;
           const waiting = 0;
-          const running = total - maint - waiting - unassigned;
+          const running = total - maint - rep - waiting - unassigned;
           setImplementStats({
             total,
             running,
             waiting,
             maintenance: maint,
+            repair: rep,
             unassigned,
           });
         }
       })
       .catch(() => null);
 
-    // 1.2. Fetch all 694 implements for table display
+    // 1.2. Fetch all implements for table display
     apiService
       .getAllImplements()
       .then((res) => {
@@ -446,7 +455,8 @@ export const UnitAssignmentPage: React.FC = () => {
             DAN_PHUN_THUOC: 'Dàn phun thuốc',
           };
           const mapped: ImplementItemRecord[] = items.map((it: any) => {
-            const isRepair = it.status === 'MAINTENANCE';
+            const isMaintenance = it.technicalCondition === 'WORN_OUT';
+            const isRepair = it.technicalCondition === 'NEED_REPAIR' || (it.status === 'MAINTENANCE' && it.technicalCondition !== 'WORN_OUT');
             const isUnassigned = it.unit === 'Chưa phân bổ' || !it.unit;
             return {
               id: it.id,
@@ -458,10 +468,16 @@ export const UnitAssignmentPage: React.FC = () => {
               gatheringLocation: it.gatheringLocation || 'Lô 85 DP4',
               managerName: it.managerName || 'Phạm Ngọc Hải',
               managerPhone: it.managerPhone || '0825456565',
-              status: isRepair ? 'MAINTENANCE' : (isUnassigned ? 'UNASSIGNED' : 'ATTACHED'),
-              technicalCondition: it.technicalCondition || (isRepair ? 'NEED_REPAIR' : 'GOOD'),
-              attachedVehicleCode: it.currentVehicle?.code || 'Đang vận hành',
-              attachedVehicleName: it.currentVehicle?.name || '',
+              status: isUnassigned
+                ? 'UNASSIGNED'
+                : isMaintenance
+                ? 'MAINTENANCE'
+                : isRepair
+                ? 'REPAIR'
+                : (it.status || 'IN_DEPOT'),
+              technicalCondition: it.technicalCondition,
+              attachedVehicleCode: it.currentVehicle ? it.currentVehicle.code : undefined,
+              attachedVehicleName: it.currentVehicle ? it.currentVehicle.name : undefined,
             };
           });
           setImplementsList(mapped);
@@ -519,12 +535,14 @@ export const UnitAssignmentPage: React.FC = () => {
             }
           }
 
+          const vTypeName = v.vehicleType?.name || v.category || 'Xe / máy chuyên dùng';
           return {
             id: `ASG-${v.id}`,
             code: v.code,
             vehicleCode: v.code,
             plateNumber: v.plate || '—',
-            vehicleType: v.name,
+            vehicleType: vTypeName,
+            vehicleName: v.name,
             assetGroup: v.assetGroup || v.vehicleType?.assetGroup || 'THIET_BI_PHU_TRO',
             complexCode: v.complexCode,
             regionCode: v.regionCode,
@@ -545,6 +563,8 @@ export const UnitAssignmentPage: React.FC = () => {
               ? ('active' as const)
               : v.status === 'CHO_PHAN_CONG'
               ? ('newly_assigned' as const)
+              : v.status === 'BAO_DUONG'
+              ? ('maintenance' as const)
               : ('repair' as const),
           };
         });
@@ -705,21 +725,41 @@ export const UnitAssignmentPage: React.FC = () => {
       }));
   }, [assignmentsList, implementsList]);
 
-  // 3. Danh sách chủng loại xe & nông cụ
+  // 3. Danh sách chủng loại xe & nông cụ chuẩn (22 loại xe + 6 loại nông cụ)
   const categoryFilterOptions = React.useMemo<SelectOption[]>(() => {
-    const cats = new Set<string>();
+    const vehicleCats = new Set<string>();
+    const implementCats = new Set<string>();
+
     assignmentsList.forEach((a) => {
-      if (a.vehicleType && a.vehicleType !== '—') cats.add(a.vehicleType);
+      if (a.vehicleType && a.vehicleType !== '—') {
+        vehicleCats.add(a.vehicleType.normalize('NFC').trim());
+      }
     });
+
     implementsList.forEach((i) => {
-      if (i.name && i.name !== '—') cats.add(i.name);
+      const cat = i.categoryLabel || i.name;
+      if (cat && cat !== '—') {
+        implementCats.add(cat.normalize('NFC').trim());
+      }
     });
-    return Array.from(cats)
+
+    const vList = Array.from(vehicleCats)
       .sort((a, b) => a.localeCompare(b, 'vi'))
       .map((cat) => ({
         value: cat,
         label: cat,
+        subLabel: '🚛 Chủng loại xe cơ giới',
       }));
+
+    const iList = Array.from(implementCats)
+      .sort((a, b) => a.localeCompare(b, 'vi'))
+      .map((cat) => ({
+        value: cat,
+        label: cat,
+        subLabel: '🚜 Chủng loại thiết bị & nông cụ',
+      }));
+
+    return [...vList, ...iList];
   }, [assignmentsList, implementsList]);
 
   // 4. Danh sách NS quản lý cơ giới
@@ -753,7 +793,8 @@ export const UnitAssignmentPage: React.FC = () => {
   const statusFilterOptions: SelectOption[] = [
     { value: 'active', label: 'Đang sử dụng tại đơn vị', subLabel: 'Đang vận hành' },
     { value: 'newly_assigned', label: 'Mới bàn giao / Sẵn sàng', subLabel: 'Sẵn sàng điều động' },
-    { value: 'repair', label: 'Đang BTSC & Trạm cơ điện', subLabel: 'Bảo dưỡng / Sửa chữa' },
+    { value: 'maintenance', label: 'Đang bảo dưỡng định kỳ', subLabel: 'Bảo dưỡng BDC' },
+    { value: 'repair', label: 'Đang sửa chữa hư hỏng', subLabel: 'Xưởng BTSC' },
     { value: 'UNASSIGNED', label: '⚠️ Chưa phân bổ đơn vị', subLabel: 'Chờ cấp phát' },
   ];
 
@@ -798,6 +839,9 @@ export const UnitAssignmentPage: React.FC = () => {
         const isUn = item.unitName === 'Chưa phân bổ' || item.unitName.includes('Chưa') || item.status === 'unassigned';
         if (isUn || item.status !== 'newly_assigned') return false;
       }
+      if (cardFilter === 'MAINTENANCE') {
+        if (item.status !== 'maintenance') return false;
+      }
       if (cardFilter === 'REPAIR') {
         if (item.status !== 'repair') return false;
       }
@@ -840,7 +884,10 @@ export const UnitAssignmentPage: React.FC = () => {
 
       // 5. Category Filter
       if (selectedCategoryFilter !== 'ALL') {
-        if (item.vehicleType.toLowerCase() !== selectedCategoryFilter.toLowerCase()) {
+        const selNorm = selectedCategoryFilter.normalize('NFC').toLowerCase();
+        const vTypeNorm = item.vehicleType.normalize('NFC').toLowerCase();
+        const vNameNorm = (item.vehicleName || '').normalize('NFC').toLowerCase();
+        if (vTypeNorm !== selNorm && !vNameNorm.includes(selNorm)) {
           return false;
         }
       }
@@ -887,7 +934,8 @@ export const UnitAssignmentPage: React.FC = () => {
       // 1. KPI Card Filter cho Nông cụ
       if (cardFilter === 'EQUIP_RUNNING' && item.status !== 'ATTACHED') return false;
       if (cardFilter === 'EQUIP_WAITING' && item.status !== 'IN_DEPOT') return false;
-      if (cardFilter === 'EQUIP_REPAIR' && item.status !== 'MAINTENANCE') return false;
+      if (cardFilter === 'EQUIP_MAINTENANCE' && item.status !== 'MAINTENANCE') return false;
+      if (cardFilter === 'EQUIP_REPAIR' && item.status !== 'REPAIR') return false;
       if (cardFilter === 'EQUIP_UNASSIGNED' && item.status !== 'UNASSIGNED') return false;
 
       // 2. Search Term Filter
@@ -922,7 +970,10 @@ export const UnitAssignmentPage: React.FC = () => {
 
       // 5. Category Filter
       if (selectedCategoryFilter !== 'ALL') {
-        if (item.name.toLowerCase() !== selectedCategoryFilter.toLowerCase() && item.categoryLabel?.toLowerCase() !== selectedCategoryFilter.toLowerCase()) {
+        const selNorm = selectedCategoryFilter.normalize('NFC').toLowerCase();
+        const lblNorm = (item.categoryLabel || '').normalize('NFC').toLowerCase();
+        const nameNorm = item.name.normalize('NFC').toLowerCase();
+        if (lblNorm !== selNorm && !nameNorm.includes(selNorm)) {
           return false;
         }
       }
@@ -1024,9 +1075,16 @@ export const UnitAssignmentPage: React.FC = () => {
       sortable: true,
       width: '190px',
       render: (row) => (
-        <span className="font-semibold text-slate-900 block whitespace-normal leading-tight text-xs" title={row.vehicleType}>
-          {row.vehicleType}
-        </span>
+        <div>
+          <span className="font-bold text-slate-900 block whitespace-normal leading-tight text-xs" title={row.vehicleType}>
+            {row.vehicleType}
+          </span>
+          {row.vehicleName && row.vehicleName !== row.vehicleType && (
+            <span className="text-[10px] text-slate-500 block truncate max-w-[180px]" title={row.vehicleName}>
+              {row.vehicleName}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -1110,32 +1168,47 @@ export const UnitAssignmentPage: React.FC = () => {
         }
         return row.status === 'newly_assigned' ? (
           <Badge variant="amber">Sẵn sàng</Badge>
+        ) : row.status === 'maintenance' ? (
+          <Badge variant="amber">Đang bảo dưỡng</Badge>
         ) : row.status === 'repair' ? (
-          <Badge variant="red">Đang BTSC</Badge>
+          <Badge variant="red">Đang sửa chữa</Badge>
         ) : (
           <Badge variant="green">Đang sử dụng</Badge>
         );
       },
     },
     {
-      key: 'actions',
-      title: 'THAO TÁC',
+      key: 'user',
+      title: 'User',
+      width: '70px',
       align: 'center',
-      width: '135px',
       render: (row) => (
-        <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedRecord(row);
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin phân bổ xe ${row.vehicleCode}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '120px',
+      align: 'center',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <TableRowActions
+            onView={() => setSelectedRecord(row)}
+            onEdit={() => {
+              const foundIdx = assignmentsList.findIndex((a) => a.id === row.id);
+              if (foundIdx >= 0) setSelectedVehicleIdx(foundIdx);
+              setShowAddModal(true);
             }}
-            className="px-2 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-            title="Xem chi tiết phân bổ & lịch sử bàn giao"
-          >
-            <Eye className="w-3.5 h-3.5 text-slate-500" />
-            <span>Chi tiết</span>
-          </button>
+            viewTitle="Xem chi tiết phân bổ & lịch sử"
+            editTitle="Lập quyết định bàn giao"
+          />
           <button
             type="button"
             onClick={(e) => {
@@ -1144,11 +1217,10 @@ export const UnitAssignmentPage: React.FC = () => {
               if (foundIdx >= 0) setSelectedVehicleIdx(foundIdx);
               setShowAddModal(true);
             }}
-            className="px-2 py-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-all flex items-center gap-1 cursor-pointer"
+            className="p-1 hover:bg-emerald-50 text-emerald-700 rounded transition-colors cursor-pointer"
             title="Lập quyết định bàn giao phương tiện này"
           >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Bàn giao</span>
+            <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-600" />
           </button>
         </div>
       ),
@@ -1174,9 +1246,16 @@ export const UnitAssignmentPage: React.FC = () => {
       sortable: true,
       width: '190px',
       render: (row) => (
-        <span className="font-semibold text-slate-900 block whitespace-normal leading-tight text-xs" title={row.name}>
-          {row.name}
-        </span>
+        <div>
+          <span className="font-bold text-slate-900 block whitespace-normal leading-tight text-xs" title={row.categoryLabel || row.name}>
+            {row.categoryLabel || row.name}
+          </span>
+          {row.name && row.name !== row.categoryLabel && (
+            <span className="text-[10px] text-slate-500 block truncate max-w-[180px]" title={row.name}>
+              {row.name}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -1243,7 +1322,9 @@ export const UnitAssignmentPage: React.FC = () => {
           return <Badge variant="red">Chưa phân bổ</Badge>;
         }
         return row.status === 'MAINTENANCE' ? (
-          <Badge variant="red">Đang BTSC</Badge>
+          <Badge variant="amber">Đang bảo dưỡng</Badge>
+        ) : row.status === 'REPAIR' ? (
+          <Badge variant="red">Đang sửa chữa</Badge>
         ) : row.status === 'IN_DEPOT' ? (
           <Badge variant="amber">Sẵn sàng</Badge>
         ) : (
@@ -1252,24 +1333,37 @@ export const UnitAssignmentPage: React.FC = () => {
       },
     },
     {
-      key: 'actions',
-      title: 'THAO TÁC',
+      key: 'user',
+      title: 'User',
+      width: '70px',
       align: 'center',
-      width: '135px',
       render: (row) => (
-        <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedImplement(row);
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin phân bổ nông cụ ${row.code}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '120px',
+      align: 'center',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <TableRowActions
+            onView={() => setSelectedImplement(row)}
+            onEdit={() => {
+              const foundIdx = implementsList.findIndex((a) => a.id === row.id);
+              if (foundIdx >= 0) setSelectedImplementIdx(foundIdx);
+              setShowImplementHandoverModal(true);
             }}
-            className="px-2 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-            title="Xem chi tiết phân bổ & lịch sử bàn giao"
-          >
-            <Eye className="w-3.5 h-3.5 text-slate-500" />
-            <span>Chi tiết</span>
-          </button>
+            viewTitle="Xem chi tiết phân bổ & lịch sử"
+            editTitle="Lập quyết định bàn giao"
+          />
           <button
             type="button"
             onClick={(e) => {
@@ -1278,11 +1372,10 @@ export const UnitAssignmentPage: React.FC = () => {
               if (foundIdx >= 0) setSelectedImplementIdx(foundIdx);
               setShowImplementHandoverModal(true);
             }}
-            className="px-2 py-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-all flex items-center gap-1 cursor-pointer"
+            className="p-1 hover:bg-emerald-50 text-emerald-700 rounded transition-colors cursor-pointer"
             title="Lập quyết định bàn giao nông cụ này"
           >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Bàn giao</span>
+            <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-600" />
           </button>
         </div>
       ),
@@ -1291,10 +1384,10 @@ export const UnitAssignmentPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 5x2 DASHBOARD TILES — Row 1: 5 bộ lọc trạng thái | Row 2: 4 phân nhóm MMTB */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* 6x2 DASHBOARD TILES — Tách biệt rõ ràng Bảo dưỡng và Sửa chữa */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
 
-        {/* ═══ ROW 1 — Bộ lọc trạng thái vận hành ═══ */}
+        {/* ═══ ROW 1 — Bộ lọc trạng thái vận hành Phương tiện (6 thẻ) ═══ */}
 
         {/* Card 1: Tất cả phương tiện */}
         <button
@@ -1371,7 +1464,32 @@ export const UnitAssignmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 4: Bảo dưỡng / Sửa chữa */}
+        {/* Card 4: Đang bảo dưỡng (7 xe) */}
+        <button
+          type="button"
+          onClick={() => setCardFilter((curr) => (curr === 'MAINTENANCE' ? 'ALL' : 'MAINTENANCE'))}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            cardFilter === 'MAINTENANCE'
+              ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/25 shadow-sm scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-700">Đang bảo dưỡng</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <Wrench className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {stats.maintenance.toLocaleString('vi-VN')} xe
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Bảo dưỡng định kỳ BDC
+          </div>
+        </button>
+
+        {/* Card 5: Đang sửa chữa (426 xe) */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'REPAIR' ? 'ALL' : 'REPAIR'))}
@@ -1383,7 +1501,7 @@ export const UnitAssignmentPage: React.FC = () => {
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-rose-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-700">Bảo dưỡng / Sửa chữa</span>
+            <span className="text-xs font-bold text-rose-700">Đang sửa chữa (Hỏng)</span>
             <div className="rounded-xl p-2 bg-rose-50 text-rose-600">
               <Wrench className="w-5 h-5" />
             </div>
@@ -1396,7 +1514,7 @@ export const UnitAssignmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 5: Chưa phân bổ Đơn vị */}
+        {/* Card 6: Chưa phân bổ Đơn vị */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'UNASSIGNED_UNIT' ? 'ALL' : 'UNASSIGNED_UNIT'))}
@@ -1421,9 +1539,9 @@ export const UnitAssignmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* ═══ ROW 2 — Thiết bị phụ trợ / Nông cụ đính kèm (Thiết kế giống hệt Row 1) ═══ */}
+        {/* ═══ ROW 2 — Thiết bị phụ trợ / Nông cụ đính kèm (6 thẻ đồng bộ 100%) ═══ */}
 
-        {/* Card 6: Tất cả thiết bị & nông cụ (Blue) */}
+        {/* Card 7: Tất cả thiết bị & nông cụ */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'EQUIP_ALL' ? 'ALL' : 'EQUIP_ALL'))}
@@ -1448,7 +1566,7 @@ export const UnitAssignmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 7: Đang bố trí vận hành (Emerald) */}
+        {/* Card 8: Đang bố trí vận hành */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'EQUIP_RUNNING' ? 'ALL' : 'EQUIP_RUNNING'))}
@@ -1473,7 +1591,7 @@ export const UnitAssignmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 8: Sẵn sàng điều động (Amber) */}
+        {/* Card 9: Sẵn sàng điều động */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'EQUIP_WAITING' ? 'ALL' : 'EQUIP_WAITING'))}
@@ -1498,7 +1616,32 @@ export const UnitAssignmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 9: Bảo dưỡng / Sửa chữa (Rose) */}
+        {/* Card 10: Đang bảo dưỡng (19 bộ) */}
+        <button
+          type="button"
+          onClick={() => setCardFilter((curr) => (curr === 'EQUIP_MAINTENANCE' ? 'ALL' : 'EQUIP_MAINTENANCE'))}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            cardFilter === 'EQUIP_MAINTENANCE'
+              ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/25 shadow-sm scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-700">Đang bảo dưỡng</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <Wrench className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {implementStats.maintenance.toLocaleString('vi-VN')} bộ
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Hao mòn chảo bừa, dao phay
+          </div>
+        </button>
+
+        {/* Card 11: Đang sửa chữa (20 bộ) */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'EQUIP_REPAIR' ? 'ALL' : 'EQUIP_REPAIR'))}
@@ -1510,20 +1653,20 @@ export const UnitAssignmentPage: React.FC = () => {
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-rose-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-700">Bảo dưỡng / Sửa chữa</span>
+            <span className="text-xs font-bold text-rose-700">Đang sửa chữa (Hỏng)</span>
             <div className="rounded-xl p-2 bg-rose-50 text-rose-600">
               <Wrench className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-2 text-2xl font-black text-rose-700">
-            {implementStats.maintenance.toLocaleString('vi-VN')} bộ
+            {implementStats.repair.toLocaleString('vi-VN')} bộ
           </div>
           <div className="mt-1 text-[11px] font-semibold text-rose-600 truncate">
             Tại xưởng BTSC & trạm cơ điện
           </div>
         </button>
 
-        {/* Card 10: Chưa phân bổ Đơn vị (Orange) */}
+        {/* Card 12: Chưa phân bổ Đơn vị */}
         <button
           type="button"
           onClick={() => setCardFilter((curr) => (curr === 'EQUIP_UNASSIGNED' ? 'ALL' : 'EQUIP_UNASSIGNED'))}

@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { DispatchStatus, Unit } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { DispatchStatus, PlanType, Unit } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class DispatchFilterDto extends PaginationDto {
@@ -18,4 +19,20 @@ export class DispatchFilterDto extends PaginationDto {
   @IsOptional()
   @IsBoolean()
   isDelayed?: boolean;
+
+  @ApiPropertyOptional({ description: 'ID kế hoạch nguồn' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  planId?: number;
+
+  @ApiPropertyOptional({ enum: PlanType })
+  @IsOptional() @IsEnum(PlanType)
+  planType?: PlanType;
+
+  @ApiPropertyOptional({ minimum: 2000, maximum: 2100 })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(2000) @Max(2100)
+  year?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 53 })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(53)
+  weekNumber?: number;
 }

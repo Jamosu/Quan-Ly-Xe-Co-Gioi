@@ -9,12 +9,18 @@ export interface CGManagerItem {
 
 export interface MasterLocationItem {
   id: string;
+  backendId?: number;
+  code?: string;
+  type?: 'DEPOT' | 'WORKSITE' | 'PICKUP' | 'DELIVERY' | 'OTHER';
   name: string;
   complexCode: 'KOUN_MOM' | 'SNOUL' | 'NAM_LAO' | string;
   complexName: string;
   regionName?: string;
   address?: string;
   status?: 'HOAT_DONG' | 'TAM_DUNG';
+  lat?: number;
+  lng?: number;
+  geofenceRadiusM?: number;
 }
 
 export const INITIAL_CG_MANAGERS: CGManagerItem[] = [

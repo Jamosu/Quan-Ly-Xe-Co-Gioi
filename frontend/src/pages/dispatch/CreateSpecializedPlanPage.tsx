@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   CalendarDays,
@@ -24,17 +24,13 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
-import { apiClient } from '../../api/client';
+import { operationsApi } from '../../api/operations';
 import { StatusBadge } from '../../components/operations/OperationUi';
 import {
   SpecializedPlanKind,
   SpecializedWeeklyPlan,
   SpecializedTaskItem,
-  INITIAL_CONSTRUCTION_PLANS,
-  INITIAL_TRANSPORT_PLANS,
-  normalizeSpecializedPlanStatuses,
 } from './SpecializedPlansPage';
-import { syncSpecializedPlanTasksToDispatch } from './specializedPlanSync';
 import {
   getMonday,
   getWeekNumber,
@@ -54,12 +50,12 @@ import {
   isDayInPast,
   getAvailableDaysForWeek,
 } from './CreateProductionPlanPage';
-import { getStoredJobs, getStoredStages } from '../../data/jobCatalogData';
+import { getStoredJobs, getStoredStages } from '../../data/dispatchPlanningData';
 import {
   getStoredConstructionSites,
   getStoredConstructionTeams,
   getStoredTransportRoutes,
-} from '../../data/locationCatalogData';
+} from '../../data/dispatchPlanningData';
 
 const KLH_OPTIONS = [
   { code: 'KOUN_MOM', name: 'Khu liên hợp Koun Mom' },
@@ -83,11 +79,6 @@ const TRANSPORT_CATEGORIES = [
   { code: 'THIET_BI', name: 'Nông cụ, Phụ tùng & Ống tưới' },
   { code: 'KHAC', name: 'Hàng hóa khác' },
 ];
-
-const STORAGE_KEYS: Record<SpecializedPlanKind, string> = {
-  CONSTRUCTION: 'thaco_weekly_construction_plans_v3',
-  TRANSPORT: 'thaco_weekly_transport_plans_v3',
-};
 
 // Helper format datetime dd/mm/yyyy hh:mm
 export const formatDateTimeStr = (d?: string | Date): string => {
@@ -114,18 +105,30 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
     ? '/lenh-dieu-xe/ke-hoach/cong-trinh'
     : '/lenh-dieu-xe/ke-hoach/van-chuyen-noi-bo';
 
-  // Lấy danh sách kế hoạch từ localStorage hoặc fallback kế hoạch mẫu
-  const [plans, setPlans] = useState<SpecializedWeeklyPlan[]>(() => {
-    try {
-      const cached = localStorage.getItem(STORAGE_KEYS[kind]);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return normalizeSpecializedPlanStatuses(parsed);
-      }
-    } catch {}
-    const initial = isConstruction ? INITIAL_CONSTRUCTION_PLANS : INITIAL_TRANSPORT_PLANS;
-    return normalizeSpecializedPlanStatuses(initial);
-  });
+  const [plans, setPlans] = useState<SpecializedWeeklyPlan[]>([]);
+
+  useEffect(() => {
+    const planType = isConstruction ? 'CONSTRUCTION' : 'INTERNAL_TRANSPORT';
+    operationsApi.plans({ limit: 100, planType }).then((response) => {
+      setPlans(response.items.map((plan) => ({
+        id: String(plan.id), code: plan.code, title: plan.title,
+        complexCode: (['KOUN_MOM', 'SNOUL', 'NAM_LAO'].includes(plan.complexCode) ? plan.complexCode : 'KOUN_MOM') as SpecializedWeeklyPlan['complexCode'], complexName: plan.complexName || plan.complexCode,
+        enterpriseName: plan.enterpriseName || '', farmName: plan.farmName || '',
+        categoryCode: plan.categoryCode || 'ALL', categoryName: plan.categoryName || '',
+        weekNumber: plan.weekNumber || getWeekNumber(plan.startDate), year: new Date(plan.startDate).getFullYear(),
+        startDate: plan.startDate.slice(0, 10), endDate: plan.endDate.slice(0, 10),
+        status: plan.status as SpecializedWeeklyPlan['status'], notes: plan.notes || '', createdAt: '',
+        tasks: plan.items.map((item) => ({
+          id: String(item.id), jobCode: item.jobCode || '', jobName: item.jobName,
+          location: item.location || item.plotName, origin: item.origin, destination: item.destination,
+          machineType: item.machineType || '', durationHours: item.durationHours || 0,
+          targetQuantity: item.targetQuantity, targetUnit: item.targetUnit,
+          assignedVehiclesCount: item.plannedVehicleCount, scheduledDays: item.scheduledDays || 'Thứ 2',
+          notes: item.notes || '', status: (item.taskStatus || 'PENDING') as SpecializedTaskItem['status'],
+        })),
+      })));
+    }).catch(() => alert('Không thể tải kế hoạch từ máy chủ.'));
+  }, [isConstruction]);
 
   const editingPlan = useMemo(() => {
     if (!editPlanId) return null;
@@ -623,7 +626,7 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
   };
 
   // Lưu kế hoạch (DRAFT hoặc APPROVED)
-  const handleSave = (targetStatus: SpecializedWeeklyPlan['status']) => {
+  const handleSave = async (targetStatus: SpecializedWeeklyPlan['status']) => {
     if (!planTitle.trim()) {
       alert('Vui lòng nhập Tên kế hoạch tuần!');
       return;
@@ -662,28 +665,57 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
       tasks,
     };
 
-    let updatedPlans: SpecializedWeeklyPlan[];
-    if (editingPlan) {
-      updatedPlans = plans.map((p) => (p.id === editingPlan.id ? normalizedPlan : p));
-    } else {
-      updatedPlans = [normalizedPlan, ...plans];
+    const payload = {
+      code: normalizedPlan.code, title: normalizedPlan.title,
+      planType: isConstruction ? 'CONSTRUCTION' : 'INTERNAL_TRANSPORT',
+      stage: isConstruction ? 'HAU_CAN' : 'VAN_CHUYEN', unit: 'NT1',
+      lotPlot: tasks[0]?.location || 'Khu vực thực hiện', categoryCode, categoryName,
+      complexCode, complexName: currentKlhName, enterpriseName, farmName,
+      weekNumber: selectedWeekNumber,
+      startDate: new Date(`${normalizedPlan.startDate}T00:00:00.000Z`).toISOString(),
+      endDate: new Date(`${normalizedPlan.endDate}T23:59:59.999Z`).toISOString(),
+      notes, status: 'DRAFT',
+      items: tasks.map((task) => ({
+        workDate: new Date(`${normalizedPlan.startDate}T00:00:00.000Z`).toISOString(),
+        shift: 'CA_NGAY', plotName: task.location || 'Khu vực thực hiện',
+        stage: isConstruction ? 'HAU_CAN' : 'VAN_CHUYEN', jobCode: task.jobCode, jobName: task.jobName,
+        location: task.location, origin: task.origin, destination: task.destination,
+        machineType: task.machineType, durationHours: task.durationHours,
+        targetQuantity: task.targetQuantity, targetUnit: task.targetUnit,
+        plannedVehicleCount: task.assignedVehiclesCount, scheduledDays: task.scheduledDays, notes: task.notes,
+      })),
+    };
+    try {
+      let id: string;
+      if (editingPlan) {
+        const isAdjustment = editingPlan.status === 'APPROVED' || editingPlan.status === 'IN_PROGRESS';
+        if (isAdjustment) {
+          const reason = window.prompt('Nhập lý do điều chỉnh kế hoạch đã duyệt:')?.trim();
+          if (!reason || reason.length < 3) return;
+          await operationsApi.adjustPlan(editingPlan.id, { ...payload, reason });
+        } else {
+          await operationsApi.updatePlan(editingPlan.id, payload);
+        }
+        id = editingPlan.id;
+      } else {
+        const created = await operationsApi.createPlan(payload);
+        id = String(created.id);
+      }
+      let generated = 0;
+      if (targetStatus === 'APPROVED') {
+        const isAdjustment = editingPlan?.status === 'APPROVED' || editingPlan?.status === 'IN_PROGRESS';
+        if (!isAdjustment) await operationsApi.submitPlan(id);
+        const approved = await operationsApi.approvePlan(id);
+        generated = approved.generation?.createdCount || 0;
+      }
+      alert(targetStatus === 'APPROVED'
+        ? `Đã phê duyệt ${planCode} và sinh ${generated} lệnh từ máy chủ.`
+        : `Đã lưu bản nháp ${planCode}.`);
+      navigate(backUrl);
+    } catch (error) {
+      console.error('Không thể lưu kế hoạch:', error);
+      alert('Không thể lưu kế hoạch. Không có dữ liệu nào được ghi cục bộ.');
     }
-
-    // Lưu vào localStorage
-    localStorage.setItem(STORAGE_KEYS[kind], JSON.stringify(updatedPlans));
-
-    // Nếu kế hoạch được duyệt, tự động nạp vào danh sách điều xe
-    if (targetStatus === 'APPROVED') {
-      syncSpecializedPlanTasksToDispatch(normalizedPlan, tasks, kind);
-    }
-
-    alert(
-      targetStatus === 'APPROVED'
-        ? `Đã lưu & phê duyệt Kế hoạch ${isConstruction ? 'Công trình' : 'Vận chuyển'} Tuần ${selectedWeekNumber} (${planCode}) thành công! Các công việc đã tự động nạp vào danh sách điều xe.`
-        : `Đã lưu bản nháp Kế hoạch Tuần ${selectedWeekNumber} (${planCode})!`
-    );
-
-    navigate(backUrl);
   };
 
   return (

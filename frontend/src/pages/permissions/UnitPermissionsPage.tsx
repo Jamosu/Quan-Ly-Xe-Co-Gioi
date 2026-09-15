@@ -51,10 +51,10 @@ const MOCK_SCOPE_TIERS: ScopeTierConfig[] = [
     targetNote: 'Mã nhân sự: NV-QD-001.',
     klhScope: 'Khu Liên Hợp Koun Mom (Campuchia)',
     klhNote: 'Phạm vi cấp 1.',
-    unitScope: 'Xí nghiệp Nông trường Chuối 1 (NT1)',
+    unitScope: 'Xí nghiệp Nông trường Chuối 1 - KLH Koun Mom',
     unitNote: 'Được toàn quyền tạo Lệnh sản xuất, duyệt nghiệm thu diện tích cày bừa.',
     fleetScope: 'Đội Xe Cơ giới 1 (36 xe) + Đội Xe BVTV 1 (6 xe)',
-    fleetNote: 'Các đội xe trực tiếp phục vụ Nông trường 1.',
+    fleetNote: 'Các đội xe trực tiếp phục vụ sản xuất KLH Koun Mom.',
     readOnlyScope: 'Chỉ đọc (Read-only) dữ liệu bản đồ toàn KLH để phối hợp tránh trùng lịch',
     readOnlyNote: 'Không thể duyệt lệnh cho Xí nghiệp Chuối 2 hoặc XN Cây ăn trái.',
   },
@@ -153,7 +153,7 @@ export const UnitPermissionsPage: React.FC = () => {
         />
         <StatCard
           label="Trạm nhiên liệu được duyệt"
-          value="Cột bơm T1 & Bồn NT1"
+          value="Cột bơm T1 & Bồn Dầu Koun Mom"
           subValue="Duyệt cấp dầu máy cày"
           icon={<Fuel className="w-5 h-5" />}
           iconBgColor="bg-amber-50"

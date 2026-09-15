@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsDate, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUrl, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsDate, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUrl, Max, Min, ValidateNested } from 'class-validator';
 import { WorkAssignmentMode, WorkEvidenceType } from '@prisma/client';
 
 export class AssignWorkOrderDto {
@@ -41,6 +41,14 @@ export class AssignWorkOrderDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+export class ClaimWorkOrderDto {
+  @ApiPropertyOptional({ description: 'Xe tài xế chọn: xe đang phụ trách hoặc xe đang giữ cho chuyến.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  vehicleId?: number;
 }
 
 export class ReassignWorkOrderDto {
@@ -206,4 +214,28 @@ export class AcceptanceReviewDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+export enum JourneyAction {
+  DEPART_TO_WORK = 'DEPART_TO_WORK',
+  ARRIVE_WORKSITE = 'ARRIVE_WORKSITE',
+  START_WORK = 'START_WORK',
+  FINISH_WORK = 'FINISH_WORK',
+  ARRIVE_PICKUP = 'ARRIVE_PICKUP',
+  START_LOADING = 'START_LOADING',
+  DEPART_PICKUP = 'DEPART_PICKUP',
+  ARRIVE_DELIVERY = 'ARRIVE_DELIVERY',
+  START_UNLOADING = 'START_UNLOADING',
+  COMPLETE_DELIVERY = 'COMPLETE_DELIVERY',
+  RETURN_TO_DEPOT = 'RETURN_TO_DEPOT',
+  ARRIVE_DEPOT = 'ARRIVE_DEPOT',
+}
+
+export class JourneyActionDto {
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() evidenceId?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) lat?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) lng?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) odoKm?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) machineHours?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
 }

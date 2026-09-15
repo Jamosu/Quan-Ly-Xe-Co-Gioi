@@ -17,6 +17,7 @@ Thumbs.db
 # Tests
 /coverage
 /.nyc_output
+/uploads
 
 # IDEs and editors
 /.idea
@@ -34,3 +35,4 @@ Thumbs.db
 # Prisma / SQLite temporary files
 *.sqlite
 *.sqlite-journal
+.dev-server.pid

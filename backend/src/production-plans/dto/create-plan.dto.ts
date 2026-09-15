@@ -1,10 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PlanStatus, ProductionStage, Unit } from '@prisma/client';
+import { PlanStatus, PlanType, ProductionStage, Unit } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsArray, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CreatePlanItemDto } from './create-plan-item.dto';
 
 export class CreatePlanDto {
+  @ApiPropertyOptional({ enum: PlanType, default: PlanType.AGRICULTURE })
+  @IsOptional()
+  @IsEnum(PlanType)
+  planType?: PlanType;
+
   @ApiProperty({ example: 'KH-2026-NT1-008', description: 'Mã kế hoạch tác nghiệp' })
   @IsNotEmpty()
   @IsString()
@@ -108,6 +113,9 @@ export class CreatePlanDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional() @IsOptional() @IsString() categoryCode?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() categoryName?: string;
 
   @ApiPropertyOptional({ type: () => [CreatePlanItemDto], description: 'Danh sách công việc trong kế hoạch tuần' })
   @IsOptional()

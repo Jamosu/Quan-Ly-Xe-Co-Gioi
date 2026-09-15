@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "THACO AGRI Driver",
+    "slug": "thaco-agri-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "thacoagri-driver",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.thacoagri.driver",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#EAF7EE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "THACO AGRI Driver cần camera để chụp ảnh hiện trường và nghiệm thu."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "THACO AGRI Driver cần vị trí để lưu bằng chứng GPS cho thao tác và SOS."
+        }
+      ],
+      "expo-background-task",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://10.23.3.8:3001/api"
+    }
+  }
+}

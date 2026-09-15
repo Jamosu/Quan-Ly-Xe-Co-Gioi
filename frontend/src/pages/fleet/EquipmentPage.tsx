@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
@@ -7,11 +8,15 @@ import { Modal } from '../../components/common/Modal';
 import { StatCard } from '../../components/data-display/StatCard';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
-import { apiService } from '../../api/client';
+import { apiClient, apiService } from '../../api/client';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
+
 import { catalogsApi } from '../../api/catalogsApi';
 import { useAppStore } from '../../store/useAppStore';
 import { VehicleProfile } from '../../types';
 import { parseOperationalImport } from '../../utils/operationalExcelTemplates';
+import { parseEquipmentTab } from '../../utils/equipmentNavigation';
 import {
   Layers,
   CheckCircle2,
@@ -42,6 +47,9 @@ import {
   Plus,
   RadioTower,
   Upload,
+  Sprout,
+  Droplets,
+  ExternalLink,
 } from 'lucide-react';
 import { EditEquipmentModal } from '../../components/fleet/EditEquipmentModal';
 
@@ -73,13 +81,16 @@ export interface ImplementItem {
   gatheringLocation?: string | null;
   managerPhone?: string | null;
   attachedAt?: string | null;
+  usageMode?: 'ATTACHABLE' | 'STANDALONE' | 'UNCLASSIFIED';
+  sourceGroup?: string | null;
+  compatibleVehicleTypes?: Array<{ vehicleTypeId: number }>;
   createdAt: string;
   updatedAt: string;
 }
 
-type TabType = 'all' | 'in_depot' | 'attached' | 'maintenance';
+type TabType = 'all' | 'in_depot' | 'attached' | 'maintenance' | 'repair';
 type TableViewMode = 'excel_23' | 'compact';
-type DetailTab = 'identity' | 'technical' | 'assignment' | 'operation';
+type DetailTab = 'identity' | 'technical' | 'assignment' | 'operation' | 'repairs';
 
 const ALL = 'ALL';
 
@@ -116,6 +127,31 @@ const DetailField: React.FC<{
 );
 
 const statusMeta = (item: ImplementItem) => {
+  const s = item.status as string;
+  if (s === 'inactive' || s === 'TAM_DUNG' || s === 'NGUNG_HOAT_DONG') {
+    return {
+      label: 'Ngưng hoạt động',
+      badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+      dotClass: 'bg-slate-400',
+    };
+  }
+  // 1. Hư hỏng / Đang sửa chữa (Đỏ Rose)
+  if (item.technicalCondition === 'NEED_REPAIR') {
+    return {
+      label: 'Đang sửa chữa (Hư hỏng)',
+      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+      dotClass: 'bg-rose-500',
+    };
+  }
+  // 2. Đang bảo dưỡng / Hao mòn (Vàng Amber)
+  if (item.technicalCondition === 'WORN_OUT' || item.status === 'MAINTENANCE') {
+    return {
+      label: item.status === 'MAINTENANCE' ? 'Đang bảo dưỡng' : 'Hao mòn / Cần bảo dưỡng',
+      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+      dotClass: 'bg-amber-500',
+    };
+  }
+  // 3. Đang gắn trên xe kéo (Xanh Sky)
   if (item.status === 'ATTACHED') {
     return {
       label: `Đang gắn xe: ${item.currentVehicle?.code || 'Xe kéo'}`,
@@ -123,22 +159,29 @@ const statusMeta = (item: ImplementItem) => {
       dotClass: 'bg-sky-500',
     };
   }
-  if (item.status === 'MAINTENANCE' || item.technicalCondition === 'NEED_REPAIR') {
-    return {
-      label: 'Hư hỏng / BTSC',
-      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
-      dotClass: 'bg-rose-500',
-    };
-  }
+  // 4. Còn hoạt động sẵn sàng (Xanh Emerald)
   return {
-    label: 'Sẵn sàng tại bãi',
+    label: 'Còn hoạt động (Sẵn sàng)',
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     dotClass: 'bg-emerald-500',
   };
 };
 
 export const EquipmentPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<TabType>(parseEquipmentTab(requestedTab));
+  const vehicleIdFilter = searchParams.get('vehicleId');
+  const changeTab = (nextTab: TabType) => {
+    setActiveTab(nextTab);
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextTab === 'all') nextParams.delete('tab');
+    else nextParams.set('tab', nextTab);
+    if (nextTab !== 'attached') nextParams.delete('vehicleId');
+    setSearchParams(nextParams, { replace: true });
+    setPage(1);
+  };
   const [tableViewMode, setTableViewMode] = useState<TableViewMode>('excel_23');
   const [equipmentList, setEquipmentList] = useState<ImplementItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,6 +189,7 @@ export const EquipmentPage: React.FC = () => {
   const [editingEquipment, setEditingEquipment] = useState<ImplementItem | null>(null);
   const [isCreatingEquipment, setIsCreatingEquipment] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>('identity');
+  const [repairHistory, setRepairHistory] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState('');
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -157,6 +201,26 @@ export const EquipmentPage: React.FC = () => {
   const [attachingLoading, setAttachingLoading] = useState(false);
   const [attachMessage, setAttachMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const openEquipmentProfile = (item: ImplementItem) => {
+    setDetailTab('identity');
+    setRepairHistory([]);
+    setSelectedEquipment(item);
+    void apiClient.get('/repairs', { params: { implementId: item.id, limit: 100 } }).then((response) => {
+      const payload = response.data?.data || response.data || {};
+      setRepairHistory(Array.isArray(payload.items) ? payload.items : []);
+    });
+  };
+
+  const handleDeleteEquipment = async (item: ImplementItem) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa nông cụ ${item.code} (${item.name})?`)) return;
+    try {
+      await apiService.updateImplement(item.id, { status: 'DELETED' });
+      setEquipmentList((prev) => prev.filter((e) => e.id !== item.id));
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Không thể xóa nông cụ này');
+    }
+  };
+
   // 1. Column-Level Quick Search States
   const [searchCode, setSearchCode] = useState('');
   const [searchName, setSearchName] = useState('');
@@ -166,9 +230,18 @@ export const EquipmentPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUnit, setSelectedUnit] = useState(ALL);
   const [selectedLocation, setSelectedLocation] = useState(ALL);
-  const [selectedCategory, setSelectedCategory] = useState(ALL);
+  const categoryParam = searchParams.get('category');
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam || ALL);
   const globalKLH = useAppStore((state) => state.selectedKLH);
   const [selectedComplex, setSelectedComplex] = useState(globalKLH || ALL);
+
+  useEffect(() => {
+    const cat = searchParams.get('category');
+    if (cat) {
+      setSelectedCategory(cat);
+      setPage(1);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (globalKLH !== undefined) {
@@ -211,6 +284,7 @@ export const EquipmentPage: React.FC = () => {
     inDepot: 0,
     maintenance: 0,
   });
+  const [gpsAttached, setGpsAttached] = useState(0);
 
   const loadData = async () => {
     setLoading(true);
@@ -229,6 +303,11 @@ export const EquipmentPage: React.FC = () => {
         }
       })
       .catch(() => null);
+
+    apiService
+      .getVehicleStatistics({ isAssignable: true })
+      .then((vehicleStats) => setGpsAttached(vehicleStats?.gpsAttached || 0))
+      .catch(() => setGpsAttached(0));
 
     // 2. Fetch implements list
     try {
@@ -269,39 +348,15 @@ export const EquipmentPage: React.FC = () => {
     setImporting(true);
     setImportMessage('');
     try {
-      const rows = await parseOperationalImport(file, 'IMPLEMENT');
-      if (rows.length === 0) throw new Error('File không có dòng dữ liệu mới (dòng ví dụ được tự động bỏ qua).');
-      const vehicles = await apiService.getVehicles().catch(() => [] as VehicleProfile[]);
-      let imported = 0;
-      for (const row of rows) {
-        if (!row.code || !row.name || !row.category || !row.complexCode || !row.unit || !row.gatheringLocation || !row.technicalCondition || !row.status) {
-          throw new Error(`Dòng ${imported + 2} thiếu một hoặc nhiều trường bắt buộc (*).`);
-        }
-        const unitText = String(row.unit || '').toUpperCase();
-        const unit = ['NT1', 'NT2', 'XN_BO', 'TT_BTSC', 'BAN_CO_GIOI', 'TOAN_KLH'].includes(unitText) ? unitText : 'BAN_CO_GIOI';
-        const metadata = [
-          row.standardPurpose ? String(row.standardPurpose) : '',
-          row.brand ? `Hãng: ${row.brand}` : '', row.model ? `Model: ${row.model}` : '',
-          row.year ? `Năm SX: ${row.year}` : '', row.purchaseCondition ? `Tình trạng mua: ${row.purchaseCondition}` : '',
-          row.unit ? `Đơn vị: ${row.unit}` : '',
-          row.complexCode ? `Khu liên hợp: ${row.complexCode}` : '', row.regionCode ? `Khu vực: ${row.regionCode}` : '',
-          row.companyOwner ? `Pháp nhân: ${row.companyOwner}` : '', row.alertTier ? `Cảnh báo: ${row.alertTier}` : '',
-          row.maintenanceNotes ? `Ghi chú: ${row.maintenanceNotes}` : '',
-        ].filter(Boolean).join(' · ');
-        const created = await apiService.createImplement({
-          code: row.code, name: row.name, category: row.category, unit,
-          status: row.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'IN_DEPOT', technicalCondition: row.technicalCondition || 'GOOD',
-          gatheringLocation: row.gatheringLocation, managerName: row.managerName,
-          managerPhone: row.managerPhone ? String(row.managerPhone) : undefined,
-          standardPurpose: metadata,
-        });
-        if (row.attachedVehicleCode && created?.id) {
-          const vehicle = vehicles.find((item) => item.internalCode === row.attachedVehicleCode || (item as any).code === row.attachedVehicleCode);
-          if (vehicle) await apiService.attachImplement(created.id, Number(String(vehicle.id).replace(/\D/g, '')));
-        }
-        imported += 1;
-      }
-      setImportMessage(`Đã import thành công ${imported} thiết bị / nông cụ.`);
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.post('/implements/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { created = 0, updated = 0, skipped = 0, errors = [] } = res.data?.data ?? res.data ?? {};
+      const summary = `Import hoàn tất: ${created} tạo mới, ${updated} cập nhật, ${skipped} bỏ qua.`;
+      const errMsg = errors.length ? ` Lỗi: ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? '...' : ''}` : '';
+      setImportMessage(summary + errMsg);
       await loadData();
     } catch (error: any) {
       setImportMessage(error?.response?.data?.message || error?.message || 'Import thiết bị / nông cụ thất bại.');
@@ -309,6 +364,8 @@ export const EquipmentPage: React.FC = () => {
       setImporting(false);
     }
   };
+
+
 
   useEffect(() => {
     void loadData();
@@ -376,12 +433,15 @@ export const EquipmentPage: React.FC = () => {
     const list = klhEquipment;
     const total = list.length;
     const attached = list.filter((it) => it.status === 'ATTACHED').length;
-    const inDepot = list.filter((it) => it.status === 'IN_DEPOT' && it.technicalCondition !== 'NEED_REPAIR').length;
-    const maintenance = list.filter((it) => it.status === 'MAINTENANCE' || it.technicalCondition === 'NEED_REPAIR').length;
+    const inDepot = list.filter((it) => it.status === 'IN_DEPOT' && it.technicalCondition !== 'NEED_REPAIR' && it.technicalCondition !== 'WORN_OUT').length;
+    const maintenance = list.filter((it) => it.technicalCondition === 'WORN_OUT' || (it.status === 'MAINTENANCE' && it.technicalCondition !== 'NEED_REPAIR')).length;
+    const repair = list.filter((it) => it.technicalCondition === 'NEED_REPAIR').length;
     const gpsCount = list.filter((it) => it.currentVehicleId !== null && it.currentVehicleId !== undefined).length;
 
     const danCay = list.filter((it) => it.category === 'DAN_CAY').length;
     const danBuaXoi = list.filter((it) => it.category === 'DAN_BUA' || it.category === 'DAN_XOI').length;
+    const danRaiPhan = list.filter((it) => it.category === 'DAN_RAI_PHAN').length;
+    const danPhunThuoc = list.filter((it) => it.category === 'DAN_PHUN_THUOC').length;
     const roMooc = list.filter((it) => it.category === 'RO_MOOC').length;
 
     return {
@@ -389,9 +449,12 @@ export const EquipmentPage: React.FC = () => {
       attached,
       inDepot,
       maintenance,
+      repair,
       gpsCount,
       danCay,
       danBuaXoi,
+      danRaiPhan,
+      danPhunThuoc,
       roMooc,
     };
   }, [klhEquipment]);
@@ -513,9 +576,11 @@ export const EquipmentPage: React.FC = () => {
   }, [yearOptions]);
 
   const statusSelectOptions = useMemo<SelectOption[]>(() => [
-    { value: 'active', label: 'Bình thường' },
-    { value: 'maintenance', label: 'Đang bảo dưỡng' },
-    { value: 'repair', label: 'Hư hỏng / Sửa chữa' },
+    { value: 'active', label: 'Bình thường (Sẵn sàng)' },
+    { value: 'maintenance', label: 'Đang bảo dưỡng (Hao mòn)' },
+    { value: 'repair', label: 'Đang sửa chữa (Hư hỏng)' },
+    { value: 'ATTACHED', label: 'Đang gắn trên xe' },
+    { value: 'IN_DEPOT', label: 'Lưu tại bãi' },
   ], []);
 
   const alertTierSelectOptions = useMemo<SelectOption[]>(() => [
@@ -569,8 +634,10 @@ export const EquipmentPage: React.FC = () => {
     return klhEquipment.filter((item) => {
       // 1. Tab Filter
       if (activeTab === 'attached' && item.status !== 'ATTACHED') return false;
-      if (activeTab === 'in_depot' && (item.status !== 'IN_DEPOT' || item.technicalCondition === 'NEED_REPAIR')) return false;
-      if (activeTab === 'maintenance' && item.status !== 'MAINTENANCE' && item.technicalCondition !== 'NEED_REPAIR') return false;
+      if (activeTab === 'in_depot' && (item.status !== 'IN_DEPOT' || item.technicalCondition === 'NEED_REPAIR' || item.technicalCondition === 'WORN_OUT')) return false;
+      if (activeTab === 'maintenance' && !(item.technicalCondition === 'WORN_OUT' || (item.status === 'MAINTENANCE' && item.technicalCondition !== 'NEED_REPAIR'))) return false;
+      if (activeTab === 'repair' && item.technicalCondition !== 'NEED_REPAIR') return false;
+      if (vehicleIdFilter && String(item.currentVehicleId || '') !== vehicleIdFilter) return false;
 
       // 3. Region Filter (Khu vực địa lý: DP, LP, AD, KLH)
       if (selectedRegion !== ALL) {
@@ -595,7 +662,13 @@ export const EquipmentPage: React.FC = () => {
       }
 
       // 5. Category Filter (Chủng loại)
-      if (selectedCategory !== ALL && item.category !== selectedCategory) return false;
+      if (selectedCategory !== ALL) {
+        if (selectedCategory === 'DAN_BUA_XOI') {
+          if (item.category !== 'DAN_BUA' && item.category !== 'DAN_XOI') return false;
+        } else if (item.category !== selectedCategory) {
+          return false;
+        }
+      }
 
       // 6. Manufacturer Filter (Hãng / Nhãn hiệu)
       if (selectedManufacturer !== ALL) {
@@ -624,21 +697,22 @@ export const EquipmentPage: React.FC = () => {
       // 10. Status Filter (Trạng thái hệ thống)
       if (selectedStatus !== ALL) {
         if (selectedStatus === 'active' && (item.technicalCondition !== 'GOOD' || item.status === 'MAINTENANCE')) return false;
-        if (selectedStatus === 'maintenance' && item.status !== 'MAINTENANCE') return false;
-        if (selectedStatus === 'repair' && item.technicalCondition !== 'NEED_REPAIR' && item.status !== 'MAINTENANCE') return false;
+        if (selectedStatus === 'maintenance' && !(item.technicalCondition === 'WORN_OUT' || (item.status === 'MAINTENANCE' && item.technicalCondition !== 'NEED_REPAIR'))) return false;
+        if (selectedStatus === 'repair' && item.technicalCondition !== 'NEED_REPAIR') return false;
         if (selectedStatus === 'ATTACHED' && item.status !== 'ATTACHED') return false;
         if (selectedStatus === 'IN_DEPOT' && item.status !== 'IN_DEPOT') return false;
       }
 
       // 11. Condition Filter (Tình trạng kỹ thuật)
       if (selectedCondition !== ALL) {
-        if (selectedCondition === 'NEED_REPAIR' && item.technicalCondition !== 'NEED_REPAIR' && item.status !== 'MAINTENANCE') return false;
-        if (selectedCondition === 'GOOD' && (item.technicalCondition === 'NEED_REPAIR' || item.status === 'MAINTENANCE')) return false;
+        if (selectedCondition === 'NEED_REPAIR' && item.technicalCondition !== 'NEED_REPAIR') return false;
+        if (selectedCondition === 'WORN_OUT' && item.technicalCondition !== 'WORN_OUT') return false;
+        if (selectedCondition === 'GOOD' && item.technicalCondition !== 'GOOD') return false;
       }
 
       // 12. AlertTier Filter (Cảnh báo bảo dưỡng)
       if (selectedAlertTier !== ALL) {
-        if (selectedAlertTier === 'RED' && item.technicalCondition !== 'NEED_REPAIR' && item.status !== 'MAINTENANCE') return false;
+        if (selectedAlertTier === 'RED' && item.technicalCondition !== 'NEED_REPAIR') return false;
         if (selectedAlertTier === 'AMBER' && item.technicalCondition !== 'WORN_OUT') return false;
         if (selectedAlertTier === 'GREEN' && (item.technicalCondition !== 'GOOD' || item.status === 'MAINTENANCE')) return false;
       }
@@ -699,6 +773,7 @@ export const EquipmentPage: React.FC = () => {
     searchName,
     searchLocation,
     searchTerm,
+    vehicleIdFilter,
   ]);
 
   // Paginated slice
@@ -715,11 +790,8 @@ export const EquipmentPage: React.FC = () => {
     setSelectedVehicleId('');
     setAttachMessage(null);
     try {
-      const unit = getItemUnit(item);
-      const vehicles = await apiService.getVehicles({
-        assignedUnitCode: unit.includes('DP') ? 'DP' : unit.includes('LP') ? 'LP' : undefined,
-      });
-      setAvailableVehicles(vehicles.slice(0, 100));
+      const vehicles = await apiService.getCompatibleVehiclesForImplement(item.id, item.unit);
+      setAvailableVehicles(vehicles);
     } catch (e) {
       console.error(e);
     }
@@ -804,7 +876,7 @@ export const EquipmentPage: React.FC = () => {
         <div>
           <button
             type="button"
-            onClick={() => setSelectedEquipment(item)}
+            onClick={() => openEquipmentProfile(item)}
             className="text-left font-mono text-xs font-extrabold text-[#15803d] hover:underline"
           >
             {item.code}
@@ -813,10 +885,22 @@ export const EquipmentPage: React.FC = () => {
             <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-1 py-0.2 font-mono text-[9px] font-bold text-emerald-800">
               {getItemPurchaseCondition(item)}
             </span>
-            <span className="text-[10px] text-slate-400">
-              {getItemYear(item) !== '—' ? `SX ${getItemYear(item)}` : ''}
-            </span>
           </div>
+        </div>
+      ),
+      filterElement: (
+        <div className="relative">
+          <Search className="absolute left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Lọc mã/tên..."
+            className="h-7 w-full rounded border border-slate-300 bg-white pl-5 pr-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+          />
         </div>
       ),
     },
@@ -836,6 +920,58 @@ export const EquipmentPage: React.FC = () => {
             {getItemBrand(item) !== '—' && <span>{getItemBrand(item)}</span>}
           </div>
         </div>
+      ),
+      filterElement: (
+        <select
+          value={selectedCategory}
+          onChange={(e) => {
+            setSelectedCategory(e.target.value);
+            setPage(1);
+          }}
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+        >
+          <option value={ALL}>Tất cả loại xe</option>
+          {categorySelectOptions.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: 'year',
+      title: 'BIỂN SỐ / NĂM SX',
+      sortable: true,
+      width: '140px',
+      render: (item) => {
+        const year = getItemYear(item);
+        const origin = getProp(item.standardPurpose, 'Xuất xứ') || 'VN';
+        return (
+          <div>
+            <span className="text-[10px] text-slate-400 italic">Chưa gắn biển</span>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              {origin}{year !== '—' ? ` · SX ${year}` : ''}
+            </div>
+          </div>
+        );
+      },
+      filterElement: (
+        <select
+          value={selectedYear}
+          onChange={(e) => {
+            setSelectedYear(e.target.value);
+            setPage(1);
+          }}
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+        >
+          <option value={ALL}>Tất cả năm</option>
+          {yearSelectOptions.map((y) => (
+            <option key={y.value} value={y.value}>
+              {y.label}
+            </option>
+          ))}
+        </select>
       ),
     },
     {
@@ -889,21 +1025,21 @@ export const EquipmentPage: React.FC = () => {
           }}
           className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
         >
-          <option value={ALL}>Tất cả đơn vị & nơi tập kết</option>
-          {locationOptions.length > 0 && (
-            <optgroup label="📍 Nơi tập kết">
-              {locationSelectOptions.map((l) => (
-                <option key={`loc-${l.value}`} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-            </optgroup>
-          )}
+          <option value={ALL}>Tất cả đơn vị</option>
           {unitOptions.length > 0 && (
             <optgroup label="🏢 Đơn vị sử dụng">
               {unitSelectOptions.map((u) => (
                 <option key={`unit-${u.value}`} value={u.value}>
                   {u.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {locationOptions.length > 0 && (
+            <optgroup label="📍 Nơi tập kết">
+              {locationSelectOptions.map((l) => (
+                <option key={`loc-${l.value}`} value={l.value}>
+                  {l.label}
                 </option>
               ))}
             </optgroup>
@@ -933,59 +1069,104 @@ export const EquipmentPage: React.FC = () => {
           </div>
         );
       },
+      filterElement: (
+        <select
+          value={selectedStatus}
+          onChange={(e) => {
+            setSelectedStatus(e.target.value);
+            setPage(1);
+          }}
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+        >
+          <option value={ALL}>Tất cả</option>
+          {statusSelectOptions.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
+      render: (item) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
     },
     {
       key: 'actions',
-      title: 'THAO TÁC',
-      width: '160px',
+      title: 'Tác vụ',
+      width: '130px',
       align: 'center',
       render: (item) => {
         const isAttached = item.status === 'ATTACHED';
         const isMaintenance = item.status === 'MAINTENANCE';
         return (
-          <div className="flex items-center justify-center gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSelectedEquipment(item)}
-              className="h-7 text-[11px] px-2 font-bold"
-              title="Xem chi tiết lý lịch nông cụ"
-            >
-              <Eye className="h-3 w-3 mr-1" /> Chi tiết
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setEditingEquipment(item)}
-              className="h-7 text-[11px] px-2 font-bold border-amber-300 text-amber-800 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-400"
-              title="Chỉnh sửa thông tin & cập nhật sửa chữa"
-            >
-              <Edit className="h-3 w-3 mr-1 text-amber-700" /> Sửa
-            </Button>
+          <div className="flex items-center justify-center gap-1">
+            <TableRowActions
+              onView={() => openEquipmentProfile(item)}
+              onEdit={() => setEditingEquipment(item)}
+              onDelete={() => handleDeleteEquipment(item)}
+              viewTitle="Xem chi tiết lý lịch nông cụ"
+              editTitle="Chỉnh sửa nông cụ"
+              deleteTitle="Xóa nông cụ"
+            />
             {isAttached ? (
-              <Button
-                size="sm"
-                variant="outline"
+              <button
+                type="button"
                 onClick={() => void handleDetach(item)}
-                className="h-7 text-[10px] px-1.5 font-bold text-rose-700 border-rose-200 bg-rose-50 hover:bg-rose-100"
+                className="p-1 text-slate-500 hover:text-rose-600 rounded transition-colors cursor-pointer"
                 title="Tháo nông cụ khỏi xe đưa về bãi"
               >
-                <Unlink className="h-3 w-3 mr-0.5" /> Tháo
-              </Button>
-            ) : !isMaintenance ? (
-              <Button
-                size="sm"
-                variant="outline"
+                <Unlink className="w-3.5 h-3.5 text-rose-500" />
+              </button>
+            ) : !isMaintenance && item.usageMode === 'ATTACHABLE' ? (
+              <button
+                type="button"
                 onClick={() => void openAttachModal(item)}
-                className="h-7 text-[10px] px-1.5 font-bold text-sky-700 border-sky-200 bg-sky-50 hover:bg-sky-100"
-                title="Gắn nông cụ vào xe cơ giới"
+                className="p-1 text-slate-500 hover:text-sky-600 rounded transition-colors cursor-pointer"
+                title="Gán nông cụ vào xe cơ giới"
               >
-                <Link2 className="h-3 w-3 mr-0.5" /> Gắn xe
-              </Button>
+                <Link2 className="w-3.5 h-3.5 text-sky-600" />
+              </button>
             ) : null}
           </div>
         );
       },
+      filterElement: (searchTerm || selectedUnit !== ALL || selectedLocation !== ALL || selectedCategory !== ALL || selectedStatus !== ALL || selectedYear !== ALL) ? (
+        <button
+          type="button"
+          onClick={() => {
+            setSearchTerm('');
+            setSelectedUnit(ALL);
+            setSelectedLocation(ALL);
+            setSelectedCategory(ALL);
+            setSelectedStatus(ALL);
+            setSelectedYear(ALL);
+            setSelectedComplex(ALL);
+            setSelectedRegion(ALL);
+            setSelectedManufacturer(ALL);
+            setSelectedModel(ALL);
+            setSelectedOrigin(ALL);
+            setSelectedCondition(ALL);
+            setSelectedAlertTier(ALL);
+            setPage(1);
+          }}
+          className="inline-flex items-center justify-center gap-1 rounded bg-rose-50 px-1.5 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-100 border border-rose-200 w-full transition-colors"
+          title="Xóa toàn bộ lọc"
+        >
+          <RotateCcw className="h-3 w-3" /> Đặt lại
+        </button>
+      ) : null,
     },
   ];
 
@@ -1000,7 +1181,7 @@ export const EquipmentPage: React.FC = () => {
         <div>
           <button
             type="button"
-            onClick={() => setSelectedEquipment(item)}
+            onClick={() => openEquipmentProfile(item)}
             className="text-left font-mono text-xs font-extrabold text-[#15803d] hover:underline"
           >
             {item.code}
@@ -1095,17 +1276,28 @@ export const EquipmentPage: React.FC = () => {
       key: 'technicalCondition',
       title: 'TÌNH TRẠNG KỸ THUẬT',
       sortable: true,
-      width: '140px',
+      width: '150px',
       render: (item) => {
-        const isDamaged = item.technicalCondition === 'NEED_REPAIR' || item.status === 'MAINTENANCE';
+        if (item.technicalCondition === 'NEED_REPAIR') {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+              Hư hỏng (Sửa chữa)
+            </span>
+          );
+        }
+        if (item.technicalCondition === 'WORN_OUT' || item.status === 'MAINTENANCE') {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Đang bảo dưỡng
+            </span>
+          );
+        }
         return (
-          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-            isDamaged
-              ? 'border-rose-300 bg-rose-50 text-rose-700'
-              : 'border-emerald-300 bg-emerald-50 text-emerald-700'
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${isDamaged ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-            {isDamaged ? 'Hư hỏng' : 'Bình thường'}
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Bình thường
           </span>
         );
       },
@@ -1126,51 +1318,60 @@ export const EquipmentPage: React.FC = () => {
       },
     },
     {
-      key: 'actions',
-      title: 'THAO TÁC',
-      width: '145px',
+      key: 'user',
+      title: 'User',
+      width: '70px',
       align: 'center',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSelectedEquipment(item)}
-            className="h-7 text-[11px] px-2 font-bold"
-            title="Xem chi tiết lý lịch nông cụ"
-          >
-            <Eye className="h-3 w-3 mr-1" /> Chi tiết
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setEditingEquipment(item)}
-            className="h-7 text-[11px] px-2 font-bold border-amber-300 text-amber-800 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-400"
-            title="Chỉnh sửa thông tin & cập nhật sửa chữa"
-          >
-            <Edit className="h-3 w-3 mr-1 text-amber-700" /> Sửa
-          </Button>
-          {item.status === 'ATTACHED' ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void handleDetach(item)}
-              className="h-7 text-[10px] px-1.5 font-bold text-rose-700 border-rose-200 bg-rose-50 hover:bg-rose-100"
-            >
-              Tháo
-            </Button>
-          ) : item.status !== 'MAINTENANCE' ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void openAttachModal(item)}
-              className="h-7 text-[10px] px-1.5 font-bold text-sky-700 border-sky-200 bg-sky-50 hover:bg-sky-100"
-            >
-              Gắn
-            </Button>
-          ) : null}
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
       ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '130px',
+      align: 'center',
+      render: (item) => {
+        const isAttached = item.status === 'ATTACHED';
+        const isMaintenance = item.status === 'MAINTENANCE';
+        return (
+          <div className="flex items-center justify-center gap-1">
+            <TableRowActions
+              onView={() => openEquipmentProfile(item)}
+              onEdit={() => setEditingEquipment(item)}
+              onDelete={() => handleDeleteEquipment(item)}
+              viewTitle="Xem chi tiết lý lịch nông cụ"
+              editTitle="Chỉnh sửa nông cụ"
+              deleteTitle="Xóa nông cụ"
+            />
+            {isAttached ? (
+              <button
+                type="button"
+                onClick={() => void handleDetach(item)}
+                className="p-1 text-slate-500 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                title="Tháo nông cụ khỏi xe đưa về bãi"
+              >
+                <Unlink className="w-3.5 h-3.5 text-rose-500" />
+              </button>
+            ) : !isMaintenance && item.usageMode === 'ATTACHABLE' ? (
+              <button
+                type="button"
+                onClick={() => void openAttachModal(item)}
+                className="p-1 text-slate-500 hover:text-sky-600 rounded transition-colors cursor-pointer"
+                title="Gán nông cụ vào xe cơ giới"
+              >
+                <Link2 className="w-3.5 h-3.5 text-sky-600" />
+              </button>
+            ) : null}
+          </div>
+        );
+      },
     },
   ];
 
@@ -1178,13 +1379,13 @@ export const EquipmentPage: React.FC = () => {
     <div className="space-y-4">
 
 
-      {/* 4x2 DASHBOARD TILES GRID (THIẾT KẾ ĐỒNG BỘ 8 THẺ CARD SÁNG CÓ THANH VIỀN ĐÁY) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ═══ ROW 1: TRẠNG THÁI VẬN HÀNH & GIÁM SÁT (6 THẺ ĐỒNG BỘ) ═══ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         {/* Row 1 - Card 1: Tất cả thiết bị & Nông cụ */}
         <button
           type="button"
           onClick={() => {
-            setActiveTab('all');
+            changeTab('all');
             setSelectedCategory(ALL);
             setPage(1);
           }}
@@ -1196,8 +1397,8 @@ export const EquipmentPage: React.FC = () => {
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-blue-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Tất cả thiết bị & Nông cụ</span>
-            <div className="rounded-xl p-2 bg-blue-50 text-blue-600">
+            <span className="text-xs font-bold text-slate-500">Tổng quy mô nông cụ</span>
+            <div className="rounded-xl p-2 bg-blue-50 text-blue-600 border border-blue-200">
               <Layers className="w-5 h-5" />
             </div>
           </div>
@@ -1206,7 +1407,7 @@ export const EquipmentPage: React.FC = () => {
           </div>
           <div className="mt-1 text-[11px] font-semibold text-slate-500 truncate">
             {selectedCategory !== ALL
-              ? `Nhóm: ${CATEGORY_NAMES[selectedCategory]?.label || selectedCategory}`
+              ? `Nhóm: ${selectedCategory === 'DAN_BUA_XOI' ? 'Dàn bừa & xới làm đất' : (CATEGORY_NAMES[selectedCategory]?.label || selectedCategory)}`
               : selectedComplex !== ALL
               ? `Phân bổ tại ${selectedComplex === 'KOUN_MOM' ? 'KLH Koun Mom' : selectedComplex === 'SNOUL' ? 'KLH Snoul' : 'KLH Nam Lào'}`
               : '100% Dữ liệu thực từ database'}
@@ -1217,8 +1418,7 @@ export const EquipmentPage: React.FC = () => {
         <button
           type="button"
           onClick={() => {
-            setActiveTab((curr) => (curr === 'in_depot' ? 'all' : 'in_depot'));
-            setPage(1);
+            changeTab(activeTab === 'in_depot' ? 'all' : 'in_depot');
           }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
             activeTab === 'in_depot'
@@ -1241,38 +1441,91 @@ export const EquipmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Row 1 - Card 3: Đang sửa chữa / Bảo dưỡng */}
+        {/* Row 1 - Card 3: Đang gắn trên xe */}
         <button
           type="button"
           onClick={() => {
-            setActiveTab((curr) => (curr === 'maintenance' ? 'all' : 'maintenance'));
-            setPage(1);
+            changeTab(activeTab === 'attached' ? 'all' : 'attached');
+          }}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            activeTab === 'attached'
+              ? 'border-sky-500 bg-sky-50/40 ring-2 ring-sky-500/25 shadow-sm scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-sky-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">Đang gắn trên xe</span>
+            <div className="rounded-xl p-2 bg-sky-50 text-sky-600 border border-sky-200">
+              <Tractor className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-sky-700">
+            {loading ? '...' : dynamicStats.attached.toLocaleString('vi-VN')}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-sky-700 truncate">
+            Đang theo xe làm việc ngoài đồng
+          </div>
+        </button>
+
+        {/* Row 1 - Card 4: Đang bảo dưỡng */}
+        <button
+          type="button"
+          onClick={() => {
+            changeTab(activeTab === 'maintenance' ? 'all' : 'maintenance');
           }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
             activeTab === 'maintenance'
+              ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/25 shadow-sm scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-700">Đang bảo dưỡng</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <Wrench className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {loading ? '...' : dynamicStats.maintenance.toLocaleString('vi-VN')}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Hao mòn chảo bừa, dao phay
+          </div>
+        </button>
+
+        {/* Row 1 - Card 5: Đang sửa chữa (Hư hỏng) */}
+        <button
+          type="button"
+          onClick={() => {
+            changeTab(activeTab === 'repair' ? 'all' : 'repair');
+          }}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            activeTab === 'repair'
               ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-rose-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-700">Đang sửa chữa / Bảo dưỡng</span>
+            <span className="text-xs font-bold text-rose-700">Đang sửa chữa (Hỏng)</span>
             <div className="rounded-xl p-2 bg-rose-50 text-rose-600">
-              <Wrench className="w-5 h-5" />
+              <AlertTriangle className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-2 text-2xl font-black text-rose-700">
-            {loading ? '...' : dynamicStats.maintenance.toLocaleString('vi-VN')}
+            {loading ? '...' : dynamicStats.repair.toLocaleString('vi-VN')}
           </div>
           <div className="mt-1 text-[11px] font-semibold text-rose-600 truncate">
-            Ghi nhận hư hỏng tại Xưởng BTSC
+            Hư hỏng tại Xưởng BTSC
           </div>
         </button>
 
-        {/* Row 1 - Card 4: Đã gắn GPS / Giám sát */}
+        {/* Row 1 - Card 6: Đã gắn GPS / Giám sát */}
         <button
           type="button"
-          onClick={() => {}}
+          onClick={() => navigate('/doi-xe/gps-cam-bien')}
           className="relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-sky-500" />
@@ -1283,44 +1536,17 @@ export const EquipmentPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-2 text-2xl font-black text-sky-700">
-            {loading ? '...' : dynamicStats.gpsCount.toLocaleString('vi-VN')}
+            {loading ? '...' : gpsAttached.toLocaleString('vi-VN')}
           </div>
           <div className="mt-1 text-[11px] font-semibold text-sky-700 truncate">
             Truyền tọa độ & cảm biến
           </div>
         </button>
+      </div>
 
-        {/* ═══ ROW 2 — Phân loại Nông cụ & Thiết bị đính kèm (Tính động từ MySQL) ═══ */}
-
-        {/* Card 5: Đang gắn trên xe */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab((curr) => (curr === 'attached' ? 'all' : 'attached'));
-            setPage(1);
-          }}
-          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            activeTab === 'attached'
-              ? 'border-sky-500 bg-sky-50/40 ring-2 ring-sky-500/25 shadow-sm scale-[1.01]'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-sky-500" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900 truncate">Đang gắn trên xe</span>
-            <div className="rounded-xl p-2 bg-sky-50 text-sky-600 border border-sky-200">
-              <Tractor className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-2 text-2xl font-black text-slate-900">
-            {loading ? '...' : dynamicStats.attached.toLocaleString('vi-VN')}
-          </div>
-          <div className="mt-1 text-[11px] font-semibold text-slate-500 truncate">
-            Đang theo xe làm việc ngoài đồng
-          </div>
-        </button>
-
-        {/* Card 6: Dàn cày nông nghiệp */}
+      {/* ═══ ROW 2 — PHÂN LOẠI NÔNG CỤ & THIẾT BỊ ĐÍNH KÈM (5 NHÓM - TỔNG 1.006 BỘ) ═══ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* Card 1: Dàn cày nông nghiệp */}
         <button
           type="button"
           onClick={() => {
@@ -1348,15 +1574,15 @@ export const EquipmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 7: Dàn bừa & xới làm đất */}
+        {/* Card 2: Dàn bừa & xới làm đất */}
         <button
           type="button"
           onClick={() => {
-            setSelectedCategory((curr) => (curr === 'DAN_BUA' ? ALL : 'DAN_BUA'));
+            setSelectedCategory((curr) => (curr === 'DAN_BUA_XOI' ? ALL : 'DAN_BUA_XOI'));
             setPage(1);
           }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            selectedCategory === 'DAN_BUA' || selectedCategory === 'DAN_XOI'
+            selectedCategory === 'DAN_BUA_XOI' || selectedCategory === 'DAN_BUA' || selectedCategory === 'DAN_XOI'
               ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/30 scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
@@ -1376,7 +1602,63 @@ export const EquipmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Card 8: Rơ-moóc & Moóc kéo */}
+        {/* Card 3: Dàn rải phân & bón vôi */}
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCategory((curr) => (curr === 'DAN_RAI_PHAN' ? ALL : 'DAN_RAI_PHAN'));
+            setPage(1);
+          }}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            selectedCategory === 'DAN_RAI_PHAN'
+              ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/30 scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-orange-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-900 truncate">Dàn rải phân & bón vôi</span>
+            <div className="rounded-xl p-2 bg-orange-50 text-orange-600 border border-orange-200">
+              <Sprout className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-900">
+            {loading ? '...' : dynamicStats.danRaiPhan.toLocaleString('vi-VN')}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-slate-500 truncate">
+            Rải phân chuồng, vôi & NPK
+          </div>
+        </button>
+
+        {/* Card 4: Dàn phun thuốc BVTV */}
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCategory((curr) => (curr === 'DAN_PHUN_THUOC' ? ALL : 'DAN_PHUN_THUOC'));
+            setPage(1);
+          }}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            selectedCategory === 'DAN_PHUN_THUOC'
+              ? 'border-teal-500 bg-teal-50/40 ring-2 ring-teal-500/30 scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-teal-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-900 truncate">Dàn phun thuốc BVTV</span>
+            <div className="rounded-xl p-2 bg-teal-50 text-teal-600 border border-teal-200">
+              <Droplets className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-900">
+            {loading ? '...' : dynamicStats.danPhunThuoc.toLocaleString('vi-VN')}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-slate-500 truncate">
+            Phun thuốc cần gập & cao áp
+          </div>
+        </button>
+
+        {/* Card 5: Rơ-moóc & Moóc kéo */}
         <button
           type="button"
           onClick={() => {
@@ -1428,6 +1710,15 @@ export const EquipmentPage: React.FC = () => {
               <Plus className="h-4 w-4 stroke-[3]" />
               Thêm mới thiết bị
             </button>
+
+            <Link
+              to="/danh-muc/loai-xe?tab=implements"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 transition-all hover:bg-emerald-100"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-700" />
+              Danh mục 6 Chủng loại Thiết bị
+              <ExternalLink className="h-3 w-3 text-emerald-600" />
+            </Link>
 
             <button
               type="button"
@@ -1984,6 +2275,7 @@ export const EquipmentPage: React.FC = () => {
                 { key: 'technical', label: '2. Thông số & Kỹ thuật', icon: Gauge },
                 { key: 'assignment', label: '3. Phân bổ & Bãi tập kết', icon: Building2 },
                 { key: 'operation', label: '4. Vận hành & Xe đang gắn', icon: Tractor },
+                { key: 'repairs', label: '5. Báo hỏng & Sửa chữa', icon: Wrench },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const active = detailTab === tab.key;
@@ -2084,6 +2376,24 @@ export const EquipmentPage: React.FC = () => {
                       Nông cụ hiện đang nằm tại bãi tập kết <b>{getItemLocation(selectedEquipment)}</b> của đơn vị <b>{getItemUnit(selectedEquipment)}</b>, sẵn sàng điều động gắn vào xe cơ giới khi có lệnh làm đất.
                     </div>
                   )}
+                </div>
+              )}
+
+              {detailTab === 'repairs' && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => navigate(`/xuong-btsc/yeu-cau?tab=maintenance&assetType=implement&assetId=${selectedEquipment.id}`)}>Tạo yêu cầu bảo dưỡng</Button>
+                    <Button size="sm" icon={<Wrench className="h-4 w-4" />} onClick={() => navigate(`/xuong-btsc/yeu-cau?tab=repair&assetType=implement&assetId=${selectedEquipment.id}`)}>Báo sửa chữa</Button>
+                  </div>
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">Thiết bị phụ trợ không phát sinh lịch BDC1/BDC2. Hồ sơ này chỉ lưu quy trình báo hỏng – sửa chữa.</div>
+                  {repairHistory.length ? repairHistory.map((repair) => (
+                    <div key={repair.id} className="rounded-xl border border-slate-200 p-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2"><b className="font-mono text-primary">{repair.code}</b><Badge variant={repair.status === 'COMPLETED' ? 'green' : 'amber'}>{repair.status}</Badge></div>
+                      <p className="mt-2 font-semibold text-slate-800">{repair.issueDescription}</p>
+                      <div className="mt-2 grid gap-2 text-slate-500 sm:grid-cols-3"><span>Báo bởi: {repair.reportedBy?.fullName || repair.reportedByDriver?.fullName || '—'}</span><span>Xe đang dùng: {selectedEquipment.currentVehicle?.plate || selectedEquipment.currentVehicle?.code || 'Không gắn xe'}</span><span>Tiếp nhận: {new Date(repair.createdAt || repair.receivedDate).toLocaleString('vi-VN')}</span></div>
+                      {repair.incidentPhotoUrl && <a href={repair.incidentPhotoUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block font-semibold text-blue-600 hover:underline">Xem ảnh hiện trường</a>}
+                    </div>
+                  )) : <div className="py-16 text-center text-xs text-slate-400">Chưa có lịch sử báo hỏng.</div>}
                 </div>
               )}
             </div>

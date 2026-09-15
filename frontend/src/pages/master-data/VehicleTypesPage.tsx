@@ -26,16 +26,24 @@ import {
   Users,
   Wand2,
 } from 'lucide-react';
-import { apiService } from '../../api/client';
+import { apiClient, apiService } from '../../api/client';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
 import { Column, DataTable } from '../../components/data-display/DataTable';
 import { VehicleTypeMaster } from '../../types';
 import { INITIAL_CG_MANAGERS, MASTER_LOCATIONS, INITIAL_MASTER_LOCATIONS, CGManagerItem, MasterLocationItem } from '../../data/cgManagersData';
+import { schedulingApi } from '../../api/scheduling';
+import {
+  IMPLEMENT_CATEGORIES_CATALOG,
+  ImplementCategoryDefinition,
+} from '../../data/implementCategoriesData';
 
 type CatalogTab =
   | 'types'
+  | 'implements'
   | 'manufacturers'
   | 'models'
   | 'origins'
@@ -44,6 +52,8 @@ type CatalogTab =
   | 'cgManagers'
   | 'purchaseConditions'
   | 'suppliers';
+
+export type { ImplementCategoryDefinition };
 
 const GROUP_LABELS: Record<string, string> = {
   MAY_CONG_TRINH: 'Máy công trình',
@@ -114,6 +124,19 @@ const POPULAR_COUNTRIES = [
 const inputClassName =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15';
 
+const renderMasterDataStatusBadge = (status?: string | boolean) => {
+  const isInactive = status === 'inactive' || status === 'TAM_DUNG' || status === 'NGUNG_HOAT_DONG' || status === false;
+  return (
+    <span
+      className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+        isInactive ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-800'
+      }`}
+    >
+      {isInactive ? 'Ngưng hoạt động' : 'Còn hoạt động'}
+    </span>
+  );
+};
+
 export const VehicleTypesPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,6 +149,26 @@ export const VehicleTypesPage: React.FC = () => {
   const [showAddTypeModal, setShowAddTypeModal] = useState(false);
   const [editingType, setEditingType] = useState<VehicleTypeMaster | null>(null);
   const [typeForm, setTypeForm] = useState(EMPTY_TYPE_FORM);
+  const [maintenanceType, setMaintenanceType] = useState<VehicleTypeMaster | null>(null);
+  const [maintenanceStandards, setMaintenanceStandards] = useState<any[]>([]);
+  const [maintenanceMetric, setMaintenanceMetric] = useState<'ENGINE_HOUR' | 'ODOMETER_KM'>('ENGINE_HOUR');
+  const [maintenanceMilestones, setMaintenanceMilestones] = useState('50, 250, 500, 750, 1000, 1250, 1500, 1750, 2000');
+  const [maintenanceName, setMaintenanceName] = useState('Định mức BDC2 giờ máy');
+  const [maintenanceSaving, setMaintenanceSaving] = useState(false);
+
+  // 1.5 Implements Categories Data
+  const [implementCategories, setImplementCategories] = useState<ImplementCategoryDefinition[]>(IMPLEMENT_CATEGORIES_CATALOG);
+  const [implementsLoading, setImplementsLoading] = useState(false);
+  const [editingImplement, setEditingImplement] = useState<ImplementCategoryDefinition | null>(null);
+  const [showImplementModal, setShowImplementModal] = useState(false);
+  const [implementForm, setImplementForm] = useState({
+    code: '',
+    name: '',
+    functionalGroup: '',
+    compatibleVehicles: '',
+    defaultMaintenanceHours: '250',
+    description: '',
+  });
 
   // 2. Manufacturers Data
   const [manufacturers, setManufacturers] = useState<Array<{
@@ -174,21 +217,26 @@ export const VehicleTypesPage: React.FC = () => {
   const globalKLH = useAppStore((state) => state.selectedKLH);
   const [selectedLocationKlh, setSelectedLocationKlh] = useState<string>('ALL');
 
-  const [masterLocations, setMasterLocations] = useState<MasterLocationItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('vehicle_locations_master');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
-          return parsed;
-        }
-      }
-    } catch {}
-    return INITIAL_MASTER_LOCATIONS;
-  });
+  const [masterLocations, setMasterLocations] = useState<MasterLocationItem[]>(INITIAL_MASTER_LOCATIONS);
 
   // 5. Locations Data
   const [locations, setLocations] = useState<string[]>(() => masterLocations.map((l) => l.name));
+
+  useEffect(() => {
+    let active = true;
+    schedulingApi.locations({ active: true }).then((items) => {
+      if (!active || !items.length) return;
+      const mapped: MasterLocationItem[] = items.map((item) => ({
+        id: String(item.id), backendId: item.id, code: item.code, name: item.name, type: item.type,
+        complexCode: item.complexCode || 'KOUN_MOM',
+        complexName: item.complexCode === 'SNOUL' ? 'Khu liên hợp Snoul' : item.complexCode === 'NAM_LAO' ? 'Khu liên hợp Nam Lào' : 'Khu liên hợp Koun Mom',
+        regionName: item.regionName, address: item.address, status: item.active ? 'HOAT_DONG' : 'TAM_DUNG', lat: item.lat, lng: item.lng, geofenceRadiusM: item.geofenceRadiusM,
+      }));
+      setMasterLocations(mapped);
+      setLocations(mapped.map((item) => item.name));
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<MasterLocationItem | null>(null);
@@ -198,12 +246,18 @@ export const VehicleTypesPage: React.FC = () => {
     complexName: string;
     regionName: string;
     address: string;
+    lat: string;
+    lng: string;
+    geofenceRadiusM: string;
   }>({
     name: '',
     complexCode: 'KOUN_MOM',
     complexName: 'Khu liên hợp Koun Mom',
     regionName: '',
     address: '',
+    lat: '',
+    lng: '',
+    geofenceRadiusM: '300',
   });
 
   const openAddLocationModal = () => {
@@ -221,6 +275,9 @@ export const VehicleTypesPage: React.FC = () => {
       complexName: defaultName,
       regionName: '',
       address: '',
+      lat: '',
+      lng: '',
+      geofenceRadiusM: '300',
     });
     setShowLocationModal(true);
   };
@@ -233,52 +290,56 @@ export const VehicleTypesPage: React.FC = () => {
       complexName: item.complexName,
       regionName: item.regionName || '',
       address: item.address || '',
+      lat: item.lat?.toString() || '',
+      lng: item.lng?.toString() || '',
+      geofenceRadiusM: String(item.geofenceRadiusM || 300),
     });
     setShowLocationModal(true);
   };
 
-  const handleSaveLocation = () => {
+  const handleSaveLocation = async () => {
     if (!locationForm.name.trim()) {
       setFormError('Vui lòng nhập tên Bãi / Nơi tập kết');
       return;
     }
     const val = locationForm.name.trim();
-    if (editingLocation) {
-      setMasterLocations((prev) => {
-        const next = prev.map((item) =>
-          item.id === editingLocation.id || item.name === editingLocation.name
-            ? { ...item, ...locationForm, name: val }
-            : item
-        );
-        localStorage.setItem('vehicle_locations_master', JSON.stringify(next));
-        return next;
-      });
-      setLocations((prev) => prev.map((l) => (l === editingLocation.name ? val : l)));
-    } else {
-      const newItem: MasterLocationItem = {
-        id: `LOC-${Date.now().toString().slice(-4)}`,
-        ...locationForm,
-        name: val,
-      };
-      setMasterLocations((prev) => {
-        const next = [newItem, ...prev];
-        localStorage.setItem('vehicle_locations_master', JSON.stringify(next));
-        return next;
-      });
-      setLocations((prev) => (prev.includes(val) ? prev : [val, ...prev]));
+    setFormError('');
+    try {
+      if (editingLocation) {
+        const saved = editingLocation.backendId ? await schedulingApi.updateLocation(editingLocation.backendId, { name: val, complexCode: locationForm.complexCode, regionName: locationForm.regionName, address: locationForm.address, lat: locationForm.lat ? Number(locationForm.lat) : undefined, lng: locationForm.lng ? Number(locationForm.lng) : undefined, geofenceRadiusM: Number(locationForm.geofenceRadiusM) || 300 }) : undefined;
+        setMasterLocations((prev) => prev.map((item) => item.id === editingLocation.id || item.name === editingLocation.name ? { ...item, name: val, complexCode: locationForm.complexCode, complexName: locationForm.complexName, regionName: locationForm.regionName, address: locationForm.address, lat: locationForm.lat ? Number(locationForm.lat) : undefined, lng: locationForm.lng ? Number(locationForm.lng) : undefined, geofenceRadiusM: Number(locationForm.geofenceRadiusM) || 300, backendId: saved?.id ?? item.backendId, code: saved?.code ?? item.code } : item));
+        setLocations((prev) => prev.map((l) => (l === editingLocation.name ? val : l)));
+      } else {
+        const generatedCode = `LOC-${locationForm.complexCode}-${Date.now()}`;
+        const saved = await schedulingApi.createLocation({ code: generatedCode, name: val, type: 'DEPOT', complexCode: locationForm.complexCode, regionName: locationForm.regionName, address: locationForm.address, lat: locationForm.lat ? Number(locationForm.lat) : undefined, lng: locationForm.lng ? Number(locationForm.lng) : undefined, geofenceRadiusM: Number(locationForm.geofenceRadiusM) || 300 });
+        const newItem: MasterLocationItem = {
+          id: String(saved.id), backendId: saved.id, code: saved.code, type: saved.type,
+          name: val, complexCode: locationForm.complexCode, complexName: locationForm.complexName,
+          regionName: locationForm.regionName, address: locationForm.address,
+          lat: locationForm.lat ? Number(locationForm.lat) : undefined,
+          lng: locationForm.lng ? Number(locationForm.lng) : undefined,
+          geofenceRadiusM: Number(locationForm.geofenceRadiusM) || 300,
+        };
+        setMasterLocations((prev) => [newItem, ...prev]);
+        setLocations((prev) => (prev.includes(val) ? prev : [val, ...prev]));
+      }
+      setShowLocationModal(false);
+      setEditingLocation(null);
+    } catch {
+      setFormError('Không thể lưu bãi tập kết. Vui lòng kiểm tra mã, tên và thử lại.');
     }
-    setShowLocationModal(false);
-    setEditingLocation(null);
   };
 
-  const handleDeleteLocation = (name: string) => {
+  const handleDeleteLocation = async (name: string) => {
     if (window.confirm(`Xác nhận xóa bãi tập kết "${name}" khỏi danh mục?`)) {
-      setMasterLocations((prev) => {
-        const next = prev.filter((l) => l.name !== name);
-        localStorage.setItem('vehicle_locations_master', JSON.stringify(next));
-        return next;
-      });
-      setLocations((prev) => prev.filter((l) => l !== name));
+      const target = masterLocations.find((item) => item.name === name);
+      try {
+        if (target?.backendId) await schedulingApi.deactivateLocation(target.backendId);
+        setMasterLocations((prev) => prev.filter((l) => l.name !== name));
+        setLocations((prev) => prev.filter((l) => l !== name));
+      } catch {
+        setFormError('Không thể ngưng sử dụng bãi tập kết. Vui lòng thử lại.');
+      }
     }
   };
 
@@ -459,8 +520,34 @@ export const VehicleTypesPage: React.FC = () => {
     }
   };
 
+  const loadImplementsSummary = async () => {
+    setImplementsLoading(true);
+    try {
+      const res = await apiService.getAllImplements();
+      if (res && Array.isArray(res.items)) {
+        const counts: Record<string, number> = {};
+        res.items.forEach((item: any) => {
+          if (item.category) {
+            counts[item.category] = (counts[item.category] || 0) + 1;
+          }
+        });
+        setImplementCategories((prev) =>
+          prev.map((cat) => ({
+            ...cat,
+            totalCount: counts[cat.categoryKey] ?? cat.totalCount,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('Không thể tải tổng hợp nông cụ:', err);
+    } finally {
+      setImplementsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadTypes();
+    void loadImplementsSummary();
     void loadManufacturers();
     void loadModels();
     void loadFilterOptions();
@@ -590,6 +677,62 @@ export const VehicleTypesPage: React.FC = () => {
       setFormError('Không thể lưu chủng loại. Kiểm tra mã không bị trùng lặp.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openMaintenanceStandard = async (item: VehicleTypeMaster) => {
+    setMaintenanceType(item);
+    const response = await apiClient.get('/maintenance/standards', { params: { vehicleTypeId: item.id } });
+    const payload = response.data?.data || response.data;
+    setMaintenanceStandards(Array.isArray(payload) ? payload : []);
+  };
+
+  const changeMaintenanceMetric = (metric: 'ENGINE_HOUR' | 'ODOMETER_KM') => {
+    setMaintenanceMetric(metric);
+    if (metric === 'ENGINE_HOUR') {
+      setMaintenanceMilestones('50, 250, 500, 750, 1000, 1250, 1500, 1750, 2000');
+      setMaintenanceName('Định mức BDC2 giờ máy');
+    } else {
+      setMaintenanceMilestones('500, 5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000');
+      setMaintenanceName('Định mức BDC2 ODO km');
+    }
+  };
+
+  const createAndActivateMaintenanceStandard = async () => {
+    if (!maintenanceType) return;
+    const values = maintenanceMilestones.split(/[,;\s]+/).map(Number).filter((value) => Number.isFinite(value) && value > 0);
+    if (!values.length) {
+      setFormError('Phải nhập ít nhất một mốc bảo dưỡng hợp lệ.');
+      return;
+    }
+    setMaintenanceSaving(true);
+    setFormError('');
+    try {
+      const createdResponse = await apiClient.post('/maintenance/standards', {
+        code: `${maintenanceType.code}-${maintenanceMetric}-${Date.now()}`,
+        name: maintenanceName,
+        vehicleTypeId: maintenanceType.id,
+        metric: maintenanceMetric,
+        warningPercent: 80,
+        explanationPercent: 110,
+        repeatAfterMax: true,
+        bdc1ChecklistJson: {
+          clean_vehicle: false,
+          inspect_general_condition: false,
+          lubricate_required_points: false,
+          tighten_bolts: false,
+        },
+        milestones: [...new Set(values)].sort((a, b) => a - b).map((meterValue) => ({
+          meterValue,
+          label: `BDC2 ${meterValue.toLocaleString('vi-VN')} ${maintenanceMetric === 'ENGINE_HOUR' ? 'giờ' : 'km'}`,
+        })),
+      });
+      const created = createdResponse.data?.data || createdResponse.data;
+      await apiClient.post(`/maintenance/standards/${created.id}/activate`);
+      const listResponse = await apiClient.get('/maintenance/standards', { params: { vehicleTypeId: maintenanceType.id } });
+      setMaintenanceStandards(listResponse.data?.data || listResponse.data || []);
+    } finally {
+      setMaintenanceSaving(false);
     }
   };
 
@@ -857,6 +1000,23 @@ export const VehicleTypesPage: React.FC = () => {
       .map((s) => ({ name: s }));
   }, [suppliers, search]);
 
+  const filteredImplements = useMemo(() => {
+    if (!search.trim()) return implementCategories;
+    const q = search.toLowerCase();
+    return implementCategories.filter(
+      (it) =>
+        it.name.toLowerCase().includes(q) ||
+        it.code.toLowerCase().includes(q) ||
+        it.functionalGroup.toLowerCase().includes(q) ||
+        it.compatibleVehicles.toLowerCase().includes(q) ||
+        it.description.toLowerCase().includes(q)
+    );
+  }, [implementCategories, search]);
+
+  const totalImplementsCount = useMemo(() => {
+    return implementCategories.reduce((sum, item) => sum + item.totalCount, 0);
+  }, [implementCategories]);
+
   // --------------------------------------------------------------------------
   // COLUMNS DEFINITIONS WITH CHECKBOX MULTI-SELECT
   // --------------------------------------------------------------------------
@@ -937,29 +1097,51 @@ export const VehicleTypesPage: React.FC = () => {
     {
       key: 'vehicleCount',
       title: 'Số MMTB thực tế',
-      align: 'right',
+      align: 'center',
       sortable: true,
+      width: '140px',
       render: (item) => (
         <button
           type="button"
-          className="inline-flex items-center gap-1 font-bold text-primary hover:underline text-xs"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
           onClick={() => navigate(`/doi-xe/ho-so-xe?category=${encodeURIComponent(item.code)}`)}
-          title="Xem danh sách xe thuộc chủng loại này"
+          title={`Xem danh sách xe thuộc chủng loại ${item.name}`}
         >
           {item.vehicleCount.toLocaleString('vi-VN')} xe
-          <ExternalLink className="h-3 w-3" />
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
         </button>
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'status',
+      title: 'Trạng thái',
       align: 'center',
-      width: '90px',
+      width: '120px',
+      render: (item) => renderMasterDataStatusBadge((item as any).status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
       render: (item) => (
-        <button
-          type="button"
-          onClick={() => {
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
             setEditingType(item);
             setTypeForm({
               code: item.code,
@@ -973,11 +1155,171 @@ export const VehicleTypesPage: React.FC = () => {
             });
             setShowAddTypeModal(true);
           }}
-          className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100"
-          title="Chỉnh sửa chủng loại"
+          onEdit={() => {
+            setEditingType(item);
+            setTypeForm({
+              code: item.code,
+              name: item.name,
+              assetGroup: item.assetGroup || 'MAY_CONG_TRINH',
+              category: item.category || '',
+              defaultMaintenanceHours: String(item.defaultMaintenanceHours || 250),
+              defaultFuelQuotaRate: item.defaultFuelQuotaRate != null ? String(item.defaultFuelQuotaRate) : '',
+              defaultFuelQuotaUnit: item.defaultFuelQuotaUnit || 'L_PER_HOUR',
+              description: item.description || '',
+            });
+            setShowAddTypeModal(true);
+          }}
+          onDelete={() => {
+            if (confirm(`Bạn có chắc chắn muốn xóa chủng loại "${item.name}"?`)) {
+              setTypes((prev) => prev.filter((t) => t.code !== item.code));
+            }
+          }}
+          viewTitle="Xem chi tiết chủng loại"
+          editTitle="Sửa chủng loại"
+          deleteTitle="Xóa chủng loại"
+        />
+      ),
+    },
+  ];
+
+  const implementColumns: Column<ImplementCategoryDefinition>[] = [
+    {
+      key: 'code',
+      title: 'Mã chủng loại',
+      sortable: true,
+      width: '130px',
+      render: (item) => (
+        <div>
+          <span className="inline-block px-2 py-0.5 rounded-md font-mono text-xs font-black bg-teal-50 text-teal-800 border border-teal-200">
+            {item.code}
+          </span>
+          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">{item.categoryKey}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'name',
+      title: 'Tên chủng loại thiết bị & nông cụ',
+      sortable: true,
+      render: (item) => (
+        <div className="max-w-[320px] whitespace-normal">
+          <div className="font-bold text-slate-900 text-xs">{item.name}</div>
+          <div className="mt-1 text-[11px] text-slate-500 leading-tight">
+            {item.description}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'functionalGroup',
+      title: 'Phân nhóm chức năng',
+      sortable: true,
+      render: (item) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
+          {item.functionalGroup}
+        </span>
+      ),
+    },
+    {
+      key: 'compatibleVehicles',
+      title: 'Đầu máy kéo tương thích',
+      render: (item) => (
+        <div className="text-[11px] text-slate-700 max-w-[220px] whitespace-normal flex items-start gap-1">
+          <Tractor className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
+          <span>{item.compatibleVehicles}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'defaultMaintenanceHours',
+      title: 'Định mức BDC',
+      align: 'center',
+      width: '120px',
+      render: (item) => (
+        <span className="font-mono text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+          {item.defaultMaintenanceHours} giờ
+        </span>
+      ),
+    },
+    {
+      key: 'totalCount',
+      title: 'Số lượng thực tế',
+      align: 'center',
+      sortable: true,
+      width: '140px',
+      render: (item) => (
+        <a
+          href={`/doi-xe/thiet-bi?category=${item.categoryKey}`}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs"
+          title={`Xem chi tiết các thiết bị thuộc ${item.name}`}
         >
-          <Edit2 className="h-3.5 w-3.5" />
-        </button>
+          {item.totalCount.toLocaleString('vi-VN')} bộ
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
+        </a>
+      ),
+    },
+    {
+      key: 'status',
+      title: 'Trạng thái',
+      align: 'center',
+      width: '120px',
+      render: (item) => renderMasterDataStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (item) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (item) => (
+        <TableRowActions
+          onView={() => {
+            setEditingImplement(item);
+            setImplementForm({
+              code: item.code,
+              name: item.name,
+              functionalGroup: item.functionalGroup,
+              compatibleVehicles: item.compatibleVehicles,
+              defaultMaintenanceHours: String(item.defaultMaintenanceHours),
+              description: item.description,
+            });
+            setShowImplementModal(true);
+          }}
+          onEdit={() => {
+            setEditingImplement(item);
+            setImplementForm({
+              code: item.code,
+              name: item.name,
+              functionalGroup: item.functionalGroup,
+              compatibleVehicles: item.compatibleVehicles,
+              defaultMaintenanceHours: String(item.defaultMaintenanceHours),
+              description: item.description,
+            });
+            setShowImplementModal(true);
+          }}
+          onDelete={() => {
+            if (confirm(`Bạn có chắc chắn muốn xóa chủng loại thiết bị "${item.name}"?`)) {
+              setImplementCategories((prev) => prev.filter((i) => i.code !== item.code));
+            }
+          }}
+          viewTitle="Xem chi tiết chủng loại thiết bị"
+          editTitle="Sửa chủng loại thiết bị"
+          deleteTitle="Xóa chủng loại thiết bị"
+        />
       ),
     },
   ];
@@ -1049,6 +1391,18 @@ export const VehicleTypesPage: React.FC = () => {
         c.managerName,
         c.phone,
         c.location,
+      ]);
+    } else if (activeTab === 'implements') {
+      headers = ['STT', 'Mã chủng loại', 'Tên chủng loại thiết bị & nông cụ', 'Mã phân loại', 'Phân nhóm chức năng', 'Đầu máy tương thích', 'Định mức BDC', 'Số lượng thực tế (bộ)'];
+      rows = filteredImplements.map((imp, idx) => [
+        idx + 1,
+        imp.code,
+        imp.name,
+        imp.categoryKey,
+        imp.functionalGroup,
+        imp.compatibleVehicles,
+        `${imp.defaultMaintenanceHours} giờ`,
+        imp.totalCount,
       ]);
     } else if (activeTab === 'purchaseConditions') {
       headers = ['STT', 'Tình trạng mua xe'];
@@ -1129,57 +1483,94 @@ export const VehicleTypesPage: React.FC = () => {
     {
       key: 'modelCount',
       title: 'Số lượng Model',
-      align: 'right',
+      align: 'center',
       sortable: true,
+      width: '140px',
       render: (item) => (
-        <span className="font-mono text-xs font-bold text-slate-700">
-          {item.modelCount} model
-        </span>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+          onClick={() => {
+            setSelectedMfFilter(String(item.id));
+            setActiveTab('models');
+          }}
+          title={`Xem các model của hãng ${item.name}`}
+        >
+          {item.modelCount.toLocaleString('vi-VN')} model
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
+        </button>
       ),
     },
     {
       key: 'vehicleCount',
       title: 'Số MMTB đang dùng',
-      align: 'right',
+      align: 'center',
       sortable: true,
+      width: '140px',
       render: (item) => (
-        <span className="font-mono text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-          {item.vehicleCount} xe
-        </span>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+          onClick={() => navigate(`/doi-xe/ho-so-xe?manufacturer=${encodeURIComponent(item.name)}`)}
+          title={`Xem danh sách xe thuộc hãng ${item.name}`}
+        >
+          {item.vehicleCount.toLocaleString('vi-VN')} xe
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
+        </button>
+      ),
+    },
+    {
+      key: 'status',
+      title: 'Trạng thái',
+      align: 'center',
+      width: '120px',
+      render: (item) => renderMasterDataStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (item) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
       ),
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Tác vụ',
       align: 'center',
       width: '110px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setEditingMf(item);
-              setMfForm({
-                name: item.name,
-                countryName: item.countryName || 'VIỆT NAM',
-                countryCode: item.countryCode || 'VN',
-              });
-              setShowAddMfModal(true);
-            }}
-            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100"
-            title="Chỉnh sửa hãng"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDeleteManufacturer(item.id, item.name)}
-            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100"
-            title="Xóa hãng"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => {
+            setEditingMf(item);
+            setMfForm({
+              name: item.name,
+              countryName: item.countryName || 'VIỆT NAM',
+              countryCode: item.countryCode || 'VN',
+            });
+            setShowAddMfModal(true);
+          }}
+          onEdit={() => {
+            setEditingMf(item);
+            setMfForm({
+              name: item.name,
+              countryName: item.countryName || 'VIỆT NAM',
+              countryCode: item.countryCode || 'VN',
+            });
+            setShowAddMfModal(true);
+          }}
+          onDelete={() => void handleDeleteManufacturer(item.id, item.name)}
+          viewTitle="Xem chi tiết hãng"
+          editTitle="Sửa hãng"
+          deleteTitle="Xóa hãng"
+        />
       ),
     },
   ];
@@ -1242,46 +1633,73 @@ export const VehicleTypesPage: React.FC = () => {
     {
       key: 'vehicleCount',
       title: 'Số xe sử dụng',
-      align: 'right',
+      align: 'center',
       sortable: true,
+      width: '140px',
       render: (item) => (
-        <span className="font-mono text-xs font-bold text-emerald-700">
-          {item.vehicleCount} xe
-        </span>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+          onClick={() => navigate(`/doi-xe/ho-so-xe?model=${encodeURIComponent(item.name)}`)}
+          title={`Xem danh sách xe model ${item.name}`}
+        >
+          {item.vehicleCount.toLocaleString('vi-VN')} xe
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
+        </button>
+      ),
+    },
+    {
+      key: 'status',
+      title: 'Trạng thái',
+      align: 'center',
+      width: '120px',
+      render: (item) => renderMasterDataStatusBadge(item.status),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (item) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
       ),
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Tác vụ',
       align: 'center',
       width: '110px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setEditingModel(item);
-              setModelForm({
-                name: item.name,
-                manufacturerId: item.manufacturerId,
-                categoryHint: item.categoryHint || '',
-              });
-              setShowAddModelModal(true);
-            }}
-            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100"
-            title="Chỉnh sửa model"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDeleteModel(item.id, item.name)}
-            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100"
-            title="Xóa model"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => {
+            setEditingModel(item);
+            setModelForm({
+              name: item.name,
+              manufacturerId: item.manufacturerId,
+              categoryHint: item.categoryHint || '',
+            });
+            setShowAddModelModal(true);
+          }}
+          onEdit={() => {
+            setEditingModel(item);
+            setModelForm({
+              name: item.name,
+              manufacturerId: item.manufacturerId,
+              categoryHint: item.categoryHint || '',
+            });
+            setShowAddModelModal(true);
+          }}
+          onDelete={() => void handleDeleteModel(item.id, item.name)}
+          viewTitle="Xem chi tiết model"
+          editTitle="Sửa model"
+          deleteTitle="Xóa model"
+        />
       ),
     },
   ];
@@ -1302,28 +1720,48 @@ export const VehicleTypesPage: React.FC = () => {
     {
       key: 'mfCount',
       title: 'Số Hãng sản xuất',
-      align: 'right',
+      align: 'center',
       sortable: true,
+      width: '140px',
       render: (item) => (
-        <span className="font-mono text-xs font-bold text-slate-700">
-          {item.mfCount} thương hiệu
-        </span>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+          onClick={() => {
+            setActiveTab('manufacturers');
+            setSearch(item.name);
+          }}
+          title={`Xem các hãng sản xuất từ ${item.name}`}
+        >
+          {item.mfCount.toLocaleString('vi-VN')} thương hiệu
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
+        </button>
       ),
     },
     {
       key: 'vehicleCount',
       title: 'Tổng số MMTB nhập khẩu',
-      align: 'right',
+      align: 'center',
       sortable: true,
+      width: '150px',
       render: (item) => (
-        <span className="font-mono text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-          {item.vehicleCount} phương tiện
-        </span>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+          onClick={() => navigate(`/doi-xe/ho-so-xe?origin=${encodeURIComponent(item.name)}`)}
+          title={`Xem danh sách xe xuất xứ ${item.name}`}
+        >
+          {item.vehicleCount.toLocaleString('vi-VN')} phương tiện
+          <ExternalLink className="h-3 w-3 text-emerald-600" />
+        </button>
       ),
     },
   ];
 
-  const simpleColumns = (target: CatalogTab, currentRows: Array<{ name: string }>): Column<{ name: string }>[] => [
+  const simpleColumns = (
+    target: CatalogTab,
+    currentRows: Array<{ name: string; lat?: number; lng?: number; geofenceRadiusM?: number }>,
+  ): Column<{ name: string; lat?: number; lng?: number; geofenceRadiusM?: number }>[] => [
     {
       key: 'select',
       title: (
@@ -1364,46 +1802,64 @@ export const VehicleTypesPage: React.FC = () => {
     },
     {
       key: 'status',
-      title: 'Trạng thái lựa chọn',
-      render: () => (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Đang áp dụng trong Form
-        </span>
+      title: 'Trạng thái',
+      width: '120px',
+      align: 'center',
+      render: (item: any) => renderMasterDataStatusBadge(item?.status),
+    },
+    ...(target === 'locations' ? [{
+      key: 'coordinates',
+      title: 'Tọa độ / vùng xác nhận',
+      width: '190px',
+      render: (item: { name: string; lat?: number; lng?: number; geofenceRadiusM?: number }) => item.lat !== undefined && item.lng !== undefined
+        ? <span className="font-mono text-[11px] text-slate-700">{item.lat.toFixed(6)}, {item.lng.toFixed(6)}<small className="block font-sans text-slate-400">Bán kính {item.geofenceRadiusM || 300} m</small></span>
+        : <span className="text-[11px] font-semibold text-amber-700">Chưa khai báo tọa độ</span>,
+    }] : []),
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (item: { name: string }) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
       ),
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Tác vụ',
       align: 'center',
       width: '110px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              const titles: Record<string, string> = {
-                units: 'Chỉnh sửa Đơn vị sử dụng',
-                locations: 'Chỉnh sửa Bãi / Nơi tập kết',
-                purchaseConditions: 'Chỉnh sửa Tình trạng mua sắm',
-                suppliers: 'Chỉnh sửa Nhà cung cấp / Pháp nhân',
-              };
-              openSimpleEditModal(target, titles[target] || 'Chỉnh sửa danh mục', item.name);
-            }}
-            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100"
-            title="Chỉnh sửa"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteSimpleItem(target, item.name)}
-            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100"
-            title="Xóa lựa chọn"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => {
+            const titles: Record<string, string> = {
+              units: 'Đơn vị sử dụng',
+              locations: 'Bãi / Nơi tập kết',
+              purchaseConditions: 'Tình trạng mua sắm',
+              suppliers: 'Nhà cung cấp / Pháp nhân',
+            };
+            openSimpleEditModal(target, titles[target] || 'Xem danh mục', item.name);
+          }}
+          onEdit={() => {
+            const titles: Record<string, string> = {
+              units: 'Chỉnh sửa Đơn vị sử dụng',
+              locations: 'Chỉnh sửa Bãi / Nơi tập kết',
+              purchaseConditions: 'Chỉnh sửa Tình trạng mua sắm',
+              suppliers: 'Chỉnh sửa Nhà cung cấp / Pháp nhân',
+            };
+            openSimpleEditModal(target, titles[target] || 'Chỉnh sửa danh mục', item.name);
+          }}
+          onDelete={() => handleDeleteSimpleItem(target, item.name)}
+          viewTitle="Xem chi tiết"
+          editTitle="Chỉnh sửa"
+          deleteTitle="Xóa lựa chọn"
+        />
       ),
     },
   ];
@@ -1486,39 +1942,40 @@ export const VehicleTypesPage: React.FC = () => {
     },
     {
       key: 'status',
-      title: 'Trạng thái lựa chọn',
-      width: '180px',
-      render: () => (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Đang áp dụng trong Form
-        </span>
+      title: 'Trạng thái',
+      width: '120px',
+      align: 'center',
+      render: (item: any) => renderMasterDataStatusBadge(item?.status ?? item?.active),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (item) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.name}`}
+        />
       ),
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Tác vụ',
       align: 'center',
       width: '110px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => openEditLocationModal(item)}
-            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer"
-            title="Chỉnh sửa bãi tập kết"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteLocation(item.name)}
-            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 cursor-pointer"
-            title="Xóa bãi tập kết"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => openEditLocationModal(item)}
+          onEdit={() => openEditLocationModal(item)}
+          onDelete={() => handleDeleteLocation(item.name)}
+          viewTitle="Xem chi tiết bãi tập kết"
+          editTitle="Sửa bãi tập kết"
+          deleteTitle="Xóa bãi tập kết"
+        />
       ),
     },
   ];
@@ -1587,29 +2044,41 @@ export const VehicleTypesPage: React.FC = () => {
       ),
     },
     {
+      key: 'status',
+      title: 'Trạng thái',
+      width: '120px',
+      align: 'center',
+      render: (item: any) => renderMasterDataStatusBadge(item?.status ?? item?.active),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (item) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${item.managerName}`}
+        />
+      ),
+    },
+    {
       key: 'actions',
-      title: 'THAO TÁC',
+      title: 'Tác vụ',
       align: 'center',
       width: '100px',
       render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => openEditCgManagerModal(item)}
-            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100"
-            title="Chỉnh sửa"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteCgManager(item.id)}
-            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100"
-            title="Xóa"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TableRowActions
+          onView={() => openEditCgManagerModal(item)}
+          onEdit={() => openEditCgManagerModal(item)}
+          onDelete={() => handleDeleteCgManager(item.id)}
+          viewTitle="Xem chi tiết nhân sự"
+          editTitle="Sửa nhân sự"
+          deleteTitle="Xóa nhân sự"
+        />
       ),
     },
   ];
@@ -1618,9 +2087,10 @@ export const VehicleTypesPage: React.FC = () => {
     <div className="space-y-5">
 
       {/* 2. STATS OVERVIEW CARDS */}
-      <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
+      <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10">
         {[
           { label: 'Chủng loại xe', value: types.length, icon: Tractor, tab: 'types' as const, color: 'text-emerald-700 bg-emerald-50' },
+          { label: 'Chủng loại thiết bị', value: implementCategories.length, icon: Combine, tab: 'implements' as const, color: 'text-teal-700 bg-teal-50' },
           { label: 'Hãng sản xuất', value: manufacturers.length, icon: Tag, tab: 'manufacturers' as const, color: 'text-sky-700 bg-sky-50' },
           { label: 'Model xe', value: models.length, icon: Table, tab: 'models' as const, color: 'text-violet-700 bg-violet-50' },
           { label: 'Quốc gia xuất xứ', value: countryStats.length, icon: Globe, tab: 'origins' as const, color: 'text-amber-700 bg-amber-50' },
@@ -1725,6 +2195,7 @@ export const VehicleTypesPage: React.FC = () => {
               icon={<RefreshCw className="h-3.5 w-3.5" />}
               onClick={() => {
                 void loadTypes();
+                void loadImplementsSummary();
                 void loadManufacturers();
                 void loadModels();
                 void loadFilterOptions();
@@ -1757,6 +2228,37 @@ export const VehicleTypesPage: React.FC = () => {
               >
                 Thêm chủng loại
               </Button>
+            )}
+            {activeTab === 'implements' && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-9 text-xs font-bold bg-primary hover:bg-primary-600 text-white cursor-pointer"
+                  icon={<Plus className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    setEditingImplement(null);
+                    setImplementForm({
+                      code: `TB-${Date.now().toString().slice(-4)}`,
+                      name: '',
+                      functionalGroup: 'Máy làm đất & Làm tơi xốp',
+                      compatibleVehicles: 'Máy kéo nông nghiệp',
+                      defaultMaintenanceHours: '250',
+                      description: '',
+                    });
+                    setShowImplementModal(true);
+                  }}
+                >
+                  Thêm chủng loại thiết bị
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 text-xs font-bold bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 cursor-pointer"
+                  icon={<ExternalLink className="h-3.5 w-3.5" />}
+                  onClick={() => navigate('/doi-xe/thiet-bi')}
+                >
+                  Quản lý hồ sơ {totalImplementsCount.toLocaleString('vi-VN')} thiết bị & nông cụ
+                </Button>
+              </div>
             )}
             {activeTab === 'manufacturers' && (
               <Button
@@ -1821,6 +2323,21 @@ export const VehicleTypesPage: React.FC = () => {
               data={filteredTypes}
               columns={typeColumns}
               isLoading={typesLoading}
+              pageSize={20}
+              showSearch={false}
+              showExport={false}
+              useGlobalFilters={false}
+            />
+          </div>
+        )}
+
+        {/* TAB 1.5: IMPLEMENTS (CHỦNG LOẠI THIẾT BỊ & NÔNG CỤ) */}
+        {activeTab === 'implements' && (
+          <div className="overflow-x-auto">
+            <DataTable
+              data={filteredImplements}
+              columns={implementColumns}
+              isLoading={implementsLoading}
               pageSize={20}
               showSearch={false}
               showExport={false}
@@ -2050,6 +2567,39 @@ export const VehicleTypesPage: React.FC = () => {
       </Modal>
 
       {/* MODAL 1: THÊM / SỬA CHỦNG LOẠI */}
+      <Modal
+        isOpen={Boolean(maintenanceType)}
+        onClose={() => { setMaintenanceType(null); setFormError(''); }}
+        title={`Định mức bảo dưỡng: ${maintenanceType?.name || ''}`}
+        subtitle="Quản trị chọn bộ đo và mốc áp dụng; hệ thống không tự suy diễn theo nhóm xe"
+        size="lg"
+      >
+        <div className="space-y-4 text-xs">
+          {formError && <div className="rounded-xl bg-rose-50 p-3 font-bold text-rose-700">{formError}</div>}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <b>Phiên bản đã lưu</b>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {maintenanceStandards.length ? maintenanceStandards.map((standard) => (
+                <span key={standard.id} className={`rounded-full border px-3 py-1 font-semibold ${standard.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}>
+                  v{standard.version} · {standard.metric === 'ENGINE_HOUR' ? 'Giờ máy' : 'ODO km'} · {standard.status} · {standard.milestones?.length || 0} mốc
+                </span>
+              )) : <span className="text-slate-500">Chưa có định mức; xe đang dùng fallback 250 giờ.</span>}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><label className="mb-1 block font-bold text-slate-700">Bộ đo</label><select className={inputClassName} value={maintenanceMetric} onChange={(e) => changeMaintenanceMetric(e.target.value as 'ENGINE_HOUR' | 'ODOMETER_KM')}><option value="ENGINE_HOUR">Giờ máy</option><option value="ODOMETER_KM">ODO km</option></select></div>
+            <div><label className="mb-1 block font-bold text-slate-700">Tên phiên bản</label><input className={inputClassName} value={maintenanceName} onChange={(e) => setMaintenanceName(e.target.value)} /></div>
+          </div>
+          <div>
+            <label className="mb-1 block font-bold text-slate-700">Các mốc áp dụng (phân cách bằng dấu phẩy)</label>
+            <textarea rows={3} className={inputClassName} value={maintenanceMilestones} onChange={(e) => setMaintenanceMilestones(e.target.value)} />
+            <p className="mt-1 text-[10px] text-slate-500">Xanh &lt; 80% · Vàng 80–99,99% · Đỏ từ 100% · bắt buộc giải trình khi vượt 110%. Bộ mốc lặp lại sau mốc lớn nhất.</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-800"><b>BDC1 hằng ngày:</b> checklist mặc định gồm vệ sinh, kiểm tra tổng thể, bôi trơn và siết bulông. Checklist BDC2 chi tiết được cấu hình khi có tài liệu kỹ thuật được duyệt.</div>
+          <div className="flex justify-end gap-2 border-t pt-3"><Button variant="outline" onClick={() => setMaintenanceType(null)}>Đóng</Button><Button onClick={() => void createAndActivateMaintenanceStandard()} disabled={maintenanceSaving}>{maintenanceSaving ? 'Đang kích hoạt...' : 'Tạo phiên bản & kích hoạt'}</Button></div>
+        </div>
+      </Modal>
+
       <Modal
         isOpen={showAddTypeModal}
         onClose={() => {
@@ -2351,6 +2901,12 @@ export const VehicleTypesPage: React.FC = () => {
             />
           </div>
 
+          <div className="grid grid-cols-3 gap-2">
+            <label className="text-xs font-bold text-slate-700">Vĩ độ<input className={`${inputClassName} mt-1`} type="number" step="any" placeholder="13.5678" value={locationForm.lat} onChange={(e) => setLocationForm({ ...locationForm, lat: e.target.value })} /></label>
+            <label className="text-xs font-bold text-slate-700">Kinh độ<input className={`${inputClassName} mt-1`} type="number" step="any" placeholder="106.8901" value={locationForm.lng} onChange={(e) => setLocationForm({ ...locationForm, lng: e.target.value })} /></label>
+            <label className="text-xs font-bold text-slate-700">Bán kính (m)<input className={`${inputClassName} mt-1`} type="number" min="1" value={locationForm.geofenceRadiusM} onChange={(e) => setLocationForm({ ...locationForm, geofenceRadiusM: e.target.value })} /></label>
+          </div>
+
           <div className="flex justify-end gap-2 border-t pt-3">
             <Button variant="outline" onClick={() => { setShowLocationModal(false); setEditingLocation(null); }}>Hủy</Button>
             <Button onClick={() => handleSaveLocation()}>
@@ -2414,6 +2970,145 @@ export const VehicleTypesPage: React.FC = () => {
             <Button variant="outline" onClick={() => { setShowCgManagerModal(false); setEditingCgManager(null); }}>Hủy</Button>
             <Button onClick={handleSaveCgManager}>
               {editingCgManager ? 'Cập nhật' : 'Thêm NS quản lý'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: THÊM / SỬA CHỦNG LOẠI THIẾT BỊ & NÔNG CỤ */}
+      <Modal
+        isOpen={showImplementModal}
+        onClose={() => {
+          setShowImplementModal(false);
+          setEditingImplement(null);
+          setFormError('');
+        }}
+        title={editingImplement ? `Chỉnh sửa Chủng loại Thiết bị: ${editingImplement.name}` : 'Thêm mới Chủng loại Thiết bị & Nông cụ'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          {formError && <div className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{formError}</div>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Mã chủng loại *</label>
+              <input
+                className={inputClassName}
+                placeholder="VD: TB-BD, TB-DC, TB-PT..."
+                value={implementForm.code}
+                onChange={(e) => setImplementForm({ ...implementForm, code: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Tên chủng loại thiết bị *</label>
+              <input
+                className={inputClassName}
+                placeholder="VD: Dàn bừa đĩa, Dàn cày nông nghiệp..."
+                value={implementForm.name}
+                onChange={(e) => setImplementForm({ ...implementForm, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Phân nhóm chức năng</label>
+              <input
+                className={inputClassName}
+                placeholder="VD: Máy làm đất & Làm tơi xốp, Vận chuyển nội bộ..."
+                value={implementForm.functionalGroup}
+                onChange={(e) => setImplementForm({ ...implementForm, functionalGroup: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Đầu máy kéo tương thích</label>
+              <input
+                className={inputClassName}
+                placeholder="VD: Máy kéo nông nghiệp 50 - 90HP..."
+                value={implementForm.compatibleVehicles}
+                onChange={(e) => setImplementForm({ ...implementForm, compatibleVehicles: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Định mức chu kỳ BDC (giờ)</label>
+              <input
+                type="number"
+                className={inputClassName}
+                placeholder="250"
+                value={implementForm.defaultMaintenanceHours}
+                onChange={(e) => setImplementForm({ ...implementForm, defaultMaintenanceHours: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Trạng thái áp dụng</label>
+              <div className="mt-2 text-xs font-bold text-emerald-700">Còn hoạt động (Áp dụng toàn hệ thống)</div>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">Mô tả quy chuẩn kỹ thuật</label>
+            <textarea
+              rows={3}
+              className={inputClassName}
+              placeholder="Nhập mô tả quy chuẩn kỹ thuật, điều kiện vận hành áp dụng..."
+              value={implementForm.description}
+              onChange={(e) => setImplementForm({ ...implementForm, description: e.target.value })}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowImplementModal(false);
+                setEditingImplement(null);
+                setFormError('');
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="bg-primary text-white"
+              onClick={() => {
+                if (!implementForm.name.trim()) {
+                  setFormError('Vui lòng nhập tên chủng loại thiết bị');
+                  return;
+                }
+                if (editingImplement) {
+                  setImplementCategories((prev) =>
+                    prev.map((it) =>
+                      it.code === editingImplement.code
+                        ? {
+                            ...it,
+                            code: implementForm.code,
+                            name: implementForm.name,
+                            functionalGroup: implementForm.functionalGroup,
+                            compatibleVehicles: implementForm.compatibleVehicles,
+                            defaultMaintenanceHours: parseInt(implementForm.defaultMaintenanceHours, 10) || 250,
+                            description: implementForm.description,
+                          }
+                        : it
+                    )
+                  );
+                } else {
+                  const newItem: ImplementCategoryDefinition = {
+                    code: implementForm.code || `TB-${Date.now().toString().slice(-4)}`,
+                    categoryKey: 'DAN_BUA',
+                    name: implementForm.name,
+                    functionalGroup: implementForm.functionalGroup,
+                    compatibleVehicles: implementForm.compatibleVehicles,
+                    defaultMaintenanceHours: parseInt(implementForm.defaultMaintenanceHours, 10) || 250,
+                    totalCount: 0,
+                    status: 'HOAT_DONG',
+                    description: implementForm.description,
+                    badge: 'bg-teal-100 text-teal-800 border-teal-300',
+                  };
+                  setImplementCategories((prev) => [newItem, ...prev]);
+                }
+                setShowImplementModal(false);
+                setEditingImplement(null);
+                setFormError('');
+              }}
+            >
+              Lưu chủng loại
             </Button>
           </div>
         </div>

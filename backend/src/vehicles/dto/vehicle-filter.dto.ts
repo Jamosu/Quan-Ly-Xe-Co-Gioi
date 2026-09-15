@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { MaintenanceAlertTier, Unit, VehicleCategory, VehicleStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { MaintenanceAlertTier, Unit, VehicleCategory, VehicleOperationalDomain, VehicleStatus } from '@prisma/client';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class VehicleFilterDto extends PaginationDto {
@@ -100,4 +100,21 @@ export class VehicleFilterDto extends PaginationDto {
   @IsOptional()
   @IsEnum(MaintenanceAlertTier)
   alertTier?: MaintenanceAlertTier;
+
+  @ApiPropertyOptional({ enum: VehicleOperationalDomain })
+  @IsOptional()
+  @IsEnum(VehicleOperationalDomain)
+  operationalDomain?: VehicleOperationalDomain;
+
+  @ApiPropertyOptional({ description: 'Chỉ lấy chủng loại được phép dùng làm xe chủ lực' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  isAssignable?: boolean;
+
+  @ApiPropertyOptional({ description: 'true: đã gắn GPS; false: chưa gắn GPS' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  hasGps?: boolean;
 }

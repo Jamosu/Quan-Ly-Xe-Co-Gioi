@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './layouts/MainLayout';
 import { unifiedSchedulingEnabled } from './config/features';
+import { LoginPage } from './pages/auth/LoginPage';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { apiClient } from './api/client';
 
 // Module A: Dashboard
 import { DashboardPage } from './pages/dashboard/DashboardPage';
@@ -25,6 +28,8 @@ import { SosManagementPage } from './pages/fleet/SosManagementPage';
 import { ProductionPlanPage } from './pages/dispatch/ProductionPlanPage';
 import { CreateProductionPlanPage } from './pages/dispatch/CreateProductionPlanPage';
 import { DispatchOrdersPage } from './pages/dispatch/DispatchOrdersPage';
+import { DispatchOrderDetailPage } from './pages/dispatch/DispatchOrderDetailPage';
+import { CreateDispatchOrderPage } from './pages/dispatch/CreateDispatchOrderPage';
 import { InternalTransportPage } from './pages/dispatch/InternalTransportPage';
 import { WeightTicketsPage } from './pages/dispatch/WeightTicketsPage';
 import { ConstructionDispatchPage } from './pages/dispatch/ConstructionDispatchPage';
@@ -32,6 +37,7 @@ import { SpecializedPlansPage } from './pages/dispatch/SpecializedPlansPage';
 import { CreateSpecializedPlanPage } from './pages/dispatch/CreateSpecializedPlanPage';
 import { ResourceSchedulingPage } from './pages/dispatch/ResourceSchedulingPage';
 import { AcceptanceQueuePage } from './pages/dispatch/AcceptanceQueuePage';
+import { CompletedOrdersPage } from './pages/dispatch/CompletedOrdersPage';
 
 // Module I: Drivers Management
 import { DriversListPage } from './pages/drivers/DriversListPage';
@@ -43,13 +49,11 @@ import { DriverMobileWorkPage } from './pages/drivers/DriverMobileWorkPage';
 
 // Module E: Workshop & Maintenance (BTSC)
 import { MaintenancePlanPage } from './pages/workshop/MaintenancePlanPage';
-import { IssueReportsPage } from './pages/workshop/IssueReportsPage';
-import { WorkOrdersPage } from './pages/workshop/WorkOrdersPage';
-import { WorkshopKanbanPage } from './pages/workshop/WorkshopKanbanPage';
+import { DamagedAssetsPage } from './pages/workshop/DamagedAssetsPage';
+import { WorkshopRequestsPage } from './pages/workshop/WorkshopRequestsPage';
 import { InspectionInsurancePage } from './pages/workshop/InspectionInsurancePage';
 
 // Module J: Fuel Management
-import { FuelVouchersPage } from './pages/fuel/FuelVouchersPage';
 import { FuelQuotasPage } from './pages/fuel/FuelQuotasPage';
 import { FuelReconciliationPage } from './pages/fuel/FuelReconciliationPage';
 import { FuelTanksInventoryPage } from './pages/fuel/FuelTanksInventoryPage';
@@ -70,10 +74,9 @@ import { MaintenanceCostReportPage } from './pages/reports/MaintenanceCostReport
 import { CrossKLHReportPage } from './pages/reports/CrossKLHReportPage';
 
 import { ProjectCatalogsDashboardPage } from './pages/master-data/ProjectCatalogsDashboardPage';
-import { PositionsCatalogPage } from './pages/master-data/PositionsCatalogPage';
+import { DriverProfileCatalogPage } from './pages/master-data/DriverProfileCatalogPage';
 import { VehicleTypesPage } from './pages/master-data/VehicleTypesPage';
 import { JobTypesPage } from './pages/master-data/JobTypesPage';
-import { PlotsRoutesPage } from './pages/master-data/PlotsRoutesPage';
 import { SparePartsPage } from './pages/master-data/SparePartsPage';
 import { TechnicalQuotasPage } from './pages/master-data/TechnicalQuotasPage';
 
@@ -85,10 +88,49 @@ import { UnitPermissionsPage } from './pages/permissions/UnitPermissionsPage';
 import { AuditLogsPage } from './pages/permissions/AuditLogsPage';
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    const marker = 'thaco_plan_dispatch_api_migration_v1';
+    if (!localStorage.getItem(marker)) {
+      [
+        'thaco_weekly_agri_plans_v7',
+        'thaco_weekly_construction_plans_v3',
+        'thaco_weekly_transport_plans_v3',
+        'thaco_all_dispatch_orders_master_v4',
+        'thaco_agriculture_dispatch_orders_v1',
+        'thaco_construction_shifts_v1',
+        'thaco_transport_orders_v2',
+        'thaco_transport_orders_v4',
+      ].forEach((key) => localStorage.removeItem(key));
+      localStorage.setItem(marker, new Date().toISOString());
+    }
+
+    // Real-time Heartbeat: Send ping to backend every 30s when authenticated
+    const sendHeartbeat = () => {
+      const token = sessionStorage.getItem('thaco_agri_jwt_token') || localStorage.getItem('thaco_agri_jwt_token');
+      if (token) {
+        apiClient.post('/auth/heartbeat', { platform: 'WEB' }).catch(() => {});
+      }
+    };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MainLayout />}>
+        {/* Public Login Route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected Application Routes */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
           {/* Index Redirect */}
           <Route index element={<Navigate to="/dashboard" replace />} />
 
@@ -114,6 +156,8 @@ export const App: React.FC = () => {
           {/* Module D: Dispatch Orders */}
           <Route path="lenh-dieu-xe" element={<Navigate to="/lenh-dieu-xe/danh-sach" replace />} />
           <Route path="lenh-dieu-xe/danh-sach" element={<DispatchOrdersPage />} />
+          <Route path="lenh-dieu-xe/chi-tiet/:id" element={<DispatchOrderDetailPage />} />
+          <Route path="lenh-dieu-xe/tao-moi" element={<CreateDispatchOrderPage />} />
           <Route path="lenh-dieu-xe/ke-hoach" element={<Navigate to="/lenh-dieu-xe/ke-hoach/nong-nghiep" replace />} />
           <Route path="lenh-dieu-xe/ke-hoach/nong-nghiep" element={<ProductionPlanPage />} />
           <Route path="lenh-dieu-xe/ke-hoach/cong-trinh" element={<SpecializedPlansPage key="CONSTRUCTION" kind="CONSTRUCTION" />} />
@@ -128,8 +172,13 @@ export const App: React.FC = () => {
           <Route path="lenh-dieu-xe/lenh-noi-bo" element={<InternalTransportPage />} />
           <Route path="lenh-dieu-xe/van-chuyen" element={<InternalTransportPage />} />
           <Route path="lenh-dieu-xe/ca-may" element={<Navigate to="/lenh-dieu-xe/lenh-cong-trinh" replace />} />
+          <Route path="lenh-dieu-xe/hoan-tat" element={<CompletedOrdersPage key="ALL" initialScope="ALL" />} />
+          <Route path="lenh-dieu-xe/hoan-tat/nong-nghiep" element={<CompletedOrdersPage key="NONG_NGHIEP" initialScope="NONG_NGHIEP" />} />
+          <Route path="lenh-dieu-xe/hoan-tat/cong-trinh" element={<CompletedOrdersPage key="CONG_TRINH" initialScope="CONG_TRINH" />} />
+          <Route path="lenh-dieu-xe/hoan-tat/van-hanh" element={<CompletedOrdersPage key="VAN_CHUYEN" initialScope="VAN_CHUYEN" />} />
+          <Route path="lenh-dieu-xe/hoan-tat/van-chuyen" element={<Navigate to="/lenh-dieu-xe/hoan-tat/van-hanh" replace />} />
+          <Route path="lenh-dieu-xe/lich-tai-nguyen" element={<Navigate to="/lenh-dieu-xe/hoan-tat" replace />} />
           <Route path="lenh-dieu-xe/phieu-can" element={<WeightTicketsPage />} />
-          {unifiedSchedulingEnabled && <Route path="lenh-dieu-xe/lich-tai-nguyen" element={<ResourceSchedulingPage />} />}
           {unifiedSchedulingEnabled && <Route path="lenh-dieu-xe/nghiem-thu" element={<AcceptanceQueuePage />} />}
 
           {/* Module I: Drivers */}
@@ -144,14 +193,14 @@ export const App: React.FC = () => {
           {/* Module E: Workshop & Maintenance */}
           <Route path="xuong-btsc" element={<Navigate to="/xuong-btsc/ke-hoach" replace />} />
           <Route path="xuong-btsc/ke-hoach" element={<MaintenancePlanPage />} />
-          <Route path="xuong-btsc/yeu-cau" element={<IssueReportsPage />} />
-          <Route path="xuong-btsc/phieu-sua-chua" element={<WorkOrdersPage />} />
-          <Route path="xuong-btsc/tien-do" element={<WorkshopKanbanPage />} />
+          <Route path="xuong-btsc/tai-san-hu-hong" element={<DamagedAssetsPage />} />
+          <Route path="xuong-btsc/yeu-cau" element={<WorkshopRequestsPage />} />
+          <Route path="xuong-btsc/phieu-sua-chua" element={<WorkshopRequestsPage />} />
+          <Route path="xuong-btsc/tien-do" element={<WorkshopRequestsPage />} />
           <Route path="xuong-btsc/dang-kiem" element={<InspectionInsurancePage />} />
 
           {/* Module J: Fuel */}
-          <Route path="nhien-lieu" element={<Navigate to="/nhien-lieu/phieu-cap" replace />} />
-          <Route path="nhien-lieu/phieu-cap" element={<FuelVouchersPage />} />
+          <Route path="nhien-lieu" element={<Navigate to="/nhien-lieu/ton-kho" replace />} />
           <Route path="nhien-lieu/dinh-muc" element={<FuelQuotasPage />} />
           <Route path="nhien-lieu/doi-chieu" element={<FuelReconciliationPage />} />
           <Route path="nhien-lieu/ton-kho" element={<FuelTanksInventoryPage />} />
@@ -177,17 +226,18 @@ export const App: React.FC = () => {
           <Route path="danh-muc" element={<Navigate to="/danh-muc/quan-ly-du-an" replace />} />
           <Route path="danh-muc/don-vi" element={<Navigate to="/danh-muc/quan-ly-du-an" replace />} />
           <Route path="danh-muc/quan-ly-du-an" element={<ProjectCatalogsDashboardPage />} />
-          <Route path="danh-muc/chuc-danh" element={<PositionsCatalogPage />} />
+          <Route path="danh-muc/danh-muc-ho-so" element={<DriverProfileCatalogPage />} />
+          <Route path="danh-muc/chuc-danh" element={<Navigate to="/danh-muc/danh-muc-ho-so?tab=positions" replace />} />
           <Route path="danh-muc/loai-xe" element={<VehicleTypesPage />} />
           <Route path="danh-muc/loai-cong-viec" element={<Navigate to="/danh-muc/loai-cong-viec/nong-nghiep" replace />} />
           <Route path="danh-muc/loai-cong-viec/nong-nghiep" element={<JobTypesPage defaultDomain="NONG_NGHIEP" />} />
           <Route path="danh-muc/loai-cong-viec/cong-trinh" element={<JobTypesPage defaultDomain="CONG_TRINH" />} />
           <Route path="danh-muc/loai-cong-viec/van-chuyen" element={<JobTypesPage defaultDomain="VAN_CHUYEN" />} />
-          <Route path="danh-muc/lo-thua-tuyen-duong" element={<PlotsRoutesPage />} />
-          <Route path="danh-muc/lo-thua-tuyen-duong/nong-nghiep" element={<PlotsRoutesPage defaultTab="plots" />} />
-          <Route path="danh-muc/lo-thua-tuyen-duong/cong-trinh" element={<PlotsRoutesPage defaultTab="construction" />} />
-          <Route path="danh-muc/lo-thua-tuyen-duong/van-chuyen" element={<PlotsRoutesPage defaultTab="transport" />} />
-          <Route path="danh-muc/dia-ban-tuyen-duong" element={<Navigate to="/danh-muc/lo-thua-tuyen-duong" replace />} />
+          <Route path="danh-muc/lo-thua-tuyen-duong" element={<Navigate to="/danh-muc/loai-cong-viec/nong-nghiep?tab=plots" replace />} />
+          <Route path="danh-muc/lo-thua-tuyen-duong/nong-nghiep" element={<Navigate to="/danh-muc/loai-cong-viec/nong-nghiep?tab=plots" replace />} />
+          <Route path="danh-muc/lo-thua-tuyen-duong/cong-trinh" element={<Navigate to="/danh-muc/loai-cong-viec/cong-trinh?tab=sites" replace />} />
+          <Route path="danh-muc/lo-thua-tuyen-duong/van-chuyen" element={<Navigate to="/danh-muc/loai-cong-viec/van-chuyen?tab=jobs" replace />} />
+          <Route path="danh-muc/dia-ban-tuyen-duong" element={<Navigate to="/danh-muc/loai-cong-viec/nong-nghiep?tab=plots" replace />} />
           <Route path="danh-muc/vat-tu-phu-tung" element={<SparePartsPage />} />
           <Route path="danh-muc/dinh-muc-ky-thuat" element={<TechnicalQuotasPage />} />
 

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
-import { Public } from '../common/decorators/public.decorator';
+import { AllowAnonymous, Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -21,6 +21,7 @@ import { UpdateTelemetryDto } from './dto/update-telemetry.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleFilterDto } from './dto/vehicle-filter.dto';
 import { VehicleFilterOptionsDto } from './dto/vehicle-filter-options.dto';
+import { FleetHistoryFilterDto } from './dto/fleet-history-filter.dto';
 import { VehiclesService } from './vehicles.service';
 import { AvailabilityService } from '../availability/availability.service';
 import { TimelineQueryDto } from '../availability/dto/timeline-query.dto';
@@ -92,11 +93,20 @@ export class VehiclesController {
     return this.vehiclesService.getStatistics(filter);
   }
 
+  @AllowAnonymous()
   @Public()
   @Get('sos-alerts')
   @ApiOperation({ summary: 'Lấy danh sách các cảnh báo cứu hộ SOS từ cơ sở dữ liệu' })
   async getSosAlerts() {
     return this.vehiclesService.getSosAlerts();
+  }
+
+  @AllowAnonymous()
+  @Public()
+  @Get('history/events')
+  @ApiOperation({ summary: 'Lấy danh sách lịch sử biến động thực tế của phương tiện từ CSDL' })
+  async getFleetHistoryEvents(@Query() filter: FleetHistoryFilterDto) {
+    return this.vehiclesService.getFleetHistoryEvents(filter);
   }
 
   // --------------------------------------------------------------------------
@@ -200,7 +210,7 @@ export class VehiclesController {
 
   @Public()
   @Patch(':id/telemetry')
-  @ApiOperation({ summary: 'Cập nhật dữ liệu GPS telemetry, ODO, giờ máy (Tự động tính mốc 250h)' })
+  @ApiOperation({ summary: 'Cập nhật GPS, ODO, giờ máy và tính lại các mốc BDC2 theo loại xe' })
   async updateTelemetry(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTelemetryDto,

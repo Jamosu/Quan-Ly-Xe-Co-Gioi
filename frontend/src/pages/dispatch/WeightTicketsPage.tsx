@@ -3,6 +3,8 @@ import { CheckCircle2, Compass, Printer, Scale } from 'lucide-react';
 import { operationsApi } from '../../api/operations';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
@@ -23,6 +25,38 @@ export const WeightTicketsPage: React.FC = () => {
     { key: 'result', title: 'Kết quả', render: (row) => row.type === 'WEIGHT' ? `${row.netWeightTons ?? 0} tấn` : `${row.measuredAreaHa ?? 0} ha / ${row.machineHours ?? 0} giờ` },
     { key: 'routeLocation', title: 'Địa điểm' },
     { key: 'status', title: 'Trạng thái', render: (row) => <StatusBadge status={row.status}/> },
+    {
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
+      render: (row) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="14-03-2026"
+          updatedUser="admin"
+          title={`Phiếu: ${row.code}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '100px',
+      render: (row) => (
+        <TableRowActions
+          onView={() => setSelected(row)}
+          onEdit={() => setSelected(row)}
+          onDelete={() => {
+            if (window.confirm(`Xác nhận xóa phiếu ${row.code}?`)) {
+              setItems((prev) => prev.filter((item) => item.id !== row.id));
+            }
+          }}
+        />
+      ),
+    },
   ];
   const confirm = async () => { if (!selected) return; setSaving(true); try { const updated = await operationsApi.confirm(selected.id); setSelected(updated); await load(); } catch { setError('Không thể xác nhận phiếu. Kiểm tra quyền và trạng thái hiện tại.'); } finally { setSaving(false); } };
   return <div className="space-y-4">

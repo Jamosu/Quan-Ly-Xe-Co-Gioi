@@ -26,7 +26,6 @@ export class VehicleDriverAssignmentsService {
       if (!vehicle) throw new NotFoundException(`Không tìm thấy xe #${dto.vehicleId}.`);
       if (!driver || driver.role !== Role.DRIVER) throw new BadRequestException(`Người dùng #${dto.driverId} không phải tài xế.`);
       assertOperationalAccess(actor, vehicle.unit);
-      if (driver.unit !== vehicle.unit && actor.role !== Role.SUPER_ADMIN) throw new BadRequestException('Tài xế và xe phải thuộc cùng đơn vị.');
       await this.ensureProfile(tx, driver);
       if (dto.type === VehicleDriverAssignmentType.PRIMARY) {
         const overlaps = await tx.vehicleDriverAssignment.findFirst({

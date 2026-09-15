@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { AvailabilityModule } from '../availability/availability.module';
 import { WorkOrdersController } from './work-orders.controller';
 import { WorkOrdersService } from './work-orders.service';
+import { MaintenanceModule } from '../maintenance/maintenance.module';
 
 @Module({
-  imports: [AvailabilityModule],
+  imports: [AvailabilityModule, MaintenanceModule],
   controllers: [WorkOrdersController],
   providers: [WorkOrdersService],
   exports: [WorkOrdersService],

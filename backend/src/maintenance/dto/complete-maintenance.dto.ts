@@ -38,4 +38,23 @@ export class CompleteMaintenanceDto {
   @IsOptional()
   @IsString()
   defectDescription?: string;
+
+  @ApiPropertyOptional({ description: 'Kết luận kỹ thuật sau bảo dưỡng' })
+  @IsOptional()
+  @IsString()
+  conclusion?: string;
+
+  @ApiPropertyOptional({ description: 'Lý do giải trình khi vượt quá 110% chu kỳ' })
+  @IsOptional()
+  @IsString()
+  explanationReason?: string;
+
+  @ApiPropertyOptional({ description: 'URL biên bản giải trình' })
+  @IsOptional()
+  @IsString()
+  explanationUrl?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  photoUrls?: string[];
 }

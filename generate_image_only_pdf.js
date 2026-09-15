@@ -59,7 +59,7 @@ const menu = [
     ['Bảng xếp hạng thi đua KPI', 'bang-xep-hang-kpi.html']
   ]],
   ['Xưởng BTSC', 'E-xuong-btsc', [
-    ['Kế hoạch bảo trì (250h)', 'ke-hoach-bao-tri.html'],
+    ['Kế hoạch bảo trì ', 'ke-hoach-bao-tri.html'],
     ['Tiếp nhận báo hỏng', 'yeu-cau-sua-chua.html'],
     ['Phiếu sửa chữa & Vật tư', 'phieu-sua-chua.html'],
     ['Theo dõi tiến độ xưởng (Kanban)', 'theo-doi-sua-chua.html'],

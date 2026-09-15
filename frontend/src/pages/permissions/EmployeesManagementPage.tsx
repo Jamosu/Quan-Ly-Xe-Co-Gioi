@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
 import { apiService } from '../../api/client';
@@ -27,6 +29,9 @@ import {
   Loader2,
   SlidersHorizontal,
   X,
+  Smartphone,
+  Shield,
+  Truck,
 } from 'lucide-react';
 
 export interface EmployeeRecord {
@@ -105,19 +110,40 @@ const POSITION_OPTIONS = [
 ];
 
 const LICENSE_CLASS_LABELS: Record<string, string> = {
-  BANG_MAY_NONG_NGHIEP: 'Máy Nông Nghiệp',
+  HANG_A: 'Hạng A (Mô tô >125CC)',
+  HANG_B1: 'Hạng B1 (Xe con ≤3.5T, tự động)',
+  HANG_B2: 'Hạng B2 (Máy cày, ô tô con <9 chỗ, tải ≤3.5T)',
   HANG_C: 'Hạng C (Xe tải >3.5T)',
-  HANG_FC: 'Hạng FC (Đầu kéo Container)',
-  HANG_B2: 'Hạng B2 (Xe con / Bán tải)',
-  HANG_D: 'Hạng D (Xe chở người)',
+  HANG_CE: 'Hạng CE (Đầu kéo Container / Rơ-móc)',
+  HANG_D1: 'Hạng D1 (Xe chở người ≤20 chỗ)',
+  HANG_D2: 'Hạng D2 (Xe chở người >20 chỗ)',
 };
 
 const SHORT_LICENSE_LABELS: Record<string, string> = {
-  BANG_MAY_NONG_NGHIEP: 'Máy Nông Nghiệp',
-  HANG_C: 'Hạng C (>3.5T)',
-  HANG_FC: 'Hạng FC (Container)',
+  HANG_A: 'Hạng A',
+  HANG_B1: 'Hạng B1',
   HANG_B2: 'Hạng B2',
-  HANG_D: 'Hạng D',
+  HANG_C: 'Hạng C',
+  HANG_CE: 'Hạng CE',
+  HANG_D1: 'Hạng D1',
+  HANG_D2: 'Hạng D2',
+};
+
+const getCleanKlh = (emp?: {
+  complex?: string | null;
+  businessUnit?: string | null;
+  enterprise?: string | null;
+  farm?: string | null;
+  empCode?: string | null;
+} | null): string => {
+  if (!emp) return 'KLH Koun Mom';
+  const code = (emp.empCode || '').toUpperCase();
+  if (code === 'ADMIN-001') return 'Toàn bộ 3 Khu Liên Hợp';
+  const text = `${emp.complex || ''} ${emp.businessUnit || ''} ${emp.enterprise || ''} ${emp.farm || ''} ${code}`.toUpperCase();
+  if (text.includes('TOÀN') || text.includes('TOAN') || text.includes('VĂN PHÒNG ĐIỀU HÀNH')) return 'Toàn bộ 3 Khu Liên Hợp';
+  if (text.includes('SNOUL') || text.includes('SN-') || text.includes('SN_')) return 'KLH Snoul';
+  if (text.includes('NAM LÀO') || text.includes('NAM LAO') || text.includes('NAMLAO') || text.includes('ATTAPEU') || text.includes('NL-') || text.includes('NL_')) return 'KLH Nam Lào';
+  return 'KLH Koun Mom';
 };
 
 export const EmployeesManagementPage: React.FC = () => {
@@ -137,13 +163,13 @@ export const EmployeesManagementPage: React.FC = () => {
   const [formData, setFormData] = useState({
     empCode: '',
     fullName: '',
-    businessUnit: 'Ban Cơ Giới KLH',
-    complex: 'KOUN_MOM',
-    enterprise: 'Xí nghiệp Cơ giới Daun Penh',
-    farm: '',
+    businessUnit: 'KLH Koun Mom',
+    complex: 'KLH Koun Mom',
+    enterprise: 'KLH Koun Mom',
+    farm: 'KLH Koun Mom',
     team: '',
-    position: 'Đội trưởng Cơ giới Làm đất',
-    licenseClass: 'BANG_MAY_NONG_NGHIEP',
+    position: 'Lái xe cơ giới',
+    licenseClass: 'HANG_B2',
     licenseNumber: '',
     licenseExpiryDate: '2028-12-31',
     healthCheckExpiryDate: '2026-12-31',
@@ -191,7 +217,18 @@ export const EmployeesManagementPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await apiService.getEmployees();
-      setEmployees(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? [...data] : [];
+      // Pin key synced employees and driver profiles at the top
+      const priorityCodes = ['ADMIN-001', 'CB-QL-KM01', 'TX-KM-001', 'TX-SN-001', 'TX-NL-001', 'TX-NT1-001'];
+      list.sort((a: EmployeeRecord, b: EmployeeRecord) => {
+        const idxA = priorityCodes.indexOf(a.empCode);
+        const idxB = priorityCodes.indexOf(b.empCode);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+      setEmployees(list);
     } catch (err) {
       console.error('Failed to load employees:', err);
       setEmployees([]);
@@ -216,8 +253,11 @@ export const EmployeesManagementPage: React.FC = () => {
         const query = searchPhone.toLowerCase().trim();
         if (!emp.phone?.toLowerCase().includes(query)) return false;
       }
-      if (selectedUnit !== ALL && emp.businessUnit !== selectedUnit && emp.enterprise !== selectedUnit) {
-        return false;
+      if (selectedUnit !== ALL) {
+        const klh = getCleanKlh(emp);
+        if (selectedUnit === 'KOUN_MOM' && klh !== 'KLH Koun Mom' && klh !== 'Toàn bộ 3 Khu Liên Hợp') return false;
+        if (selectedUnit === 'SNOUL' && klh !== 'KLH Snoul' && klh !== 'Toàn bộ 3 Khu Liên Hợp') return false;
+        if (selectedUnit === 'NAM_LAO' && klh !== 'KLH Nam Lào' && klh !== 'Toàn bộ 3 Khu Liên Hợp') return false;
       }
       if (selectedPosition !== ALL && emp.position !== selectedPosition) {
         return false;
@@ -240,15 +280,15 @@ export const EmployeesManagementPage: React.FC = () => {
   const handleOpenCreate = () => {
     setEditingItem(null);
     setFormData({
-      empCode: `THA-KM-${String(employees.length + 1).padStart(3, '0')}`,
+      empCode: `TX-KM-${String(employees.length + 1).padStart(3, '0')}`,
       fullName: '',
-      businessUnit: 'Ban Cơ Giới KLH',
-      complex: 'KOUN_MOM',
-      enterprise: 'Xí nghiệp Cơ giới Daun Penh',
+      businessUnit: 'KLH Koun Mom',
+      complex: 'KLH Koun Mom',
+      enterprise: 'KLH Koun Mom',
       farm: 'Đội Cơ giới Làm đất',
       team: 'Tổ Vận hành Cơ giới',
       position: 'Đội trưởng Cơ giới Làm đất',
-      licenseClass: 'BANG_MAY_NONG_NGHIEP',
+      licenseClass: 'HANG_B2',
       licenseNumber: '',
       licenseExpiryDate: '2028-12-31',
       healthCheckExpiryDate: '2026-12-31',
@@ -276,13 +316,13 @@ export const EmployeesManagementPage: React.FC = () => {
     setFormData({
       empCode: emp.empCode || '',
       fullName: emp.fullName || '',
-      businessUnit: emp.businessUnit || 'Ban Cơ Giới KLH',
-      complex: emp.complex || 'KOUN_MOM',
-      enterprise: emp.enterprise || '',
+      businessUnit: emp.businessUnit || 'KLH Koun Mom',
+      complex: emp.complex || 'KLH Koun Mom',
+      enterprise: emp.enterprise || 'KLH Koun Mom',
       farm: emp.farm || '',
       team: emp.team || '',
       position: emp.position || '',
-      licenseClass: emp.licenseClass || 'BANG_MAY_NONG_NGHIEP',
+      licenseClass: emp.licenseClass || 'HANG_B2',
       licenseNumber: emp.licenseNumber || '',
       licenseExpiryDate: emp.licenseExpiryDate || '2028-12-31',
       healthCheckExpiryDate: emp.healthCheckExpiryDate || '2026-12-31',
@@ -352,32 +392,29 @@ export const EmployeesManagementPage: React.FC = () => {
       width: '160px',
       render: (row) => (
         <div>
-          <span className="font-bold text-slate-900 text-xs block hover:text-emerald-700 transition-colors">
+          <span className="font-semibold text-slate-900 text-xs block">
             {row.fullName}
           </span>
-          <span className="font-mono text-[10px] text-slate-400 font-bold">{row.empCode}</span>
+          <span className="font-mono text-[11px] text-slate-500">{row.empCode}</span>
         </div>
       ),
       filterElement: (
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            placeholder="Lọc tên/mã..."
-            className="h-7 w-full rounded border border-slate-300 bg-white pl-6 pr-1.5 text-[11px] text-slate-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
-          />
-        </div>
+        <input
+          type="text"
+          value={searchName}
+          onChange={(e) => setSearchName(e.target.value)}
+          placeholder="Lọc tên/mã..."
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-[11px] text-slate-800 outline-none focus:border-slate-500"
+        />
       ),
     },
     {
       key: 'position',
       title: 'CHỨC DANH / VỊ TRÍ',
       sortable: true,
-      width: '210px',
+      width: '200px',
       render: (row) => (
-        <span className="text-xs font-semibold text-slate-800">
+        <span className="text-xs text-slate-800">
           {row.position || 'Quản lý cơ giới'}
         </span>
       ),
@@ -385,7 +422,7 @@ export const EmployeesManagementPage: React.FC = () => {
         <select
           value={selectedPosition}
           onChange={(e) => setSelectedPosition(e.target.value)}
-          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-slate-500"
         >
           <option value={ALL}>Tất cả chức danh</option>
           {POSITION_OPTIONS.map((p) => (
@@ -398,35 +435,24 @@ export const EmployeesManagementPage: React.FC = () => {
     },
     {
       key: 'businessUnit',
-      title: 'ĐƠN VỊ & NƠI TẬP KẾT',
+      title: 'KHU LIÊN HỢP PHỤ TRÁCH',
       sortable: true,
-      width: '200px',
+      width: '180px',
       render: (row) => (
-        <div className="space-y-0.5">
-          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
-            <Building2 className="h-3 w-3 text-emerald-600 shrink-0" />
-            {row.enterprise || row.businessUnit}
-          </span>
-          {row.farm && (
-            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-              <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
-              <span>{row.farm}</span>
-            </div>
-          )}
-        </div>
+        <span className="text-xs text-slate-800">
+          {getCleanKlh(row)}
+        </span>
       ),
       filterElement: (
         <select
           value={selectedUnit}
           onChange={(e) => setSelectedUnit(e.target.value)}
-          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-slate-500"
         >
-          <option value={ALL}>Tất cả đơn vị</option>
-          {UNIT_OPTIONS.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
+          <option value={ALL}>Tất cả Khu liên hợp</option>
+          <option value="KOUN_MOM">KLH Koun Mom</option>
+          <option value="SNOUL">KLH Snoul</option>
+          <option value="NAM_LAO">KLH Nam Lào</option>
         </select>
       ),
     },
@@ -435,10 +461,9 @@ export const EmployeesManagementPage: React.FC = () => {
       title: 'SỐ ZALO / SĐT',
       width: '120px',
       render: (row) => (
-        <div className="flex items-center gap-1 font-mono text-xs font-bold text-emerald-800">
-          <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
-          <span>{row.phone || '—'}</span>
-        </div>
+        <span className="font-mono text-xs text-slate-800">
+          {row.phone || '—'}
+        </span>
       ),
       filterElement: (
         <input
@@ -446,7 +471,7 @@ export const EmployeesManagementPage: React.FC = () => {
           value={searchPhone}
           onChange={(e) => setSearchPhone(e.target.value)}
           placeholder="Lọc SĐT..."
-          className="h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-[11px] font-mono text-slate-800 outline-none focus:border-emerald-600"
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-[11px] font-mono text-slate-800 outline-none focus:border-slate-500"
         />
       ),
     },
@@ -455,12 +480,9 @@ export const EmployeesManagementPage: React.FC = () => {
       title: 'GIẤY PHÉP LÁI XE',
       width: '160px',
       render: (row) => (
-        <div className="space-y-0.5">
-          <span className="inline-block rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-800 border border-sky-200">
-            <Award className="h-3 w-3 text-sky-600 inline mr-0.5" />
-            {SHORT_LICENSE_LABELS[row.licenseClass || ''] || row.licenseClass || 'Máy Nông Nghiệp'}
-          </span>
-          <div className="text-[10px] text-amber-700 font-bold font-mono">
+        <div className="text-xs text-slate-800 space-y-0.5">
+          <div>{SHORT_LICENSE_LABELS[row.licenseClass || ''] || row.licenseClass || 'Máy Nông Nghiệp'}</div>
+          <div className="text-[11px] text-slate-500 font-mono">
             Hạn: {row.licenseExpiryDate || '2028-12-31'}
           </div>
         </div>
@@ -469,7 +491,7 @@ export const EmployeesManagementPage: React.FC = () => {
         <select
           value={selectedLicense}
           onChange={(e) => setSelectedLicense(e.target.value)}
-          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-slate-500"
         >
           <option value={ALL}>Tất cả bằng</option>
           {Object.entries(SHORT_LICENSE_LABELS).map(([k, v]) => (
@@ -481,14 +503,53 @@ export const EmployeesManagementPage: React.FC = () => {
       ),
     },
     {
+      key: 'username',
+      title: 'TÀI KHOẢN & PHÂN QUYỀN',
+      width: '200px',
+      render: (row) => {
+        const isDriver =
+          row.empCode?.startsWith('TX-') ||
+          row.empCode?.includes('TX') ||
+          row.licenseClass ||
+          row.position?.toLowerCase().includes('lái xe') ||
+          row.position?.toLowerCase().includes('vận hành');
+        const isAdmin = row.empCode === 'ADMIN-001' || row.position?.toLowerCase().includes('admin');
+
+        const autoUser =
+          row.username ||
+          (row.empCode === 'TX-KM-001' || row.empCode === 'TX-NT1-001'
+            ? 'tx.kounmom'
+            : row.empCode === 'TX-SN-001'
+            ? 'tx.snoul'
+            : row.empCode === 'TX-NL-001'
+            ? 'tx.namlao'
+            : row.empCode.toLowerCase().replace('-', '.'));
+
+        const roleLabel = isAdmin
+          ? 'Quản trị (Web toàn quyền)'
+          : isDriver
+          ? 'Chỉ App Mobile (Chặn Web)'
+          : 'Nhân sự quản lý (Web KLH)';
+
+        return (
+          <div className="space-y-0.5">
+            <span className="font-mono text-xs font-semibold text-slate-900 block">
+              {isAdmin ? (row.username || 'admin') : isDriver ? autoUser : (row.username || row.empCode.toLowerCase())}
+            </span>
+            <span className="text-[11px] text-slate-500 block">
+              {roleLabel}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
       key: 'status',
-      title: 'TRẠNG THÁI',
+      title: 'Trạng thái',
       sortable: true,
-      align: 'center',
       width: '110px',
       render: (row) => (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <span className="text-xs text-slate-800">
           {row.status || 'Đang làm việc'}
         </span>
       ),
@@ -496,7 +557,7 @@ export const EmployeesManagementPage: React.FC = () => {
         <select
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value)}
-          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
+          className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-slate-500"
         >
           <option value={ALL}>Tất cả</option>
           <option value="Đang làm việc">Đang làm việc</option>
@@ -505,49 +566,46 @@ export const EmployeesManagementPage: React.FC = () => {
       ),
     },
     {
-      key: 'id',
-      title: 'THAO TÁC',
+      key: 'user',
+      title: 'User',
       align: 'center',
-      width: '90px',
+      width: '70px',
       render: (row) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedEmployee(row);
-              setDetailTab('info');
-            }}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
-            title="Xem lý lịch"
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleOpenEdit(row)}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-primary transition-colors"
-            title="Sửa thông tin"
-          >
-            <Edit className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDelete(row.id, row.fullName)}
-            className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-            title="Xóa"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <AuditUserPopover
+          createdDate={row.createdAt ? new Date(row.createdAt).toLocaleDateString('vi-VN') : '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('vi-VN') : '01-08-2026'}
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${row.fullName}`}
+        />
+      ),
+    },
+    {
+      key: 'id',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (row) => (
+        <TableRowActions
+          onView={() => {
+            setSelectedEmployee(row);
+            setDetailTab('info');
+          }}
+          onEdit={() => handleOpenEdit(row)}
+          onDelete={() => handleDelete(row.id, row.fullName)}
+          viewTitle="Xem lý lịch"
+          editTitle="Sửa thông tin"
+          deleteTitle="Xóa nhân viên"
+        />
       ),
       filterElement: hasActiveFilters ? (
         <button
           type="button"
           onClick={resetFilters}
-          className="inline-flex items-center justify-center gap-1 rounded bg-rose-50 px-1.5 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-100 border border-rose-200 w-full transition-colors"
+          className="inline-flex items-center justify-center rounded bg-slate-100 px-1.5 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-200 border border-slate-300 w-full transition-colors"
           title="Xóa toàn bộ lọc cột"
         >
-          <RotateCcw className="h-3 w-3" /> Đặt lại
+          Đặt lại
         </button>
       ) : null,
     },
@@ -891,19 +949,19 @@ export const EmployeesManagementPage: React.FC = () => {
               {detailTab === 'unit' && (
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Khu liên hợp</span>
-                    <span className="font-bold text-slate-900 text-xs">KLH Koun Mom (Campuchia)</span>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Khu liên hợp phụ trách</span>
+                    <span className="font-bold text-slate-900 text-xs">{getCleanKlh(selectedEmployee)}</span>
                   </div>
                   <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Đơn vị / Xí nghiệp</span>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Đơn vị công tác</span>
                     <span className="font-bold text-emerald-800 text-xs">
-                      {selectedEmployee.enterprise || selectedEmployee.businessUnit || 'Ban Cơ Giới KLH'}
+                      {getCleanKlh(selectedEmployee)}
                     </span>
                   </div>
                   <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Đội / Nông trường</span>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Đội ngũ vận hành</span>
                     <span className="font-semibold text-slate-900 text-xs">
-                      {selectedEmployee.farm || selectedEmployee.team || '—'}
+                      {selectedEmployee.team ? selectedEmployee.team.replace(/NT[12]|Ban Cơ Giới/gi, 'KLH') : 'Đội xe KLH'}
                     </span>
                   </div>
                   <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
@@ -1067,23 +1125,23 @@ export const EmployeesManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Đơn vị / Xí nghiệp: *</label>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Khu liên hợp phụ trách: *</label>
                 <select
-                  value={formData.enterprise}
+                  value={formData.complex}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      enterprise: e.target.value,
+                      complex: e.target.value,
                       businessUnit: e.target.value,
+                      enterprise: e.target.value,
                     })
                   }
                   className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-800 outline-none focus:border-primary focus:bg-white"
                 >
-                  {UNIT_OPTIONS.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
+                  <option value="KLH Koun Mom">KLH Koun Mom (Campuchia)</option>
+                  <option value="KLH Snoul">KLH Snoul (Campuchia)</option>
+                  <option value="KLH Nam Lào">KLH Nam Lào (Lào)</option>
+                  <option value="Toàn bộ 3 Khu Liên Hợp">Toàn bộ 3 Khu Liên Hợp</option>
                 </select>
               </div>
 

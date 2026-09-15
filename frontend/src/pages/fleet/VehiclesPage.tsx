@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
 import { EditVehicleModal } from '../../components/fleet/EditVehicleModal';
-import { apiService } from '../../api/client';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { apiClient, apiService } from '../../api/client';
 import { catalogsApi } from '../../api/catalogsApi';
 import { getStoredData } from '../../utils/storage';
 import { mockRegions, CatalogItem } from '../../data/catalogData';
@@ -53,14 +55,14 @@ import {
   Upload,
 } from 'lucide-react';
 
-type DetailTab = 'identity' | 'technical' | 'fuel' | 'assignment';
+type DetailTab = 'identity' | 'technical' | 'fuel' | 'assignment' | 'maintenance';
 type TableViewMode = 'excel_23' | 'compact';
 
 const ALL = 'ALL';
 
 const STATUS_LABELS: Record<string, string> = {
-  HOAT_DONG: 'Đang hoạt động (Bình thường)',
-  TAM_DUNG: 'Thanh lý',
+  HOAT_DONG: 'Còn hoạt động (Bình thường)',
+  TAM_DUNG: 'Ngưng hoạt động',
   CHO_PHAN_CONG: 'Chờ phân công',
   BAO_DUONG: 'Đang bảo dưỡng',
   SUA_CHUA: 'Đang sửa chữa (Hư hỏng)',
@@ -120,10 +122,14 @@ const formatQuota = (vehicle: VehicleProfile) => {
   return `${vehicle.fuelQuotaRate.toLocaleString('vi-VN')} ${unit}`.trim();
 };
 
-const statusMeta = (status: VehicleProfile['status']) => {
-  if (status === 'active') return { label: 'Bình thường', variant: 'green' as const, badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-  if (status === 'maintenance') return { label: 'Đang bảo dưỡng', variant: 'amber' as const, badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' };
-  if (status === 'repair') return { label: 'Hư hỏng / Sửa chữa', variant: 'red' as const, badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' };
+const statusMeta = (status: VehicleProfile['status'] | string) => {
+  const s = status as string;
+  if (s === 'inactive' || s === 'TAM_DUNG' || s === 'NGUNG_HOAT_DONG') {
+    return { label: 'Ngưng hoạt động', variant: 'gray' as const, badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' };
+  }
+  if (s === 'active' || s === 'HOAT_DONG') return { label: 'Còn hoạt động', variant: 'green' as const, badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  if (s === 'maintenance' || s === 'BAO_DUONG') return { label: 'Đang bảo dưỡng', variant: 'amber' as const, badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' };
+  if (s === 'repair' || s === 'SUA_CHUA') return { label: 'Hư hỏng / Sửa chữa', variant: 'red' as const, badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' };
   return { label: 'Chờ phân công', variant: 'gray' as const, badgeClass: 'bg-slate-50 text-slate-700 border-slate-200' };
 };
 
@@ -146,6 +152,7 @@ const DetailField: React.FC<{
 );
 
 export const VehiclesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const categoryParam = searchParams.get('category');
   const unitParam = searchParams.get('unit');
@@ -154,6 +161,7 @@ export const VehiclesPage: React.FC = () => {
   const [editingVehicle, setEditingVehicle] = useState<VehicleProfile | null>(null);
   const [isCreatingVehicle, setIsCreatingVehicle] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>('identity');
+  const [maintenanceProfile, setMaintenanceProfile] = useState<any>(null);
   const [showImagePreview, setShowImagePreview] = useState<string | null>(null);
   const [tableViewMode, setTableViewMode] = useState<TableViewMode>('excel_23');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -227,6 +235,7 @@ export const VehiclesPage: React.FC = () => {
       const response = await apiService.getVehiclesPage({
         page,
         limit: 20,
+        isAssignable: true,
         search: debouncedSearch || undefined,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
@@ -265,6 +274,7 @@ export const VehiclesPage: React.FC = () => {
   useEffect(() => {
     void apiService
       .getVehicleStatistics({
+        isAssignable: true,
         assetGroup: selectedGroup !== ALL ? selectedGroup : undefined,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
@@ -277,6 +287,7 @@ export const VehiclesPage: React.FC = () => {
   useEffect(() => {
     void apiService
       .getVehicleFilterOptions({
+        isAssignable: true,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
         assignedUnitCode: selectedUnit !== ALL ? selectedUnit : undefined,
@@ -387,14 +398,17 @@ export const VehiclesPage: React.FC = () => {
   const operationalStats = useMemo(() => {
     const total = Number(fleetStats?.totalVehicles ?? pagination.total);
     const active = Number((fleetStats?.running || 0) + (fleetStats?.waitingDispatch || 0) + (fleetStats?.standby || 0));
+    const maintenance = Number(fleetStats?.maintenance || 0);
     const damaged = Number(fleetStats?.repair || 0);
     const gpsAttached = Number(fleetStats?.gpsAttached || 0);
 
     return {
       total,
       active,
+      maintenance,
       damaged,
       gpsAttached,
+      maintenanceRatio: total > 0 ? `${maintenance}/${total} (${((maintenance / total) * 100).toFixed(1)}%)` : '0/0 (0%)',
       damagedRatio: total > 0 ? `${damaged}/${total} (${((damaged / total) * 100).toFixed(1)}%)` : '0/0 (0%)',
     };
   }, [fleetStats, pagination.total]);
@@ -561,17 +575,41 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const selectGroup = (group: string) => {
+    // Nhóm thiết bị phụ trợ & nông cụ không nằm trong danh sách xe chủ lực —
+    // điều hướng sang trang Thiết bị chuyên dụng.
+    if (group === 'THIET_BI_PHU_TRO') {
+      navigate('/doi-xe/thiet-bi');
+      return;
+    }
     setSelectedGroup((current) => (current === group ? ALL : group));
     setSelectedCategory(ALL);
   };
 
+
   const openVehicle = (vehicle: VehicleProfile) => {
     setDetailTab('identity');
+    setMaintenanceProfile(null);
     setSelectedVehicle(vehicle);
+    const vehicleId = Number(String(vehicle.id).replace(/^V/, ''));
+    if (vehicleId) {
+      void apiClient.get(`/maintenance/vehicles/${vehicleId}/profile`).then((response) => {
+        setMaintenanceProfile(response.data?.data || response.data);
+      });
+    }
   };
 
   const handleEditVehicle = (vehicle: VehicleProfile) => {
     setEditingVehicle(vehicle);
+  };
+
+  const handleDeleteVehicle = async (vehicle: VehicleProfile) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ xe ${vehicle.internalCode || vehicle.plateNumber}?`)) return;
+    try {
+      await apiService.deleteVehicle(vehicle.id);
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicle.id));
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Không thể xóa phương tiện này');
+    }
   };
 
   const handleEditSuccess = (updatedVehicle: VehicleProfile) => {
@@ -581,13 +619,14 @@ export const VehiclesPage: React.FC = () => {
     if (selectedVehicle && selectedVehicle.id === updatedVehicle.id) {
       setSelectedVehicle({ ...selectedVehicle, ...updatedVehicle });
     }
-    void apiService.getVehicleStatistics().then(setFleetStats).catch(() => {});
+    void apiService.getVehicleStatistics({ isAssignable: true }).then(setFleetStats).catch(() => {});
   };
 
   // Full 23-column Excel export
   const handleExportExcel = async () => {
     try {
       const exportVehicles = await apiService.getVehicles({
+        isAssignable: true,
         search: debouncedSearch || undefined,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
@@ -693,14 +732,8 @@ export const VehiclesPage: React.FC = () => {
     const raw = v.rawStatus || v.status;
     const cond = (v.conditionStatus || '').toLowerCase();
 
-    // 1. Kiểm tra trạng thái bình thường (Ưu tiên kiểm tra trước)
-    const isNormal =
-      raw === 'HOAT_DONG' ||
-      raw === 'active' ||
-      cond.includes('bình thường') ||
-      cond === 'hoạt động';
-
-    if (isNormal) {
+    // 1. Trạng thái Đang hoạt động (Bình thường) - Ưu tiên chuẩn xác theo trạng thái vận hành hệ thống
+    if (raw === 'HOAT_DONG' || raw === 'active') {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-700">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -709,31 +742,8 @@ export const VehiclesPage: React.FC = () => {
       );
     }
 
-    // 2. Đang sửa chữa / Hư hỏng
-    const isRepair =
-      raw === 'SUA_CHUA' ||
-      raw === 'repair' ||
-      cond.includes('hư hỏng') ||
-      cond.includes('hỏng') ||
-      cond.includes('sửa chữa') ||
-      cond.includes('chờ sửa');
-
-    if (isRepair) {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-          Đang sửa chữa (Hư hỏng)
-        </span>
-      );
-    }
-
-    // 3. Đang bảo dưỡng
-    const isMaintenance =
-      raw === 'BAO_DUONG' ||
-      raw === 'maintenance' ||
-      cond.includes('bảo dưỡng');
-
-    if (isMaintenance) {
+    // 2. Trạng thái Đang bảo dưỡng
+    if (raw === 'BAO_DUONG' || raw === 'maintenance') {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-700">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -742,14 +752,18 @@ export const VehiclesPage: React.FC = () => {
       );
     }
 
-    // 4. Thanh lý / Tạm dừng
-    const isStandby =
-      raw === 'TAM_DUNG' ||
-      raw === 'standby' ||
-      cond.includes('thanh lý') ||
-      cond.includes('tạm dừng');
+    // 3. Trạng thái Đang sửa chữa / Hư hỏng
+    if (raw === 'SUA_CHUA' || raw === 'repair') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+          Đang sửa chữa (Hư hỏng)
+        </span>
+      );
+    }
 
-    if (isStandby) {
+    // 4. Thanh lý / Tạm dừng
+    if (raw === 'TAM_DUNG' || raw === 'standby') {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-700">
           <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
@@ -759,13 +773,49 @@ export const VehiclesPage: React.FC = () => {
     }
 
     // 5. Chờ phân công
-    const isWaiting =
-      raw === 'CHO_PHAN_CONG' ||
-      raw === 'idle' ||
-      cond.includes('chờ phân công') ||
-      cond.includes('chờ');
+    if (raw === 'CHO_PHAN_CONG' || raw === 'idle') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2.5 py-0.5 text-[10px] font-extrabold text-sky-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+          Chờ phân công
+        </span>
+      );
+    }
 
-    if (isWaiting) {
+    // Fallback theo chuỗi conditionStatus nếu raw không xác định
+    if (cond.includes('bảo dưỡng')) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          Đang bảo dưỡng
+        </span>
+      );
+    }
+
+    if (
+      cond.includes('hư hỏng') ||
+      cond.includes('hỏng') ||
+      cond.includes('sửa chữa') ||
+      cond.includes('chờ sửa')
+    ) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-50 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+          Đang sửa chữa (Hư hỏng)
+        </span>
+      );
+    }
+
+    if (cond.includes('thanh lý') || cond.includes('tạm dừng')) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+          Thanh lý
+        </span>
+      );
+    }
+
+    if (cond.includes('chờ phân công') || cond.includes('chờ')) {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2.5 py-0.5 text-[10px] font-extrabold text-sky-700">
           <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
@@ -960,31 +1010,34 @@ export const VehiclesPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: 'THAO TÁC',
-      width: '145px',
+      key: 'user',
+      title: 'User',
+      width: '70px',
       align: 'center',
       render: (v) => (
-        <div className="flex items-center justify-center gap-1.5">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => openVehicle(v)}
-            className="h-7 text-[11px] px-2 font-bold"
-            title="Xem chi tiết lý lịch xe"
-          >
-            <Eye className="h-3 w-3 mr-1" /> Chi tiết
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleEditVehicle(v)}
-            className="h-7 text-[11px] px-2 font-bold border-amber-300 text-amber-800 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-400"
-            title="Chỉnh sửa thông tin hồ sơ xe"
-          >
-            <Edit className="h-3 w-3 mr-1 text-amber-700" /> Sửa
-          </Button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của xe ${v.internalCode || v.plateNumber}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '110px',
+      align: 'center',
+      render: (v) => (
+        <TableRowActions
+          onView={() => openVehicle(v)}
+          onEdit={() => handleEditVehicle(v)}
+          onDelete={() => handleDeleteVehicle(v)}
+          viewTitle="Xem chi tiết lý lịch xe"
+          editTitle="Chỉnh sửa thông tin hồ sơ xe"
+          deleteTitle="Xóa hồ sơ xe"
+        />
       ),
       filterElement: (searchTerm || selectedUnit !== ALL || selectedCategory !== ALL || selectedStatus !== ALL || selectedYear !== ALL) ? (
         <button
@@ -1255,39 +1308,42 @@ export const VehiclesPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: 'THAO TÁC',
-      width: '145px',
+      key: 'user',
+      title: 'User',
+      width: '70px',
       align: 'center',
       render: (v) => (
-        <div className="flex items-center justify-center gap-1.5">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => openVehicle(v)}
-            className="h-7 text-[11px] px-2 font-bold"
-            title="Xem chi tiết lý lịch xe"
-          >
-            <Eye className="h-3 w-3 mr-1" /> Chi tiết
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleEditVehicle(v)}
-            className="h-7 text-[11px] px-2 font-bold border-amber-300 text-amber-800 bg-amber-50/70 hover:bg-amber-100 hover:border-amber-400"
-            title="Chỉnh sửa thông tin hồ sơ xe"
-          >
-            <Edit className="h-3 w-3 mr-1 text-amber-700" /> Sửa
-          </Button>
-        </div>
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của xe ${v.internalCode || v.plateNumber}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '110px',
+      align: 'center',
+      render: (v) => (
+        <TableRowActions
+          onView={() => openVehicle(v)}
+          onEdit={() => handleEditVehicle(v)}
+          onDelete={() => handleDeleteVehicle(v)}
+          viewTitle="Xem chi tiết lý lịch xe"
+          editTitle="Chỉnh sửa thông tin hồ sơ xe"
+          deleteTitle="Xóa hồ sơ xe"
+        />
       ),
     },
   ];
 
   return (
     <div className="space-y-4">
-      {/* 4x2 DASHBOARD TILES GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 5 TILES OPERATIONAL STATUS GRID */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Row 1 - Card 1: Tổng quy mô MMTB */}
         <button
           type="button"
@@ -1343,35 +1399,60 @@ export const VehiclesPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Row 1 - Card 3: Tình trạng Hỏng / Sửa */}
+        {/* Row 1 - Card 3: Đang bảo dưỡng */}
+        <button
+          type="button"
+          onClick={() => setSelectedStatus((curr) => (curr === 'BAO_DUONG' ? ALL : 'BAO_DUONG'))}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            selectedStatus === 'BAO_DUONG'
+              ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/25 shadow-sm scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-700">Đang bảo dưỡng</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <Wrench className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {loading ? '...' : operationalStats.maintenanceRatio}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Bảo dưỡng định kỳ BDC
+          </div>
+        </button>
+
+        {/* Row 1 - Card 4: Đang sửa chữa (Hư hỏng) */}
         <button
           type="button"
           onClick={() => setSelectedStatus((curr) => (curr === 'SUA_CHUA' ? ALL : 'SUA_CHUA'))}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            selectedStatus === 'SUA_CHUA' || selectedStatus === 'BAO_DUONG'
+            selectedStatus === 'SUA_CHUA'
               ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-rose-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-700">Tình trạng Hỏng / Sửa</span>
+            <span className="text-xs font-bold text-rose-700">Đang sửa chữa (Hỏng)</span>
             <div className="rounded-xl p-2 bg-rose-50 text-rose-600">
-              <Wrench className="w-5 h-5" />
+              <AlertTriangle className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-2 text-2xl font-black text-rose-700">
             {loading ? '...' : operationalStats.damagedRatio}
           </div>
           <div className="mt-1 text-[11px] font-semibold text-rose-600 truncate">
-            Cần theo dõi & điều chuyển BTSC
+            Cần sửa chữa & khắc phục
           </div>
         </button>
 
-        {/* Row 1 - Card 4: Đã gắn GPS / Giám sát */}
+        {/* Row 1 - Card 5: Đã gắn GPS / Giám sát */}
         <button
           type="button"
-          onClick={() => {}}
+          onClick={() => navigate('/doi-xe/gps-cam-bien')}
           className="relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-sky-500" />
@@ -1385,11 +1466,13 @@ export const VehiclesPage: React.FC = () => {
             {loading ? '...' : operationalStats.gpsAttached.toLocaleString('vi-VN')}
           </div>
           <div className="mt-1 text-[11px] font-semibold text-sky-700 truncate">
-            Truyền tọa độ & cảm biến dầu
+            {operationalStats.gpsAttached === 0 ? 'Chưa có thiết bị GPS' : 'Truyền tọa độ & cảm biến dầu'} →
           </div>
         </button>
+      </div>
 
-        {/* Row 2 - 4 Group Cards */}
+      {/* 4 TILES ASSET GROUP GRID - DÀN ĐỀU 4 CỘT KHÔNG ĐỂ KHOẢNG TRỐNG */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {groupOptions.map((group) => {
           const Icon = group.icon;
           const selected = selectedGroup === group.key;
@@ -1927,6 +2010,7 @@ export const VehiclesPage: React.FC = () => {
                 { key: 'technical', label: '2. Thông số & Động cơ', icon: Gauge },
                 { key: 'fuel', label: '3. Định mức & Nhiên liệu', icon: Fuel },
                 { key: 'assignment', label: '4. Phân bổ & Vận hành', icon: Building2 },
+                { key: 'maintenance', label: '5. Bảo dưỡng & Sửa chữa', icon: Wrench },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const active = detailTab === tab.key;
@@ -2043,6 +2127,41 @@ export const VehiclesPage: React.FC = () => {
                   <div className="sm:col-span-2 md:col-span-3">
                     <DetailField label="25. Ghi chú nghiệp vụ" value={selectedVehicle.notes} />
                   </div>
+                </div>
+              )}
+
+              {detailTab === 'maintenance' && (
+                <div className="space-y-4 text-xs">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Link to={`/xuong-btsc/yeu-cau?tab=maintenance&assetType=vehicle&assetId=${String(selectedVehicle.id).replace(/\D/g, '')}`}><Button size="sm" variant="outline" icon={<Wrench className="h-4 w-4" />}>Tạo yêu cầu bảo dưỡng</Button></Link>
+                    <Link to={`/xuong-btsc/yeu-cau?tab=repair&assetType=vehicle&assetId=${String(selectedVehicle.id).replace(/\D/g, '')}`}><Button size="sm" icon={<AlertTriangle className="h-4 w-4" />}>Báo sửa chữa</Button></Link>
+                  </div>
+                  {!maintenanceProfile ? (
+                    <div className="py-16 text-center text-slate-400">Đang tải hồ sơ bảo dưỡng...</div>
+                  ) : (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+                        <DetailField label="Chế độ định mức" value={maintenanceProfile.mode === 'STANDARD' ? `Đa chu kỳ · ${maintenanceProfile.standard?.metric === 'ENGINE_HOUR' ? 'Giờ máy' : 'ODO km'}` : 'Fallback 250 giờ'} />
+                        <DetailField label="Phiên bản áp dụng" value={maintenanceProfile.standard ? `${maintenanceProfile.standard.name} · v${maintenanceProfile.standard.version}` : 'Chưa được gán tiêu chuẩn'} />
+                        <DetailField label="Mốc kế tiếp" value={maintenanceProfile.occurrences?.find((item: any) => item.status !== 'COMPLETED')?.dueMeter?.toLocaleString('vi-VN') || '—'} mono />
+                        <DetailField label="Cảnh báo đang mở" value={`${maintenanceProfile.alerts?.length || 0} cảnh báo`} className={(maintenanceProfile.alerts?.length || 0) > 0 ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50'} />
+                      </div>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 p-3">
+                          <h4 className="mb-2 font-extrabold">Nhật ký vận hành / BDC1</h4>
+                          <div className="max-h-44 divide-y overflow-y-auto">{maintenanceProfile.bdc1Logs?.length ? maintenanceProfile.bdc1Logs.map((log: any) => <div key={log.id} className="flex justify-between gap-3 py-2"><span>{new Date(log.operatingDate).toLocaleDateString('vi-VN')} · {log.performer?.fullName || 'Chưa xác định'}</span><b className={log.submittedAt ? 'text-emerald-600' : 'text-amber-600'}>{log.submittedAt ? 'Đã nộp' : log.skippedAt ? 'Đã bỏ qua khi bắt đầu' : 'Chưa nộp'}</b></div>) : <p className="text-slate-400">Chưa có nhật ký BDC1.</p>}</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 p-3">
+                          <h4 className="mb-2 font-extrabold">Lịch sử BDC2 / sửa chữa</h4>
+                          <div className="max-h-44 divide-y overflow-y-auto">{maintenanceProfile.records?.length ? maintenanceProfile.records.map((record: any) => <div key={record.id} className="flex justify-between gap-3 py-2"><span>{new Date(record.createdAt).toLocaleDateString('vi-VN')} · {record.occurrence?.milestone?.label || 'BDC2'}</span><b>{record.status}</b></div>) : <p className="text-slate-400">Chưa có hồ sơ BDC2.</p>}</div>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 p-3">
+                        <h4 className="mb-2 font-extrabold">Cảnh báo liên quan đến xe</h4>
+                        {maintenanceProfile.alerts?.length ? maintenanceProfile.alerts.map((alert: any) => <div key={alert.id} className="mb-2 rounded-lg bg-rose-50 p-2 text-rose-800"><b>{alert.title}</b><p>{alert.message}</p></div>) : <p className="text-slate-400">Không có cảnh báo đang mở.</p>}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

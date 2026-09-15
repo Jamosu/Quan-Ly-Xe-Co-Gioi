@@ -1,29 +1,38 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
   AlertTriangle,
   Calendar,
+  CalendarDays,
+  CheckCircle2,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Clock,
   Download,
+  Eye,
+  Fuel,
   MapPin,
   Package,
   Plus,
   Printer,
   Route,
   Search,
+  Send,
   Trash2,
   Truck,
   Upload,
   User,
   Users,
-  CheckCircle2,
-  FileSpreadsheet,
+  UserCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { operationsApi } from '../../api/operations';
-import { apiClient } from '../../api/client';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
@@ -36,17 +45,15 @@ import { useAppStore } from '../../store/useAppStore';
 import { matchesKLH } from '../../utils/filterUtils';
 import { WorkflowActionPanel, type DemoWorkflowStep } from '../../components/dispatch/WorkflowActionPanel';
 import { Vehicle24hScheduler, type SchedulerLane, type SchedulerItem } from '../../components/dispatch/Vehicle24hScheduler';
+import { DispatchCategoryTabs } from '../../components/dispatch/DispatchCategoryTabs';
 import { getWeeksOfYear, getWeekNumber } from './ProductionPlanPage';
 import { DAYS_OF_WEEK } from './CreateProductionPlanPage';
-import { syncAllApprovedSpecializedPlans } from './specializedPlanSync';
-
-const STORAGE_KEY = 'thaco_transport_orders_v4';
 
 const boards = [
   { title: 'Chờ duyệt', statuses: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'] },
   { title: 'Đã phân công', statuses: ['ASSIGNED', 'DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING'] },
-  { title: 'Đang vận chuyển', statuses: ['DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING'] },
-  { title: 'Đã giao / hoàn tất', statuses: ['DELIVERED', 'ACCEPTED', 'COMPLETED'] },
+  { title: 'Đang vận chuyển', statuses: ['DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED', 'RETURNING_TO_DEPOT'] },
+  { title: 'Đã giao / hoàn tất', statuses: ['AT_DEPOT', 'ACCEPTED', 'COMPLETED'] },
 ];
 
 const TIME_SLOT_OPTIONS = [
@@ -128,7 +135,10 @@ interface NewItemRow {
 }
 
 export const InternalTransportPage: React.FC = () => {
-  const [view, setView] = useState<'scheduler' | 'table' | 'board' | 'completed'>('table');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [selectedTab, setSelectedTab] = useState<'DISPATCH' | 'ACCEPTED'>('DISPATCH');
+  const [view, setView] = useState<'scheduler' | 'table' | 'board'>('table');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [orders, setOrders] = useState<TransportOrderRecord[]>([]);
   const [selected, setSelected] = useState<TransportOrderRecord | null>(null);
@@ -148,8 +158,14 @@ export const InternalTransportPage: React.FC = () => {
     return getWeekNumber(new Date());
   });
 
+  // Bộ lọc theo Loại hàng, Phương tiện xe và Tài xế
+  const [selectedCargo, setSelectedCargo] = useState<string>('ALL');
+  const [selectedVehicle, setSelectedVehicle] = useState<string>('ALL');
+  const [selectedDriver, setSelectedDriver] = useState<string>('ALL');
+
   // Quản lý ngày: Vừa vào mặc định chọn ngày hôm nay
   const [selectedDate, setSelectedDate] = useState<string>(() => formatDateKey(new Date()));
+  const [sortOrder, setSortOrder] = useState<'time_asc' | 'time_desc'>('time_asc');
 
   const selectedStatus = useFilterStore((state) => state.selectedStatus);
   const selectedKLH = useAppStore((state) => state.selectedKLH);
@@ -202,24 +218,62 @@ export const InternalTransportPage: React.FC = () => {
     },
   ]);
 
-  // Lưu cache LocalStorage mỗi khi orders thay đổi
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-    } catch {
-      // ignore
-    }
-  }, [orders]);
-
-  const updateOrder = (id: number, patch: Partial<TransportOrderRecord>) => {
+  const updateOrderView = (id: number, patch: Partial<TransportOrderRecord>) => {
     setOrders((current) => current.map((order) => order.id === id ? { ...order, ...patch } : order));
     setSelected((current) => current?.id === id ? { ...current, ...patch } : current);
-    apiClient.patch(`/transport-orders/${id}`, patch).catch(() => {});
+  };
+
+  const handleOpenTransportOrder = (order: TransportOrderRecord) => {
+    const targetId = Number(order.id) > 200000 ? Number(order.id) : 200000 + Number(order.id);
+    let targetOrder: any = {
+      id: targetId,
+      code: order.code,
+      orderCategory: 'VAN_CHUYEN',
+      categoryLabel: 'Vận chuyển',
+      sourceType: 'TRANSPORT_ORDER',
+      unit: order.unit || 'BAN_CO_GIOI',
+      purpose: order.cargoType || 'Vận chuyển hàng hóa nội bộ',
+      origin: order.origin || 'Kho Trung Tâm',
+      destination: order.destination || 'Điểm giao hàng',
+      departureTime: order.departureTime || order.executionDate || order.requestDate || new Date().toISOString(),
+      plannedEndTime: order.plannedEndTime || new Date(Date.now() + 8 * 3600000).toISOString(),
+      status: order.status,
+      vehicle: order.vehicle,
+      driver: order.driver,
+      implement: order.trailer,
+      workVolumeTarget: order.tonnage || order.palletCount || 1,
+      workVolumeUnit: order.palletCount ? 'Pallet' : 'Tấn',
+      plannedFuelLiters: order.plannedFuelLiters,
+      notes: order.notes,
+    };
+
+    const isPending = !order.status || ['DRAFT', 'PENDING_APPROVAL'].includes(order.status);
+    if (isPending) {
+      const now = new Date();
+      const currentStart = now.toISOString();
+      const durationMs = order.departureTime && order.plannedEndTime
+        ? Math.max(1_800_000, new Date(order.plannedEndTime).getTime() - new Date(order.departureTime).getTime())
+        : 8 * 3_600_000;
+      const currentEnd = new Date(now.getTime() + durationMs).toISOString();
+
+      targetOrder = {
+        ...targetOrder,
+        departureTime: currentStart,
+        plannedEndTime: currentEnd,
+      };
+    }
+
+    navigate(`/lenh-dieu-xe/chi-tiet/${targetId}`, {
+      state: {
+        order: targetOrder,
+        from: location.pathname + location.search,
+      },
+    });
   };
 
   const workflowStep = (status: TransportOrderRecord['status']): DemoWorkflowStep => {
     if (['COMPLETED', 'ACCEPTED'].includes(status)) return 'COMPLETED';
-    if (['DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING', 'DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED'].includes(status)) return 'RECEIVED';
+    if (['DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING', 'DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED', 'RETURNING_TO_DEPOT', 'AT_DEPOT'].includes(status)) return 'RECEIVED';
     if (['APPROVED', 'ASSIGNED'].includes(status)) return 'APPROVED';
     return 'PENDING';
   };
@@ -234,78 +288,21 @@ export const InternalTransportPage: React.FC = () => {
         search: search || undefined,
         status: boards.some((board) => board.statuses.includes(selectedStatus)) ? selectedStatus : undefined,
       });
-      const sanitizedItems: TransportOrderRecord[] = (result.items || []).map((it: any) => ({
-        ...it,
-        items: Array.isArray(it.items) ? it.items : [],
-      }));
-
-      // Tự động quét và đồng bộ các kế hoạch chuyên dùng đã duyệt nếu có
-      try {
-        syncAllApprovedSpecializedPlans();
-      } catch {}
-
-      // Nạp các lệnh vận chuyển từ CSDL backend dispatch-orders (chuẩn MySQL DB)
-      try {
-        const dispatchRes = await operationsApi.dispatchOrders({ page: 1, limit: 100 });
-        const dispatchList = Array.isArray(dispatchRes) ? dispatchRes : (dispatchRes?.items || []);
-        dispatchList
-          .filter((item: any) =>
-            item.code?.startsWith('LDX-VC-') ||
-            item.code?.startsWith('VC-') ||
-            item.orderCategory === 'VAN_CHUYEN' ||
-            item.sourceType === 'TRANSPORT_ORDER'
-          )
-          .forEach((item: any) => {
-            if (!sanitizedItems.some((s: any) => s.code === item.code)) {
-              sanitizedItems.push({
-                id: item.id || Math.floor(Math.random() * 100000),
-                code: item.code,
-                unit: item.unit || 'BAN_CO_GIOI',
-                cargoType: item.purpose || 'Vận chuyển hàng hóa nội bộ',
-                origin: item.origin || 'Kho xuất phát',
-                destination: item.destination || 'Điểm giao',
-                departureTime: item.departureTime || new Date().toISOString(),
-                plannedEndTime: item.plannedEndTime,
-                status: (item.status === 'CHO_PHAN_CONG' || item.status === 'DRAFT' ? 'PENDING' : item.status === 'WORKING' ? 'IN_TRANSIT' : item.status === 'COMPLETED' ? 'COMPLETED' : 'APPROVED') as any,
-                tonnage: Number(item.workVolumeTarget) || 10,
-                vehiclePlate: item.vehicle?.plate || item.vehicle?.code || 'Chưa điều xe',
-                driverName: item.driver?.fullName || 'Chưa phân công',
-                notes: item.notes,
-                items: [],
-              } as any);
-            }
-          });
-      } catch {}
-
-      // Nạp thêm các lệnh vận chuyển nội bộ sinh từ kế hoạch chuyên dùng trong localStorage nếu chưa có
-      try {
-        const storedMasterRaw = localStorage.getItem('thaco_all_dispatch_orders_master_v4');
-        if (storedMasterRaw) {
-          const storedOrders = JSON.parse(storedMasterRaw);
-          if (Array.isArray(storedOrders)) {
-            storedOrders
-              .filter((so: any) => so.orderCategory === 'VAN_CHUYEN' || so.code?.startsWith('LDX-VC-'))
-              .forEach((so: any) => {
-                if (!sanitizedItems.some((s: any) => s.code === so.code)) {
-                  sanitizedItems.push({
-                    id: so.id || Math.floor(Math.random() * 100000),
-                    code: so.code,
-                    unit: so.unit || 'BAN_CO_GIOI',
-                    cargoType: so.purpose || 'Vận chuyển hàng hóa nội bộ',
-                    origin: so.origin || 'Kho xuất phát',
-                    destination: so.destination || 'Điểm giao',
-                    departureTime: so.departureTime || new Date().toISOString(),
-                    plannedEndTime: so.plannedEndTime,
-                    status: (so.status === 'CHO_PHAN_CONG' ? 'PENDING' : so.status) || 'PENDING',
-                    tonnage: Number(so.workVolumeTarget) || 10,
-                    notes: so.notes,
-                    items: [],
-                  } as any);
-                }
-              });
-          }
-        }
-      } catch {}
+      const sanitizedItems: TransportOrderRecord[] = (result.items || [])
+        .filter((item) => item.status !== 'CANCELLED')
+        .map((item: any) => {
+          const plan = item.productionOrder?.plan;
+          const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+          return {
+            ...item,
+            complexCode,
+            complexName,
+            planCode: plan?.code || item.planCode,
+            planTitle: plan?.title || item.planTitle,
+            items: Array.isArray(item.items) ? item.items : [],
+          };
+        });
 
       setOrders(sanitizedItems);
       setTotal(sanitizedItems.length);
@@ -382,17 +379,133 @@ export const InternalTransportPage: React.FC = () => {
       }
       return true;
     });
+    const chuaPhanCong = base.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(o.status)).length;
+    const daGiaoViec = base.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING'].includes(o.status)).length;
+    const dangLamViec = base.filter((o) => ['DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'WORKING'].includes(o.status)).length;
+    const driverPending = base.filter((o) => o.status === 'ASSIGNED').length;
+    const completed = base.filter((o) => ['DELIVERED', 'ACCEPTED', 'COMPLETED'].includes(o.status)).length;
+    const currentWeekNum = getWeekNumber(new Date());
+    const currentWeekObj = availableWeeks.find((w) => w.weekNumber === currentWeekNum);
+    const currentWeekEnd = currentWeekObj?.endDateKey || formatDateKey(new Date());
+
+    const delayed = base.filter((o) => {
+      const dep = o.departureTime || o.executionDate || o.requestDate;
+      const depTime = dep ? new Date(dep).getTime() : 0;
+      return o.isRouteDeviated || (depTime > 0 && depTime <= Date.now() && (!o.vehicle && !o.legacyVehicle || !o.driver && !o.legacyDriver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(o.status)));
+    }).length;
+
+    const futureUnassigned = orders.filter((o) => {
+      if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
+      if (['DELIVERED', 'ACCEPTED', 'COMPLETED', 'CANCELLED'].includes(o.status)) return false;
+      const dKey = formatDateKey(o.departureTime || o.executionDate || o.requestDate);
+      const isAfterCurrentWeek = Boolean(dKey && dKey > currentWeekEnd);
+      const isUnassigned = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(o.status) || (!o.vehicle && !o.legacyVehicle);
+      return isAfterCurrentWeek && isUnassigned;
+    }).length;
+
     return {
       ALL: base.length,
-      CHO_DUYET: base.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(o.status)).length,
-      DA_DUYET: base.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING'].includes(o.status)).length,
-      WORKING: base.filter((o) => ['DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING'].includes(o.status)).length,
-      COMPLETED: base.filter((o) => ['DELIVERED', 'ACCEPTED', 'COMPLETED'].includes(o.status)).length,
-      DELAYED: base.filter((o) => o.isRouteDeviated).length,
+      CHO_DUYET: chuaPhanCong,
+      CHUA_PHAN_CONG: chuaPhanCong,
+      DA_DUYET: daGiaoViec,
+      DA_GIAO_VIEC: daGiaoViec,
+      WORKING: dangLamViec,
+      DANG_LAM_VIEC: dangLamViec,
+      DRIVER_PENDING: driverPending,
+      TAI_XE_CHUA_XAC_NHAN: driverPending,
+      COMPLETED: completed,
+      DELAYED: delayed,
+      FUTURE_UNASSIGNED: futureUnassigned,
     };
   }, [orders, selectedWeek, availableWeeks, selectedDate, selectedKLH]);
 
-  // Lọc chuyến theo search, status và ngày
+  // Tính toán cảnh báo chuyến vận chuyển quá hạn / chờ điều độ (CHỈ BÁO CHUYẾN ĐÃ ĐẾN HẠN/QUÁ HẠN)
+  const computedOverdueSummary = useMemo(() => {
+    const scoped = orders.filter((o) => {
+      if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
+      return true;
+    });
+
+    const now = Date.now();
+    // CHỈ BÁO CÁC CHUYẾN ĐÃ ĐẾN HẠN HOẶC QUÁ HẠN (depTime <= now)
+    const active = scoped.filter((o) => {
+      if (['COMPLETED', 'ACCEPTED', 'DELIVERED', 'CANCELLED'].includes(o.status)) return false;
+      const dep = o.departureTime || o.executionDate || o.requestDate;
+      if (!dep) return false;
+      const depTime = new Date(dep).getTime();
+      return !isNaN(depTime) && depTime <= now;
+    });
+
+    const awaitingApproval = active.filter((o) => ['DRAFT', 'PENDING_APPROVAL'].includes(o.status)).length;
+    const missingVehicle = active.filter((o) => !o.vehicle && !o.legacyVehicle).length;
+    const missingDriver = active.filter((o) => !o.driver && !o.legacyDriver).length;
+
+    const totalAttention = active.filter((o) =>
+      ['DRAFT', 'PENDING_APPROVAL'].includes(o.status) ||
+      (!o.vehicle && !o.legacyVehicle) ||
+      (!o.driver && !o.legacyDriver)
+    ).length;
+
+    const delayedList = active.filter((o) => {
+      const dep = o.departureTime || o.executionDate || o.requestDate;
+      if (!dep) return false;
+      const depTime = new Date(dep).getTime();
+      if (isNaN(depTime) || depTime > now - 15 * 60 * 1000) return false;
+      return !['DEPARTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(o.status);
+    });
+
+    const lateAssigned = delayedList.filter((o) => o.status === 'ASSIGNED').length;
+    const lateAccepted = delayedList.filter((o) => ['DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING'].includes(o.status)).length;
+
+    return {
+      totalAttention,
+      totalOverdue: delayedList.length,
+      awaitingApproval,
+      missingVehicle,
+      missingDriver,
+      lateAssigned,
+      lateAccepted,
+    };
+  }, [orders, selectedKLH]);
+
+  // Danh sách các loại hàng vận chuyển thực tế từ dữ liệu
+  const availableCargoTypes = useMemo(() => {
+    const s = new Set<string>();
+    for (const o of orders) {
+      if (o.cargoType && !o.cargoType.includes('?')) s.add(o.cargoType.trim());
+      const items = Array.isArray(o.items) ? o.items : [];
+      for (const it of items) {
+        if (it.cargoName && !it.cargoName.includes('?')) s.add(it.cargoName.trim());
+      }
+    }
+    return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [orders]);
+
+  // Danh sách các phương tiện xe thực tế từ dữ liệu
+  const availableVehicles = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of orders) {
+      const plate = o.vehicle?.plate || o.vehicle?.code || o.legacyVehicle;
+      const name = o.vehicle?.name || (plate ? `Xe ${plate}` : '');
+      if (plate) {
+        map.set(plate, name ? `${plate} - ${name}` : plate);
+      }
+    }
+    return Array.from(map.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+  }, [orders]);
+
+  // Danh sách tài xế / lái xe thực tế từ dữ liệu
+  const availableDrivers = useMemo(() => {
+    const s = new Set<string>();
+    for (const o of orders) {
+      const d = o.driver;
+      const name = d?.fullName || o.legacyDriver;
+      if (name && !name.includes('?')) s.add(name.trim());
+    }
+    return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [orders]);
+
+  // Lọc chuyến theo search, status, cargo, vehicle, driver và ngày
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       // Lọc theo Khu liên hợp từ Header
@@ -404,11 +517,9 @@ export const InternalTransportPage: React.FC = () => {
       if (search) {
         const q = search.toLowerCase();
         const matchCode = (order.code || '').toLowerCase().includes(q);
-        const matchVehicle = (order.vehicle?.plate || order.vehicle?.code || '').toLowerCase().includes(q);
         const matchCont = (order.containerNumber || order.legacyTrailer || '').toLowerCase().includes(q);
-        const matchDriver = (order.driver?.fullName || order.legacyDriver || '').toLowerCase().includes(q);
-        const matchSecDriver = (order.secondaryDriverName || '').toLowerCase().includes(q);
-        const matchCargo = (order.cargoType || '').toLowerCase().includes(q);
+        const matchOrigin = (order.origin || '').toLowerCase().includes(q);
+        const matchDest = (order.destination || '').toLowerCase().includes(q);
         const orderItems = Array.isArray(order.items) ? order.items : [];
         const matchItems = orderItems.some(
           (it) =>
@@ -417,23 +528,57 @@ export const InternalTransportPage: React.FC = () => {
             (it.pickupLocation || '').toLowerCase().includes(q) ||
             (it.deliveryLocation || '').toLowerCase().includes(q)
         );
-        if (!matchCode && !matchVehicle && !matchCont && !matchDriver && !matchSecDriver && !matchCargo && !matchItems) {
+        if (!matchCode && !matchCont && !matchOrigin && !matchDest && !matchItems) {
           return false;
         }
       }
 
+      // Lọc theo Loại hàng
+      if (selectedCargo !== 'ALL') {
+        const matchCargo = (order.cargoType || '').toLowerCase() === selectedCargo.toLowerCase();
+        const orderItems = Array.isArray(order.items) ? order.items : [];
+        const matchItems = orderItems.some((it) => (it.cargoName || '').toLowerCase() === selectedCargo.toLowerCase());
+        if (!matchCargo && !matchItems) return false;
+      }
+
+      // Lọc theo Phương tiện xe
+      if (selectedVehicle !== 'ALL') {
+        const plate = order.vehicle?.plate || order.vehicle?.code || order.legacyVehicle;
+        if (plate !== selectedVehicle) return false;
+      }
+
+      // Lọc theo Lái xe / Tài xế
+      if (selectedDriver !== 'ALL') {
+        const driverName = order.driver?.fullName || order.legacyDriver || '';
+        if (driverName !== selectedDriver) return false;
+      }
+
       // Lọc theo bộ lọc trạng thái nhanh (statusFilter)
       if (statusFilter !== 'ALL') {
-        if (statusFilter === 'CHO_DUYET') {
+        if (statusFilter === 'CHO_DUYET' || statusFilter === 'CHUA_PHAN_CONG') {
           if (!['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(order.status)) return false;
-        } else if (statusFilter === 'DA_DUYET') {
+        } else if (statusFilter === 'DA_DUYET' || statusFilter === 'DA_GIAO_VIEC') {
           if (!['ASSIGNED', 'DRIVER_ACCEPTED', 'AT_PICKUP', 'LOADING'].includes(order.status)) return false;
-        } else if (statusFilter === 'WORKING') {
-          if (!['DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING'].includes(order.status)) return false;
+        } else if (statusFilter === 'WORKING' || statusFilter === 'DANG_LAM_VIEC') {
+          if (!['DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'WORKING'].includes(order.status)) return false;
+        } else if (statusFilter === 'DRIVER_PENDING' || statusFilter === 'TAI_XE_CHUA_XAC_NHAN') {
+          if (order.status !== 'ASSIGNED') return false;
         } else if (statusFilter === 'COMPLETED') {
           if (!['DELIVERED', 'ACCEPTED', 'COMPLETED'].includes(order.status)) return false;
         } else if (statusFilter === 'DELAYED') {
-          if (!order.isRouteDeviated) return false;
+          const dep = order.departureTime || order.executionDate || order.requestDate;
+          const depTime = dep ? new Date(dep).getTime() : 0;
+          const isDelayed = order.isRouteDeviated || (depTime > 0 && depTime <= Date.now() && (!order.vehicle && !order.legacyVehicle || !order.driver && !order.legacyDriver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(order.status)));
+          if (!isDelayed) return false;
+        } else if (statusFilter === 'FUTURE_UNASSIGNED') {
+          if (['DELIVERED', 'ACCEPTED', 'COMPLETED', 'CANCELLED'].includes(order.status)) return false;
+          const currentWeekNum = getWeekNumber(new Date());
+          const currentWeekObj = availableWeeks.find((w) => w.weekNumber === currentWeekNum);
+          const currentWeekEnd = currentWeekObj?.endDateKey || formatDateKey(new Date());
+          const dKey = formatDateKey(order.departureTime || order.executionDate || order.requestDate);
+          const isAfterCurrentWeek = Boolean(dKey && dKey > currentWeekEnd);
+          const isUnassigned = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(order.status) || (!order.vehicle && !order.legacyVehicle);
+          if (!isAfterCurrentWeek || !isUnassigned) return false;
         } else if (order.status !== statusFilter) {
           return false;
         }
@@ -444,8 +589,8 @@ export const InternalTransportPage: React.FC = () => {
         return false;
       }
 
-      // Lọc theo Tuần (selectedWeek)
-      if (selectedWeek !== 'ALL') {
+      // Lọc theo Tuần (selectedWeek) - bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai
+      if (selectedWeek !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
         const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
         if (weekObj) {
           const start = weekObj.startDateKey;
@@ -455,15 +600,19 @@ export const InternalTransportPage: React.FC = () => {
         }
       }
 
-      // Lọc ngày (áp dụng cho cả bảng kê và scheduler nếu không chọn ALL)
-      if (selectedDate !== 'ALL') {
+      // Lọc ngày (áp dụng cho cả bảng kê và scheduler nếu không chọn ALL) - bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai
+      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
         const dKey = formatDateKey(order.departureTime || order.executionDate || order.requestDate);
         if (dKey !== selectedDate) return false;
       }
 
       return true;
+    }).sort((a, b) => {
+      const timeA = a.departureTime ? new Date(a.departureTime).getTime() : 0;
+      const timeB = b.departureTime ? new Date(b.departureTime).getTime() : 0;
+      return sortOrder === 'time_asc' ? timeA - timeB : timeB - timeA;
     });
-  }, [orders, search, statusFilter, selectedStatus, selectedWeek, availableWeeks, selectedDate, selectedKLH]);
+  }, [orders, search, selectedCargo, selectedVehicle, statusFilter, selectedStatus, selectedWeek, availableWeeks, selectedDate, selectedKLH, sortOrder]);
 
   // Danh sách các chuyến đã hoàn tất
   const completedOrders = useMemo(() => {
@@ -628,128 +777,140 @@ export const InternalTransportPage: React.FC = () => {
     setSelectedDate(formatDateKey(new Date()));
   };
 
-  // 16 CỘT CHUẨN HÓA TRÊN BẢNG BÁO CÁO / QUẢN LÝ
+  // 8 CỘT CHUẨN HÓA ĐỒNG BỘ TOÀN HỆ THỐNG
   const columns: Column<TransportOrderRecord>[] = [
     {
       key: 'code',
-      title: 'Mã chuyến & Hình thức',
+      title: 'Mã lệnh & Phân loại',
+      width: '200px',
       sortable: true,
       render: (row) => (
         <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => setSelected(row)}
-            className="font-mono font-bold text-primary hover:underline block text-left"
-          >
-            {row.code}
-          </button>
-          <span
-            className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border ${
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleOpenTransportOrder(row)}
+              className="font-mono font-bold text-primary hover:underline block text-left text-xs cursor-pointer"
+            >
+              {row.code}
+            </button>
+          </div>
+          {row.planCode && (
+            <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
+              <span className="text-slate-500 font-medium">KH:</span>
+              <span className="font-bold">{row.planCode}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+              <Truck className="h-3 w-3 text-blue-600" /> Vận chuyển nội bộ
+            </span>
+            <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
               row.routeType === 'TWO_WAY'
                 ? 'bg-purple-50 text-purple-700 border-purple-200'
                 : 'bg-slate-100 text-slate-700 border-slate-200'
-            }`}
-          >
-            {row.transportMode || (row.routeType === 'TWO_WAY' ? '2 Chiều (Đối lưu)' : '1 Chiều')}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'departureTime',
-      title: 'Khung giờ & Ngày chạy',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <span className="inline-flex items-center gap-1 font-bold text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-lg">
-            <Clock className="h-3 w-3 text-blue-600" />
-            {extractHourString(row.departureTime)}
-          </span>
-          <div className="text-[11px] text-slate-500 mt-1">
-            <span>Ngày: {formatDateDisplay(row.executionDate || row.departureTime)}</span>
-            {row.requestDate && <span className="block text-[10px] text-slate-400">Y/c: {formatDateDisplay(row.requestDate)}</span>}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'vehicle',
-      title: 'Số Xe / Cont & Moóc',
-      render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900 flex items-center gap-1.5">
-            <Truck className="h-3.5 w-3.5 text-slate-500" />
-            <span>{row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || 'Chưa gán xe'}</span>
-          </div>
-          <div className="mt-1">
-            <span className="inline-block text-[11px] font-mono font-semibold text-slate-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-              Cont/Moóc: {row.containerNumber || row.legacyTrailer || '—'}
+            }`}>
+              {row.transportMode || (row.routeType === 'TWO_WAY' ? '2 Chiều' : '1 Chiều')}
             </span>
           </div>
         </div>
       ),
     },
     {
-      key: 'driver',
-      title: 'Tài xế vận hành (Chạy đôi)',
+      key: 'departureTime',
+      title: 'Thời gian thực hiện',
+      width: '155px',
+      sortable: true,
       render: (row) => {
-        const d1 = row.driver?.fullName || row.legacyDriver || 'Chưa gán';
-        const d2 = row.secondaryDriverName;
+        const dStr = row.executionDate || row.departureTime;
+        const d = dStr ? new Date(dStr) : null;
         return (
-          <div className="space-y-0.5">
-            <div className="font-semibold text-slate-900 flex items-center gap-1">
-              <User className="h-3 w-3 text-slate-400" />
-              <span>{d1}</span>
+          <div className="text-xs">
+            <div className="font-bold text-slate-900 flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+              {d && !isNaN(d.getTime()) ? d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
             </div>
-            {d2 ? (
-              <div className="font-semibold text-indigo-700 flex items-center gap-1 text-[11px]">
-                <Users className="h-3 w-3 text-indigo-500" />
-                <span>{d2}</span>
-                <span className="text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 rounded">
-                  Chạy đôi
+            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+              <Clock className="h-3 w-3 text-slate-400" />
+              {extractHourString(row.departureTime)}
+              {row.plannedEndTime && ` ➔ ${extractHourString(row.plannedEndTime)}`}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'purpose',
+      title: 'Nhiệm vụ & Khối lượng',
+      width: '200px',
+      render: (row) => {
+        const rowItems = Array.isArray(row.items) ? row.items : [];
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1 flex-wrap">
+              <b className="font-bold text-slate-900 text-xs leading-snug">{row.cargoType || 'Vận chuyển hàng hóa nội bộ'}</b>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || 'BAN_CO_GIOI'}</span>
+              {(row.tonnage || row.palletCount) && (
+                <span className="font-bold text-emerald-700">
+                  🎯 {row.tonnage || row.palletCount} {row.palletCount ? 'Pallet' : 'Tấn'}
                 </span>
+              )}
+            </div>
+            {rowItems.length > 0 && (
+              <div className="text-[10.5px] text-slate-600 line-clamp-1" title={rowItems.map(i => `${i.cargoName} (${i.plannedQuantity} ${i.unitOfMeasure})`).join(', ')}>
+                📦 {rowItems[0]?.cargoName} ({rowItems[0]?.plannedQuantity} {rowItems[0]?.unitOfMeasure}) {rowItems.length > 1 ? `+${rowItems.length - 1} mục` : ''}
               </div>
-            ) : (
-              <span className="text-[10px] text-slate-400 italic">Đơn lái</span>
+            )}
+            {row.notes && (
+              <div className="text-[10.5px] text-slate-500 italic line-clamp-1" title={`Ghi chú: ${row.notes}`}>
+                📝 {row.notes}
+              </div>
             )}
           </div>
         );
       },
     },
     {
-      key: 'items',
-      title: 'Mã VT - Hàng hóa & ĐVT - SL',
+      key: 'vehicle',
+      title: 'Phương tiện & Thiết bị',
+      width: '120px',
       render: (row) => {
-        const rowItems = Array.isArray(row.items) ? row.items : [];
+        const hasVehicle = Boolean(row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle);
         return (
-          <div className="space-y-1 max-w-[280px]">
-            {rowItems.slice(0, 2).map((it, idx) => (
-              <div key={it.id || it.materialCode || idx} className="text-xs">
-                <div className="flex items-center gap-1.5">
-                  {it.materialCode && (
-                    <span className="font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-1 py-0.5 rounded">
-                      {it.materialCode}
-                    </span>
-                  )}
-                  <span className="font-semibold text-slate-900 truncate" title={it.cargoName}>
-                    {it.cargoName}
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500 ml-1">
-                  Kế hoạch: <b className="text-slate-800">{it.plannedQuantity?.toLocaleString('vi-VN')}</b> {it.unitOfMeasure}
-                  {it.actualQuantity !== undefined && (
-                    <span className="text-slate-400 ml-1">(Thực tế: {it.actualQuantity})</span>
-                  )}
-                </div>
+          <div className="text-xs space-y-0.5 max-w-[115px]">
+            <div className={`font-bold flex items-center gap-1.5 ${!hasVehicle ? 'text-red-700' : 'text-slate-900'}`}>
+              <Truck className={`h-3.5 w-3.5 shrink-0 ${!hasVehicle ? 'text-red-500' : 'text-slate-500'}`} />
+              <span className="truncate">{row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || 'Chưa gán xe'}</span>
+            </div>
+            {(row.containerNumber || row.legacyTrailer || row.trailer?.code) && (
+              <div className="text-[10px] font-mono text-slate-700 truncate bg-amber-50 px-1 rounded border border-amber-200" title={row.containerNumber || row.legacyTrailer || row.trailer?.code}>
+                Moóc: {row.containerNumber || row.legacyTrailer || row.trailer?.code}
               </div>
-            ))}
-            {rowItems.length > 2 && (
-              <span className="text-[10px] font-semibold text-primary block">
-                + {rowItems.length - 2} mặt hàng khác...
-              </span>
             )}
-            {rowItems.length === 0 && (
-              <span className="text-xs text-slate-400 italic">Chưa có dòng hàng</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'driver',
+      title: 'Lái xe / Thợ máy',
+      width: '135px',
+      render: (row) => {
+        const d1 = row.driver?.fullName || row.legacyDriver;
+        const d2 = row.secondaryDriverName;
+        return (
+          <div className="text-xs">
+            <div className={`font-bold flex items-center gap-1 ${!d1 ? 'text-red-700' : 'text-slate-800'}`}>
+              <User className={`h-3.5 w-3.5 shrink-0 ${!d1 ? 'text-red-500' : 'text-slate-400'}`} />
+              <span className="truncate">{d1 || 'Chưa gán tài xế'}</span>
+            </div>
+            {d2 && (
+              <div className="text-[10px] text-indigo-700 font-medium mt-0.5 flex items-center gap-1 truncate">
+                <Users className="h-3 w-3 text-indigo-500 shrink-0" />
+                <span className="truncate">Phụ: {d2}</span>
+              </div>
             )}
           </div>
         );
@@ -757,77 +918,94 @@ export const InternalTransportPage: React.FC = () => {
     },
     {
       key: 'route',
-      title: 'Nơi nhận ➔ Nơi giao',
+      title: 'Lộ trình / Vị trí',
+      width: '260px',
       render: (row) => {
-        const p1 = row.items[0]?.pickupLocation || row.origin || '—';
-        const d1 = row.items[0]?.deliveryLocation || row.destination || '—';
+        const p1 = row.items[0]?.pickupLocation || row.origin || 'Kho vật tư trung tâm';
+        const d1 = row.items[0]?.deliveryLocation || row.destination || 'Điểm giao hàng';
         return (
-          <div className="text-xs space-y-1">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-3 w-3 text-emerald-600 shrink-0" />
-              <span className="font-medium text-slate-800">{p1}</span>
+          <div className="text-xs space-y-0.5 min-w-[200px]">
+            <div className="flex items-start gap-1 text-slate-600">
+              <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <span className="font-medium text-slate-700 leading-snug">{p1}</span>
             </div>
-            <div className="text-slate-400 pl-3.5 text-[10px]">➔ Đến:</div>
-            <div className="flex items-center gap-1.5 pl-3.5">
-              <span className="font-bold text-slate-900">{d1}</span>
+            <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
+              ➔ {d1}
             </div>
           </div>
         );
       },
     },
     {
-      key: 'handling',
-      title: 'Trạng thái hàng & Ghi chú',
-      render: (row) => (
-        <div className="space-y-1 max-w-[200px]">
-          {row.cargoHandlingStatus ? (
-            <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-              {row.cargoHandlingStatus}
-            </span>
-          ) : (
-            <span className="text-[11px] text-slate-400">—</span>
-          )}
-          {row.trailerNote && (
-            <p className="text-[11px] text-slate-600 truncate" title={row.trailerNote}>
-              {row.trailerNote}
-            </p>
-          )}
-        </div>
-      ),
+      key: 'status',
+      title: 'Trạng thái',
+      width: '135px',
+      render: (row) => {
+        const hasVehicle = Boolean(row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle);
+        const hasDriver = Boolean(row.driver?.fullName || row.legacyDriver);
+        return (
+          <div className="space-y-1">
+            <StatusBadge status={row.status} />
+            {(!hasVehicle || !hasDriver) && ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(row.status) && (
+              <div className="flex flex-wrap gap-1">
+                {!hasVehicle && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu xe</span>}
+                {!hasDriver && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu tài xế</span>}
+              </div>
+            )}
+            {row.isRouteDeviated && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                <AlertTriangle className="h-3 w-3 shrink-0" /> Lệch tuyến
+              </span>
+            )}
+            {row.plannedFuelLiters && (
+              <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
+                <span>Định mức: <b>{row.plannedFuelLiters}L</b></span>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: 'status',
-      title: 'Trạng thái lệnh',
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
       render: (row) => (
-        <div className="flex flex-col gap-1">
-          <StatusBadge status={row.status} />
-          {row.isRouteDeviated && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
-              <AlertTriangle className="h-3 w-3" /> Lệch tuyến
-            </span>
-          )}
-        </div>
+        <AuditUserPopover
+          createdDate={row.executionDate || row.departureTime || '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.completedAt || row.executionDate || '14-03-2026'}
+          updatedUser="admin"
+          title={`Lệnh vận chuyển: ${row.code}`}
+        />
       ),
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '140px',
       render: (row) => (
-        <div className="flex items-center gap-1.5">
-          <Button size="sm" variant="outline" onClick={() => setSelected(row)}>
-            Chi tiết
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            title="In lệnh vận chuyển"
-            onClick={() => {
-              setSelected(row);
-              setTimeout(() => window.print(), 300);
-            }}
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => handleOpenTransportOrder(row)}
+            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 transition-colors border border-emerald-200"
+            title="Lệnh điều xe vận chuyển"
           >
-            <Printer className="h-3.5 w-3.5" />
-          </Button>
+            <Truck className="w-3.5 h-3.5" />
+          </button>
+          <TableRowActions
+            onView={() => handleOpenTransportOrder(row)}
+            onEdit={() => handleOpenTransportOrder(row)}
+            onDelete={() => {
+              if (window.confirm(`Xác nhận xóa lệnh vận chuyển ${row.code}?`)) {
+                setOrders((prev) => prev.filter((o) => o.id !== row.id));
+              }
+            }}
+          />
         </div>
       ),
     },
@@ -844,7 +1022,7 @@ export const InternalTransportPage: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setSelected(row)}
+              onClick={() => handleOpenTransportOrder(row)}
               className="font-mono font-bold text-primary hover:underline block text-left"
             >
               {row.code}
@@ -886,14 +1064,15 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'vehicle',
       title: 'Số Xe / Cont & Moóc',
+      width: '120px',
       render: (row) => (
-        <div className="space-y-0.5 text-xs">
+        <div className="space-y-0.5 text-xs max-w-[115px]">
           <div className="font-bold text-slate-900 flex items-center gap-1.5">
-            <Truck className="h-3.5 w-3.5 text-slate-500" />
-            <span className="font-mono">{row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || '—'}</span>
+            <Truck className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <span className="truncate">{row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || '—'}</span>
           </div>
           {(row.containerNumber || row.legacyTrailer) && (
-            <div className="text-[11px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 inline-block">
+            <div className="text-[10px] font-mono text-slate-600 bg-slate-50 px-1 py-0.5 rounded border border-slate-200 truncate" title={row.containerNumber || row.legacyTrailer}>
               Moóc: {row.containerNumber || row.legacyTrailer}
             </div>
           )}
@@ -903,16 +1082,17 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'driver',
       title: 'Đội ngũ lái xe (Lái đôi)',
+      width: '135px',
       render: (row) => (
         <div className="text-xs space-y-0.5">
           <div className="font-bold text-slate-800 flex items-center gap-1">
             <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-            <span>{row.driver?.fullName || row.legacyDriver || '—'}</span>
+            <span className="truncate">{row.driver?.fullName || row.legacyDriver || '—'}</span>
           </div>
           {row.secondaryDriverName && (
-            <div className="text-[11px] text-purple-700 font-medium flex items-center gap-1">
+            <div className="text-[10px] text-purple-700 font-medium flex items-center gap-1 truncate">
               <Users className="h-3 w-3 text-purple-500 shrink-0" />
-              <span>Phụ xế: {row.secondaryDriverName}</span>
+              <span className="truncate">Phụ: {row.secondaryDriverName}</span>
             </div>
           )}
         </div>
@@ -921,18 +1101,21 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'route',
       title: 'Lộ trình giao nhận',
+      width: '260px',
       render: (row) => (
-        <div className="text-xs max-w-[200px]">
-          <div className="text-slate-600 truncate flex items-center gap-1 font-medium">
-            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-            <span>{row.origin || 'Kho xuất'}</span>
+        <div className="text-xs space-y-0.5 min-w-[200px]">
+          <div className="text-slate-600 flex items-center gap-1 font-medium">
+            <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span className="leading-snug">{row.origin || 'Kho xuất'}</span>
           </div>
-          <div className="text-[11px] font-bold text-slate-900 pl-4 truncate mt-0.5">
+          <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
             ➔ {row.destination || 'Điểm giao'}
           </div>
-          <div className="text-[10px] text-slate-400 pl-4">
-            Cự ly: {row.distanceKm} km
-          </div>
+          {row.distanceKm && (
+            <div className="text-[10px] text-slate-400 pl-4.5 font-medium">
+              Cự ly: {row.distanceKm} km
+            </div>
+          )}
         </div>
       ),
     },
@@ -956,8 +1139,8 @@ export const InternalTransportPage: React.FC = () => {
         const completedDate = row.completedAt
           ? new Date(row.completedAt)
           : row.plannedEndTime
-          ? new Date(row.plannedEndTime)
-          : null;
+            ? new Date(row.plannedEndTime)
+            : null;
         if (!completedDate || isNaN(completedDate.getTime())) {
           return <span className="text-slate-400 italic">Chưa ghi nhận</span>;
         }
@@ -1026,12 +1209,45 @@ export const InternalTransportPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
       render: (row) => (
-        <Button size="sm" variant="outline" onClick={() => setSelected(row)}>
-          Biên bản
-        </Button>
+        <AuditUserPopover
+          createdDate={row.executionDate || row.departureTime || '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.completedAt || row.executionDate || '14-03-2026'}
+          updatedUser="admin"
+          title={`Biên bản giao hàng: ${row.code}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '140px',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => handleOpenTransportOrder(row)}
+            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 transition-colors border border-emerald-200"
+            title="Biên bản giao hàng"
+          >
+            <Truck className="w-3.5 h-3.5" />
+          </button>
+          <TableRowActions
+            onView={() => handleOpenTransportOrder(row)}
+            onEdit={() => handleOpenTransportOrder(row)}
+            onDelete={() => {
+              if (window.confirm(`Xác nhận xóa lệnh ${row.code}?`)) {
+                setOrders((prev) => prev.filter((o) => o.id !== row.id));
+              }
+            }}
+          />
+        </div>
       ),
     },
   ];
@@ -1078,6 +1294,10 @@ export const InternalTransportPage: React.FC = () => {
 
     const containerNumber = String(form.get('containerNumber') || 'Không moóc');
     const routeType = form.get('routeType') === 'TWO_WAY' ? 'TWO_WAY' : 'ONE_WAY';
+    const returnCargoName = routeType === 'TWO_WAY' ? String(form.get('returnCargoName') || '').trim() || undefined : undefined;
+    const returnTonnage = returnCargoName ? Number(form.get('returnTonnage') || 0) : undefined;
+    const returnOrigin = routeType === 'TWO_WAY' ? String(form.get('returnOrigin') || '').trim() || undefined : undefined;
+    const returnDestination = routeType === 'TWO_WAY' ? String(form.get('returnDestination') || '').trim() || undefined : undefined;
     const cargoHandlingStatus = String(form.get('cargoHandlingStatus') || 'Đã lên hàng');
     const trailerNote = String(form.get('trailerNote') || '');
 
@@ -1115,10 +1335,16 @@ export const InternalTransportPage: React.FC = () => {
       destination: newItems[0]?.deliveryLocation || 'LP1',
       cargoType: newItems.map((i) => i.cargoName).join(', '),
       items: newItems,
+      returnCargoName,
+      returnTonnage,
+      returnOrigin,
+      returnDestination,
     };
 
     try {
       await operationsApi.createTransport({
+        sourceType: 'MANUAL_EXCEPTION',
+        exceptionReason: String(form.get('notes') || 'Lệnh vận chuyển phát sinh ngoài kế hoạch'),
         code: newOrder.code,
         unit: newOrder.unit,
         routeType: newOrder.routeType,
@@ -1129,6 +1355,10 @@ export const InternalTransportPage: React.FC = () => {
         destination: newOrder.destination,
         cargoType: newOrder.cargoType,
         items: newOrder.items,
+        returnCargoName,
+        returnTonnage,
+        returnOrigin,
+        returnDestination,
       });
     } catch {
       // Backend api optional fallback
@@ -1174,353 +1404,418 @@ export const InternalTransportPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Lệnh điều xe Nội bộ</h1>
-          <p className="text-xs text-slate-500">
-            Khớp 100% biểu mẫu thực tế 16 cột: Khung giờ, Xe, Số Cont/Moóc 92R-..., 2 Tài xế chạy đôi, Mã vật tư, Nơi nhận - giao.
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold text-slate-900">Lệnh điều xe Vận chuyển</h1>
+      </div>
+
+      {/* OVERDUE BANNER: Cảnh báo chuyến vận chuyển quá hạn */}
+      {computedOverdueSummary && (computedOverdueSummary.totalAttention > 0 || computedOverdueSummary.totalOverdue > 0) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm">
+          <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 animate-pulse" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-700">
+              {computedOverdueSummary.totalAttention} chuyến vận chuyển chờ điều độ · {computedOverdueSummary.totalOverdue} chuyến trễ xuất bến
+            </p>
+            <p className="text-xs text-red-500 mt-0.5">
+              {computedOverdueSummary.awaitingApproval} chưa duyệt · {computedOverdueSummary.missingVehicle} thiếu xe · {computedOverdueSummary.missingDriver} thiếu tài xế · {computedOverdueSummary.lateAssigned} chờ tài xế nhận · {computedOverdueSummary.lateAccepted} đã nhận nhưng chưa chạy.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+            onClick={() => { setSelectedWeek('ALL'); setSelectedDate('ALL'); setStatusFilter('CHUA_PHAN_CONG'); setView('table'); }}
+          >
+            Xem và xử lý
+          </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" icon={<Upload className="h-4 w-4" />} onClick={() => setShowImport(true)}>
-            Nhập Excel 16 cột
-          </Button>
-          <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={() => window.print()}>
-            In / Lưu PDF
-          </Button>
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-            Lập vận đơn mới
-          </Button>
+      )}
+
+      {/* THANH BỘ LỌC PHÂN LOẠI LỆNH (CATEGORY SEGMENTED TABS) */}
+      <DispatchCategoryTabs activeTab="VAN_CHUYEN" />
+
+      {/* 4. KPI Summary Cards 8 nhóm chuẩn hóa 4x2 */}
+      <KPIGrid cols={4}>
+        {/* Hàng 1: Toàn bộ | Lệnh trễ phân công | Đôn đốc | Kế hoạch tuần tới */}
+        <StatCard
+          label={selectedDate === 'ALL' ? 'Tổng chuyến vận tải' : `Tổng chuyến (${selectedDate})`}
+          value={statusCounts.ALL}
+          icon={<Truck className="h-5 w-5 text-blue-600" />}
+          pillText="Toàn bộ"
+          pillVariant="neutral"
+          onClick={() => setStatusFilter('ALL')}
+          className={statusFilter === 'ALL' ? 'ring-2 ring-blue-500/30 border-blue-500' : ''}
+        />
+        <StatCard
+          label="Chuyến trễ do chưa phân công"
+          value={statusCounts.DELAYED}
+          icon={<AlertTriangle className="h-5 w-5 text-rose-600" />}
+          pillText="Lệnh trễ phân công"
+          pillVariant="danger"
+          onClick={() => {
+            setSelectedWeek('ALL');
+            setSelectedDate('ALL');
+            setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
+          }}
+          className={statusFilter === 'DELAYED' ? 'ring-2 ring-rose-500/30 border-rose-500' : ''}
+        />
+        <StatCard
+          label="Tài xế chưa xác nhận nhận chuyến"
+          value={statusCounts.DRIVER_PENDING}
+          icon={<UserCheck className="h-5 w-5 text-amber-600" />}
+          pillText="Đôn đốc"
+          pillVariant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'DRIVER_PENDING' ? 'ALL' : 'DRIVER_PENDING')}
+          className={statusFilter === 'DRIVER_PENDING' ? 'ring-2 ring-amber-500/30 border-amber-500' : ''}
+        />
+        <StatCard
+          label="Chưa điều chuyến kế hoạch tuần sau"
+          value={statusCounts.FUTURE_UNASSIGNED}
+          icon={<CalendarDays className="h-5 w-5 text-purple-600" />}
+          pillText="Kế hoạch tuần tới"
+          pillVariant="neutral"
+          onClick={() => {
+            setSelectedWeek('ALL');
+            setSelectedDate('ALL');
+            setStatusFilter(statusFilter === 'FUTURE_UNASSIGNED' ? 'ALL' : 'FUTURE_UNASSIGNED');
+          }}
+          className={statusFilter === 'FUTURE_UNASSIGNED' ? 'ring-2 ring-purple-500/30 border-purple-500' : ''}
+        />
+
+        {/* Hàng 2: Chờ duyệt phân công | Đã phân công | Đang vận hành | Nghiệm thu */}
+        <StatCard
+          label="Chờ duyệt chuyến & gán xe/tài"
+          value={statusCounts.CHUA_PHAN_CONG}
+          icon={<Clock className="h-5 w-5 text-amber-600" />}
+          pillText="Chờ duyệt phân công"
+          pillVariant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'CHUA_PHAN_CONG' ? 'ALL' : 'CHUA_PHAN_CONG')}
+          className={statusFilter === 'CHUA_PHAN_CONG' ? 'ring-2 ring-amber-500/30 border-amber-500' : ''}
+        />
+        <StatCard
+          label="Đã điều xe & phân công lái xe"
+          value={statusCounts.DA_GIAO_VIEC}
+          icon={<Send className="h-5 w-5 text-indigo-600" />}
+          pillText="Đã phân công"
+          pillVariant="neutral"
+          onClick={() => setStatusFilter(statusFilter === 'DA_GIAO_VIEC' ? 'ALL' : 'DA_GIAO_VIEC')}
+          className={statusFilter === 'DA_GIAO_VIEC' ? 'ring-2 ring-indigo-500/30 border-indigo-500' : ''}
+        />
+        <StatCard
+          label="Xe đang vận chuyển trên lộ trình"
+          value={statusCounts.DANG_LAM_VIEC}
+          icon={<Activity className="h-5 w-5 text-emerald-600" />}
+          pillText="Đang vận hành"
+          pillVariant="success"
+          onClick={() => setStatusFilter(statusFilter === 'DANG_LAM_VIEC' ? 'ALL' : 'DANG_LAM_VIEC')}
+          className={statusFilter === 'DANG_LAM_VIEC' ? 'ring-2 ring-emerald-500/30 border-emerald-500' : ''}
+        />
+        <StatCard
+          label="Đã giao hàng & nghiệm thu"
+          value={statusCounts.COMPLETED}
+          icon={<CheckCircle2 className="h-5 w-5 text-teal-600" />}
+          pillText="Nghiệm thu"
+          pillVariant="success"
+          onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+          className={statusFilter === 'COMPLETED' ? 'ring-2 ring-teal-500/30 border-teal-500' : ''}
+        />
+      </KPIGrid>
+
+      {/* Filter Bar theo chuẩn Enterprise (Hình 2: Grid trường có tiêu đề + Hàng nút thao tác) */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3.5">
+        {/* Hàng 1: Grid các trường lọc có Header Label in hoa bên trên */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* Cột 1: Mã vận đơn / Từ khóa tìm kiếm */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Mã vận đơn / Kho / Tuyến
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm mã đơn, lộ trình..."
+                className="w-full h-9 pl-9 pr-7 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 text-xs font-medium text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-all shadow-2xs"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Cột 2: Loại hàng vận chuyển */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Loại hàng vận chuyển
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCargo}
+                onChange={(e) => setSelectedCargo(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả loại hàng ({availableCargoTypes.length})</option>
+                {availableCargoTypes.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 3: Phương tiện xe */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Phương tiện / Xe chở hàng
+            </label>
+            <div className="relative">
+              <select
+                value={selectedVehicle}
+                onChange={(e) => setSelectedVehicle(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả xe ({availableVehicles.length})</option>
+                {availableVehicles.map((v) => (
+                  <option key={v.code} value={v.code}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 4: Tài xế / Lái xe */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Tài xế / Lái xe
+            </label>
+            <div className="relative">
+              <select
+                value={selectedDriver}
+                onChange={(e) => setSelectedDriver(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả tài xế ({availableDrivers.length})</option>
+                {availableDrivers.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 5: Tuần kế hoạch */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Tuần kế hoạch
+            </label>
+            <div className="relative">
+              <select
+                value={selectedWeek}
+                onChange={(e) => {
+                  const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                  setSelectedWeek(val);
+                  setSelectedDate('ALL');
+                }}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả các tuần</option>
+                {availableWeeks.map((w) => (
+                  <option key={w.weekNumber} value={w.weekNumber}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 6: Ngày vận chuyển */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Ngày vận chuyển cụ thể
+            </label>
+            <div className="flex items-center gap-1 bg-slate-50/70 rounded-xl border border-slate-200 p-0.5 h-9 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleStepDate(-1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Ngày trước"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <input
+                type="date"
+                value={selectedDate === 'ALL' ? '' : selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
+                className="w-full bg-transparent text-xs font-semibold text-slate-800 px-1 py-0.5 focus:outline-none cursor-pointer min-w-0"
+              />
+              <button
+                type="button"
+                onClick={() => handleStepDate(1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Ngày sau"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Nhập Excel, In/PDF, Tạo mới) */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Nhập lại */}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setSelectedCargo('ALL');
+                setSelectedVehicle('ALL');
+                setSelectedDriver('ALL');
+                setSelectedWeek(getWeekNumber(new Date()));
+                setSelectedDate(formatDateKey(new Date()));
+                setStatusFilter('ALL');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Nhập lại</span>
+            </button>
+
+            {/* Nút Tìm kiếm */}
+            <button
+              type="button"
+              onClick={() => {
+                // Focus search or trigger refresh
+              }}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer select-none active:scale-95"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Tìm kiếm</span>
+            </button>
+
+            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần T2 -> CN */}
+            {selectedWeek !== 'ALL' && (
+              <div className="flex flex-wrap items-center gap-1 pl-1">
+                <span className="text-slate-300 mx-0.5">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('ALL')}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    selectedDate === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Cả tuần {selectedWeek}
+                </button>
+                {weekDays.map((d) => {
+                  const isDayActive = selectedDate === d.dateStr;
+                  return (
+                    <button
+                      key={d.dateStr}
+                      type="button"
+                      onClick={() => setSelectedDate(d.dateStr)}
+                      className={`flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                        isDayActive
+                          ? 'bg-primary text-white shadow-2xs'
+                          : d.isToday
+                          ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-extrabold'
+                          : 'bg-slate-100/90 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span>{d.shortName} ({d.displayDate})</span>
+                      {d.isToday && (
+                        <span className={`text-[9px] px-1 rounded font-black ${isDayActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'}`}>
+                          Nay
+                        </span>
+                      )}
+                      {d.count > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isDayActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'}`}>
+                          {d.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Cụm Action Buttons bên phải */}
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-slate-600" />
+              <span>Nhập Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-600" />
+              <span>In / PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/lenh-dieu-xe/tao-moi?category=TRANSPORT')}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-extrabold shadow-2xs transition-all cursor-pointer select-none active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5 text-white" />
+              <span>Lập lệnh điều xe mới</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <FilterBar
-        showDateFilter={false}
-        onSearchChange={(value) => {
-          setPage(1);
-          setSearch(value);
-        }}
-        onRefresh={() => void load()}
-        statusOptions={[
-          { value: 'ALL', label: 'Tất cả trạng thái' },
-          ...boards.flatMap((board) => board.statuses).map((value) => ({ value, label: value })),
-        ]}
-      />
-
-      {/* THANH CHỌN TUẦN VÀ NGÀY VẬN CHUYỂN NỘI BỘ (CHUNG CHO CẢ BẢNG KÊ VÀ SCHEDULER) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          {/* 1. Bộ lọc Tuần */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
-            <Calendar className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Tuần:</span>
+      {/* View Switcher Tabs + Lọc trạng thái */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ViewSwitcher<'scheduler' | 'table' | 'board'>
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'table', label: 'Bảng kê tổng hợp toàn bộ lệnh' },
+            { value: 'scheduler', label: 'Scheduler lịch chạy theo xe' },
+            { value: 'board', label: 'Kanban 4 nhóm trạng thái' },
+          ]}
+        />
+        {(view === 'table' || view === 'scheduler') && (
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-1.5 shadow-xs">
+            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Lọc trạng thái:</span>
             <select
-              value={selectedWeek}
-              onChange={(e) => {
-                const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
-                setSelectedWeek(val);
-                setSelectedDate('ALL');
-              }}
-              className="bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer pr-1 py-0.5"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-900 focus:border-primary focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Tất cả các tuần (Toàn bộ)</option>
-              {availableWeeks.map((w) => (
-                <option key={w.weekNumber} value={w.weekNumber}>
-                  {w.label}
-                </option>
-              ))}
+              <option value="ALL">Toàn bộ trạng thái ({statusCounts.ALL})</option>
+              <option value="DELAYED">Lệnh trễ phân công ({statusCounts.DELAYED})</option>
+              <option value="DRIVER_PENDING">Đôn đốc tài xế ({statusCounts.DRIVER_PENDING})</option>
+              <option value="FUTURE_UNASSIGNED">Kế hoạch tuần tới ({statusCounts.FUTURE_UNASSIGNED})</option>
+              <option value="CHUA_PHAN_CONG">Chờ duyệt phân công ({statusCounts.CHUA_PHAN_CONG})</option>
+              <option value="DA_GIAO_VIEC">Đã phân công ({statusCounts.DA_GIAO_VIEC})</option>
+              <option value="DANG_LAM_VIEC">Đang vận hành ({statusCounts.DANG_LAM_VIEC})</option>
+              <option value="COMPLETED">Nghiệm thu ({statusCounts.COMPLETED})</option>
             </select>
-          </div>
-
-          {/* 2. Nút Hôm nay */}
-          <button
-            type="button"
-            onClick={handleSelectToday}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all cursor-pointer select-none active:scale-95 ${
-              selectedDate === formatDateKey(new Date()) && selectedWeek === getWeekNumber(new Date())
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-            }`}
-            title="Xem tất cả các chuyến vận chuyển của ngày hôm nay"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Hôm nay</span>
-            <span className="text-[10px] font-mono bg-white/30 text-current px-1 rounded">
-              {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-            </span>
-          </button>
-
-          {/* 3. Nút Xem tất cả */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedWeek('ALL');
-              setSelectedDate('ALL');
-            }}
-            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-              selectedWeek === 'ALL' && selectedDate === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả
-          </button>
-        </div>
-
-        <div className="text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl px-3 py-1.5">
-          Tổng cộng: <span className="text-slate-800 font-bold">{filteredOrders.length}</span> chuyến vận chuyển
-        </div>
-
-        {/* Hàng phụ: Bộ lọc các Thứ trong tuần đang chọn HOẶC Chọn ngày thủ công */}
-        {selectedWeek !== 'ALL' ? (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 w-full">
-            <span className="flex items-center gap-1 text-[11px] font-extrabold text-slate-600 mr-1">
-              <Calendar className="h-3.5 w-3.5 text-primary" /> Ngày trong Tuần {selectedWeek}:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedDate('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedDate === 'ALL'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Cả tuần {selectedWeek}
-            </button>
-            {weekDays.map((d) => {
-              const isDayActive = selectedDate === d.dateStr;
-              return (
-                <button
-                  key={d.dateStr}
-                  type="button"
-                  onClick={() => setSelectedDate(d.dateStr)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none active:scale-95 ${
-                    isDayActive
-                      ? 'bg-primary text-white shadow-xs'
-                      : d.isToday
-                      ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-extrabold'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <span>{d.shortName} ({d.displayDate})</span>
-                  {d.isToday && (
-                    <span className={`text-[9px] px-1 rounded font-black ${isDayActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'}`}>
-                      Hôm nay
-                    </span>
-                  )}
-                  {d.count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isDayActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'}`}>
-                      {d.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-            <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5 ml-auto">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="bg-transparent text-[11px] font-semibold text-slate-800 px-1.5 py-0.5 focus:outline-none cursor-pointer"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs w-full">
-            <span className="text-xs text-slate-500">Đang hiển thị toàn bộ thời gian. Chọn ngày cụ thể:</span>
-            <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5 ml-auto">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="bg-transparent text-xs font-semibold text-slate-800 px-2 py-0.5 focus:outline-none cursor-pointer"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
           </div>
         )}
       </div>
 
-      {/* KPI Cards */}
-      <KPIGrid cols={4}>
-        <StatCard
-          label={selectedDate === 'ALL' ? 'Tổng chuyến vận tải' : `Chuyến trong ngày (${selectedDate})`}
-          value={filteredOrders.length}
-          icon={<Truck className="h-5 w-5 text-blue-600" />}
-        />
-        <StatCard
-          label="Đang lăn bánh trên đường"
-          value={filteredOrders.filter((o) => o.status === 'IN_TRANSIT').length}
-          icon={<Route className="h-5 w-5 text-indigo-600" />}
-        />
-        <StatCard
-          label="Tổng dòng hàng hóa (Items)"
-          value={filteredOrders.reduce((sum, order) => sum + (order.items?.length || 0), 0)}
-          icon={<Package className="h-5 w-5 text-emerald-600" />}
-        />
-        <StatCard
-          label="Chuyến chạy đôi (2 tài xế)"
-          value={filteredOrders.filter((o) => !!o.secondaryDriverName).length}
-          icon={<Users className="h-5 w-5 text-purple-600" />}
-        />
-      </KPIGrid>
 
-      {/* View Switcher Tabs */}
-      <ViewSwitcher<'scheduler' | 'table' | 'board' | 'completed'>
-        value={view}
-        onChange={setView}
-        options={[
-          { value: 'table', label: 'Bảng kê 16 cột chuẩn hóa' },
-          { value: 'scheduler', label: 'Scheduler lịch chạy theo xe' },
-          { value: 'board', label: 'Kanban 4 nhóm trạng thái' },
-          { value: 'completed', label: 'Quản lý việc đã hoàn tất' },
-        ]}
-      />
-
-      {/* THANH LỌC 4 TRẠNG THÁI CHUẨN HÓA (CHO BẢNG KÊ & SCHEDULER NHƯ HÌNH) */}
-      {(view === 'table' || view === 'scheduler') && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              {
-                key: 'CHO_DUYET',
-                label: 'Chờ duyệt / Phân công',
-                count: statusCounts.CHO_DUYET,
-                activeBorder: 'border-b-4 border-b-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30',
-                badgeActive: 'bg-amber-500 text-white',
-                textActive: 'text-amber-900',
-              },
-              {
-                key: 'DA_DUYET',
-                label: 'Đã giao xe / Tiếp nhận',
-                count: statusCounts.DA_DUYET,
-                activeBorder: 'border-b-4 border-b-sky-500 ring-2 ring-sky-500/20 bg-sky-50/30',
-                badgeActive: 'bg-sky-600 text-white',
-                textActive: 'text-sky-900',
-              },
-              {
-                key: 'WORKING',
-                label: 'Đang vận hành / Thi công',
-                count: statusCounts.WORKING,
-                activeBorder: 'border-b-4 border-b-blue-600 ring-2 ring-blue-600/20 bg-blue-50/30',
-                badgeActive: 'bg-blue-600 text-white',
-                textActive: 'text-blue-900',
-              },
-              {
-                key: 'COMPLETED',
-                label: 'Hoàn tất & Nghiệm thu',
-                count: statusCounts.COMPLETED,
-                activeBorder: 'border-b-4 border-b-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/30',
-                badgeActive: 'bg-emerald-600 text-white',
-                textActive: 'text-emerald-900',
-              },
-            ].map((item) => {
-              const isActive = statusFilter === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setStatusFilter(isActive ? 'ALL' : item.key)}
-                  className={`group flex items-center justify-between rounded-t-2xl rounded-b-xl border px-4 py-3.5 text-left transition-all duration-150 select-none cursor-pointer active:scale-[0.99] ${
-                    isActive
-                      ? `${item.activeBorder} ${item.textActive} shadow-xs`
-                      : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 shadow-xs'
-                  }`}
-                  title={`Lọc theo trạng thái: ${item.label}`}
-                >
-                  <span className="text-xs sm:text-[13px] font-bold tracking-tight">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold font-mono transition-colors ${
-                      isActive ? item.badgeActive : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
-                    }`}
-                  >
-                    {item.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Hàng phụ: Nút Tất cả trạng thái + Cảnh báo trễ / SOS */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('ALL')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
-                  statusFilter === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-xs text-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 text-xs'
-                }`}
-              >
-                <span>Tất cả trạng thái</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'
-                  }`}
-                >
-                  {statusCounts.ALL}
-                </span>
-              </button>
-              {statusFilter !== 'ALL' && (
-                <span className="text-[11px] font-medium text-slate-500">
-                  (Đang lọc trạng thái vận chuyển • Bấm lại vào thẻ hoặc nút <b>Tất cả trạng thái</b> để xem toàn bộ)
-                </span>
-              )}
-            </div>
-
-            {statusCounts.DELAYED > 0 && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  statusFilter === 'DELAYED'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                <span>Lệch tuyến / Trễ ({statusCounts.DELAYED})</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* VIEW NỘI DUNG CHÍNH */}
       {view === 'table' ? (
@@ -1528,7 +1823,7 @@ export const InternalTransportPage: React.FC = () => {
           columns={columns}
           data={filteredOrders}
           isLoading={loading}
-          onRowClick={setSelected}
+          onRowClick={handleOpenTransportOrder}
           controlledPage={page}
           totalItems={filteredOrders.length}
           onPageChange={setPage}
@@ -1543,10 +1838,10 @@ export const InternalTransportPage: React.FC = () => {
           availableDates={availableDates}
           lanes={schedulerData.lanes}
           unassignedItems={schedulerData.unassigned}
-          onItemClick={setSelected}
+          onItemClick={handleOpenTransportOrder}
           kind="TRANSPORT"
         />
-      ) : view === 'board' ? (
+      ) : (
         /* GIAO DIỆN KANBAN 4 NHÓM */
         <div className="grid gap-3 lg:grid-cols-4">
           {boards.map((board) => {
@@ -1565,7 +1860,7 @@ export const InternalTransportPage: React.FC = () => {
                     <button
                       type="button"
                       key={order.id}
-                      onClick={() => setSelected(order)}
+                      onClick={() => handleOpenTransportOrder(order)}
                       className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-xs shadow-xs hover:border-primary hover:shadow-md transition-all"
                     >
                       <div className="flex justify-between items-center mb-1.5">
@@ -1609,85 +1904,6 @@ export const InternalTransportPage: React.FC = () => {
               </section>
             );
           })}
-        </div>
-      ) : (
-        /* GIAO DIỆN QUẢN LÝ CÁC VIỆC ĐÃ HOÀN TẤT */
-        <div className="space-y-4">
-          {/* Thẻ KPI hoàn tất chuyến xe */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-emerald-800">Chuyến xe đã giao xong</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-emerald-950">{completedOrders.length}</span>
-                <span className="text-xs font-semibold text-emerald-600">chuyến</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">100% người nhận đã ký nhận bàn giao</span>
-            </div>
-
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-blue-800">Tỷ lệ đúng hạn giao nhận</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-blue-950">100%</span>
-                <span className="text-xs font-semibold text-blue-600">kế hoạch</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Không có chuyến nào trễ hẹn giao</span>
-            </div>
-
-            <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-purple-800">Dầu thực tế tiêu hao</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-purple-950">
-                  {completedOrders.reduce((sum, o) => sum + (o.actualFuelLiters || o.plannedFuelLiters || 0), 0)}
-                </span>
-                <span className="text-xs font-semibold text-purple-600">Lít dầu</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Tiêu hao đúng hạn mức km</span>
-            </div>
-
-            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-amber-800">Khối lượng hàng bàn giao</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-amber-950">
-                  {completedOrders.reduce((sum, o) => sum + (o.palletCount || o.items?.reduce((isum, it) => isum + (it.actualQuantity || it.plannedQuantity), 0) || 0), 0)}
-                </span>
-                <span className="text-xs font-semibold text-amber-700">Pallet / Tấn / Kiện</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Biên bản bàn giao kho đầy đủ</span>
-            </div>
-          </div>
-
-          {/* Bảng kê việc đã hoàn tất */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50/70">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
-                    Bảng kê chi tiết các chuyến vận chuyển đã hoàn tất & Thời gian kết thúc
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Hiển thị đầy đủ thông tin phương tiện, lái đôi, hàng hóa, tiêu hao dầu và thời điểm ký nhận giao hàng
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
-                {completedOrders.length} chuyến hoàn tất
-              </span>
-            </div>
-
-            <DataTable
-              columns={completedColumns}
-              data={completedOrders}
-              isLoading={loading}
-              onRowClick={setSelected}
-              controlledPage={page}
-              totalItems={completedOrders.length}
-              onPageChange={setPage}
-              useGlobalFilters={false}
-            />
-          </div>
         </div>
       )}
 
@@ -1844,24 +2060,30 @@ export const InternalTransportPage: React.FC = () => {
               driverName={workflowStep(selected.status) === 'PENDING' ? undefined : selected.driver?.fullName}
               implementName={selected.containerNumber || selected.trailerNote}
               currentOrderId={selected.id}
+              recommendationWorkOrderId={selected.operationalWorkOrder?.id}
               existingOrders={orders}
               initialStartTime={selected.departureTime}
               initialDurationHours={selected.departureTime && selected.plannedEndTime ? Math.max(0.5, (new Date(selected.plannedEndTime).getTime() - new Date(selected.departureTime).getTime()) / 3_600_000) : 8}
               unit={selected.unit}
-              onApprove={(vehicle, driver, schedule, implement) => updateOrder(selected.id, {
-                status: 'ASSIGNED',
-                vehicle: { id: vehicle.id, code: vehicle.code, plate: vehicle.code, name: vehicle.name, status: 'CHO_PHAN_CONG' },
-                driver: { id: driver.id, fullName: driver.name, licenseClass: driver.license },
-                containerNumber: implement?.code || selected.containerNumber,
-                trailerNote: implement?.name || selected.trailerNote,
-                departureTime: schedule.startTime,
-                plannedEndTime: schedule.endTime,
-              })}
-              onReceive={() => updateOrder(selected.id, { status: 'DRIVER_ACCEPTED' })}
-              onComplete={() => updateOrder(selected.id, {
-                status: 'COMPLETED',
-                items: (Array.isArray(selected.items) ? selected.items : []).map((item) => ({ ...item, actualQuantity: item.actualQuantity ?? item.plannedQuantity })),
-              })}
+              complexCode={(selected as any).complexCode || (selected as any).operationalWorkOrder?.complexCode || 'KOUN_MOM'}
+              onApprove={async (vehicle, driver, schedule, implement) => {
+                try {
+                  const updated = await operationsApi.assignTransport(selected.id, {
+                    vehicleId: vehicle.id,
+                    driverId: driver.id,
+                    ...(typeof implement?.id === 'number' && implement.id < 90_000 ? { implementId: implement.id } : {}),
+                    departureTime: schedule.startTime,
+                    plannedEndTime: schedule.endTime,
+                  });
+                  updateOrderView(selected.id, updated);
+                  useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã phê duyệt và phân công ${vehicle.code} cho vận đơn ${selected.code}.` });
+                } catch (error: any) {
+                  const body = error?.response?.data;
+                  const reasons = body?.message?.reasons ?? body?.reasons;
+                  const message = Array.isArray(reasons) ? reasons.map((item: any) => item.message).filter(Boolean).join('; ') : typeof body?.message === 'string' ? body.message : error?.message;
+                  useAppStore.getState().setHeaderAlert({ type: 'error', message: `Phân công thất bại: ${message || 'Không thể phân công vận đơn.'}` });
+                }
+              }}
             />
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
@@ -1945,17 +2167,21 @@ export const InternalTransportPage: React.FC = () => {
                 </select>
               </label>
 
-              <label>
-                <span className="mb-1 block font-bold text-slate-700">Hình thức vận chuyển</span>
-                <select
-                  name="routeType"
-                  defaultValue="ONE_WAY"
-                  className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs font-semibold focus:border-primary focus:outline-none"
-                >
-                  <option value="ONE_WAY">1 Chiều</option>
-                  <option value="TWO_WAY">2 Chiều (Đối lưu hàng)</option>
-                </select>
-              </label>
+              <fieldset className="sm:col-span-2">
+                <legend className="mb-2 block font-bold text-slate-700">Hình thức vận chuyển</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="cursor-pointer"><input className="peer sr-only" type="radio" name="routeType" value="ONE_WAY" defaultChecked /><span className="block rounded-xl border border-slate-200 bg-white p-3 text-center text-xs font-bold text-slate-700 transition peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-800">Vận chuyển 1 chiều</span></label>
+                  <label className="cursor-pointer"><input className="peer sr-only" type="radio" name="routeType" value="TWO_WAY" /><span className="block rounded-xl border border-slate-200 bg-white p-3 text-center text-xs font-bold text-slate-700 transition peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-800">Vận chuyển 2 chiều</span></label>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">Chuyến 2 chiều có thể khai báo hàng đối lưu bên dưới hoặc để trống để chạy rỗng chiều về.</p>
+              </fieldset>
+
+              <div className="sm:col-span-2 grid gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label><span className="mb-1 block text-[11px] font-bold text-slate-600">Hàng chiều về (không bắt buộc)</span><input name="returnCargoName" placeholder="Để trống nếu chạy rỗng" className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label>
+                <label><span className="mb-1 block text-[11px] font-bold text-slate-600">Khối lượng chiều về</span><input name="returnTonnage" type="number" min="0" step="0.1" className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label>
+                <label><span className="mb-1 block text-[11px] font-bold text-slate-600">Điểm lấy chiều về</span><input name="returnOrigin" placeholder="Mặc định là điểm giao chiều đi" className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label>
+                <label><span className="mb-1 block text-[11px] font-bold text-slate-600">Điểm giao chiều về</span><input name="returnDestination" placeholder="Mặc định quay về điểm xuất phát" className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label>
+              </div>
 
               <label>
                 <span className="mb-1 block font-bold text-slate-700">Trạng thái hàng hóa</span>
@@ -2110,9 +2336,8 @@ export const InternalTransportPage: React.FC = () => {
                       type="button"
                       disabled={createItems.length === 1}
                       onClick={() => handleRemoveItemRow(idx)}
-                      className={`p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors ${
-                        createItems.length === 1 ? 'opacity-30 cursor-not-allowed' : ''
-                      }`}
+                      className={`p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors ${createItems.length === 1 ? 'opacity-30 cursor-not-allowed' : ''
+                        }`}
                       title="Xóa dòng này"
                     >
                       <Trash2 className="h-4 w-4" />

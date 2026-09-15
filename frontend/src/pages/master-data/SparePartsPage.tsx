@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
@@ -6,6 +6,10 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { StatCard } from '../../components/data-display/StatCard';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
+import { TableRowActions } from '../../components/common/TableRowActions';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { catalogsApi } from '../../api/catalogsApi';
+import { CatalogItem } from '../../data/catalogData';
 import {
   Package,
   Plus,
@@ -28,10 +32,30 @@ interface SparePartRecord {
   status: 'active' | 'out_of_stock';
 }
 
+const mapCatalogToSparePart = (item: CatalogItem): SparePartRecord => ({
+  id: item.id,
+  partCodeERP: item.code,
+  partName: item.name,
+  category: item.parentName || 'Chung',
+  manufacturer: item.description?.match(/Hãng:\s*([^|]+)/)?.[1]?.trim() || 'THACO Genuine',
+  unit: item.description?.match(/ĐVT:\s*([^|]+)/)?.[1]?.trim() || 'Cái',
+  compatibleVehicle: item.description?.match(/Xe áp dụng:\s*([^|]+)/)?.[1]?.trim() || 'Xe cơ giới phù hợp',
+  unitPriceVND: Number(item.systemId || 0).toLocaleString('vi-VN'),
+  status: item.status === 'HOAT_DONG' ? 'active' : 'out_of_stock',
+});
+
 export const SparePartsPage: React.FC = () => {
   const [selectedPart, setSelectedPart] = useState<SparePartRecord | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [partsList, setPartsList] = useState<SparePartRecord[]>([]);
+
+  useEffect(() => {
+    catalogsApi.getCatalogs('SPARE_PART', 'catalogs_spare_parts').then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setPartsList(items.map(mapCatalogToSparePart));
+      }
+    });
+  }, []);
 
   const columns: Column<SparePartRecord>[] = [
     {
@@ -53,8 +77,49 @@ export const SparePartsPage: React.FC = () => {
     },
     {
       key: 'status',
-      title: 'TRẠNG THÁI',
-      render: () => <Badge variant="green">Đang dùng</Badge>,
+      title: 'Trạng thái',
+      align: 'center',
+      width: '110px',
+      render: () => (
+        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+          Hoạt động
+        </span>
+      ),
+    },
+    {
+      key: 'user',
+      title: 'User',
+      align: 'center',
+      width: '70px',
+      render: (row) => (
+        <AuditUserPopover
+          createdDate="14-03-2026"
+          createdUser="admin"
+          updatedDate="01-08-2026"
+          updatedUser="admin"
+          title={`Xem thông tin tạo/sửa của ${row.partName}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '110px',
+      render: (row) => (
+        <TableRowActions
+          onView={() => setSelectedPart(row)}
+          onEdit={() => setSelectedPart(row)}
+          onDelete={() => {
+            if (window.confirm(`Xóa phụ tùng: "${row.partName}"?`)) {
+              setPartsList((prev) => prev.filter((p) => p.id !== row.id));
+            }
+          }}
+          viewTitle="Xem phụ tùng"
+          editTitle="Sửa phụ tùng"
+          deleteTitle="Xóa phụ tùng"
+        />
+      ),
     },
   ];
 

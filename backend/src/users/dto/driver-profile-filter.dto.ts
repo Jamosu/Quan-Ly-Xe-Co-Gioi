@@ -1,9 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { DriverEmploymentStatus, Unit } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { DriverComplianceStatus } from '../driver-compliance';
 
 export class DriverProfileFilterDto extends PaginationDto {
+  @ApiPropertyOptional({ description: 'ID đơn vị chủ quản hồ sơ tài xế' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  managementUnitId?: number;
+
+  @ApiPropertyOptional({ description: 'ID Đội/Tổ trực thuộc' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  teamUnitId?: number;
+
   @ApiPropertyOptional({ enum: Unit })
   @IsOptional()
   @IsEnum(Unit)
@@ -38,4 +48,9 @@ export class DriverProfileFilterDto extends PaginationDto {
   @IsOptional()
   @IsEnum(DriverEmploymentStatus)
   employmentStatus?: DriverEmploymentStatus;
+
+  @ApiPropertyOptional({ enum: DriverComplianceStatus })
+  @IsOptional()
+  @IsEnum(DriverComplianceStatus)
+  complianceStatus?: DriverComplianceStatus;
 }

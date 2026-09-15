@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { FilterBar } from '../../components/filters/FilterBar';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { StatCard } from '../../components/data-display/StatCard';
@@ -8,124 +7,242 @@ import {
   Shield,
   Save,
   RotateCcw,
-  Fuel,
-  BellRing,
-  FileSpreadsheet,
   CheckCircle2,
+  XCircle,
+  Truck,
+  UserCheck,
+  Smartphone,
+  AlertTriangle,
+  Lock,
+  Trash2,
+  Check,
+  Layers,
+  Sparkles,
+  Info,
+  SlidersHorizontal,
 } from 'lucide-react';
 
-interface RoleConfig {
+export type PermissionLevel =
+  | 'FULL_WITH_DELETE' // Toàn quyền (Xem, Thêm, Sửa, XÓA)
+  | 'MANAGE_NO_DELETE' // Điều hành (Xem, Thêm, Sửa - KHÔNG XÓA)
+  | 'VIEW_ONLY' // Chỉ xem dữ liệu
+  | 'MOBILE_APP_ONLY' // Dành riêng cho App Mobile Lái xe
+  | 'NO_ACCESS'; // Không có quyền truy cập
+
+export interface MenuPermissionRow {
   id: string;
-  roleName: string;
-  groupTitle: string;
-  groupNote: string;
-  dispatchRights: string;
-  dispatchNote: string;
-  fuelRights: string;
-  fuelNote: string;
-  alertRights: string;
-  alertNote: string;
-  exportRights: string;
-  exportNote: string;
+  menuName: string;
+  routePath: string;
+  category: 'OPERATIONS' | 'TECHNICAL' | 'MASTER_DATA' | 'MOBILE';
+  description: string;
+  adminPermission: PermissionLevel;
+  managerPermission: PermissionLevel;
+  driverPermission: PermissionLevel;
+  canAdminDelete: boolean;
+  canManagerDelete: boolean;
 }
 
-const MOCK_ROLES_CONFIG: RoleConfig[] = [
+const DEFAULT_MENU_PERMISSIONS: MenuPermissionRow[] = [
   {
-    id: 'ROLE-ADMIN',
-    roleName: 'Quản trị viên (Admin)',
-    groupTitle: 'Quản trị viên Hệ thống (Super Admin)',
-    groupNote: 'Toàn quyền cấu hình người dùng, danh mục, phân quyền và giám sát hệ thống.',
-    dispatchRights: 'Toàn quyền tạo, duyệt, hủy và can thiệp mọi lệnh điều động xe toàn tập đoàn',
-    dispatchNote: 'Bao gồm quyền cấu hình bypass quy trình khi có chỉ đạo khẩn từ Lãnh đạo.',
-    fuelRights: 'Toàn quyền xem, điều chỉnh định mức và xem báo cáo nhiên liệu toàn bộ các KLH',
-    fuelNote: 'Ghi log Audit Trail toàn bộ các thay đổi định mức.',
-    alertRights: 'Tiếp nhận và xử lý toàn bộ các cảnh báo mức Đỏ, Vàng, Xanh trên toàn hệ thống',
-    alertNote: 'Có quyền cấu hình lại ngưỡng kích hoạt cảnh báo.',
-    exportRights: 'Toàn quyền xuất tất cả báo cáo và sao lưu dữ liệu toàn hệ thống',
-    exportNote: 'Chỉ định kỳ lưu trữ đám mây bảo mật.',
+    id: 'menu-dashboard',
+    menuName: 'Bảng điều khiển & KPI tổng hợp',
+    routePath: '/dashboard',
+    category: 'OPERATIONS',
+    description: 'Xem 5 thẻ KPI điều hành, biểu đồ năng suất máy kéo, bản đồ Live Fleet 3 Khu Liên Hợp',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'NO_ACCESS',
+    canAdminDelete: true,
+    canManagerDelete: false,
   },
   {
-    id: 'ROLE-BGD',
-    roleName: 'Ban Giám Đốc KLH',
-    groupTitle: 'Ban Giám Đốc Khu Liên Hợp',
-    groupNote: 'Xem toàn bộ dashboard điều hành, duyệt kế hoạch sản xuất tuần/tháng và các đề xuất vượt định mức.',
-    dispatchRights: 'Xem toàn bộ lệnh điều xe của các xí nghiệp trực thuộc; phê duyệt lệnh điều xe công tác ngoại tỉnh',
-    dispatchNote: 'Không trực tiếp lập lệnh vận hành hằng ngày.',
-    fuelRights: 'Xem toàn bộ báo cáo đối soát nhiên liệu, ký duyệt thanh quyết toán tiền thưởng tiết kiệm dầu',
-    fuelNote: 'Phê duyệt cấp bổ sung nhiên liệu ngoài kế hoạch.',
-    alertRights: 'Nhận thông báo các cảnh báo nghiêm trọng (Mức Đỏ: Sụt dầu >15L, SOS tai nạn)',
-    alertNote: 'Chỉ đạo trực tiếp các bộ phận xử lý hiện trường.',
-    exportRights: 'Xuất toàn bộ báo cáo tổng hợp, báo cáo so sánh KLH dạng PDF/Excel',
-    exportNote: 'Báo cáo hợp nhất phục vụ họp giao ban Tập đoàn.',
+    id: 'menu-gps',
+    menuName: 'Giám sát GPS & Telemetry vệ tinh',
+    routePath: '/gps/live',
+    category: 'OPERATIONS',
+    description: 'Bản đồ vị trí xe trực tuyến, xem lại lịch sử chạy vệt, cảnh báo quá tốc độ & hàng rào Geofence',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'NO_ACCESS',
+    canAdminDelete: true,
+    canManagerDelete: false,
   },
   {
-    id: 'ROLE-QD',
-    roleName: 'Quản đốc Nông trường',
-    groupTitle: 'Quản đốc Xí nghiệp Nông trường',
-    groupNote: 'Nhóm chịu trách nhiệm trực tiếp điều hành sản xuất tại Nông trường 1 & 2.',
-    dispatchRights: 'Được tạo kế hoạch tuần/ngày, tạo lệnh cày bừa, duyệt nghiệm thu khối lượng GPS',
-    dispatchNote: 'Được phép điều chỉnh kế hoạch khi có mưa dông kèm lưu vết Audit.',
-    fuelRights: 'Được xem báo cáo đối chiếu tiêu hao nhiên liệu của đội xe trực thuộc đơn vị',
-    fuelNote: 'Không được duyệt phiếu xuất nhập kho bồn xăng dầu trung tâm.',
-    alertRights: 'Tiếp nhận cảnh báo vi phạm tốc độ, cảnh báo ra khỏi Geofence của tài xế đơn vị',
-    alertNote: 'Được quyền xác nhận giải trình và đóng cảnh báo hợp lệ.',
-    exportRights: 'Được xuất file Excel báo cáo sản xuất, năng suất ca máy theo lô thửa',
-    exportNote: 'Không được xóa dữ liệu lịch sử hệ thống.',
+    id: 'menu-agriculture-dispatch',
+    menuName: 'Kế hoạch & Điều xe Nông nghiệp',
+    routePath: '/lenh-dieu-xe/lenh-nong-nghiep',
+    category: 'OPERATIONS',
+    description: 'Lập kế hoạch làm đất, phát hành lệnh cày bừa, gán máy kéo/nông cụ và nghiệm thu khối lượng GPS',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'MOBILE_APP_ONLY',
+    canAdminDelete: true,
+    canManagerDelete: false,
   },
   {
-    id: 'ROLE-DP',
-    roleName: 'Điều phối viên Vận tải',
-    groupTitle: 'Điều phối viên Trung tâm Vận tải & Logistics',
-    groupNote: 'Phụ trách điều phối đội xe tải Howo, Hino, xe ben chở chuối và vật tư giữa Packhouse và nông trường.',
-    dispatchRights: 'Lập Lệnh vận chuyển nội bộ (LVC), gán tài xế, chỉ định tuyến đường và packhouse đích',
-    dispatchNote: 'Theo dõi tiến độ thực hiện chuyến xe trên bản đồ GPS realtime.',
-    fuelRights: 'Xem báo cáo tiêu hao theo chuyến vận chuyển và số km lăn bánh thực tế',
-    fuelNote: 'Đối chiếu phiếu cân điện tử với khối lượng chuyên chở.',
-    alertRights: 'Xử lý các cảnh báo chạy sai tuyến đường, dừng đỗ lâu ngoài quy định và quá tốc độ',
-    alertNote: 'Liên lạc trực tiếp bộ đàm / điện thoại với lái xe.',
-    exportRights: 'Xuất bảng kê chuyến vận chuyển theo ngày/ca làm việc',
-    exportNote: 'Chuyển kế toán logistics nghiệm thu.',
+    id: 'menu-construction-dispatch',
+    menuName: 'Lệnh điều xe Công trình',
+    routePath: '/lenh-dieu-xe/lenh-cong-trinh',
+    category: 'OPERATIONS',
+    description: 'Điều động máy thi công san gạt, đào mương, lu rung nền đường nội bộ lô thửa',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'MOBILE_APP_ONLY',
+    canAdminDelete: true,
+    canManagerDelete: false,
   },
   {
-    id: 'ROLE-KT',
-    roleName: 'Kế toán Nhiên liệu',
-    groupTitle: 'Kế toán Nhiên liệu & Vật tư',
-    groupNote: 'Kiểm soát số liệu xuất nhập tồn bồn chứa, đối chiếu cảm biến que đo với hóa đơn trạm cấp phát.',
-    dispatchRights: 'Xem thông tin lệnh điều xe để đối chiếu định mức khoán ca máy/chuyến',
-    dispatchNote: 'Không có quyền tạo hoặc chỉnh sửa lệnh điều xe.',
-    fuelRights: 'Toàn quyền duyệt phiếu cấp dầu (PCD), lập bảng đối chiếu tiêu hao và tính tiền thưởng tiết kiệm',
-    fuelNote: 'Khóa sổ số liệu nhiên liệu cuối tháng.',
-    alertRights: 'Nhận thông báo tức thì các sự kiện sụt giảm dầu bất thường (>5 Lít)',
-    alertNote: 'Yêu cầu lái xe và thợ máy ký biên bản giải trình.',
-    exportRights: 'Xuất báo cáo tài chính tiêu hao nhiên liệu và chứng từ xuất kho ERP SAP',
-    exportNote: 'Dữ liệu hạch toán giá thành nông sản.',
+    id: 'menu-transport-dispatch',
+    menuName: 'Lệnh Vận chuyển nội bộ & Chuối XK',
+    routePath: '/lenh-dieu-xe/lenh-noi-bo',
+    category: 'OPERATIONS',
+    description: 'Điều phối xe đầu kéo container chuối Dole, xe ben chở phân bón NPK & xe TMR thức ăn bò',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'MOBILE_APP_ONLY',
+    canAdminDelete: true,
+    canManagerDelete: false,
   },
   {
-    id: 'ROLE-BTSC',
-    roleName: 'Trưởng xưởng BTSC',
-    groupTitle: 'Trưởng xưởng Bảo trì & Sửa chữa Cơ giới',
-    groupNote: 'Quản lý tiếp nhận sự cố, lập phiếu giao việc BM02, theo dõi tiến độ sửa chữa và kho phụ tùng.',
-    dispatchRights: 'Tạo Lệnh điều xe cứu hộ kỹ thuật, điều động thợ sửa lưu động ra hiện trường lô thửa',
-    dispatchNote: 'Cập nhật trạng thái xe nằm xưởng vào hệ thống.',
-    fuelRights: 'Xem lượng dầu cấp phát cho xe cứu hộ và máy nổ xưởng',
-    fuelNote: 'Theo dõi dầu nhớt bôi trơn thay thế theo định kỳ BDC.',
-    alertRights: 'Tiếp nhận cảnh báo SOS hỏng hóc, sự cố nhiệt độ động cơ cao và que đo dầu mất nguồn',
-    alertNote: 'Điều phối tổ thợ máy xử lý trong vòng 15 phút.',
-    exportRights: 'Xuất báo cáo chi phí sửa chữa, giờ công thợ máy và vòng quay phụ tùng',
-    exportNote: 'Phục vụ thanh quyết toán chi phí BTSC.',
+    id: 'menu-workshop',
+    menuName: 'Xưởng BTSC & Bảo trì 250h',
+    routePath: '/xuong-btsc',
+    category: 'TECHNICAL',
+    description: 'Lịch bảo dưỡng định kỳ 250h máy kéo, quản lý xe nằm xưởng, phiếu BM02 & nợ phụ tùng',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'NO_ACCESS',
+    canAdminDelete: true,
+    canManagerDelete: false,
+  },
+  {
+    id: 'menu-fuel',
+    menuName: 'Quản lý Nhiên liệu & Kho bồn',
+    routePath: '/nhien-lieu',
+    category: 'TECHNICAL',
+    description: 'Theo dõi tồn bồn 45.000L, phát hành phiếu cấp dầu (PCD), đối soát cảm biến que đo với định mức',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'MOBILE_APP_ONLY',
+    canAdminDelete: true,
+    canManagerDelete: false,
+  },
+  {
+    id: 'menu-drivers',
+    menuName: 'Hồ sơ Lái xe & Chấm điểm KPI',
+    routePath: '/lai-xe/danh-sach',
+    category: 'TECHNICAL',
+    description: 'Quản lý hạn bằng lái GPLX, lịch khám sức khỏe, tổng kết 4 tiêu chí năng suất 25% tính thưởng',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'MOBILE_APP_ONLY',
+    canAdminDelete: true,
+    canManagerDelete: false,
+  },
+  {
+    id: 'menu-reports',
+    menuName: 'Báo cáo & Thống kê đối sánh',
+    routePath: '/bao-cao/so-sanh-klh',
+    category: 'MASTER_DATA',
+    description: 'Báo cáo tiến độ làm đất, báo cáo tiêu hao nhiên liệu, đối sánh chéo giữa Koun Mom, Snoul và Nam Lào',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'NO_ACCESS',
+    canAdminDelete: true,
+    canManagerDelete: false,
+  },
+  {
+    id: 'menu-catalogs',
+    menuName: 'Danh mục Dữ liệu gốc hệ thống',
+    routePath: '/danh-muc/quan-ly-du-an',
+    category: 'MASTER_DATA',
+    description: 'Danh mục dự án/đơn vị, định mức kỹ thuật, loại xe, chức danh và nông cụ phụ trợ',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'NO_ACCESS',
+    canAdminDelete: true,
+    canManagerDelete: false,
+  },
+  {
+    id: 'menu-permissions',
+    menuName: 'Phân quyền, Tài khoản & Nhân sự',
+    routePath: '/phan-quyen/nguoi-dung',
+    category: 'MASTER_DATA',
+    description: 'Cấp phát tài khoản người dùng, danh bạ nhân sự, ma trận vai trò RBAC và nhật ký Audit Trail',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'NO_ACCESS',
+    canAdminDelete: true,
+    canManagerDelete: false,
+  },
+  {
+    id: 'menu-mobile-driver',
+    menuName: 'Ứng dụng Di động Lái xe (Driver Mobile App)',
+    routePath: '/mobile/driver',
+    category: 'MOBILE',
+    description: 'Chuyên biệt cho tài xế nhận lệnh, bắt đầu ca máy, chốt ODO, quét QR vòi bơm dầu và gửi tín hiệu SOS',
+    adminPermission: 'FULL_WITH_DELETE',
+    managerPermission: 'MANAGE_NO_DELETE',
+    driverPermission: 'MOBILE_APP_ONLY',
+    canAdminDelete: true,
+    canManagerDelete: false,
   },
 ];
 
 export const RolesMatrixPage: React.FC = () => {
-  const [activeRoleIndex, setActiveRoleIndex] = useState(2); // default: Quản đốc
+  const [permissions, setPermissions] = useState<MenuPermissionRow[]>(DEFAULT_MENU_PERMISSIONS);
+  const [activeRoleView, setActiveRoleView] = useState<'ALL' | 'ADMIN' | 'MANAGER' | 'DRIVER'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const currentRole = MOCK_ROLES_CONFIG[activeRoleIndex];
+  // Update permission for a specific role and menu item
+  const handlePermissionChange = (
+    menuId: string,
+    role: 'admin' | 'manager' | 'driver',
+    newLevel: PermissionLevel
+  ) => {
+    setPermissions((prev) =>
+      prev.map((item) => {
+        if (item.id === menuId) {
+          if (role === 'admin') {
+            return {
+              ...item,
+              adminPermission: newLevel,
+              canAdminDelete: newLevel === 'FULL_WITH_DELETE',
+            };
+          }
+          if (role === 'manager') {
+            return {
+              ...item,
+              managerPermission: newLevel,
+              canManagerDelete: newLevel === 'FULL_WITH_DELETE',
+            };
+          }
+          if (role === 'driver') {
+            return {
+              ...item,
+              driverPermission: newLevel,
+            };
+          }
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleResetDefault = () => {
+    setPermissions(DEFAULT_MENU_PERMISSIONS);
+  };
 
   const handleSave = () => {
     setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
+    setTimeout(() => setSavedSuccess(false), 3000);
   };
+
+  const filteredRows = permissions.filter((row) => {
+    if (categoryFilter !== 'ALL' && row.category !== categoryFilter) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-4">
@@ -133,184 +250,388 @@ export const RolesMatrixPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading">
-            Vai trò & Ma trận phân quyền (RBAC)
+            Ma Trận Phân Quyền Theo Menu Hệ Thống (RBAC)
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cấu hình ma trận 6 nhóm quyền: Quản trị, Quản đốc, Điều phối, Lái xe, Kế toán, Xưởng; phân quyền báo cáo & cảnh báo.
+            Cấu hình quyền thao tác trên từng Menu: <b>Admin và Quản lý có quyền điều hành như nhau</b>,{' '}
+            chức năng <b>XÓA dữ liệu chỉ dành riêng cho Admin</b>. Tài xế cơ giới <b>chỉ thao tác trên App Mobile</b>.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="md" icon={<RotateCcw className="w-4 h-4" />}>
-            Khôi phục mặc định
+          {savedSuccess && (
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 animate-in fade-in">
+              ✓ Đã lưu cấu hình ma trận quyền!
+            </span>
+          )}
+          <Button variant="outline" size="md" icon={<RotateCcw className="w-4 h-4" />} onClick={handleResetDefault}>
+            Khôi phục chuẩn
           </Button>
           <Button variant="primary" size="md" icon={<Save className="w-4 h-4" />} onClick={handleSave}>
-            Lưu phân quyền
+            Lưu Ma Trận Quyền
           </Button>
         </div>
       </div>
 
-      {/* Global FilterBar */}
-      <FilterBar
-        extraFilters={
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Nhóm vai trò: 6 nhóm chuẩn (RBAC)</span>
+      {/* Core Security Rule Alert Banner */}
+      <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 via-emerald-50 to-amber-50 p-4 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-slate-900 font-heading uppercase tracking-wide">
+                  Quy định nghiệp vụ phân quyền THACO AGRI
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-200 text-purple-900">
+                  Chuẩn RBAC
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                • <b>Hiện tại Admin và Quản lý như nhau:</b> Đều có quyền xem, tạo kế hoạch, lập lệnh điều xe, duyệt lệnh, cấp phát nhiên liệu và xuất báo cáo.<br />
+                • <b>Chức năng XÓA:</b> <u>Chỉ duy nhất Quản trị viên (Admin) có quyền XÓA</u> để ngăn ngừa việc hủy dữ liệu trái phép hoặc mất dấu vết kiểm toán.<br />
+                • <b>Tài xế cơ giới:</b> <u>Chỉ có quyền đăng nhập App Mobile Lái xe</u>, hệ thống tự động chặn hoàn toàn truy cập Cổng thông tin Web.
+              </p>
+            </div>
           </div>
-        }
-      />
+        </div>
+      </div>
 
-      {/* 4 Stats Cards matching Mockup */}
+      {/* 4 Stats Cards */}
       <KPIGrid cols={4}>
         <StatCard
-          label="Tổng nhóm vai trò"
-          value="6 nhóm quyền"
-          subValue="Admin, GĐ, QĐ, ĐP, KT, Xưởng"
-          icon={<Shield className="w-5 h-5" />}
+          label="Chính sách quyền điều hành"
+          value="Admin & Quản lý như nhau"
+          subValue="Đồng nhất quyền lập & duyệt lệnh"
+          icon={<UserCheck className="w-5 h-5" />}
           iconBgColor="bg-emerald-50"
-          iconColor="text-primary"
-          trend={{ value: "RBAC Chuẩn", isUp: true }}
+          iconColor="text-emerald-700"
         />
         <StatCard
-          label="Quyền xem báo cáo nhiên liệu"
-          value="Phân cấp"
-          subValue="Kế toán, Giám đốc, Quản đốc"
-          icon={<Fuel className="w-5 h-5" />}
-          iconBgColor="bg-sky-50"
-          iconColor="text-sky-600"
+          label="Chức năng XÓA dữ liệu"
+          value="Chỉ Admin có quyền XÓA"
+          subValue="Quản lý không có quyền xóa"
+          icon={<Trash2 className="w-5 h-5" />}
+          iconBgColor="bg-purple-50"
+          iconColor="text-purple-700"
         />
         <StatCard
-          label="Quyền xử lý cảnh báo"
-          value="Theo vai trò"
-          subValue="Điều phối, Quản đốc, Trưởng xưởng"
-          icon={<BellRing className="w-5 h-5" />}
+          label="Tài khoản Tài xế"
+          value="Chỉ App Mobile Lái xe"
+          subValue="Chặn 100% truy cập Cổng Web"
+          icon={<Smartphone className="w-5 h-5" />}
           iconBgColor="bg-amber-50"
           iconColor="text-amber-600"
         />
         <StatCard
-          label="Quyền tạo lệnh điều xe"
-          value="Chủ động"
-          subValue="Theo kế hoạch phân bổ"
-          icon={<CheckCircle2 className="w-5 h-5" />}
-          iconBgColor="bg-emerald-50"
-          iconColor="text-emerald-700"
+          label="Menu quản lý phân quyền"
+          value={`${permissions.length} Menu chức năng`}
+          subValue="Cho phép chọn select box quyền"
+          icon={<Layers className="w-5 h-5" />}
+          iconBgColor="bg-sky-50"
+          iconColor="text-sky-600"
         />
       </KPIGrid>
 
-      {/* Settings Grid Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Left Navigation Roles List */}
-        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1 md:col-span-1">
-          <div className="text-[11px] font-bold text-slate-500 uppercase px-3 py-2">
-            Danh Sách 6 Vai Trò Chuẩn
-          </div>
-          {MOCK_ROLES_CONFIG.map((role, idx) => (
+      {/* Interactive Controls & Filters */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Role Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 uppercase mr-1">Chế độ xem:</span>
             <button
-              key={role.id}
-              onClick={() => setActiveRoleIndex(idx)}
-              className={`w-full text-left px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-between ${
-                activeRoleIndex === idx
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-slate-700 hover:bg-slate-100'
+              type="button"
+              onClick={() => setActiveRoleView('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeRoleView === 'ALL'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              <span>{role.roleName}</span>
-              {activeRoleIndex === idx && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              Toàn bộ Ma trận (3 Vai trò)
             </button>
-          ))}
-        </div>
+            <button
+              type="button"
+              onClick={() => setActiveRoleView('ADMIN')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeRoleView === 'ADMIN'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              Chỉ Quản trị viên (Admin)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveRoleView('MANAGER')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeRoleView === 'MANAGER'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              Chỉ Nhân sự quản lý (Manager)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveRoleView('DRIVER')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeRoleView === 'DRIVER'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              Chỉ Tài xế (Driver App)
+            </button>
+          </div>
 
-        {/* Right Settings Configuration Form */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 md:col-span-3">
-          <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-base font-extrabold text-slate-900">
-              Cấu hình ma trận quyền cho nhóm [{currentRole.roleName}]
-            </h2>
+          {/* Category Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 uppercase">Phân nhóm Menu:</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 focus:outline-none focus:border-primary cursor-pointer"
+            >
+              <option value="ALL">Toàn bộ phân hệ ({permissions.length} menu)</option>
+              <option value="OPERATIONS">Vận hành & Điều xe</option>
+              <option value="TECHNICAL">Kỹ thuật, BTSC & Nhiên liệu</option>
+              <option value="MASTER_DATA">Dữ liệu gốc & Báo cáo</option>
+              <option value="MOBILE">Ứng dụng di động (Mobile App)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Interactive Table with SELECT BOXES on every menu */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 font-heading">
+              Bảng Chọn Quyền Thao Tác Bằng Select Box Trên Từng Menu
+            </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              {currentRole.groupNote}
+              Bạn có thể bấm vào hộp chọn (Select Box) của từng vai trò để thay đổi quyền Xem, Thêm, Sửa, Xóa hoặc phân bổ cho Mobile App.
             </p>
           </div>
 
-          <div className="space-y-3.5 text-xs">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Tên nhóm quyền</label>
-              <input
-                type="text"
-                defaultValue={currentRole.groupTitle}
-                className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-900 focus:bg-white transition-colors"
-              />
-              <span className="text-[10px] text-slate-500 block mt-1">
-                {currentRole.groupNote}
-              </span>
-            </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="inline-flex items-center gap-1 text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+              <Trash2 className="w-3.5 h-3.5 text-purple-600" /> Admin: Có quyền XÓA
+            </span>
+            <span className="inline-flex items-center gap-1 text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              <XCircle className="w-3.5 h-3.5 text-amber-600" /> Quản lý: Không được XÓA
+            </span>
+          </div>
+        </div>
 
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Quyền lập kế hoạch & Lệnh sản xuất</label>
-              <input
-                type="text"
-                defaultValue={currentRole.dispatchRights}
-                className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:bg-white transition-colors"
-              />
-              <span className="text-[10px] text-slate-500 block mt-1">
-                {currentRole.dispatchNote}
-              </span>
-            </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="py-3 px-4 w-72">Tên Menu & Đường Dẫn</th>
 
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Quyền xem báo cáo nhiên liệu</label>
-              <input
-                type="text"
-                defaultValue={currentRole.fuelRights}
-                className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:bg-white transition-colors"
-              />
-              <span className="text-[10px] text-slate-500 block mt-1">
-                {currentRole.fuelNote}
-              </span>
-            </div>
+                {(activeRoleView === 'ALL' || activeRoleView === 'ADMIN') && (
+                  <th className="py-3 px-4 w-64 bg-purple-50/50 text-purple-950 font-extrabold">
+                    <div className="flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-purple-600" />
+                      <span>Select Box: Quản Trị Viên (Admin)</span>
+                    </div>
+                  </th>
+                )}
 
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Quyền tiếp nhận & Xử lý cảnh báo</label>
-              <input
-                type="text"
-                defaultValue={currentRole.alertRights}
-                className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:bg-white transition-colors"
-              />
-              <span className="text-[10px] text-slate-500 block mt-1">
-                {currentRole.alertNote}
-              </span>
-            </div>
+                {(activeRoleView === 'ALL' || activeRoleView === 'MANAGER') && (
+                  <th className="py-3 px-4 w-64 bg-emerald-50/50 text-emerald-950 font-extrabold">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Select Box: Nhân Sự Quản Lý</span>
+                    </div>
+                  </th>
+                )}
 
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Quyền xuất dữ liệu</label>
-              <input
-                type="text"
-                defaultValue={currentRole.exportRights}
-                className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:bg-white transition-colors"
-              />
-              <span className="text-[10px] text-slate-500 block mt-1">
-                {currentRole.exportNote}
-              </span>
-            </div>
+                {(activeRoleView === 'ALL' || activeRoleView === 'DRIVER') && (
+                  <th className="py-3 px-4 w-64 bg-amber-50/50 text-amber-950 font-extrabold">
+                    <div className="flex items-center gap-1.5">
+                      <Smartphone className="w-4 h-4 text-amber-600" />
+                      <span>Select Box: Tài Xế (Driver)</span>
+                    </div>
+                  </th>
+                )}
+
+                <th className="py-3 px-4 text-center w-40">Quyền XÓA Dữ Liệu</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {filteredRows.map((item) => {
+                return (
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                    {/* Menu Name & Description */}
+                    <td className="py-3 px-4 align-top">
+                      <div className="space-y-1">
+                        <strong className="text-slate-900 block font-bold text-xs">
+                          {item.menuName}
+                        </strong>
+                        <span className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded inline-block font-semibold">
+                          {item.routePath}
+                        </span>
+                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mt-0.5">
+                          {item.description}
+                        </p>
+                      </div>
+                    </td>
+
+                    {/* Admin Permission Select Box */}
+                    {(activeRoleView === 'ALL' || activeRoleView === 'ADMIN') && (
+                      <td className="py-3 px-4 align-middle bg-purple-50/20">
+                        <div className="space-y-1.5">
+                          <select
+                            value={item.adminPermission}
+                            onChange={(e) =>
+                              handlePermissionChange(item.id, 'admin', e.target.value as PermissionLevel)
+                            }
+                            className={`w-full p-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              item.adminPermission === 'FULL_WITH_DELETE'
+                                ? 'bg-purple-100 text-purple-900 border-purple-300 focus:border-purple-600'
+                                : item.adminPermission === 'MANAGE_NO_DELETE'
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                : item.adminPermission === 'VIEW_ONLY'
+                                ? 'bg-sky-100 text-sky-900 border-sky-300'
+                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            <option value="FULL_WITH_DELETE">
+                              ✓ Toàn quyền (Xem, Thêm, Sửa, XÓA)
+                            </option>
+                            <option value="MANAGE_NO_DELETE">
+                              • Quản lý (Xem, Thêm, Sửa - KHÔNG XÓA)
+                            </option>
+                            <option value="VIEW_ONLY">👁 Chỉ xem dữ liệu (View Only)</option>
+                            <option value="NO_ACCESS">⛔ Không có quyền truy cập</option>
+                          </select>
+
+                          <div className="flex items-center gap-1 text-[10px] text-purple-800 font-semibold">
+                            <Check className="w-3 h-3 text-purple-600" />
+                            <span>Có quyền XÓA và cấu hình toàn bộ</span>
+                          </div>
+                        </div>
+                      </td>
+                    )}
+
+                    {/* Manager Permission Select Box */}
+                    {(activeRoleView === 'ALL' || activeRoleView === 'MANAGER') && (
+                      <td className="py-3 px-4 align-middle bg-emerald-50/20">
+                        <div className="space-y-1.5">
+                          <select
+                            value={item.managerPermission}
+                            onChange={(e) =>
+                              handlePermissionChange(item.id, 'manager', e.target.value as PermissionLevel)
+                            }
+                            className={`w-full p-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              item.managerPermission === 'MANAGE_NO_DELETE'
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300 focus:border-emerald-600'
+                                : item.managerPermission === 'FULL_WITH_DELETE'
+                                ? 'bg-purple-100 text-purple-900 border-purple-300'
+                                : item.managerPermission === 'VIEW_ONLY'
+                                ? 'bg-sky-100 text-sky-900 border-sky-300'
+                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            <option value="MANAGE_NO_DELETE">
+                              • Quản lý (Xem, Thêm, Sửa - KHÔNG XÓA)
+                            </option>
+                            <option value="FULL_WITH_DELETE">
+                              ✓ Toàn quyền (Xem, Thêm, Sửa, XÓA)
+                            </option>
+                            <option value="VIEW_ONLY">👁 Chỉ xem dữ liệu (View Only)</option>
+                            <option value="NO_ACCESS">⛔ Không có quyền truy cập</option>
+                          </select>
+
+                          <div className="flex items-center gap-1 text-[10px] text-emerald-800 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                            <span>Quyền điều hành như Admin · Không được XÓA</span>
+                          </div>
+                        </div>
+                      </td>
+                    )}
+
+                    {/* Driver Permission Select Box */}
+                    {(activeRoleView === 'ALL' || activeRoleView === 'DRIVER') && (
+                      <td className="py-3 px-4 align-middle bg-amber-50/20">
+                        <div className="space-y-1.5">
+                          <select
+                            value={item.driverPermission}
+                            onChange={(e) =>
+                              handlePermissionChange(item.id, 'driver', e.target.value as PermissionLevel)
+                            }
+                            className={`w-full p-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              item.driverPermission === 'MOBILE_APP_ONLY'
+                                ? 'bg-amber-100 text-amber-900 border-amber-300 focus:border-amber-600'
+                                : item.driverPermission === 'NO_ACCESS'
+                                ? 'bg-slate-100 text-slate-600 border-slate-300'
+                                : 'bg-sky-100 text-sky-900 border-sky-300'
+                            }`}
+                          >
+                            <option value="NO_ACCESS">
+                              ⛔ Chặn truy cập Web (Không vào Web)
+                            </option>
+                            <option value="MOBILE_APP_ONLY">
+                              📱 Thao tác trên App Mobile Lái xe
+                            </option>
+                            <option value="VIEW_ONLY">👁 Chỉ xem thông tin cá nhân</option>
+                          </select>
+
+                          <div className="flex items-center gap-1 text-[10px] text-amber-800 font-semibold">
+                            <Smartphone className="w-3 h-3 text-amber-600" />
+                            <span>
+                              {item.driverPermission === 'MOBILE_APP_ONLY'
+                                ? 'Tài xế thực hiện qua Smartphone'
+                                : 'Chặn tuyệt đối trên Cổng Web'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    )}
+
+                    {/* Delete Permission Status Comparison */}
+                    <td className="py-3 px-4 text-center align-middle">
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                          <Trash2 className="w-2.5 h-2.5" /> Admin: Được XÓA
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <XCircle className="w-2.5 h-2.5 text-amber-600" /> Quản lý: CẤM XÓA
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer Summary Notice */}
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-emerald-700 shrink-0" />
+            <span>
+              Mọi thay đổi trên Select Box sẽ áp dụng ngay vào phiên làm việc sau khi bấm nút <b>Lưu Ma Trận Quyền</b>.
+            </span>
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-            {savedSuccess ? (
-              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" /> Đã lưu cấu hình phân quyền thành công!
-              </span>
-            ) : (
-              <span className="text-[11px] text-slate-400">
-                Lưu ý: Thay đổi phân quyền sẽ có hiệu lực ngay trong phiên đăng nhập tiếp theo.
-              </span>
-            )}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => {}}>
-                Khôi phục mặc định
-              </Button>
-              <Button variant="primary" size="sm" icon={<Save className="w-3.5 h-3.5" />} onClick={handleSave}>
-                Lưu cấu hình
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleResetDefault}>
+              Khôi phục mặc định
+            </Button>
+            <Button variant="primary" size="sm" icon={<Save className="w-3.5 h-3.5" />} onClick={handleSave}>
+              Lưu phân quyền
+            </Button>
           </div>
         </div>
       </div>

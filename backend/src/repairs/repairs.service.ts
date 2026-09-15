@@ -1,203 +1,94 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { RepairStatus, VehicleStatus } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+  RepairStatus,
+  WorkshopRequestSource,
+  WorkshopRequestStatus,
+  WorkshopRequestType,
+} from '@prisma/client';
+import { OperationalActor } from '../common/utils/operational-access';
+import { WorkshopService } from '../workshop/workshop.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
 import { RepairFilterDto } from './dto/repair-filter.dto';
 import { UpdateRepairDto } from './dto/update-repair.dto';
 
+const toWorkshopStatus = (status?: RepairStatus): WorkshopRequestStatus | undefined => {
+  if (!status) return undefined;
+  if (status === RepairStatus.RECEIVED) return WorkshopRequestStatus.RECEIVED;
+  if (status === RepairStatus.IN_REPAIR) return WorkshopRequestStatus.IN_PROGRESS;
+  if (status === RepairStatus.WAITING_PARTS) return WorkshopRequestStatus.WAITING_PARTS;
+  return WorkshopRequestStatus.COMPLETED;
+};
+
 @Injectable()
 export class RepairsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly workshop: WorkshopService) {}
 
-  async create(dto: CreateRepairDto) {
-    const existing = await this.prisma.repairTicket.findUnique({
-      where: { code: dto.code },
-    });
-
-    if (existing) {
-      throw new ConflictException(`Phiếu sửa chữa ${dto.code} đã tồn tại.`);
-    }
-
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id: dto.vehicleId },
-    });
-
-    if (!vehicle) {
-      throw new NotFoundException(`Không tìm thấy phương tiện #${dto.vehicleId}`);
-    }
-
-    if (dto.plannedEndAt && dto.plannedStartAt && dto.plannedEndAt <= dto.plannedStartAt) {
-      throw new BadRequestException('Thời gian kết thúc sửa chữa phải sau thời gian bắt đầu.');
-    }
-    const startsNow = !dto.plannedStartAt || dto.plannedStartAt <= new Date();
-
-    const [repair] = await this.prisma.$transaction([
-      this.prisma.repairTicket.create({
-        data: {
-          code: dto.code,
-          vehicleId: dto.vehicleId,
-          reportedByDriverId: dto.reportedByDriverId,
-          assignedTechnicianId: dto.assignedTechnicianId,
-          repairTier: dto.repairTier,
-          issueDescription: dto.issueDescription,
-          estimatedCostVnd: dto.estimatedCostVnd || 0,
-          replacedPartsJson: dto.replacedPartsJson,
-          status: RepairStatus.RECEIVED,
-          plannedStartAt: dto.plannedStartAt,
-          plannedEndAt: dto.plannedEndAt,
-          startedAt: startsNow ? new Date() : undefined,
-        },
-        include: {
-          vehicle: true,
-          reportedByDriver: { select: { id: true, fullName: true, phone: true } },
-          assignedTechnician: { select: { id: true, fullName: true, phone: true } },
-        },
-      }),
-      ...(startsNow
-        ? [this.prisma.vehicle.update({
-            where: { id: dto.vehicleId },
-            data: { status: VehicleStatus.SUA_CHUA },
-          })]
-        : []),
-    ]);
-
-    return repair;
+  create(dto: CreateRepairDto, actor: OperationalActor) {
+    return this.workshop.create({
+      code: dto.code,
+      type: WorkshopRequestType.REPAIR,
+      source: WorkshopRequestSource.MANUAL,
+      vehicleId: dto.vehicleId,
+      implementId: dto.implementId,
+      reportedById: dto.reportedByDriverId,
+      assignedTechnicianId: dto.assignedTechnicianId,
+      repairTier: dto.repairTier,
+      issueDescription: dto.issueDescription,
+      estimatedCostVnd: dto.estimatedCostVnd,
+      partsJson: dto.replacedPartsJson,
+      incidentLocation: dto.incidentLocation,
+      plannedStartAt: dto.plannedStartAt,
+      plannedEndAt: dto.plannedEndAt,
+    }, actor);
   }
 
-  async findAll(filter: RepairFilterDto) {
-    const { page = 1, limit = 20, search, vehicleId, repairTier, status, isGeneratedFromMaintenance } = filter;
-    const skip = (page - 1) * limit;
+  findAll(filter: RepairFilterDto, actor: OperationalActor) {
+    return this.workshop.findAll({
+      page: filter.page,
+      limit: filter.limit,
+      search: filter.search,
+      type: WorkshopRequestType.REPAIR,
+      status: toWorkshopStatus(filter.status),
+      vehicleId: filter.vehicleId,
+      implementId: filter.implementId,
+    }, actor);
+  }
 
-    const where: any = {};
-    if (vehicleId) where.vehicleId = vehicleId;
-    if (repairTier) where.repairTier = repairTier;
-    if (status) where.status = status;
-    if (isGeneratedFromMaintenance !== undefined) where.isGeneratedFromMaintenance = isGeneratedFromMaintenance;
+  findOne(id: number, actor: OperationalActor) { return this.workshop.findOne(id, actor); }
 
-    if (search) {
-      where.OR = [
-        { code: { contains: search } },
-        { issueDescription: { contains: search } },
-        { vehicle: { plate: { contains: search } } },
-        { vehicle: { code: { contains: search } } },
-      ];
+  async update(id: number, dto: UpdateRepairDto, actor: OperationalActor) {
+    const mappedStatus = toWorkshopStatus(dto.status);
+    if (mappedStatus === WorkshopRequestStatus.COMPLETED) {
+      const current = await this.workshop.findOne(id, actor);
+      if (current.status !== WorkshopRequestStatus.HANDED_OVER) {
+        throw new BadRequestException('API tương thích yêu cầu nghiệm thu và bàn giao trước khi hoàn tất.');
+      }
     }
+    return this.workshop.update(id, {
+      status: mappedStatus,
+      repairTier: dto.repairTier,
+      issueDescription: dto.issueDescription,
+      assignedTechnicianId: dto.assignedTechnicianId,
+      actualCostVnd: dto.actualCostVnd,
+      partsJson: dto.replacedPartsJson,
+      plannedStartAt: dto.plannedStartAt,
+      plannedEndAt: dto.plannedEndAt,
+    }, actor);
+  }
 
-    const [total, items] = await Promise.all([
-      this.prisma.repairTicket.count({ where }),
-      this.prisma.repairTicket.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          vehicle: { select: { id: true, code: true, plate: true, name: true, unit: true } },
-          reportedByDriver: { select: { id: true, fullName: true } },
-          assignedTechnician: { select: { id: true, fullName: true } },
-          maintenanceRecord: { select: { id: true, currentHours: true } },
-        },
-        orderBy: { receivedDate: 'desc' },
-      }),
-    ]);
-
+  async getCostReport(actor: OperationalActor) {
+    const result = await this.workshop.findAll({ type: WorkshopRequestType.REPAIR, page: 1, limit: 10000 }, actor);
     return {
-      items,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      totalTickets: result.pagination.total,
+      inRepair: result.items.filter((item) => item.status === WorkshopRequestStatus.IN_PROGRESS).length,
+      waitingParts: result.items.filter((item) => item.status === WorkshopRequestStatus.WAITING_PARTS).length,
+      completed: result.items.filter((item) => item.status === WorkshopRequestStatus.COMPLETED).length,
+      totalEstimatedCostVnd: result.items.reduce((sum, item) => sum + item.estimatedCostVnd, 0),
+      totalActualCostVnd: result.items.reduce((sum, item) => sum + item.actualCostVnd, 0),
     };
   }
 
-  async findOne(id: number) {
-    const repair = await this.prisma.repairTicket.findUnique({
-      where: { id },
-      include: {
-        vehicle: true,
-        reportedByDriver: { select: { id: true, fullName: true, phone: true, avatarUrl: true } },
-        assignedTechnician: { select: { id: true, fullName: true, phone: true } },
-        maintenanceRecord: true,
-      },
-    });
-
-    if (!repair) {
-      throw new NotFoundException(`Không tìm thấy phiếu sửa chữa #${id}`);
-    }
-
-    return repair;
-  }
-
-  async update(id: number, dto: UpdateRepairDto) {
-    const repair = await this.findOne(id);
-    const isCompleted = dto.status === RepairStatus.COMPLETED;
-    const now = new Date();
-    const [activeExecution, maintenance, hold] = isCompleted ? await Promise.all([
-      this.prisma.workExecutionSegment.findFirst({ where: { vehicleId: repair.vehicleId, endedAt: null } }),
-      this.prisma.maintenanceRecord.findFirst({ where: { vehicleId: repair.vehicleId, cancelledAt: null, endedAt: null, status: { not: 'COMPLETED' } } }),
-      this.prisma.vehicleUnavailability.findFirst({ where: { vehicleId: repair.vehicleId, cancelledAt: null, status: 'APPROVED', OR: [{ endAt: null }, { endAt: { gt: now } }] } }),
-    ]) : [null, null, null];
-    const releaseStatus = maintenance ? VehicleStatus.BAO_DUONG : activeExecution ? VehicleStatus.HOAT_DONG : hold ? VehicleStatus.TAM_DUNG : VehicleStatus.CHO_PHAN_CONG;
-
-    const [updatedRepair] = await this.prisma.$transaction([
-      this.prisma.repairTicket.update({
-        where: { id },
-        data: {
-          ...dto,
-          completedDate: isCompleted ? now : repair.completedDate,
-          endedAt: isCompleted ? now : repair.endedAt,
-          startedAt: dto.status === RepairStatus.IN_REPAIR && !repair.startedAt ? now : repair.startedAt,
-        },
-        include: {
-          vehicle: true,
-          assignedTechnician: { select: { id: true, fullName: true } },
-        },
-      }),
-      ...(isCompleted
-        ? [
-            this.prisma.vehicle.update({
-              where: { id: repair.vehicleId },
-              data: { status: releaseStatus },
-            }),
-          ]
-        : []),
-    ]);
-
-    return updatedRepair;
-  }
-
-  async getCostReport() {
-    const [totalTickets, inRepair, waitingParts, completed, costStats] = await Promise.all([
-      this.prisma.repairTicket.count(),
-      this.prisma.repairTicket.count({ where: { status: RepairStatus.IN_REPAIR } }),
-      this.prisma.repairTicket.count({ where: { status: RepairStatus.WAITING_PARTS } }),
-      this.prisma.repairTicket.count({ where: { status: RepairStatus.COMPLETED } }),
-      this.prisma.repairTicket.aggregate({
-        _sum: {
-          estimatedCostVnd: true,
-          actualCostVnd: true,
-        },
-      }),
-    ]);
-
-    return {
-      totalTickets,
-      inRepair,
-      waitingParts,
-      completed,
-      totalEstimatedCostVnd: costStats._sum.estimatedCostVnd || 0,
-      totalActualCostVnd: costStats._sum.actualCostVnd || 0,
-    };
-  }
-
-  async remove(id: number) {
-    const repair = await this.findOne(id);
-    if (repair.status === RepairStatus.COMPLETED) throw new ConflictException('Không thể hủy phiếu sửa chữa đã hoàn thành.');
-    return this.prisma.repairTicket.update({ where: { id }, data: { cancelledAt: new Date(), cancellationReason: 'Hủy qua API tương thích DELETE' } });
+  remove(id: number, actor: OperationalActor) {
+    return this.workshop.update(id, { status: WorkshopRequestStatus.CANCELLED, cancellationReason: 'Hủy qua API tương thích DELETE' }, actor);
   }
 }

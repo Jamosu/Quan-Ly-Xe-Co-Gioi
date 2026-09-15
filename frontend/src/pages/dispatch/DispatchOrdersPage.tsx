@@ -1,4 +1,4 @@
-import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Calendar,
@@ -27,13 +27,18 @@ import {
   Layers,
   FileText,
   CheckSquare,
+  Send,
+  Activity,
+  UserCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { operationsApi } from '../../api/operations';
-import { apiClient } from '../../api/client';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { DataTable, Column } from '../../components/data-display/DataTable';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
 import { FilterBar } from '../../components/filters/FilterBar';
@@ -42,8 +47,9 @@ import type { DispatchOrderRecord } from '../../types';
 import { useFilterStore } from '../../store/useFilterStore';
 import { useAppStore } from '../../store/useAppStore';
 import { matchesKLH } from '../../utils/filterUtils';
-import { WorkflowActionPanel, type DemoWorkflowStep } from '../../components/dispatch/WorkflowActionPanel';
+import { WorkflowActionPanel, type DemoWorkflowStep, getVehicleFuelQuotaRate } from '../../components/dispatch/WorkflowActionPanel';
 import { Vehicle24hScheduler, type SchedulerLane, type SchedulerItem } from '../../components/dispatch/Vehicle24hScheduler';
+import { DispatchCategoryTabs } from '../../components/dispatch/DispatchCategoryTabs';
 import {
   getWeeksOfYear,
   WeekOption,
@@ -56,9 +62,7 @@ import {
   getDayActualDate,
   DAYS_OF_WEEK,
 } from './CreateProductionPlanPage';
-import { syncAllApprovedSpecializedPlans } from './specializedPlanSync';
 
-const STORAGE_KEY = 'thaco_all_dispatch_orders_master_v4';
 
 export type DispatchCategory = 'ALL' | 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' | 'CUU_HO_SOS';
 
@@ -73,6 +77,7 @@ export interface ExtendedDispatchOrder extends Omit<DispatchOrderRecord, 'implem
   plannedFuelLiters?: number;
   actualFuelLiters?: number;
   fuelQuotaRate?: string;
+  implementGroup?: string;
   secondaryDriverName?: string;
   notes?: string;
   planNotes?: string;
@@ -103,6 +108,8 @@ export interface ExtendedDispatchOrder extends Omit<DispatchOrderRecord, 'implem
     startTime?: string;
     endTime?: string;
     durationHours?: number;
+    fuelQuotaRate?: string;
+    plannedFuelLiters?: number;
   }>;
 
   // CẤP PHÁT NHIÊN LIỆU (DẦU)
@@ -142,9 +149,32 @@ export const syncApprovedPlansToDispatchOrders = (existingOrders: ExtendedDispat
 const groups = [
   { key: 'pending', title: 'Chờ duyệt / Phân công', statuses: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'] },
   { key: 'assigned', title: 'Đã giao xe / Tiếp nhận', statuses: ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'] },
-  { key: 'working', title: 'Đang vận hành / Thi công', statuses: ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'] },
+  { key: 'working', title: 'Đang vận hành / Thi công', statuses: ['AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'] },
   { key: 'completed', title: 'Hoàn tất & Nghiệm thu', statuses: ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'] },
 ];
+
+const MANAGEMENT_ATTENTION_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'];
+const DEPARTURE_DELAY_STATUSES = ['APPROVED', 'ASSIGNED', 'DRIVER_ACCEPTED', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN'];
+const DEPARTURE_DELAY_MINUTES = 15;
+
+export const needsOperatorAttention = (order: Pick<ExtendedDispatchOrder, 'status' | 'departureTime' | 'actualDepartureTime' | 'needsAttention'>, now = Date.now()) => {
+  if (order.needsAttention !== undefined) return order.needsAttention;
+  if (!MANAGEMENT_ATTENTION_STATUSES.includes(order.status) || !order.departureTime || order.actualDepartureTime) return false;
+  const plannedStart = new Date(order.departureTime).getTime();
+  return Number.isFinite(plannedStart) && plannedStart < now;
+};
+
+export const isDepartureDelayed = (order: Pick<ExtendedDispatchOrder, 'status' | 'departureTime' | 'actualDepartureTime' | 'isOverdue'>, now = Date.now()) => {
+  if (!DEPARTURE_DELAY_STATUSES.includes(order.status) || !order.departureTime || order.actualDepartureTime) return false;
+  if (order.isOverdue !== undefined) return order.isOverdue;
+  const plannedStart = new Date(order.departureTime).getTime();
+  return Number.isFinite(plannedStart) && plannedStart <= now - DEPARTURE_DELAY_MINUTES * 60_000;
+};
+
+const overdueDayCount = (departureTime?: string) => {
+  if (!departureTime) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(departureTime).getTime()) / 86_400_000));
+};
 
 function toDateString(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d;
@@ -175,17 +205,28 @@ export const DispatchOrdersPage: React.FC = () => {
     }
   }, [isAgriculturalSpecific]);
 
-  const [view, setView] = useState<'table' | 'daily_timeline' | 'kanban' | 'completed'>('table');
+  const [view, setView] = useState<'table' | 'daily_timeline' | 'kanban'>('table');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedPurpose, setSelectedPurpose] = useState<string>('ALL');
+  const [selectedVehicle, setSelectedVehicle] = useState<string>('ALL');
+  const [selectedDriver, setSelectedDriver] = useState<string>('ALL');
   const [orders, setOrders] = useState<ExtendedDispatchOrder[]>([]);
   const [selected, setSelected] = useState<ExtendedDispatchOrder | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createCategory, setCreateCategory] = useState<'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' | 'CUU_HO_SOS'>('NONG_NGHIEP');
-  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState(() => searchParams.get('planCode') || '');
 
+  // --- State cho tính năng xử lý lệnh trễ hạn ---
+  const [rescheduleTarget, setRescheduleTarget] = useState<ExtendedDispatchOrder | null>(null);
+  const [retroTarget, setRetroTarget] = useState<ExtendedDispatchOrder | null>(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [overdueSummary, setOverdueSummary] = useState<Awaited<ReturnType<typeof operationsApi.overdueDispatchSummary>> | null>(null);
+
+  // Dữ liệu form Dời lịch
+  const [rescheduleForm, setRescheduleForm] = useState({ newDepartureTime: '', newPlannedEndTime: '', reason: '' });
+  // Dữ liệu form Nghiệm thu hồi tố
+  const [retroForm, setRetroForm] = useState({ actualStartTime: '', actualCompletedTime: '', actualMachineHours: '', actualQuantity: '', notes: '' });
 
 
   // 52 Tuần trong năm
@@ -222,37 +263,55 @@ export const DispatchOrdersPage: React.FC = () => {
     setLoading(true);
     setError('');
     try {
+      const planId = searchParams.get('planId');
+      const apiFilters = planId ? { planId: Number(planId) } : {};
       const [dispatchRes, transportRes] = await Promise.allSettled([
-        operationsApi.dispatchOrders({ limit: 1000 }),
-        operationsApi.transportOrders({ limit: 500 }),
+        operationsApi.dispatchOrders({ limit: 1000, ...apiFilters }),
+        operationsApi.transportOrders({ limit: 500, ...apiFilters }),
       ]);
 
       const realDispatches: ExtendedDispatchOrder[] = [];
       if (dispatchRes.status === 'fulfilled' && dispatchRes.value?.items) {
         dispatchRes.value.items.forEach((item: any) => {
-          const isConstruction =
-            item.vehicle?.assetGroup === 'MAY_CONG_TRINH' ||
-            item.code?.startsWith('LC-') ||
-            item.code?.startsWith('LCM-') ||
-            item.code?.startsWith('CM-') ||
-            item.code?.startsWith('LDX-CT-') ||
-            item.orderCategory === 'CONG_TRINH';
+          if (item.status === 'CANCELLED') return;
+          const isConstruction = item.productionOrder?.plan?.planType === 'CONSTRUCTION';
           const cat = isConstruction ? 'CONG_TRINH' : 'NONG_NGHIEP';
           const catLabel = isConstruction ? 'Công trình ca máy' : 'Nông nghiệp';
 
+          const durationH = item.departureTime && item.plannedEndTime
+            ? Math.max(0.5, (new Date(item.plannedEndTime).getTime() - new Date(item.departureTime).getTime()) / 3_600_000)
+            : (item.productionOrder?.planItem?.durationHours || 8);
+          const vQuota = item.vehicle ? getVehicleFuelQuotaRate(item.vehicle, cat) : undefined;
+          const initialPlannedFuel = item.plannedFuelLiters ?? (vQuota && item.vehicle ? Number((durationH * vQuota).toFixed(1)) : undefined);
+          const initialQuotaRate = vQuota && item.vehicle ? `${vQuota} L/h` : item.fuelQuotaRate;
+
+          const plan = item.productionOrder?.plan;
+          const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+
           realDispatches.push({
             ...item,
+            complexCode,
+            complexName,
             orderCategory: cat,
             categoryLabel: catLabel,
+            planCode: plan?.code,
+            planTitle: plan?.title,
             workVolumeTarget: item.workVolumeTarget ?? (item.productionOrder?.planItem?.jobCode ? 25 : undefined),
             workVolumeUnit: item.workVolumeUnit ?? (isConstruction ? 'Giờ' : 'Ha'),
-            plannedFuelLiters: item.plannedFuelLiters ?? (isConstruction ? 80 : 150),
+            plannedFuelLiters: initialPlannedFuel,
+            fuelQuotaRate: initialQuotaRate,
           });
         });
       }
 
       if (transportRes.status === 'fulfilled' && transportRes.value?.items) {
         transportRes.value.items.forEach((item: any) => {
+          if (item.status === 'CANCELLED') return;
+          const plan = item.productionOrder?.plan;
+          const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+
           realDispatches.push({
             id: item.id ? 200000 + item.id : Math.floor(Math.random() * 100000),
             code: item.code,
@@ -260,6 +319,8 @@ export const DispatchOrdersPage: React.FC = () => {
             categoryLabel: 'Vận chuyển',
             sourceType: 'TRANSPORT_ORDER' as any,
             unit: item.unit || 'BAN_CO_GIOI',
+            complexCode,
+            complexName,
             purpose: item.cargoType || 'Vận chuyển hàng hóa nội bộ',
             origin: item.origin || 'Kho Trung Tâm',
             destination: item.destination || 'Điểm giao hàng',
@@ -269,10 +330,13 @@ export const DispatchOrdersPage: React.FC = () => {
             isDelayed: Boolean(item.isRouteDeviated),
             vehicle: item.vehicle,
             driver: item.driver,
+            implement: item.trailer,
             workVolumeTarget: item.tonnage || item.palletCount || 1,
             workVolumeUnit: item.palletCount ? 'Pallet' : 'Tấn',
             plannedFuelLiters: item.plannedFuelLiters,
             notes: item.notes,
+            planCode: plan?.code,
+            planTitle: plan?.title,
           });
         });
       }
@@ -298,48 +362,6 @@ export const DispatchOrdersPage: React.FC = () => {
         }
       }
 
-      // Tự động đồng bộ các lệnh sinh từ Kế hoạch Công trình & Vận chuyển nội bộ (STORAGE_KEY) nếu có
-      try {
-        syncAllApprovedSpecializedPlans();
-        const storedRaw = localStorage.getItem(STORAGE_KEY);
-        if (storedRaw) {
-          const storedOrders = JSON.parse(storedRaw);
-          if (Array.isArray(storedOrders)) {
-            storedOrders.forEach((so: any) => {
-              if (!realDispatches.some((rd) => rd.code === so.code)) {
-                const isCt = so.orderCategory === 'CONG_TRINH' || so.code?.startsWith('LDX-CT-');
-                const isVc = so.orderCategory === 'VAN_CHUYEN' || so.code?.startsWith('LDX-VC-');
-                realDispatches.push({
-                  id: so.id || Date.now() + Math.floor(Math.random() * 10000),
-                  code: so.code,
-                  orderCategory: isCt ? 'CONG_TRINH' : isVc ? 'VAN_CHUYEN' : 'NONG_NGHIEP',
-                  categoryLabel: isCt ? 'Công trình ca máy' : isVc ? 'Vận chuyển' : 'Nông nghiệp',
-                  sourceType: so.sourceType || (isCt ? 'CONSTRUCTION_ORDER' : isVc ? 'TRANSPORT_ORDER' : 'PRODUCTION_ORDER'),
-                  unit: so.unit || 'Khu liên hợp',
-                  purpose: so.purpose || 'Thực hiện kế hoạch tác nghiệp',
-                  origin: so.origin || 'Bãi máy',
-                  destination: so.destination || 'Hiện trường',
-                  departureTime: so.departureTime || new Date().toISOString(),
-                  plannedEndTime: so.plannedEndTime,
-                  status: so.status || 'CHO_PHAN_CONG',
-                  isDelayed: false,
-                  workVolumeTarget: so.workVolumeTarget,
-                  workVolumeUnit: so.workVolumeUnit,
-                  plannedFuelLiters: so.plannedFuelLiters,
-                  notes: so.notes,
-                  planCode: so.planCode,
-                  planTitle: so.planTitle,
-                  assignedVehiclesCount: so.assignedVehiclesCount || 1,
-                  assignedVehicleList: so.assignedVehicleList || [],
-                });
-              }
-            });
-          }
-        }
-      } catch (storageErr) {
-        console.warn('Lỗi đọc cache kế hoạch điều xe:', storageErr);
-      }
-
       setOrders(realDispatches);
     } catch (err: any) {
       console.error('Failed to load dispatches from API:', err);
@@ -352,34 +374,48 @@ export const DispatchOrdersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
-  const updateDemoOrder = (id: number, changes: Partial<ExtendedDispatchOrder>) => {
-    const updated = orders.map((order) => (order.id === id ? { ...order, ...changes } : order));
-    setOrders(updated);
-    setSelected((current) => (current?.id === id ? { ...current, ...changes } : current));
+  const handleOpenOrder = (order: ExtendedDispatchOrder) => {
+    const isPending = !order.status || ['CHO_PHAN_CONG', 'PENDING_APPROVAL', 'DRAFT'].includes(order.status);
+    let targetOrder = order;
+    if (isPending) {
+      const now = new Date();
+      const currentStart = now.toISOString();
+      const durationMs = order.departureTime && order.plannedEndTime
+        ? Math.max(1_800_000, new Date(order.plannedEndTime).getTime() - new Date(order.departureTime).getTime())
+        : 8 * 3_600_000;
+      const currentEnd = new Date(now.getTime() + durationMs).toISOString();
 
-    const targetOrder = updated.find((o) => o.id === id);
-    if (targetOrder) {
-      if (targetOrder.orderCategory === 'VAN_CHUYEN') {
-        const realId = targetOrder.id > 200000 ? targetOrder.id - 200000 : targetOrder.id;
-        apiClient.patch(`/transport-orders/${realId}`, changes).catch(() => {});
-      } else {
-        apiClient.patch(`/dispatch-orders/${id}`, changes).catch(() => {});
-      }
+      targetOrder = {
+        ...order,
+        departureTime: currentStart,
+        plannedEndTime: currentEnd,
+      };
     }
+    navigate(`/lenh-dieu-xe/chi-tiet/${order.id}`, {
+      state: {
+        order: targetOrder,
+        from: location.pathname + location.search,
+      },
+    });
   };
 
   const workflowStep = (status: DispatchOrderRecord['status']): DemoWorkflowStep => {
     if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(status)) return 'COMPLETED';
-    if (['DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(status)) return 'RECEIVED';
-    if (['APPROVED', 'ASSIGNED', 'DA_DUYET', 'DA_NHAN'].includes(status)) return 'APPROVED';
+    if (['DRIVER_ACCEPTED', 'DEPARTED', 'AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(status)) return 'RECEIVED';
+    if (['ASSIGNED', 'DA_NHAN'].includes(status)) return 'APPROVED';
     return 'PENDING';
   };
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Load Overdue Summary khi component mount và sau khi load xong
+  useEffect(() => {
+    operationsApi.overdueDispatchSummary().then(setOverdueSummary).catch(() => {});
+  }, [orders]);
 
   // Lắng nghe sự kiện làm mới từ nút Header Refresh
   useEffect(() => {
@@ -395,6 +431,101 @@ export const DispatchOrdersPage: React.FC = () => {
     };
   }, [load]);
 
+  // --- Handler: Dời lịch lệnh điều xe ---
+  const handleReschedule = async () => {
+    if (!rescheduleTarget) return;
+    if (!rescheduleForm.newDepartureTime || !rescheduleForm.newPlannedEndTime) {
+      setActionError('Vui lòng nhập đầy đủ thời gian mới.');
+      return;
+    }
+    setActionSaving(true);
+    setActionError('');
+    try {
+      const result = await operationsApi.rescheduleDispatch(rescheduleTarget.id, {
+        newDepartureTime: new Date(rescheduleForm.newDepartureTime).toISOString(),
+        newPlannedEndTime: new Date(rescheduleForm.newPlannedEndTime).toISOString(),
+        reason: rescheduleForm.reason || undefined,
+      });
+      if (result.resetAssignment) {
+        useAppStore.getState().setHeaderAlert({ type: 'warning', message: `Dời lịch thành công — Xe/Tài xế bị trùng lịch, đã reset về Chờ phân công.` });
+      } else {
+        useAppStore.getState().setHeaderAlert({ type: 'success', message: `Dời lịch lệnh ${rescheduleTarget.code} thành công.` });
+      }
+      setRescheduleTarget(null);
+      setRescheduleForm({ newDepartureTime: '', newPlannedEndTime: '', reason: '' });
+      await load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Có lỗi xảy ra.');
+      setActionError(msg);
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  // --- Handler: Nghiệm thu hồi tố ---
+  const handleRetroactiveComplete = async () => {
+    if (!retroTarget) return;
+    if (!retroForm.actualStartTime || !retroForm.actualCompletedTime) {
+      setActionError('Vui lòng nhập đầy đủ Giờ bắt đầu và Giờ hoàn thành thực tế.');
+      return;
+    }
+    setActionSaving(true);
+    setActionError('');
+    try {
+      await operationsApi.retroactiveCompleteDispatch(retroTarget.id, {
+        actualStartTime: new Date(retroForm.actualStartTime).toISOString(),
+        actualCompletedTime: new Date(retroForm.actualCompletedTime).toISOString(),
+        actualMachineHours: retroForm.actualMachineHours ? parseFloat(retroForm.actualMachineHours) : undefined,
+        actualQuantity: retroForm.actualQuantity ? parseFloat(retroForm.actualQuantity) : undefined,
+        notes: retroForm.notes || undefined,
+      });
+      useAppStore.getState().setHeaderAlert({ type: 'success', message: `Nghiệm thu hồi tố lệnh ${retroTarget.code} thành công.` });
+      setRetroTarget(null);
+      setRetroForm({ actualStartTime: '', actualCompletedTime: '', actualMachineHours: '', actualQuantity: '', notes: '' });
+      await load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Có lỗi xảy ra.');
+      setActionError(msg);
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  // Danh sách các hạng mục / mục đích công việc thực tế từ dữ liệu
+  const availablePurposes = useMemo(() => {
+    const s = new Set<string>();
+    for (const o of orders) {
+      if (o.purpose && !o.purpose.includes('TEST E2E') && !o.purpose.includes('?')) s.add(o.purpose.trim());
+      if (o.taskJobName && !o.taskJobName.includes('TEST E2E') && !o.taskJobName.includes('?')) s.add(o.taskJobName.trim());
+    }
+    return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [orders]);
+
+  // Danh sách các phương tiện xe / máy thực tế từ dữ liệu
+  const availableVehicles = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of orders) {
+      const v = o.vehicle;
+      const code = v?.code || v?.plate;
+      if (code) {
+        const name = v?.name || (v as any)?.type || v?.vehicleType?.name || code;
+        map.set(code, `${code} - ${name}`);
+      }
+    }
+    return Array.from(map.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+  }, [orders]);
+
+  // Danh sách tài xế / lái xe thực tế từ dữ liệu
+  const availableDrivers = useMemo(() => {
+    const s = new Set<string>();
+    for (const o of orders) {
+      const d = o.driver;
+      const name = d?.fullName || (d as any)?.name;
+      if (name && !name.includes('?')) s.add(name.trim());
+    }
+    return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [orders]);
+
   // Bộ lọc kết hợp: Category + Tuần + Ngày + Trạng thái + Tìm kiếm + KLH
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
@@ -408,8 +539,30 @@ export const DispatchOrdersPage: React.FC = () => {
         return false;
       }
 
-      // Lọc theo Tuần (selectedWeek)
-      if (selectedWeek !== 'ALL') {
+      // Lọc theo Hạng mục / Mục đích công việc
+      if (selectedPurpose !== 'ALL') {
+        const matchPurpose = (order.purpose || '').toLowerCase() === selectedPurpose.toLowerCase();
+        const matchTaskJob = (order.taskJobName || '').toLowerCase() === selectedPurpose.toLowerCase();
+        const matchPlot = (order.taskPlot || '').toLowerCase() === selectedPurpose.toLowerCase();
+        if (!matchPurpose && !matchTaskJob && !matchPlot) return false;
+      }
+
+      // Lọc theo Phương tiện
+      if (selectedVehicle !== 'ALL') {
+        const v = order.vehicle;
+        const code = v?.code || v?.plate;
+        if (code !== selectedVehicle) return false;
+      }
+
+      // Lọc theo Tài xế / Lái xe
+      if (selectedDriver !== 'ALL') {
+        const d = order.driver;
+        const driverName = d?.fullName || (d as any)?.name || '';
+        if (driverName !== selectedDriver && (d as any)?.code !== selectedDriver) return false;
+      }
+
+      // Lọc theo Tuần (selectedWeek) - bỏ qua khi đang lọc riêng Lệnh trễ hoặc Lệnh tương lai
+      if (selectedWeek !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
         const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
         if (weekObj) {
           const start = weekObj.startDateKey;
@@ -423,16 +576,30 @@ export const DispatchOrdersPage: React.FC = () => {
 
       // Lọc theo Bộ lọc Trạng thái nhanh (statusFilter)
       if (statusFilter !== 'ALL') {
-        if (statusFilter === 'CHO_DUYET') {
+        if (statusFilter === 'CHO_DUYET' || statusFilter === 'CHUA_PHAN_CONG') {
           if (!['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(order.status)) return false;
-        } else if (statusFilter === 'DA_DUYET') {
+        } else if (statusFilter === 'DA_DUYET' || statusFilter === 'DA_GIAO_VIEC') {
           if (!['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(order.status)) return false;
-        } else if (statusFilter === 'WORKING') {
+        } else if (statusFilter === 'WORKING' || statusFilter === 'DANG_LAM_VIEC') {
           if (!['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(order.status)) return false;
+        } else if (statusFilter === 'DRIVER_PENDING' || statusFilter === 'TAI_XE_CHUA_XAC_NHAN') {
+          const isDriverPending = order.status === 'ASSIGNED' || (order.status === 'DA_DUYET' && !['DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(order.status));
+          if (!isDriverPending) return false;
         } else if (statusFilter === 'COMPLETED') {
           if (!['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(order.status)) return false;
         } else if (statusFilter === 'DELAYED') {
-          if (!order.isDelayed && order.orderCategory !== 'CUU_HO_SOS') return false;
+          const isDelayed = isDepartureDelayed(order);
+          const isPastUnassigned = needsOperatorAttention(order) && (!order.vehicle || !order.driver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(order.status));
+          if (!isDelayed && !isPastUnassigned) return false;
+        } else if (statusFilter === 'FUTURE_UNASSIGNED') {
+          if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED', 'CANCELLED'].includes(order.status)) return false;
+          const currentWeekNum = getWeekNumber(new Date());
+          const currentWeekObj = availableWeeks.find((w) => w.weekNumber === currentWeekNum);
+          const currentWeekEnd = currentWeekObj?.endDateKey || toDateString(new Date());
+          const orderDate = order.departureTime ? toDateString(order.departureTime) : (order.plannedEndTime ? toDateString(order.plannedEndTime) : '');
+          const isAfterCurrentWeek = orderDate > currentWeekEnd;
+          const isUnassigned = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(order.status) || (!order.vehicle && (!order.assignedTeamDetails || order.assignedTeamDetails.length === 0));
+          if (!isAfterCurrentWeek || !isUnassigned) return false;
         } else if (order.status !== statusFilter) {
           return false;
         }
@@ -446,24 +613,24 @@ export const DispatchOrdersPage: React.FC = () => {
         if (!isStatusMatch && order.status !== selectedStatus) return false;
       }
 
-      // Lọc theo Ngày: So khớp theo ngày khởi hành/ngày tác nghiệp chính
-      if (selectedDate !== 'ALL') {
+      // Lọc theo Ngày: So khớp theo ngày khởi hành/ngày tác nghiệp chính (bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai)
+      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
         const orderDate = order.departureTime ? toDateString(order.departureTime) : (order.plannedEndTime ? toDateString(order.plannedEndTime) : '');
         if (orderDate !== selectedDate) return false;
       }
 
-      // Tìm kiếm từ khóa
+      // Tìm kiếm từ khóa mã lệnh, lộ trình, lô thửa, ghi chú, kế hoạch
       if (search.trim()) {
         const q = search.toLowerCase();
         const matchCode = order.code.toLowerCase().includes(q);
         const matchPurpose = order.purpose.toLowerCase().includes(q);
         const matchUnit = (order.unit || '').toLowerCase().includes(q);
-        const matchVehicle = (order.vehicle?.name || order.vehicle?.code || order.vehicle?.plate || '').toLowerCase().includes(q);
-        const matchDriver = (order.driver?.fullName || '').toLowerCase().includes(q);
         const matchOrigin = (order.origin || '').toLowerCase().includes(q);
         const matchDest = (order.destination || '').toLowerCase().includes(q);
-        const matchImplement = (order.implement?.name || '').toLowerCase().includes(q);
-        if (!matchCode && !matchPurpose && !matchUnit && !matchVehicle && !matchDriver && !matchOrigin && !matchDest && !matchImplement) {
+        const matchPlot = (order.taskPlot || '').toLowerCase().includes(q);
+        const matchNotes = (order.notes || '').toLowerCase().includes(q);
+        const matchPlan = (order.planCode || '').toLowerCase().includes(q);
+        if (!matchCode && !matchPurpose && !matchUnit && !matchOrigin && !matchDest && !matchPlot && !matchNotes && !matchPlan) {
           return false;
         }
       }
@@ -474,7 +641,7 @@ export const DispatchOrdersPage: React.FC = () => {
       const timeB = b.departureTime ? new Date(b.departureTime).getTime() : 0;
       return sortOrder === 'time_asc' ? timeA - timeB : timeB - timeA;
     });
-  }, [orders, selectedCategory, selectedWeek, availableWeeks, statusFilter, selectedStatus, selectedDate, search, sortOrder, selectedKLH]);
+  }, [orders, selectedCategory, selectedPurpose, selectedVehicle, selectedDriver, selectedWeek, availableWeeks, statusFilter, selectedStatus, selectedDate, search, sortOrder, selectedKLH]);
 
   // Đếm số lượng theo từng nhóm trạng thái cho bộ lọc statusFilter
   const statusCounts = useMemo(() => {
@@ -498,13 +665,44 @@ export const DispatchOrdersPage: React.FC = () => {
       }
       return true;
     });
+    const chuaPhanCong = baseList.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status)).length;
+    const daGiaoViec = baseList.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(o.status)).length;
+    const dangLamViec = baseList.filter((o) => ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(o.status)).length;
+    const driverPending = baseList.filter((o) => o.status === 'ASSIGNED' || (o.status === 'DA_DUYET' && !['DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(o.status))).length;
+    const completed = baseList.filter((o) => ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(o.status)).length;
+    const delayed = baseList.filter((o) => {
+      const isDelayed = isDepartureDelayed(o);
+      const isPastUnassigned = needsOperatorAttention(o) && (!o.vehicle || !o.driver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status));
+      return isDelayed || isPastUnassigned;
+    }).length;
+
+    const currentWeekNum = getWeekNumber(new Date());
+    const currentWeekObj = availableWeeks.find((w) => w.weekNumber === currentWeekNum);
+    const currentWeekEnd = currentWeekObj?.endDateKey || toDateString(new Date());
+
+    const futureUnassigned = orders.filter((o) => {
+      if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
+      if (selectedCategory !== 'ALL' && o.orderCategory !== selectedCategory) return false;
+      if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED', 'CANCELLED'].includes(o.status)) return false;
+      const orderDate = o.departureTime ? toDateString(o.departureTime) : (o.plannedEndTime ? toDateString(o.plannedEndTime) : '');
+      const isAfterCurrentWeek = orderDate > currentWeekEnd;
+      const isUnassigned = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status) || (!o.vehicle && (!o.assignedTeamDetails || o.assignedTeamDetails.length === 0));
+      return isAfterCurrentWeek && isUnassigned;
+    }).length;
+
     return {
       ALL: baseList.length,
-      CHO_DUYET: baseList.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status)).length,
-      DA_DUYET: baseList.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(o.status)).length,
-      WORKING: baseList.filter((o) => ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(o.status)).length,
-      COMPLETED: baseList.filter((o) => ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(o.status)).length,
-      DELAYED: baseList.filter((o) => o.isDelayed || o.orderCategory === 'CUU_HO_SOS').length,
+      CHO_DUYET: chuaPhanCong,
+      CHUA_PHAN_CONG: chuaPhanCong,
+      DA_DUYET: daGiaoViec,
+      DA_GIAO_VIEC: daGiaoViec,
+      WORKING: dangLamViec,
+      DANG_LAM_VIEC: dangLamViec,
+      DRIVER_PENDING: driverPending,
+      TAI_XE_CHUA_XAC_NHAN: driverPending,
+      COMPLETED: completed,
+      DELAYED: delayed,
+      FUTURE_UNASSIGNED: futureUnassigned,
     };
   }, [orders, selectedCategory, selectedWeek, availableWeeks, selectedDate, selectedKLH]);
 
@@ -751,6 +949,56 @@ export const DispatchOrdersPage: React.FC = () => {
     };
   }, [orders]);
 
+  // Tính toán cảnh báo lệnh quá hạn chuẩn xác theo từng loại lệnh đang xem (Nông nghiệp vs Toàn hệ thống)
+  const computedOverdueSummary = useMemo(() => {
+    const targetCategory = isAgriculturalSpecific ? 'NONG_NGHIEP' : selectedCategory;
+    const scoped = orders.filter((o) => {
+      if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
+      if (targetCategory !== 'ALL' && o.orderCategory !== targetCategory) return false;
+      return true;
+    });
+
+    const now = Date.now();
+    const departureDelayThreshold = now - DEPARTURE_DELAY_MINUTES * 60 * 1000;
+    // CHỈ BÁO CÁC LỆNH ĐÃ ĐẾN HẠN HOẶC QUÁ HẠN (departureTime <= now) — KHÔNG BÁO LỆNH TƯƠNG LAI
+    const activeOverdue = scoped.filter((o) => {
+      if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED', 'CANCELLED'].includes(o.status)) return false;
+      if (!o.departureTime) return false;
+      const depTime = new Date(o.departureTime).getTime();
+      return !isNaN(depTime) && depTime <= now;
+    });
+
+    const awaitingApproval = activeOverdue.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'CHO_DUYET'].includes(o.status)).length;
+    const missingVehicle = activeOverdue.filter((o) => !o.vehicle && (!o.assignedTeamDetails || o.assignedTeamDetails.length === 0)).length;
+    const missingDriver = activeOverdue.filter((o) => !o.driver && (!o.assignedTeamDetails || o.assignedTeamDetails.length === 0)).length;
+
+    const totalAttention = activeOverdue.filter((o) =>
+      ['DRAFT', 'PENDING_APPROVAL', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status) ||
+      (!o.vehicle && (!o.assignedTeamDetails || o.assignedTeamDetails.length === 0)) ||
+      (!o.driver && (!o.assignedTeamDetails || o.assignedTeamDetails.length === 0))
+    ).length;
+
+    const delayedList = activeOverdue.filter((o) => {
+      const depTime = new Date(o.departureTime!).getTime();
+      if (isNaN(depTime) || depTime > departureDelayThreshold) return false;
+      return !o.actualDepartureTime && !['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'DEPARTED'].includes(o.status);
+    });
+
+    const lateAssigned = delayedList.filter((o) => o.status === 'ASSIGNED' || o.status === 'DA_DUYET').length;
+    const lateAccepted = delayedList.filter((o) => o.status === 'DRIVER_ACCEPTED' || o.status === 'DA_NHAN').length;
+
+    return {
+      totalAttention,
+      totalOverdue: delayedList.length,
+      awaitingApproval,
+      missingVehicle,
+      missingDriver,
+      lateAssigned,
+      lateAccepted,
+      categoryName: targetCategory === 'NONG_NGHIEP' ? 'nông nghiệp' : targetCategory === 'CONG_TRINH' ? 'công trình' : targetCategory === 'VAN_CHUYEN' ? 'vận chuyển' : '',
+    };
+  }, [orders, selectedKLH, isAgriculturalSpecific, selectedCategory]);
+
   // 7 ngày trong tuần đang chọn
   const weekDays = useMemo(() => {
     if (selectedWeek === 'ALL') return [];
@@ -830,16 +1078,17 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'code',
       title: 'Mã lệnh & Phân loại',
+      width: '200px',
       sortable: true,
       render: (row) => (
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <b className="font-mono font-bold text-primary text-xs hover:underline cursor-pointer" onClick={() => setSelected(row)}>
+            <b className="font-mono font-bold text-primary text-xs hover:underline cursor-pointer" onClick={() => handleOpenOrder(row)}>
               {row.code}
             </b>
-            {row.isDelayed && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded" title="Cảnh báo trễ tiến độ">
-                <AlertTriangle className="h-3 w-3" /> Trễ
+            {(needsOperatorAttention(row) || isDepartureDelayed(row)) && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded" title={needsOperatorAttention(row) ? 'Lệnh đã qua lịch nhưng chưa được duyệt hoặc phân công' : 'Lệnh đã giao nhưng chưa xuất phát đúng hạn'}>
+                <AlertTriangle className="h-3 w-3" /> {needsOperatorAttention(row) ? 'Chưa xử lý' : 'Trễ xuất phát'} · {overdueDayCount(row.departureTime) > 0 ? `${overdueDayCount(row.departureTime)} ngày` : 'quá giờ'}
               </span>
             )}
           </div>
@@ -856,6 +1105,7 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'departureTime',
       title: 'Thời gian thực hiện',
+      width: '155px',
       sortable: true,
       render: (row) => {
         if (!row.departureTime) return <span className="text-slate-400">—</span>;
@@ -879,11 +1129,12 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'purpose',
       title: 'Nhiệm vụ & Khối lượng',
+      width: '200px',
       render: (row) => {
         const { planNotes, taskNotes } = parseOrderNotes(row);
         const notePreview = taskNotes || planNotes;
         return (
-          <div className="max-w-xs space-y-1">
+          <div className="space-y-1">
             <div className="flex items-center gap-1 flex-wrap">
               {row.taskJobCode && (
                 <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1 py-0.2 rounded">
@@ -901,7 +1152,7 @@ export const DispatchOrdersPage: React.FC = () => {
               )}
             </div>
             {notePreview && (
-              <div className="text-[10.5px] text-slate-500 italic line-clamp-1 truncate" title={`Ghi chú: ${notePreview}`}>
+              <div className="text-[10.5px] text-slate-500 italic line-clamp-1" title={`Ghi chú: ${notePreview}`}>
                 📝 {notePreview}
               </div>
             )}
@@ -912,30 +1163,16 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'vehicle',
       title: 'Phương tiện & Thiết bị',
+      width: '120px',
       render: (row) => (
-        <div className="text-xs space-y-1 max-w-[200px]">
-          <div className="font-bold text-slate-900 flex items-center gap-1.5">
-            <Truck className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+        <div className="text-xs space-y-0.5 max-w-[115px]">
+          <div className={`font-bold flex items-center gap-1.5 ${needsOperatorAttention(row) && !row.vehicle ? 'text-red-700' : 'text-slate-900'}`}>
+            <Truck className={`h-3.5 w-3.5 shrink-0 ${needsOperatorAttention(row) && !row.vehicle ? 'text-red-500' : 'text-slate-400'}`} />
             <span className="truncate">{row.vehicle?.plate || row.vehicle?.code || row.vehicle?.name || 'Chưa gán xe'}</span>
           </div>
-          {row.assignedVehicleList && row.assignedVehicleList.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {row.assignedVehicleList.map((v, i) => (
-                <span
-                  key={i}
-                  className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                    i === 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600'
-                  }`}
-                  title={i === 0 ? 'Xe máy trưởng' : `Xe tổ viên ${i + 1}`}
-                >
-                  {v}
-                </span>
-              ))}
-            </div>
-          )}
           {row.implement && (
-            <div className="text-[11px] text-slate-600 truncate flex items-center gap-1 bg-slate-50 p-1 rounded border border-slate-100">
-              <Wrench className="h-3 w-3 text-emerald-600 shrink-0" />
+            <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+              <Wrench className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
               <span className="truncate">{row.implement.name}</span>
             </div>
           )}
@@ -945,19 +1182,20 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'driver',
       title: 'Lái xe / Thợ máy',
+      width: '135px',
       render: (row) => (
         <div className="text-xs">
-          <div className="font-bold text-slate-800 flex items-center gap-1">
-            <User className="h-3.5 w-3.5 text-slate-400" />
-            <span>{row.driver?.fullName || 'Chưa gán tài xế'}</span>
+          <div className={`font-bold flex items-center gap-1 ${needsOperatorAttention(row) && !row.driver ? 'text-red-700' : 'text-slate-800'}`}>
+            <User className={`h-3.5 w-3.5 shrink-0 ${needsOperatorAttention(row) && !row.driver ? 'text-red-500' : 'text-slate-400'}`} />
+            <span className="truncate">{row.driver?.fullName || 'Chưa gán tài xế'}</span>
           </div>
           {row.secondaryDriverName && (
-            <div className="text-[11px] text-purple-700 font-medium mt-0.5">
+            <div className="text-[11px] text-purple-700 font-medium mt-0.5 truncate">
               Phụ: {row.secondaryDriverName}
             </div>
           )}
           {row.driver?.licenseClass && (
-            <div className="text-[10px] text-slate-500 mt-0.5">
+            <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
               {row.driver.licenseClass}
             </div>
           )}
@@ -967,14 +1205,15 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'route',
       title: 'Lộ trình / Vị trí',
+      width: '260px',
       render: (row) => (
-        <div className="text-xs max-w-[180px]">
-          <div className="flex items-center gap-1 text-slate-600">
-            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-            <span className="truncate font-medium">{row.origin}</span>
+        <div className="text-xs space-y-0.5 min-w-[200px]">
+          <div className="flex items-start gap-1 text-slate-600">
+            <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+            <span className="font-medium text-slate-700 leading-snug">{row.origin || 'Kho xuất / Điểm đi'}</span>
           </div>
-          <div className="text-[11px] font-bold text-slate-900 pl-4 truncate mt-0.5">
-            ➔ {row.taskPlot || row.destination}
+          <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
+            ➔ {row.taskPlot || row.destination || 'Lô thửa tác nghiệp'}
           </div>
         </div>
       ),
@@ -982,12 +1221,19 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'status',
       title: 'Trạng thái',
+      width: '135px',
       render: (row) => (
         <div className="space-y-1">
           <StatusBadge status={row.status} />
+          {needsOperatorAttention(row) && (!row.vehicle || !row.driver) && (
+            <div className="flex flex-wrap gap-1">
+              {!row.vehicle && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu xe</span>}
+              {!row.driver && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu tài xế</span>}
+            </div>
+          )}
           {row.plannedFuelLiters && (
             <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-              <Fuel className="h-3 w-3 text-slate-400" />
+              <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
               <span>Định mức: <b>{row.plannedFuelLiters}L</b></span>
             </div>
           )}
@@ -995,15 +1241,71 @@ export const DispatchOrdersPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
       render: (row) => (
-        <Button size="sm" variant="outline" icon={<Eye className="h-3.5 w-3.5" />} onClick={() => setSelected(row)}>
-          Chi tiết
-        </Button>
+        <AuditUserPopover
+          createdDate={row.departureTime || '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.approvedAt || row.departureTime || '01-08-2026'}
+          updatedUser="admin"
+          title={`Xem thông tin lệnh điều xe ${row.code}`}
+        />
       ),
     },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '135px',
+      align: 'center',
+      render: (row) => {
+        const canAction = isDepartureDelayed(row);
+        const requiresAction = needsOperatorAttention(row) || canAction;
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            <TableRowActions
+              onView={() => handleOpenOrder(row)}
+              onEdit={() => handleOpenOrder(row)}
+              viewTitle="Xem chi tiết lệnh điều xe"
+              editTitle="Chỉnh sửa lệnh điều xe"
+            />
+            {/* Giữ nguyên icon điều xe */}
+            <button
+              type="button"
+              onClick={() => handleOpenOrder(row)}
+              className={`p-1 rounded transition-colors cursor-pointer ${
+                requiresAction ? 'text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
+              }`}
+              title={requiresAction ? 'Lệnh cần xử lý ngay' : 'Điều phối lệnh xe'}
+            >
+              <Truck className="w-3.5 h-3.5" />
+            </button>
+            {canAction && (
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-amber-50 text-amber-700 transition-colors cursor-pointer"
+                onClick={() => {
+                  setRescheduleTarget(row);
+                  setRescheduleForm({
+                    newDepartureTime: row.departureTime ? new Date(row.departureTime).toISOString().slice(0, 16) : '',
+                    newPlannedEndTime: row.plannedEndTime ? new Date(row.plannedEndTime).toISOString().slice(0, 16) : '',
+                    reason: '',
+                  });
+                  setActionError('');
+                }}
+                title="Dời sang lịch mới"
+              >
+                <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
   ];
+
 
   // BẢNG QUẢN LÝ CÁC VIỆC ĐÃ HOÀN TẤT
   const completedColumns: Column<ExtendedDispatchOrder>[] = [
@@ -1016,7 +1318,7 @@ export const DispatchOrdersPage: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <b
               className="font-mono font-bold text-primary text-xs hover:underline cursor-pointer"
-              onClick={() => setSelected(row)}
+              onClick={() => handleOpenOrder(row)}
             >
               {row.code}
             </b>
@@ -1194,162 +1496,282 @@ export const DispatchOrdersPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
       render: (row) => (
-        <Button size="sm" variant="outline" icon={<Eye className="h-3.5 w-3.5" />} onClick={() => setSelected(row)}>
-          Biên bản
-        </Button>
+        <AuditUserPopover
+          createdDate={row.departureTime || '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.approvedAt || row.departureTime || '01-08-2026'}
+          updatedUser="admin"
+          title={`Xem thông tin lệnh hoàn tất ${row.code}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      width: '110px',
+      align: 'center',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <TableRowActions
+            onView={() => handleOpenOrder(row)}
+            viewTitle="Xem chi tiết lệnh / biên bản nghiệm thu"
+          />
+          {/* Giữ nguyên icon điều xe */}
+          <button
+            type="button"
+            onClick={() => handleOpenOrder(row)}
+            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+            title="Biên bản nghiệm thu điều xe"
+          >
+            <Truck className="w-3.5 h-3.5" />
+          </button>
+        </div>
       ),
     },
   ];
 
-  const handleCreateSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    setSaving(true);
-    try {
-      const curYear = new Date().getFullYear();
-      const curWeek = getWeekNumber(new Date());
-      const seq = String(orders.length + 1).padStart(3, '0');
-      const prefix = createCategory === 'NONG_NGHIEP' ? 'LDX-NN' : createCategory === 'CONG_TRINH' ? 'LC' : createCategory === 'VAN_CHUYEN' ? 'LVC' : 'LDX-CH';
-      const code = `${prefix}-${curYear}-W${curWeek}-${seq}`;
-
-      const departureTime = form.get('departureTime') ? new Date(String(form.get('departureTime'))).toISOString() : new Date().toISOString();
-      const plannedEndTime = form.get('plannedEndTime') ? new Date(String(form.get('plannedEndTime'))).toISOString() : undefined;
-      const purpose = String(form.get('purpose') || '');
-      const origin = String(form.get('origin') || '');
-      const destination = String(form.get('destination') || '');
-      const notes = String(form.get('notes') || '');
-
-      if (createCategory === 'VAN_CHUYEN') {
-        await apiClient.post('/transport-orders', {
-          code,
-          routeType: 'ONE_WAY',
-          unit: 'BAN_CO_GIOI',
-          departureTime,
-          plannedEndTime,
-          cargoType: purpose,
-          origin,
-          destination,
-          notes,
-        });
-      } else {
-        await apiClient.post('/dispatch-orders', {
-          code,
-          unit: 'NT1',
-          purpose,
-          origin,
-          destination,
-          sourceType: createCategory === 'NONG_NGHIEP' ? 'PRODUCTION_ORDER' : 'MANUAL',
-          departureTime,
-          plannedEndTime,
-          notes,
-        });
-      }
-
-      await load();
-      setShowCreate(false);
-    } catch (err) {
-      console.error('Failed to create order in DB:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div className="space-y-4">
       {/* 1. Page Header */}
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">
-            {isAgriculturalSpecific ? 'Lệnh điều xe Nông nghiệp' : 'Tất cả Lệnh điều xe (Tổng hợp toàn hệ thống)'}
-          </h1>
-          <p className="text-xs text-slate-500">
-            {isAgriculturalSpecific
-              ? 'Điều độ máy kéo, nông cụ, làm đất, chăm sóc và thu hoạch trên các lô thửa nông trường.'
-              : 'Tổng hợp và theo dõi toàn bộ lệnh điều xe Nông nghiệp, Công trình ca máy, Vận chuyển nội bộ và Cứu hộ SOS trên toàn Khu liên hợp.'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={() => window.print()}>
-            Xuất Excel / In bảng kê
-          </Button>
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-            Lập lệnh điều xe mới
-          </Button>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold text-slate-900">
+          {isAgriculturalSpecific ? 'Lệnh điều xe Nông nghiệp' : 'Tất cả Lệnh điều xe'}
+        </h1>
       </div>
 
-      {/* 2. THANH BỘ LỌC PHÂN LOẠI LỆNH (CATEGORY SEGMENTED TABS) */}
-      {!isAgriculturalSpecific && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xs">
-          {[
-            { key: 'ALL', label: 'Tất cả các loại lệnh', count: categoryCounts.ALL, icon: Layers },
-            { key: 'NONG_NGHIEP', label: 'Lệnh Nông nghiệp', count: categoryCounts.NONG_NGHIEP, icon: Tractor, color: 'text-emerald-600' },
-            { key: 'CONG_TRINH', label: 'Lệnh Công trình ca máy', count: categoryCounts.CONG_TRINH, icon: HardHat, color: 'text-amber-500' },
-            { key: 'VAN_CHUYEN', label: 'Lệnh Vận chuyển nội bộ', count: categoryCounts.VAN_CHUYEN, icon: Truck, color: 'text-blue-600' },
-            ...(categoryCounts.CUU_HO_SOS > 0 ? [{ key: 'CUU_HO_SOS', label: 'Cứu hộ khẩn cấp SOS', count: categoryCounts.CUU_HO_SOS, icon: ShieldAlert, color: 'text-red-500' }] : []),
-          ].map((cat) => {
-            const isActive = selectedCategory === cat.key;
-            const Icon = cat.icon;
-            return (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => setSelectedCategory(cat.key as DispatchCategory)}
-                className={`group flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 select-none cursor-pointer active:scale-95 ${
-                  isActive
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-amber-400' : cat.color || 'text-slate-400'}`} />
-                <span>{cat.label}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {cat.count}
-                </span>
-              </button>
-            );
-          })}
+      {/* OVERDUE BANNER: Cảnh báo lệnh quá hạn theo từng loại lệnh (hoặc toàn hệ thống) */}
+      {computedOverdueSummary && (computedOverdueSummary.totalAttention > 0 || computedOverdueSummary.totalOverdue > 0) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm">
+          <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 animate-pulse" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-700">
+              {computedOverdueSummary.totalAttention} lệnh {computedOverdueSummary.categoryName ? `${computedOverdueSummary.categoryName} ` : ''}chờ điều độ · {computedOverdueSummary.totalOverdue} lệnh trễ xuất phát
+            </p>
+            <p className="text-xs text-red-500 mt-0.5">
+              {computedOverdueSummary.awaitingApproval} chưa duyệt · {computedOverdueSummary.missingVehicle} thiếu xe/máy · {computedOverdueSummary.missingDriver} thiếu tài xế · {computedOverdueSummary.lateAssigned} chờ tài xế nhận · {computedOverdueSummary.lateAccepted} đã nhận nhưng chưa đi.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+            onClick={() => { setSelectedWeek('ALL'); setSelectedDate('ALL'); setStatusFilter('DELAYED'); setView('table'); }}
+          >
+            Xem và xử lý
+          </button>
         </div>
       )}
 
-      {/* 3. Filter Bar (Search + Bộ lọc Tuần + Bộ lọc Ngày hiện tại) */}
-      <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+      {/* 2. THANH BỘ LỌC PHÂN LOẠI LỆNH (CATEGORY SEGMENTED TABS) */}
+      <DispatchCategoryTabs
+        activeTab={isAgriculturalSpecific ? 'NONG_NGHIEP' : (selectedCategory === 'ALL' ? 'ALL' : selectedCategory as any)}
+        counts={categoryCounts}
+        onTabChange={(tabKey) => {
+          if (tabKey === 'ALL') {
+            navigate('/lenh-dieu-xe/danh-sach');
+            setSelectedCategory('ALL');
+          } else if (tabKey === 'NONG_NGHIEP') {
+            navigate('/lenh-dieu-xe/lenh-nong-nghiep');
+            setSelectedCategory('NONG_NGHIEP');
+          } else if (tabKey === 'CONG_TRINH') {
+            navigate('/lenh-dieu-xe/lenh-cong-trinh');
+          } else if (tabKey === 'VAN_CHUYEN') {
+            navigate('/lenh-dieu-xe/lenh-noi-bo');
+          }
+        }}
+      />
+
+      {/* 3. KPI Summary Cards 8 nhóm chuẩn hóa 4x2 */}
+      <KPIGrid cols={4}>
+        {/* Hàng 1: Toàn bộ | Lệnh trễ phân công | Đôn đốc | Kế hoạch tuần tới */}
+        <StatCard
+          label={selectedDate === 'ALL' ? 'Tổng lệnh điều xe' : `Tổng lệnh (${selectedDate})`}
+          value={statusCounts.ALL}
+          icon={<Truck className="h-5 w-5 text-blue-600" />}
+          pillText="Toàn bộ"
+          pillVariant="neutral"
+          onClick={() => setStatusFilter('ALL')}
+          className={statusFilter === 'ALL' ? 'ring-2 ring-blue-500/30 border-blue-500' : ''}
+        />
+        <StatCard
+          label="Lệnh trễ do chưa phân công"
+          value={statusCounts.DELAYED}
+          icon={<AlertTriangle className="h-5 w-5 text-rose-600" />}
+          pillText="Lệnh trễ phân công"
+          pillVariant="danger"
+          onClick={() => {
+            setSelectedWeek('ALL');
+            setSelectedDate('ALL');
+            setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
+          }}
+          className={statusFilter === 'DELAYED' ? 'ring-2 ring-rose-500/30 border-rose-500' : ''}
+        />
+        <StatCard
+          label="Tài xế chưa xác nhận nhận lệnh"
+          value={statusCounts.DRIVER_PENDING}
+          icon={<UserCheck className="h-5 w-5 text-amber-600" />}
+          pillText="Đôn đốc"
+          pillVariant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'DRIVER_PENDING' ? 'ALL' : 'DRIVER_PENDING')}
+          className={statusFilter === 'DRIVER_PENDING' ? 'ring-2 ring-amber-500/30 border-amber-500' : ''}
+        />
+        <StatCard
+          label="Chưa điều xe kế hoạch tuần sau"
+          value={statusCounts.FUTURE_UNASSIGNED}
+          icon={<CalendarDays className="h-5 w-5 text-purple-600" />}
+          pillText="Kế hoạch tuần tới"
+          pillVariant="neutral"
+          onClick={() => {
+            setSelectedWeek('ALL');
+            setSelectedDate('ALL');
+            setStatusFilter(statusFilter === 'FUTURE_UNASSIGNED' ? 'ALL' : 'FUTURE_UNASSIGNED');
+          }}
+          className={statusFilter === 'FUTURE_UNASSIGNED' ? 'ring-2 ring-purple-500/30 border-purple-500' : ''}
+        />
+
+        {/* Hàng 2: Chờ duyệt phân công | Đã phân công | Đang vận hành | Nghiệm thu */}
+        <StatCard
+          label="Chờ duyệt / gán xe & tài xế"
+          value={statusCounts.CHUA_PHAN_CONG}
+          icon={<Clock className="h-5 w-5 text-amber-600" />}
+          pillText="Chờ duyệt phân công"
+          pillVariant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'CHUA_PHAN_CONG' ? 'ALL' : 'CHUA_PHAN_CONG')}
+          className={statusFilter === 'CHUA_PHAN_CONG' ? 'ring-2 ring-amber-500/30 border-amber-500' : ''}
+        />
+        <StatCard
+          label="Đã điều xe & gán nhiệm vụ"
+          value={statusCounts.DA_GIAO_VIEC}
+          icon={<Send className="h-5 w-5 text-indigo-600" />}
+          pillText="Đã phân công"
+          pillVariant="neutral"
+          onClick={() => setStatusFilter(statusFilter === 'DA_GIAO_VIEC' ? 'ALL' : 'DA_GIAO_VIEC')}
+          className={statusFilter === 'DA_GIAO_VIEC' ? 'ring-2 ring-indigo-500/30 border-indigo-500' : ''}
+        />
+        <StatCard
+          label="Phương tiện đang thực hiện"
+          value={statusCounts.DANG_LAM_VIEC}
+          icon={<Activity className="h-5 w-5 text-emerald-600" />}
+          pillText="Đang vận hành"
+          pillVariant="success"
+          onClick={() => setStatusFilter(statusFilter === 'DANG_LAM_VIEC' ? 'ALL' : 'DANG_LAM_VIEC')}
+          className={statusFilter === 'DANG_LAM_VIEC' ? 'ring-2 ring-emerald-500/30 border-emerald-500' : ''}
+        />
+        <StatCard
+          label="Đã hoàn thành & nghiệm thu"
+          value={statusCounts.COMPLETED}
+          icon={<CheckCircle2 className="h-5 w-5 text-teal-600" />}
+          pillText="Nghiệm thu"
+          pillVariant="success"
+          onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+          className={statusFilter === 'COMPLETED' ? 'ring-2 ring-teal-500/30 border-teal-500' : ''}
+        />
+      </KPIGrid>
+
+      {/* 4. Filter Bar theo chuẩn Enterprise (Hình 2: Grid trường có tiêu đề + Hàng nút thao tác) */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3.5">
+        {/* Hàng 1: Grid các trường lọc có Header Label in hoa bên trên */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* Cột 1: Mã lệnh / Từ khóa tìm kiếm */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Mã lệnh / Lô / Tuyến
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm mã lệnh, nhiệm vụ, phương tiện, lái xe, lô thửa, tuyến đường..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:border-primary focus:outline-none"
+                placeholder="Tìm mã lệnh, lô thửa..."
+                className="w-full h-9 pl-9 pr-7 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 text-xs font-medium text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-all shadow-2xs"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
             </div>
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="text-[11px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                Xóa tìm kiếm
-              </button>
-            )}
           </div>
 
-          {/* Cụm Bộ lọc Tuần & Ngày */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* 1. Bộ lọc Tuần sản xuất */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
-              <CalendarDays className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Tuần:</span>
+          {/* Cột 2: Hạng mục công việc */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Hạng mục công việc
+            </label>
+            <div className="relative">
+              <select
+                value={selectedPurpose}
+                onChange={(e) => setSelectedPurpose(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả hạng mục ({availablePurposes.length})</option>
+                {availablePurposes.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 3: Phương tiện / Thiết bị */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Phương tiện / Thiết bị
+            </label>
+            <div className="relative">
+              <select
+                value={selectedVehicle}
+                onChange={(e) => setSelectedVehicle(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả xe / máy ({availableVehicles.length})</option>
+                {availableVehicles.map((v) => (
+                  <option key={v.code} value={v.code}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 4: Tài xế / Lái xe */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Tài xế / Lái xe
+            </label>
+            <div className="relative">
+              <select
+                value={selectedDriver}
+                onChange={(e) => setSelectedDriver(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả tài xế ({availableDrivers.length})</option>
+                {availableDrivers.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 5: Tuần kế hoạch */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Tuần kế hoạch
+            </label>
+            <div className="relative">
               <select
                 value={selectedWeek}
                 onChange={(e) => {
@@ -1357,9 +1779,9 @@ export const DispatchOrdersPage: React.FC = () => {
                   setSelectedWeek(val);
                   setSelectedDate('ALL');
                 }}
-                className="bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer pr-1 py-0.5"
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <option value="ALL">Tất cả các tuần (Toàn bộ)</option>
+                <option value="ALL">Tất cả các tuần</option>
                 {availableWeeks.map((w) => (
                   <option key={w.weekNumber} value={w.weekNumber}>
                     {w.label}
@@ -1367,313 +1789,180 @@ export const DispatchOrdersPage: React.FC = () => {
                 ))}
               </select>
             </div>
+          </div>
 
-            {/* 2. Nút Hôm nay (Tự động chọn Tuần hiện tại & Ngày hôm nay) */}
-            <button
-              type="button"
-              onClick={handleSelectToday}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all cursor-pointer select-none active:scale-95 ${
-                selectedDate === toDateString(new Date()) && selectedWeek === getWeekNumber(new Date())
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-              }`}
-              title="Xem tất cả các lệnh của ngày hôm nay (08/09/2026)"
-            >
-              <Clock className="h-3.5 w-3.5" />
-              <span>Hôm nay</span>
-              <span className="text-[10px] font-mono bg-white/30 text-current px-1 rounded">08/09</span>
-            </button>
-
-            {/* 3. Nút Xem tất cả */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedWeek('ALL');
-                setSelectedDate('ALL');
-              }}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                selectedWeek === 'ALL' && selectedDate === 'ALL'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Tất cả
-            </button>
-
-            {/* 4. Sắp xếp thứ tự giờ đi */}
-            <button
-              type="button"
-              onClick={() => setSortOrder(sortOrder === 'time_asc' ? 'time_desc' : 'time_asc')}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-            >
-              <ArrowUpDown className="h-3.5 w-3.5 text-slate-500" />
-              <span>{sortOrder === 'time_asc' ? 'Sớm ➔ muộn' : 'Muộn ➔ sớm'}</span>
-            </button>
+          {/* Cột 6: Ngày thực hiện */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Ngày thực hiện cụ thể
+            </label>
+            <div className="flex items-center gap-1 bg-slate-50/70 rounded-xl border border-slate-200 p-0.5 h-9 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleStepDate(-1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Ngày trước"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <input
+                type="date"
+                value={selectedDate === 'ALL' ? '' : selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
+                className="w-full bg-transparent text-xs font-semibold text-slate-800 px-1 py-0.5 focus:outline-none cursor-pointer min-w-0"
+              />
+              <button
+                type="button"
+                onClick={() => handleStepDate(1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Ngày sau"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Hàng phụ: Bộ lọc các Thứ trong tuần đang chọn HOẶC Chọn ngày thủ công */}
-        {selectedWeek !== 'ALL' ? (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
-            <span className="flex items-center gap-1 text-[11px] font-extrabold text-slate-600 mr-1">
-              <Calendar className="h-3.5 w-3.5 text-primary" /> Ngày trong Tuần {selectedWeek}:
-            </span>
+        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất in, Tạo mới) */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Nhập lại */}
             <button
               type="button"
-              onClick={() => setSelectedDate('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedDate === 'ALL'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              onClick={() => {
+                setSearch('');
+                setSelectedPurpose('ALL');
+                setSelectedVehicle('ALL');
+                setSelectedDriver('ALL');
+                setSelectedWeek(getWeekNumber(new Date()));
+                setSelectedDate(toDateString(new Date()));
+                setStatusFilter('ALL');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
             >
-              Cả tuần {selectedWeek}
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Nhập lại</span>
             </button>
-            {weekDays.map((d) => {
-              const isDayActive = selectedDate === d.dateStr;
-              return (
+
+            {/* Nút Tìm kiếm */}
+            <button
+              type="button"
+              onClick={() => {
+                // Focus search or trigger refresh
+              }}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer select-none active:scale-95"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Tìm kiếm</span>
+            </button>
+
+            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần T2 -> CN */}
+            {selectedWeek !== 'ALL' && (
+              <div className="flex flex-wrap items-center gap-1 pl-1">
+                <span className="text-slate-300 mx-0.5">|</span>
                 <button
-                  key={d.dateStr}
                   type="button"
-                  onClick={() => setSelectedDate(d.dateStr)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none active:scale-95 ${
-                    isDayActive
-                      ? 'bg-primary text-white shadow-xs'
-                      : d.isToday
-                      ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-extrabold'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  onClick={() => setSelectedDate('ALL')}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    selectedDate === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <span>{d.shortName} ({d.displayDate})</span>
-                  {d.isToday && (
-                    <span className={`text-[9px] px-1 rounded font-black ${isDayActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'}`}>
-                      Hôm nay
-                    </span>
-                  )}
-                  {d.count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isDayActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'}`}>
-                      {d.count}
-                    </span>
-                  )}
+                  Cả tuần {selectedWeek}
                 </button>
-              );
-            })}
-            <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5 ml-auto">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="bg-transparent text-[11px] font-semibold text-slate-800 px-1.5 py-0.5 focus:outline-none cursor-pointer"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 mr-1">
-              <Calendar className="h-3.5 w-3.5 text-primary" /> Lọc ngày cụ thể:
-            </span>
-            <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="bg-transparent text-xs font-semibold text-slate-800 px-2 py-0.5 focus:outline-none cursor-pointer"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            {selectedDate !== 'ALL' && (
-              <button
-                type="button"
-                onClick={() => setSelectedDate('ALL')}
-                className="text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors"
-              >
-                Xóa lọc ngày ({selectedDate})
-              </button>
+                {weekDays.map((d) => {
+                  const isDayActive = selectedDate === d.dateStr;
+                  return (
+                    <button
+                      key={d.dateStr}
+                      type="button"
+                      onClick={() => setSelectedDate(d.dateStr)}
+                      className={`flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                        isDayActive
+                          ? 'bg-primary text-white shadow-2xs'
+                          : d.isToday
+                          ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-extrabold'
+                          : 'bg-slate-100/90 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span>{d.shortName} ({d.displayDate})</span>
+                      {d.isToday && (
+                        <span className={`text-[9px] px-1 rounded font-black ${isDayActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'}`}>
+                          Nay
+                        </span>
+                      )}
+                      {d.count > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isDayActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'}`}>
+                          {d.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
+          </div>
+
+          {/* Cụm Action Buttons bên phải */}
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-600" />
+              <span>Xuất / In</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const cat = isAgriculturalSpecific ? 'AGRICULTURE' : 'AGRICULTURE';
+                navigate(`/lenh-dieu-xe/tao-moi?category=${cat}`, { state: null });
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-extrabold shadow-2xs transition-all cursor-pointer select-none active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5 text-white" />
+              <span>Lập lệnh điều xe mới</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. View Switcher (Đồng bộ chuẩn 3 trang: Bảng kê, Scheduler, Kanban) + Lọc trạng thái */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ViewSwitcher<'table' | 'daily_timeline' | 'kanban'>
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'table', label: 'Bảng kê tổng hợp toàn bộ lệnh' },
+            { value: 'daily_timeline', label: 'Scheduler lịch chạy theo xe' },
+            { value: 'kanban', label: 'Kanban 4 nhóm trạng thái' },
+          ]}
+        />
+        {(view === 'table' || view === 'daily_timeline') && (
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-1.5 shadow-xs">
+            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Lọc trạng thái:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-900 focus:border-primary focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Toàn bộ trạng thái ({statusCounts.ALL})</option>
+              <option value="DELAYED">Lệnh trễ phân công ({statusCounts.DELAYED})</option>
+              <option value="DRIVER_PENDING">Đôn đốc tài xế ({statusCounts.DRIVER_PENDING})</option>
+              <option value="FUTURE_UNASSIGNED">Kế hoạch tuần tới ({statusCounts.FUTURE_UNASSIGNED})</option>
+              <option value="CHUA_PHAN_CONG">Chờ duyệt phân công ({statusCounts.CHUA_PHAN_CONG})</option>
+              <option value="DA_GIAO_VIEC">Đã phân công ({statusCounts.DA_GIAO_VIEC})</option>
+              <option value="DANG_LAM_VIEC">Đang vận hành ({statusCounts.DANG_LAM_VIEC})</option>
+              <option value="COMPLETED">Nghiệm thu ({statusCounts.COMPLETED})</option>
+            </select>
           </div>
         )}
       </div>
 
 
-
-      {/* 4. KPI Summary Cards */}
-      <KPIGrid cols={4}>
-        <StatCard
-          label={selectedDate === 'ALL' ? 'Tổng lệnh điều xe' : `Lệnh trong ngày (${selectedDate})`}
-          value={filteredOrders.length}
-          icon={<Truck className="h-5 w-5 text-blue-600" />}
-        />
-        <StatCard
-          label="Đang làm việc / Vận hành"
-          value={filteredOrders.filter((o) => ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(o.status)).length}
-          icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
-        />
-        <StatCard
-          label="Chờ duyệt / Phân công xe"
-          value={filteredOrders.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'ASSIGNED', 'DRIVER_ACCEPTED', 'DA_DUYET', 'DA_NHAN'].includes(o.status)).length}
-          icon={<Clock className="h-5 w-5 text-amber-600" />}
-        />
-        <StatCard
-          label="Cứu hộ SOS & Cảnh báo trễ"
-          value={filteredOrders.filter((o) => o.isDelayed || o.orderCategory === 'CUU_HO_SOS').length}
-          icon={<AlertTriangle className="h-5 w-5 text-red-600" />}
-        />
-      </KPIGrid>
-
-      {/* 5. View Switcher (Đồng bộ chuẩn 4 trang: Bảng kê, Scheduler, Kanban, Hoàn tất) */}
-      <ViewSwitcher<'table' | 'daily_timeline' | 'kanban' | 'completed'>
-        value={view}
-        onChange={setView}
-        options={[
-          { value: 'table', label: isAgriculturalSpecific ? 'Bảng kê 16 cột chuẩn hóa' : 'Bảng kê tổng hợp toàn bộ lệnh' },
-          { value: 'daily_timeline', label: 'Scheduler lịch chạy theo xe' },
-          { value: 'kanban', label: 'Kanban 4 nhóm trạng thái' },
-          { value: 'completed', label: 'Quản lý việc đã hoàn tất' },
-        ]}
-      />
-
-      {/* 5.1. THANH LỌC 4 TRẠNG THÁI CHUẨN HÓA (CHO BẢNG KÊ & SCHEDULER NHƯ HÌNH) */}
-      {(view === 'table' || view === 'daily_timeline') && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              {
-                key: 'CHO_DUYET',
-                label: 'Chờ duyệt / Phân công',
-                count: statusCounts.CHO_DUYET,
-                activeBorder: 'border-b-4 border-b-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30',
-                badgeActive: 'bg-amber-500 text-white',
-                textActive: 'text-amber-900',
-              },
-              {
-                key: 'DA_DUYET',
-                label: 'Đã giao xe / Tiếp nhận',
-                count: statusCounts.DA_DUYET,
-                activeBorder: 'border-b-4 border-b-sky-500 ring-2 ring-sky-500/20 bg-sky-50/30',
-                badgeActive: 'bg-sky-600 text-white',
-                textActive: 'text-sky-900',
-              },
-              {
-                key: 'WORKING',
-                label: 'Đang vận hành / Thi công',
-                count: statusCounts.WORKING,
-                activeBorder: 'border-b-4 border-b-blue-600 ring-2 ring-blue-600/20 bg-blue-50/30',
-                badgeActive: 'bg-blue-600 text-white',
-                textActive: 'text-blue-900',
-              },
-              {
-                key: 'COMPLETED',
-                label: 'Hoàn tất & Nghiệm thu',
-                count: statusCounts.COMPLETED,
-                activeBorder: 'border-b-4 border-b-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/30',
-                badgeActive: 'bg-emerald-600 text-white',
-                textActive: 'text-emerald-900',
-              },
-            ].map((item) => {
-              const isActive = statusFilter === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setStatusFilter(isActive ? 'ALL' : item.key)}
-                  className={`group flex items-center justify-between rounded-t-2xl rounded-b-xl border px-4 py-3.5 text-left transition-all duration-150 select-none cursor-pointer active:scale-[0.99] ${
-                    isActive
-                      ? `${item.activeBorder} ${item.textActive} shadow-xs`
-                      : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 shadow-xs'
-                  }`}
-                  title={`Lọc theo trạng thái: ${item.label}`}
-                >
-                  <span className="text-xs sm:text-[13px] font-bold tracking-tight">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold font-mono transition-colors ${
-                      isActive ? item.badgeActive : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
-                    }`}
-                  >
-                    {item.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Hàng phụ: Nút hiển thị Tất cả + Cảnh báo trễ (nếu có) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('ALL')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
-                  statusFilter === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-xs text-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 text-xs'
-                }`}
-              >
-                <span>Tất cả trạng thái</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'
-                  }`}
-                >
-                  {statusCounts.ALL}
-                </span>
-              </button>
-              {statusFilter !== 'ALL' && (
-                <span className="text-[11px] font-medium text-slate-500">
-                  (Đang lọc theo trạng thái • Bấm lại vào thẻ hoặc nút <b>Tất cả trạng thái</b> để xem toàn bộ)
-                </span>
-              )}
-            </div>
-
-            {statusCounts.DELAYED > 0 && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  statusFilter === 'DELAYED'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                <span>Cảnh báo trễ / SOS ({statusCounts.DELAYED})</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 6. Nội dung theo View */}
       {error ? (
@@ -1688,7 +1977,7 @@ export const DispatchOrdersPage: React.FC = () => {
           columns={columns}
           data={filteredOrders}
           isLoading={loading}
-          onRowClick={setSelected}
+          onRowClick={handleOpenOrder}
           serverSide={false}
           totalItems={filteredOrders.length}
           useGlobalFilters={false}
@@ -1702,10 +1991,10 @@ export const DispatchOrdersPage: React.FC = () => {
           availableDates={availableDates}
           lanes={schedulerData.lanes}
           unassignedItems={schedulerData.unassigned}
-          onItemClick={setSelected}
+          onItemClick={handleOpenOrder}
           kind={isAgriculturalSpecific ? 'AGRICULTURE' : 'GENERAL'}
         />
-      ) : view === 'kanban' ? (
+      ) : (
         /* GIAO DIỆN KANBAN 4 NHÓM */
         <div className="grid gap-3 lg:grid-cols-4">
           {grouped.map((group) => (
@@ -1722,39 +2011,37 @@ export const DispatchOrdersPage: React.FC = () => {
                   <button
                     type="button"
                     key={order.id}
-                    onClick={() => setSelected(order)}
-                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-xs shadow-xs hover:border-primary hover:shadow-md transition-all space-y-2"
+                    onClick={() => handleOpenOrder(order)}
+                    className="w-full text-left p-3 rounded-xl border border-slate-200 bg-white hover:border-primary hover:shadow-md transition-all space-y-2 group cursor-pointer shadow-2xs"
                   >
-                    <div className="flex justify-between items-center">
-                      <b className="text-primary font-mono font-bold text-xs">{order.code}</b>
-                      {order.isDelayed && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
-                          <AlertTriangle className="h-3 w-3" /> Trễ
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between">
+                      <b className="font-mono text-xs font-bold text-primary group-hover:underline">
+                        {order.code}
+                      </b>
+                      {renderCategoryBadge(order.orderCategory)}
                     </div>
 
-                    <div>{renderCategoryBadge(order.orderCategory)}</div>
-
-                    <h4 className="font-bold text-slate-900 text-xs line-clamp-2 leading-snug">{order.purpose}</h4>
-
-                    <div className="space-y-1 text-slate-600 text-[11px] pt-1.5 border-t border-slate-100">
-                      <p className="font-semibold text-slate-800 truncate">
-                        {order.vehicle?.plate || order.vehicle?.code || order.vehicle?.name || 'Chưa gán xe'}
-                      </p>
-                      <p className="text-slate-500 truncate">
-                        {order.driver?.fullName || 'Chưa gán tài xế'}
-                      </p>
-                      <p className="text-slate-500 flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-slate-400" />
-                        {formatDateTime(order.departureTime)}
-                      </p>
+                    <div className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+                      {order.taskJobName || order.purpose}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
-                      <StatusBadge status={order.status} />
-                      <span className="text-[10px] text-slate-400 font-medium">{order.unit}</span>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                      <span className="truncate max-w-[120px] font-medium text-slate-700">
+                        {order.vehicle?.code || 'Chưa có xe'}
+                      </span>
+                      <span className="truncate max-w-[120px] font-medium text-slate-600">
+                        {order.driver?.fullName || 'Chưa có tài xế'}
+                      </span>
                     </div>
+
+                    {order.departureTime && (
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{new Date(order.departureTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>·</span>
+                        <span>{new Date(order.departureTime).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}</span>
+                      </div>
+                    )}
                   </button>
                 ))}
 
@@ -1766,84 +2053,6 @@ export const DispatchOrdersPage: React.FC = () => {
               </div>
             </section>
           ))}
-        </div>
-      ) : (
-        /* GIAO DIỆN QUẢN LÝ CÁC VIỆC ĐÃ HOÀN TẤT */
-        <div className="space-y-4">
-          {/* Thẻ KPI tổng kết công việc hoàn tất */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-emerald-800">Tổng việc đã hoàn tất</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-emerald-950">{completedOrders.length}</span>
-                <span className="text-xs font-semibold text-emerald-600">công việc</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">100% đạt chuẩn nghiệm thu hiện trường</span>
-            </div>
-
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-blue-800">Tỷ lệ đúng tiến độ</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-blue-950">100%</span>
-                <span className="text-xs font-semibold text-blue-600">kế hoạch</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Đúng hạn hoặc hoàn thành sớm</span>
-            </div>
-
-            <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-purple-800">Nhiên liệu thực tế tiêu thụ</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-purple-950">
-                  {completedOrders.reduce((acc, o) => acc + (o.actualFuelLiters || o.plannedFuelLiters || 0), 0)}
-                </span>
-                <span className="text-xs font-semibold text-purple-600">Lít dầu</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Tiết kiệm ~3.2% so với định mức</span>
-            </div>
-
-            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-amber-800">Khối lượng nghiệm thu</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-amber-950">
-                  {completedOrders.reduce((acc, o) => acc + (o.workVolumeActual || o.workVolumeTarget || 0), 0).toFixed(1)}
-                </span>
-                <span className="text-xs font-semibold text-amber-700">Ha / m³ / Tấn</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Đã đối soát biên bản nghiệm thu</span>
-            </div>
-          </div>
-
-          {/* Bảng kê việc đã hoàn tất */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50/70">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
-                    Bảng kê chi tiết công việc đã hoàn tất & Thời gian kết thúc
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Hiển thị đầy đủ thông tin phương tiện, người thực hiện, khối lượng hoàn thành và thời điểm nghiệm thu
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
-                {completedOrders.length} công việc hoàn tất
-              </span>
-            </div>
-
-            <DataTable
-              columns={completedColumns}
-              data={completedOrders}
-              isLoading={loading}
-              onRowClick={setSelected}
-              serverSide={false}
-              totalItems={completedOrders.length}
-              useGlobalFilters={false}
-            />
-          </div>
         </div>
       )}
 
@@ -1924,12 +2133,19 @@ export const DispatchOrdersPage: React.FC = () => {
                     <span className="text-slate-500 block">Nông cụ gắn kèm:</span>
                     <b className="text-slate-800 font-bold">{selected.implement?.name || 'Theo nhóm máy'}</b>
                   </div>
-                  {selected.plannedFuelLiters && (
-                    <div>
-                      <span className="text-slate-500 block">Dự toán nhiên liệu:</span>
-                      <b className="text-purple-700 font-bold">{selected.plannedFuelLiters} Lít {selected.fuelQuotaRate && `(${selected.fuelQuotaRate})`}</b>
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-slate-500 block">Dự toán nhiên liệu:</span>
+                    {selected.plannedFuelLiters ? (
+                      <b className="text-purple-700 font-bold">
+                        {selected.plannedFuelLiters} Lít{' '}
+                        {selected.fuelQuotaRate && (
+                          <span className="text-purple-600 text-xs font-semibold">({selected.fuelQuotaRate})</span>
+                        )}
+                      </b>
+                    ) : (
+                      <span className="text-slate-400 italic">Chưa ấn định (chọn xe để tính)</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2001,101 +2217,57 @@ export const DispatchOrdersPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 3. CÁC CHỌN XE TRONG TỔ MÁY KÉO TÁC NGHIỆP (Hiển thị ca làm việc riêng của từng xe) */}
+            {/* 3. PHƯƠNG TIỆN & THỢ MÁY THỰC HIỆN LỆNH (1 xe duy nhất) */}
             <div className="rounded-2xl bg-slate-50/90 p-3.5 border border-slate-200 text-xs space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5">
                   <Tractor className="h-4 w-4 text-emerald-600" />
-                  <span>Danh sách các xe được chọn trong tổ ({selected.assignedVehiclesCount || selected.assignedVehicleList?.length || 1} xe):</span>
+                  <span>Phương tiện & Thợ máy thực hiện lệnh (1 xe):</span>
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                  Mỗi xe có ca máy và thợ vận hành độc lập
+                  {selected.vehicle?.code ? 'Đã gán phương tiện' : 'Chưa phân công xe'}
                 </span>
               </div>
 
-              {selected.assignedTeamDetails && selected.assignedTeamDetails.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {selected.assignedTeamDetails.map((item, idx) => {
-                    const sTime = item.startTime ? new Date(item.startTime) : null;
-                    const eTime = item.endTime ? new Date(item.endTime) : null;
-                    const timeLabel = sTime && !Number.isNaN(sTime.getTime()) && eTime && !Number.isNaN(eTime.getTime())
-                      ? `${sTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} – ${eTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} (${item.durationHours || 8}h)`
-                      : item.durationHours ? `${item.durationHours} giờ` : 'Ca hành chính (8h)';
-
-                    return (
-                      <div
-                        key={idx}
-                        className={`p-3 rounded-xl border flex flex-col justify-between gap-1.5 shadow-2xs ${
-                          idx === 0
-                            ? 'bg-blue-50/70 border-blue-200 text-slate-900'
-                            : 'bg-white border-slate-200 text-slate-800'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                            idx === 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            {idx === 0 ? 'Xe #1 (Máy trưởng)' : `Xe #${idx + 1}`}
-                          </span>
-                          <span className="font-mono text-xs font-bold text-slate-900">
-                            {item.vehicleCode}
-                          </span>
-                        </div>
-
-                        <div className="space-y-0.5 text-[11px] text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3 text-slate-400" />
-                            <b className="text-slate-800 font-semibold">{item.driverName || 'Chưa gán thợ lái'}</b>
-                          </div>
-                          {item.implementName && item.implementName !== 'Không gắn nông cụ (Xe tự hành / Ca máy)' && (
-                            <div className="flex items-center gap-1 text-[10.5px] text-slate-500 truncate">
-                              <Wrench className="h-3 w-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{item.implementName}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-1 pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-[10.5px]">
-                          <span className="flex items-center gap-1 text-slate-500 font-medium">
-                            <Clock className="h-3 w-3 text-primary" />
-                            <span>Ca máy:</span>
-                          </span>
-                          <b className="font-bold text-blue-900 bg-blue-100/60 px-1.5 py-0.5 rounded border border-blue-200/60">
-                            {timeLabel}
-                          </b>
-                        </div>
+              {selected.vehicle?.code || selected.driver?.fullName ? (
+                <div className="p-3 rounded-xl border border-blue-200 bg-blue-50/70 text-slate-900 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200">
+                        {selected.vehicle?.code || 'Chưa gán xe'}
+                      </span>
+                      {selected.vehicle?.name && (
+                        <span className="text-xs font-semibold text-slate-700">{selected.vehicle.name}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <User className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="text-slate-500">Tài xế / Thợ máy:</span>
+                        <b className="text-slate-800 font-semibold">{selected.driver?.fullName || 'Chưa gán thợ lái'}</b>
                       </div>
-                    );
-                  })}
+                      {selected.implement?.name && (
+                        <div className="flex items-center gap-1">
+                          <Wrench className="h-3.5 w-3.5 text-slate-400" />
+                          <span className="text-slate-500">Nông cụ:</span>
+                          <b className="text-slate-800 font-semibold">{selected.implement.name}</b>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-blue-100 text-right">
+                    <span className="text-[10px] text-slate-500 font-medium">Ca làm việc</span>
+                    <b className="text-xs font-bold text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200">
+                      {selected.departureTime && selected.plannedEndTime
+                        ? `${new Date(selected.departureTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} – ${new Date(selected.plannedEndTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Ca hành chính (8h)'}
+                    </b>
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {(selected.assignedVehicleList && selected.assignedVehicleList.length > 0
-                    ? selected.assignedVehicleList
-                    : [selected.vehicle?.code || 'MK-50-01']
-                  ).map((vCode, vIdx) => (
-                    <div
-                      key={vIdx}
-                      className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                        vIdx === 0
-                          ? 'bg-blue-50/80 border-blue-200 text-blue-900 shadow-2xs'
-                          : 'bg-white border-slate-200 text-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Tractor className={`h-4 w-4 ${vIdx === 0 ? 'text-blue-600' : 'text-slate-400'}`} />
-                        <div>
-                          <b className="font-mono text-xs">{vCode}</b>
-                          <div className="text-[10px] text-slate-500">
-                            {vIdx === 0 ? `Xe máy trưởng (${selected.driver?.fullName || 'Trần Minh Đức'})` : `Xe hỗ trợ tổ máy ${vIdx + 1}`}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-white/80 border border-slate-200 text-emerald-700">
-                        Sẵn sàng
-                      </span>
-                    </div>
-                  ))}
+                <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-100/60 text-slate-500 text-xs text-center font-medium">
+                  Chưa phân công xe và người vận hành (thực hiện ở khung quy trình phê duyệt bên dưới)
                 </div>
               )}
             </div>
@@ -2109,185 +2281,225 @@ export const DispatchOrdersPage: React.FC = () => {
               vehicleCode={selected.vehicle?.code}
               driverName={selected.driver?.fullName}
               implementName={selected.implement?.name}
-              estimatedVehiclesCount={selected.assignedVehiclesCount || (selected.assignedVehicleList && selected.assignedVehicleList.length > 0 ? selected.assignedVehicleList.length : 1)}
-              initialAssignedVehicles={selected.assignedVehicleList || []}
+              estimatedVehiclesCount={1}
+              initialAssignedVehicles={selected.vehicle?.code ? [selected.vehicle.code] : []}
               currentOrderId={selected.id}
+              recommendationWorkOrderId={selected.operationalWorkOrder?.id}
               existingOrders={orders}
               initialStartTime={selected.departureTime}
               initialDurationHours={selected.departureTime && selected.plannedEndTime ? Math.max(0.5, (new Date(selected.plannedEndTime).getTime() - new Date(selected.departureTime).getTime()) / 3_600_000) : 8}
               unit={selected.unit}
-              onApprove={(vehicle, driver, schedule, implement, team) => {
-                const teamCodes = team && team.length > 0 ? team.map((t) => t.vehicle.code).filter(Boolean) : [vehicle.code];
-                const teamDetails = team && team.length > 0 ? team.map((t) => ({
-                  vehicleCode: t.vehicle.code,
-                  vehicleName: t.vehicle.name,
-                  driverName: t.driver.name,
-                  implementName: t.implement?.name,
-                  startTime: t.schedule?.startTime,
-                  endTime: t.schedule?.endTime,
-                  durationHours: t.schedule?.durationHours,
-                })) : undefined;
-
-                updateDemoOrder(selected.id, {
-                  status: 'ASSIGNED',
-                  vehicle: { id: vehicle.id, code: vehicle.code, name: vehicle.name, status: 'CHO_PHAN_CONG' },
-                  driver: { id: driver.id, fullName: driver.name, licenseClass: driver.license },
-                  implement: implement ? { id: implement.id as any, code: implement.code, name: implement.name } : selected.implement,
-                  assignedVehiclesCount: teamCodes.length,
-                  assignedVehicleList: teamCodes,
-                  assignedTeamDetails: teamDetails,
-                  departureTime: schedule.startTime,
-                  plannedEndTime: schedule.endTime,
+              onVehicleScheduleChange={(details) => {
+                setSelected((current) => {
+                  if (!current) return current;
+                  if (current.plannedFuelLiters === details.plannedFuelLiters && current.fuelQuotaRate === details.fuelQuotaRate) {
+                    return current;
+                  }
+                  return {
+                    ...current,
+                    plannedFuelLiters: details.plannedFuelLiters,
+                    fuelQuotaRate: details.fuelQuotaRate,
+                  };
                 });
               }}
-              onReceive={() => updateDemoOrder(selected.id, { status: 'DRIVER_ACCEPTED' })}
-              onComplete={() => updateDemoOrder(selected.id, { status: 'ACCEPTED' })}
+              onApprove={async (vehicle, driver, schedule, implement, team) => {
+                try {
+                  const payload = {
+                    vehicleId: vehicle.id,
+                    driverId: driver.id,
+                    ...(typeof implement?.id === 'number' && implement.id < 90_000 ? { implementId: implement.id } : {}),
+                    departureTime: schedule.startTime,
+                    plannedEndTime: schedule.endTime,
+                  };
+                  if (selected.orderCategory === 'VAN_CHUYEN') {
+                    const realId = selected.id > 200_000 ? selected.id - 200_000 : selected.id;
+                    await operationsApi.assignTransport(realId, payload);
+                  } else {
+                    await operationsApi.assignDispatch(selected.id, payload);
+                  }
+                  const vRate = vehicle.fuelQuotaRate ?? getVehicleFuelQuotaRate(vehicle as any, selected.orderCategory);
+                  const calcFuel = Number((schedule.durationHours * vRate).toFixed(1));
+                  const changes: Partial<ExtendedDispatchOrder> = {
+                    status: 'ASSIGNED',
+                    vehicle: { id: vehicle.id, code: vehicle.code, name: vehicle.name, status: 'CHO_PHAN_CONG' },
+                    driver: { id: driver.id, fullName: driver.name, licenseClass: driver.license },
+                    implement: implement ? { id: implement.id, code: implement.code, name: implement.name } : selected.implement,
+                    assignedVehiclesCount: 1,
+                    assignedVehicleList: [vehicle.code],
+                    assignedTeamDetails: [{
+                      vehicleCode: vehicle.code,
+                      vehicleName: vehicle.name,
+                      driverName: driver.name,
+                      implementName: implement?.name,
+                      startTime: schedule.startTime,
+                      endTime: schedule.endTime,
+                      durationHours: schedule.durationHours,
+                    }],
+                    departureTime: schedule.startTime,
+                    plannedEndTime: schedule.endTime,
+                    plannedFuelLiters: calcFuel,
+                    fuelQuotaRate: `${vRate} L/h`,
+                  };
+                  setOrders((current) => current.map((order) => order.id === selected.id ? { ...order, ...changes } : order));
+                  setSelected((current) => current?.id === selected.id ? { ...current, ...changes } : current);
+                  useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã phân công ${vehicle.code} cho ${driver.name} (Dự toán: ${calcFuel}L).` });
+                } catch (error: any) {
+                  const body = error?.response?.data;
+                  const details = body?.message?.reasons ?? body?.reasons ?? body?.message?.message;
+                  const reasonText = Array.isArray(details)
+                    ? details.map((item: any) => item.message).filter(Boolean).join('; ')
+                    : typeof details === 'string' ? details : body?.message || error?.message || 'Không thể lưu phân công.';
+                  useAppStore.getState().setHeaderAlert({ type: 'error', message: `Phân công thất bại: ${reasonText}` });
+                }
+              }}
             />
           </div>
         )}
       </Modal>
 
-      {/* 8. Modal Lập Lệnh điều xe mới */}
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Lập lệnh điều xe mới" size="lg">
-        <form onSubmit={handleCreateSubmit} className="grid gap-3 text-xs sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <span className="mb-1 block font-bold text-slate-700">Chọn Loại lệnh điều xe</span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { key: 'NONG_NGHIEP', label: 'Nông nghiệp', icon: Tractor },
-                { key: 'CONG_TRINH', label: 'Công trình ca máy', icon: HardHat },
-                { key: 'VAN_CHUYEN', label: 'Vận chuyển nội bộ', icon: Truck },
-                { key: 'CUU_HO_SOS', label: 'Cứu hộ SOS', icon: ShieldAlert },
-              ].map((c) => {
-                const isSelected = createCategory === c.key;
-                const Icon = c.icon;
-                return (
-                  <button
-                    type="button"
-                    key={c.key}
-                    onClick={() => setCreateCategory(c.key as any)}
-                    className={`flex items-center gap-1.5 p-2 rounded-xl border text-left font-bold transition-all ${
-                      isSelected
-                        ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
-                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{c.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+
+      {/* MODAL: Dời lịch lệnh điều xe */}
+      <Modal
+        isOpen={!!rescheduleTarget}
+        onClose={() => { setRescheduleTarget(null); setActionError(''); }}
+        title={`Dời lịch lệnh: ${rescheduleTarget?.code || ''}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+            <b>Lưu ý:</b> Nếu Xe/Tài xế đã gán bị trùng lịch với khung giờ mới, hệ thống sẽ tự động reset về <b>Chờ phân công</b>.
           </div>
 
-          <label className="sm:col-span-2">
-            <span className="mb-1 block font-bold text-slate-700">Nhiệm vụ / Hạng mục điều động</span>
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold text-slate-700">⏰ Thời gian xuất phát mới <span className="text-red-500">*</span></span>
             <input
-              name="purpose"
-              required
-              placeholder="VD: Cày sâu 30cm Lô A05 / San gạt bù vê Km 2+300 / Chở 25T chuối XK..."
-              className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </label>
-
-          <label>
-            <span className="mb-1 block font-bold text-slate-700">Đơn vị / Nông trường</span>
-            <select
-              name="unit"
-              className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="Nông trường 1">Nông trường 1</option>
-              <option value="Nông trường 2">Nông trường 2</option>
-              <option value="Nông trường 3">Nông trường 3</option>
-              <option value="Đội Cơ giới Công trình 1">Đội Cơ giới Công trình 1</option>
-              <option value="Đội Cơ giới Công trình 2">Đội Cơ giới Công trình 2</option>
-              <option value="Trung tâm Vận chuyển Nội bộ">Trung tâm Vận chuyển Nội bộ</option>
-              <option value="Đội Cứu hộ Cơ giới SOS">Đội Cứu hộ Cơ giới SOS</option>
-            </select>
-          </label>
-
-          <label>
-            <span className="mb-1 block font-bold text-slate-700">Khối lượng kế hoạch</span>
-            <div className="flex gap-2">
-              <input
-                name="workVolumeTarget"
-                type="number"
-                step="0.1"
-                placeholder="10.5"
-                className="w-2/3 rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <select
-                name="workVolumeUnit"
-                className="w-1/3 rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="Ha">Ha</option>
-                <option value="Giờ">Giờ</option>
-                <option value="Tấn">Tấn</option>
-                <option value="m³">m³</option>
-                <option value="Km">Km</option>
-                <option value="Chuyến">Chuyến</option>
-              </select>
-            </div>
-          </label>
-
-          <label>
-            <span className="mb-1 block font-bold text-slate-700">Điểm đi / Nơi xuất phát</span>
-            <input
-              name="origin"
-              required
-              placeholder="VD: Bãi máy NT1 / Kho Tổng / Xưởng chuối..."
-              className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </label>
-
-          <label>
-            <span className="mb-1 block font-bold text-slate-700">Điểm đến / Vị trí lô thửa</span>
-            <input
-              name="destination"
-              required
-              placeholder="VD: Lô A05 / Tuyến đường trục chính / Cảng..."
-              className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </label>
-
-          <label>
-            <span className="mb-1 block font-bold text-slate-700">Thời gian bắt đầu dự kiến</span>
-            <input
-              name="departureTime"
               type="datetime-local"
-              defaultValue={new Date().toISOString().slice(0, 16)}
+              value={rescheduleForm.newDepartureTime}
+              onChange={(e) => setRescheduleForm((f) => ({ ...f, newDepartureTime: e.target.value }))}
               className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
-          <label>
-            <span className="mb-1 block font-bold text-slate-700">Thời gian kết thúc dự kiến</span>
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold text-slate-700">⏱ Thời gian kết thúc dự kiến mới <span className="text-red-500">*</span></span>
             <input
-              name="plannedEndTime"
               type="datetime-local"
+              value={rescheduleForm.newPlannedEndTime}
+              onChange={(e) => setRescheduleForm((f) => ({ ...f, newPlannedEndTime: e.target.value }))}
               className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
-          <label className="sm:col-span-2">
-            <span className="mb-1 block font-bold text-slate-700">Ghi chú điều độ</span>
-            <textarea
-              name="notes"
-              rows={2}
-              placeholder="Yêu cầu kỹ thuật, độ sâu cày, quy cách đóng gói, trang bị an toàn..."
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold text-slate-700">📝 Lý do dời lịch</span>
+            <input
+              type="text"
+              value={rescheduleForm.reason}
+              onChange={(e) => setRescheduleForm((f) => ({ ...f, reason: e.target.value }))}
+              placeholder="VD: Mưa lớn, thiếu vật tư, trùng kế hoạch..."
               className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
 
-          <div className="flex justify-end gap-2 sm:col-span-2 pt-2 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+          {actionError && (
+            <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-700">{actionError}</p>
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" onClick={() => { setRescheduleTarget(null); setActionError(''); }}>
               Hủy
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Đang lưu...' : 'Lưu và phát hành lệnh'}
+            <Button onClick={handleReschedule} disabled={actionSaving}>
+              {actionSaving ? 'Đang lưu...' : 'Xác nhận Dời lịch'}
             </Button>
           </div>
-        </form>
+        </div>
+      </Modal>
+
+      {/* MODAL: Nghiệm thu hồi tố */}
+      <Modal
+        isOpen={!!retroTarget}
+        onClose={() => { setRetroTarget(null); setActionError(''); }}
+        title={`Nghiệm thu hồi tố: ${retroTarget?.code || ''}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+            <b>Dùng khi:</b> Lệnh đã được thực hiện thực tế nhưng chưa kịp ghi nhận trên hệ thống. Lệnh sẽ chuyển thẳng sang trạng thái <b>Đã đóng</b>.
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-700">🕐 Giờ bắt đầu thực tế <span className="text-red-500">*</span></span>
+              <input
+                type="datetime-local"
+                value={retroForm.actualStartTime}
+                onChange={(e) => setRetroForm((f) => ({ ...f, actualStartTime: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-700">🕔 Giờ hoàn thành thực tế <span className="text-red-500">*</span></span>
+              <input
+                type="datetime-local"
+                value={retroForm.actualCompletedTime}
+                onChange={(e) => setRetroForm((f) => ({ ...f, actualCompletedTime: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-700">⚙️ Giờ máy thực tế (tùy chọn)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={retroForm.actualMachineHours}
+                onChange={(e) => setRetroForm((f) => ({ ...f, actualMachineHours: e.target.value }))}
+                placeholder="VD: 6.5"
+                className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-700">📦 Khối lượng thực tế (tùy chọn)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={retroForm.actualQuantity}
+                onChange={(e) => setRetroForm((f) => ({ ...f, actualQuantity: e.target.value }))}
+                placeholder="VD: 12.5"
+                className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold text-slate-700">📝 Ghi chú / Lý do nghiệm thu hồi tố</span>
+            <textarea
+              rows={2}
+              value={retroForm.notes}
+              onChange={(e) => setRetroForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="VD: Lệnh đã hoàn tất ngày 08/09 nhưng chưa kịp cập nhật hệ thống do sự cố điện..."
+              className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </label>
+
+          {actionError && (
+            <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-700">{actionError}</p>
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" onClick={() => { setRetroTarget(null); setActionError(''); }}>
+              Hủy
+            </Button>
+            <Button onClick={handleRetroactiveComplete} disabled={actionSaving}>
+              {actionSaving ? 'Đang lưu...' : 'Xác nhận Nghiệm thu hồi tố'}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
     </div>

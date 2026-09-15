@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "THACO AGRI Fleet Management System - Modern React SPA & Mockup Platform",
   "scripts": {
-    "dev": "npm run dev:frontend",
-    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "free-port": "node scripts/free-port.js 3001 5173",
+    "dev": "npm run free-port && npm run dev:frontend",
+    "dev:all": "npm run free-port && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "build": "npm run build --prefix backend && npm run build --prefix frontend",

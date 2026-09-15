@@ -1,44 +1,63 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   DriverEmploymentStatus,
+  DriverManagementLevel,
+  DriverManagementUnitStatus,
   DriverShiftStatus,
   Role,
   Unit,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserPresenceService } from './user-presence.service';
 import { CreateDriverProfileDto } from './dto/create-driver-profile.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { DriverProfileFilterDto } from './dto/driver-profile-filter.dto';
 import { UpdateDriverProfileDto } from './dto/update-driver-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { hasGlobalOperationalAccess, OperationalActor } from '../common/utils/operational-access';
+import { getDriverComplianceStatus, resolveDriverComplianceFields } from './driver-compliance';
+import { AlertsService } from '../alerts/alerts.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private userPresenceService: UserPresenceService,
+    @Optional() private readonly alertsService?: AlertsService,
+  ) {}
 
-  private getComplianceStatus(
-    licenseNumber?: string | null,
-    licenseExpiryDate?: Date | null,
-    healthCheckExpiryDate?: Date | null,
+  private async resolveDriverManagementSelection(
+    managementUnitId: number | undefined,
+    teamUnitId: number | undefined,
+    actor: OperationalActor,
+    requireForFarmManager = false,
   ) {
-    if (!licenseNumber || !licenseExpiryDate || !healthCheckExpiryDate) {
-      return 'MISSING';
+    if (!managementUnitId) {
+      if (teamUnitId) throw new BadRequestException('Phải chọn đơn vị chủ quản trước khi chọn Đội/Tổ.');
+      if (requireForFarmManager && actor.role === Role.FARM_MANAGER) {
+        throw new BadRequestException('Quản lý đơn vị phải chọn đơn vị chủ quản trong phạm vi được cấp.');
+      }
+      return null;
     }
 
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const expiryDates = [licenseExpiryDate, healthCheckExpiryDate];
-    const remainingDays = Math.min(
-      ...expiryDates.map((date) =>
-        Math.ceil((new Date(date).getTime() - now.getTime()) / 86400000),
-      ),
-    );
-
-    if (remainingDays < 0) return 'EXPIRED';
-    if (remainingDays <= 30) return 'EXPIRING_30';
-    if (remainingDays <= 60) return 'EXPIRING_60';
-    return 'VALID';
+    const owner = await this.prisma.driverManagementUnit.findUnique({ where: { id: managementUnitId } });
+    if (!owner || owner.level !== DriverManagementLevel.OWNER || owner.status !== DriverManagementUnitStatus.ACTIVE) {
+      throw new BadRequestException('Đơn vị chủ quản không hợp lệ hoặc đã ngừng hoạt động.');
+    }
+    if (teamUnitId) {
+      const team = await this.prisma.driverManagementUnit.findUnique({ where: { id: teamUnitId } });
+      if (!team || team.level !== DriverManagementLevel.TEAM || team.parentId !== owner.id || team.status !== DriverManagementUnitStatus.ACTIVE) {
+        throw new BadRequestException('Đội/Tổ không hợp lệ hoặc không trực thuộc đơn vị đã chọn.');
+      }
+    }
+    if (actor.role === Role.FARM_MANAGER) {
+      const scopes = await this.prisma.driverManagementAccessScope.findMany({ where: { userId: actor.id, complexCode: owner.complexCode, canAssignDrivers: true } });
+      if (!scopes.some((scope) => !scope.managementUnitId || scope.managementUnitId === owner.id)) {
+        throw new ForbiddenException('Đơn vị nằm ngoài phạm vi phân công tài xế được cấp.');
+      }
+    }
+    return { owner, teamUnitId: teamUnitId || null };
   }
 
   async create(dto: CreateUserDto) {
@@ -99,7 +118,7 @@ export class UsersService {
       ];
     }
 
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where,
       select: {
         id: true,
@@ -128,17 +147,38 @@ export class UsersService {
       },
       orderBy: { id: 'asc' },
     });
+
+    return users.map((u) => {
+      const presence = this.userPresenceService.getPresence(u.id);
+      return {
+        ...u,
+        isOnline: u.isActive ? presence.isOnline : false,
+        lastSeenAt: presence.lastSeenAt || u.createdAt,
+        onlinePlatform: presence.platform,
+      };
+    });
   }
 
   async findDrivers(unit?: Unit) {
     return this.findAll(Role.DRIVER, unit);
   }
 
-  async findDriverProfiles(filter: DriverProfileFilterDto) {
+  async findDriverProfiles(filter: DriverProfileFilterDto, actor: OperationalActor) {
     const { page = 1, limit = 20 } = filter;
+    const managementScopes = actor.role === Role.FARM_MANAGER
+      ? await (this.prisma.driverManagementAccessScope?.findMany({ where: { userId: actor.id } }) ?? [])
+      : [];
+    if (filter.unit && !hasGlobalOperationalAccess(actor) && filter.unit !== actor.unit) {
+      throw new ForbiddenException('Không được xem hồ sơ tài xế ngoài đơn vị được phân quyền.');
+    }
+    const driverWhere = actor.role === Role.DRIVER
+      ? { role: Role.DRIVER, id: actor.id }
+      : actor.role === Role.FARM_MANAGER
+        ? { role: Role.DRIVER, ...(managementScopes.length === 0 && !hasGlobalOperationalAccess(actor) ? { unit: actor.unit } : {}) }
+      : { role: Role.DRIVER, ...(!hasGlobalOperationalAccess(actor) ? { unit: actor.unit } : {}) };
     const [drivers, employeeRecords] = await Promise.all([
       this.prisma.user.findMany({
-        where: { role: Role.DRIVER },
+        where: driverWhere,
         select: {
           id: true,
           code: true,
@@ -165,6 +205,11 @@ export class UsersService {
               vehicleAssignments: {
                 where: { status: 'ACTIVE', type: 'PRIMARY' },
                 include: { vehicle: true },
+                orderBy: { effectiveFrom: 'desc' }, take: 1,
+              },
+              managementAssignments: {
+                where: { effectiveTo: null },
+                include: { managementUnit: true, teamUnit: true },
                 orderBy: { effectiveFrom: 'desc' }, take: 1,
               },
             },
@@ -205,32 +250,34 @@ export class UsersService {
         const employee = employeeByCode.get(driver.code) || null;
         const defaultVehicle = driver.driverProfile?.vehicleAssignments[0]?.vehicle || driver.assignedVehicle || driver.drivenVehicles[0] || driver.secondaryVehicles[0] || null;
         const profile = driver.driverProfile;
+        const managementAssignment = profile?.managementAssignments[0] || null;
+        const compliance = resolveDriverComplianceFields(driver, profile);
         return {
           ...driver,
           ...(profile ? {
             employmentStatus: profile.employmentStatus,
             joinedDate: profile.joinedDate,
             resignedDate: profile.resignedDate,
-            licenseClass: profile.licenseClass,
-            licenseNumber: profile.licenseNumber,
-            licenseExpiryDate: profile.licenseExpiryDate,
-            healthCheckExpiryDate: profile.healthCheckExpiryDate,
             currentShiftStatus: profile.currentShiftStatus,
             currentLocation: profile.currentLocation,
           } : {}),
+          ...compliance,
           employee,
-          enterprise: employee?.enterprise || employee?.businessUnit || null,
-          team: employee?.team || employee?.farm || null,
+          managementAssignment,
+          managementUnit: managementAssignment?.managementUnit || null,
+          teamUnit: managementAssignment?.teamUnit || null,
+          enterprise: managementAssignment?.managementUnit.name || null,
+          team: managementAssignment?.teamUnit?.name || null,
           position: employee?.position || null,
           assignedVehicle: defaultVehicle,
-          complianceStatus: this.getComplianceStatus(
-            driver.licenseNumber,
-            driver.licenseExpiryDate,
-            driver.healthCheckExpiryDate,
-          ),
+          complianceStatus: getDriverComplianceStatus(compliance),
         };
       })
       .filter((item) => {
+        if (actor.role === Role.FARM_MANAGER) {
+          const assignment = item.managementAssignment;
+          if (!assignment || !managementScopes.some((scope) => scope.complexCode === assignment.managementUnit.complexCode && (!scope.managementUnitId || scope.managementUnitId === assignment.managementUnitId))) return false;
+        }
         if (filter.complex || filter.complexCode) {
           const reqComp = (filter.complex || filter.complexCode || '').trim().toUpperCase();
           if (reqComp !== 'ALL') {
@@ -244,10 +291,13 @@ export class UsersService {
           }
         }
         if (filter.unit && item.unit !== filter.unit) return false;
+        if (filter.managementUnitId && item.managementAssignment?.managementUnitId !== filter.managementUnitId) return false;
+        if (filter.teamUnitId && item.managementAssignment?.teamUnitId !== filter.teamUnitId) return false;
         if (filter.enterprise && item.enterprise !== filter.enterprise) return false;
         if (filter.team && item.team !== filter.team) return false;
         if (filter.position && item.position !== filter.position) return false;
         if (filter.employmentStatus && item.employmentStatus !== filter.employmentStatus) return false;
+        if (filter.complianceStatus && item.complianceStatus !== filter.complianceStatus) return false;
         if (!search) return true;
         return [
           item.code,
@@ -257,6 +307,8 @@ export class UsersService {
           item.team,
           item.position,
           item.unit,
+          item.licenseNumber,
+          item.licenseClass,
         ].some((value) => String(value || '').toLocaleLowerCase('vi-VN').includes(search));
       });
 
@@ -284,15 +336,27 @@ export class UsersService {
         inactive: merged.filter(
           (item) => item.employmentStatus === DriverEmploymentStatus.DA_NGHI_VIEC,
         ).length,
+        unassignedVehicle: merged.filter(
+          (item) => item.employmentStatus !== DriverEmploymentStatus.DA_NGHI_VIEC && !item.assignedVehicle,
+        ).length,
         complianceAlerts: merged.filter(
           (item) => item.complianceStatus !== 'VALID',
         ).length,
+        valid: merged.filter((item) => item.complianceStatus === 'VALID').length,
+        expiring30: merged.filter((item) => item.complianceStatus === 'EXPIRING_30').length,
+        expiring60: merged.filter((item) => item.complianceStatus === 'EXPIRING_60').length,
+        expired: merged.filter((item) => item.complianceStatus === 'EXPIRED').length,
+        missing: merged.filter((item) => item.complianceStatus === 'MISSING').length,
       },
     };
   }
 
-  async getDriverProfileOptions() {
-    const [employees, vehicles] = await Promise.all([
+  async getDriverProfileOptions(actor: OperationalActor) {
+    const managementScopes = actor.role === Role.FARM_MANAGER
+      ? await (this.prisma.driverManagementAccessScope?.findMany({ where: { userId: actor.id } }) ?? [])
+      : [];
+    const allowedComplexes = [...new Set(managementScopes.map((item) => item.complexCode))];
+    const [employees, vehicles, managementUnits] = await Promise.all([
       this.prisma.employeeRecord.findMany({
         select: {
           complex: true,
@@ -307,6 +371,13 @@ export class UsersService {
         select: { id: true, code: true, plate: true, name: true, category: true, status: true },
         orderBy: { code: 'asc' },
       }),
+      this.prisma.driverManagementUnit?.findMany
+        ? this.prisma.driverManagementUnit.findMany({
+            where: { status: 'ACTIVE', ...(actor.role === Role.FARM_MANAGER ? { complexCode: { in: allowedComplexes } } : {}) },
+            include: { parent: { select: { id: true, code: true, name: true } } },
+            orderBy: [{ complexCode: 'asc' }, { level: 'asc' }, { name: 'asc' }],
+          })
+        : Promise.resolve([]),
     ]);
     const unique = (values: Array<string | null | undefined>) =>
       [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))].sort();
@@ -319,10 +390,11 @@ export class UsersService {
       positions: unique(employees.map((item) => item.position)),
       units: Object.values(Unit),
       vehicles,
+      managementUnits,
     };
   }
 
-  async findDriverProfile(id: number) {
+  async findDriverProfile(id: number, actor?: OperationalActor) {
     const driver = await this.prisma.user.findFirst({
       where: { id, role: Role.DRIVER },
       select: {
@@ -352,6 +424,7 @@ export class UsersService {
           include: {
             vehicleAssignments: { include: { vehicle: true, assignedBy: { select: { id: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } },
             unavailability: { orderBy: { startAt: 'desc' }, take: 20 },
+            managementAssignments: { include: { managementUnit: true, teamUnit: true, assignedBy: { select: { id: true, code: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } },
           },
         },
         assignedVehicle: true,
@@ -393,16 +466,21 @@ export class UsersService {
       throw new NotFoundException(`Không tìm thấy hồ sơ lái xe #${id}`);
     }
 
+    if (actor?.role === Role.FARM_MANAGER) {
+      const currentAssignment = driver.driverProfile?.managementAssignments.find((item) => !item.effectiveTo);
+      const scopes = await this.prisma.driverManagementAccessScope.findMany({ where: { userId: actor.id } });
+      if (!currentAssignment || !scopes.some((scope) => scope.complexCode === currentAssignment.managementUnit.complexCode && (!scope.managementUnitId || scope.managementUnitId === currentAssignment.managementUnitId))) {
+        throw new ForbiddenException('Không được xem hồ sơ tài xế ngoài phạm vi quản lý được cấp.');
+      }
+    }
+
     const employee = await this.prisma.employeeRecord.findUnique({
       where: { empCode: driver.code },
     });
 
     const profile = driver.driverProfile;
-    const complianceStatus = this.getComplianceStatus(
-      profile?.licenseNumber ?? driver.licenseNumber,
-      profile?.licenseExpiryDate ?? driver.licenseExpiryDate,
-      profile?.healthCheckExpiryDate ?? driver.healthCheckExpiryDate,
-    );
+    const compliance = resolveDriverComplianceFields(driver, profile);
+    const complianceStatus = getDriverComplianceStatus(compliance);
 
     return {
       ...driver,
@@ -411,15 +489,14 @@ export class UsersService {
         joinedDate: profile.joinedDate,
         resignedDate: profile.resignedDate,
         resignedReason: profile.resignedReason,
-        licenseClass: profile.licenseClass,
-        licenseNumber: profile.licenseNumber,
-        licenseExpiryDate: profile.licenseExpiryDate,
-        healthCheckExpiryDate: profile.healthCheckExpiryDate,
         currentShiftStatus: profile.currentShiftStatus,
         currentLocation: profile.currentLocation,
         vehicleAssignmentHistory: profile.vehicleAssignments,
         unavailability: profile.unavailability,
+        managementAssignment: profile.managementAssignments.find((item) => !item.effectiveTo) || null,
+        managementAssignmentHistory: profile.managementAssignments,
       } : {}),
+      ...compliance,
       employee,
       complianceStatus,
       dataAvailability: {
@@ -433,13 +510,22 @@ export class UsersService {
     };
   }
 
-  async createDriverProfile(dto: CreateDriverProfileDto) {
+  async createDriverProfile(dto: CreateDriverProfileDto, actor?: OperationalActor) {
     const [existingUsername, existingCode] = await Promise.all([
       this.prisma.user.findUnique({ where: { username: dto.username } }),
       this.prisma.user.findUnique({ where: { code: dto.code } }),
     ]);
     if (existingUsername) throw new ConflictException('Tên đăng nhập đã tồn tại');
     if (existingCode) throw new ConflictException('Mã nhân sự đã tồn tại');
+
+    const managementSelection = actor
+      ? await this.resolveDriverManagementSelection(
+          dto.managementUnitId,
+          dto.teamUnitId,
+          actor,
+          false,
+        )
+      : null;
 
     const rawPassword = dto.password?.trim() || '123456';
     const passwordHash = await bcrypt.hash(rawPassword, 10);
@@ -473,18 +559,58 @@ export class UsersService {
 
       await tx.driverProfile.create({ data: { userId: driver.id, ...this.pickDriverProfileData(dto) } });
 
+      if (managementSelection && tx.driverManagementAssignment) {
+        await tx.driverManagementAssignment.create({
+          data: {
+            driverId: driver.id,
+            managementUnitId: managementSelection.owner.id,
+            teamUnitId: managementSelection.teamUnitId,
+            effectiveFrom: new Date(),
+            reason: 'Tiếp nhận tài xế mới',
+            assignedById: actor?.id ?? driver.id,
+          },
+        });
+      }
+
       return driver.id;
     });
-    return this.findDriverProfile(driverId);
+    return this.findDriverProfile(driverId, actor);
   }
 
-  async updateDriverProfile(id: number, dto: UpdateDriverProfileDto) {
-    const current = await this.prisma.user.findFirst({ where: { id, role: Role.DRIVER } });
+  async updateDriverProfile(id: number, dto: UpdateDriverProfileDto, actor: OperationalActor) {
+    const current = await this.prisma.user.findFirst({
+      where: { id, role: Role.DRIVER },
+      include: {
+        driverProfile: {
+          include: {
+            managementAssignments: {
+              where: { effectiveTo: null },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
     if (!current) throw new NotFoundException(`Không tìm thấy hồ sơ lái xe #${id}`);
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.FARM_MANAGER) {
+      throw new ForbiddenException('Chỉ Quản trị viên hoặc Quản lý nông trường được cập nhật hồ sơ GPLX.');
+    }
+    if (!hasGlobalOperationalAccess(actor) && current.unit !== actor.unit) {
+      throw new ForbiddenException('Không được cập nhật hồ sơ tài xế ngoài đơn vị được phân quyền.');
+    }
 
     if (dto.username && dto.username !== current.username) {
       const duplicate = await this.prisma.user.findUnique({ where: { username: dto.username } });
       if (duplicate) throw new ConflictException('Tên đăng nhập đã tồn tại');
+    }
+
+    let managementSelection: { owner: any; teamUnitId: number | null } | null | undefined = undefined;
+    if (dto.managementUnitId !== undefined) {
+      managementSelection = await this.resolveDriverManagementSelection(
+        dto.managementUnitId || undefined,
+        dto.teamUnitId || undefined,
+        actor,
+      );
     }
 
     const userData = this.pickDriverUserData(dto);
@@ -516,15 +642,51 @@ export class UsersService {
         },
       });
       await tx.driverProfile.upsert({ where: { userId: id }, create: { userId: id, ...this.pickDriverProfileData({ ...current, ...dto } as any) }, update: this.pickDriverProfileData(dto) });
+
+      if (managementSelection !== undefined && tx.driverManagementAssignment) {
+        const currentActive = current.driverProfile?.managementAssignments?.[0];
+        const isSame = currentActive &&
+          currentActive.managementUnitId === (managementSelection?.owner.id ?? null) &&
+          currentActive.teamUnitId === (managementSelection?.teamUnitId ?? null);
+
+        if (!isSame) {
+          await tx.driverManagementAssignment.updateMany({
+            where: { driverId: id, effectiveTo: null },
+            data: { effectiveTo: new Date() },
+          });
+
+          if (managementSelection) {
+            await tx.driverManagementAssignment.create({
+              data: {
+                driverId: id,
+                managementUnitId: managementSelection.owner.id,
+                teamUnitId: managementSelection.teamUnitId,
+                effectiveFrom: new Date(),
+                reason: 'Cập nhật cơ cấu đơn vị quản lý hồ sơ',
+                assignedById: actor.id,
+              },
+            });
+          }
+        }
+      }
     });
 
-    return this.findDriverProfile(id);
+    this.alertsService?.invalidateSourceCache();
+    return this.findDriverProfile(id, actor);
   }
 
   private pickDriverUserData(dto: UpdateDriverProfileDto | CreateDriverProfileDto): any {
+    const isActive =
+      dto.isActive !== undefined
+        ? dto.isActive
+        : dto.employmentStatus !== undefined
+        ? dto.employmentStatus === DriverEmploymentStatus.DANG_LAM_VIEC
+        : undefined;
+
     return {
       ...(dto.phone !== undefined ? { phone: dto.phone || null } : {}),
       ...(dto.employmentStatus !== undefined ? { employmentStatus: dto.employmentStatus } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
       ...(dto.joinedDate !== undefined ? { joinedDate: new Date(dto.joinedDate) } : {}),
       ...(dto.resignedDate !== undefined ? { resignedDate: dto.resignedDate ? new Date(dto.resignedDate) : null } : {}),
       ...(dto.resignedReason !== undefined ? { resignedReason: dto.resignedReason || null } : {}),
@@ -632,6 +794,10 @@ export class UsersService {
       data.passwordHash = await bcrypt.hash(dto.password, salt);
     }
 
+    if (user.username === 'admin') {
+      data.isActive = true;
+    }
+
     return this.prisma.user.update({
       where: { id },
       data,
@@ -650,7 +816,10 @@ export class UsersService {
   }
 
   async remove(id: number) {
-    await this.findOne(id);
+    const user = await this.findOne(id);
+    if (user.username === 'admin') {
+      throw new BadRequestException('Không thể vô hiệu hóa hoặc xóa tài khoản Quản trị viên hệ thống (Admin).');
+    }
     return this.prisma.user.update({
       where: { id },
       data: { isActive: false },

@@ -61,18 +61,18 @@ export class UsersController {
     return this.usersService.findDrivers(unit);
   }
 
-  @Public()
   @Get('drivers/profiles')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER, Role.DISPATCHER, Role.WORKSHOP_MANAGER, Role.FUEL_STOREKEEPER, Role.DRIVER)
   @ApiOperation({ summary: 'Danh sách hồ sơ lái xe/thợ vận hành đã hợp nhất với hồ sơ nhân sự' })
-  async findDriverProfiles(@Query() filter: DriverProfileFilterDto) {
-    return this.usersService.findDriverProfiles(filter);
+  async findDriverProfiles(@Query() filter: DriverProfileFilterDto, @CurrentUser() actor: OperationalActor) {
+    return this.usersService.findDriverProfiles(filter, actor);
   }
 
-  @Public()
   @Get('drivers/profile-options')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER, Role.DISPATCHER, Role.WORKSHOP_MANAGER, Role.FUEL_STOREKEEPER)
   @ApiOperation({ summary: 'Dữ liệu lọc và phương tiện dùng cho hồ sơ lái xe' })
-  async getDriverProfileOptions() {
-    return this.usersService.getDriverProfileOptions();
+  async getDriverProfileOptions(@CurrentUser() actor: OperationalActor) {
+    return this.usersService.getDriverProfileOptions(actor);
   }
 
   @Get('drivers/:id/timeline')
@@ -81,28 +81,29 @@ export class UsersController {
     return this.availabilityService.driverTimeline(id, query.from, query.to, actor, query.excludeWorkOrderId, query.requiredDurationMinutes);
   }
 
-  @Public()
   @Get('drivers/:id/profile')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER, Role.DISPATCHER, Role.WORKSHOP_MANAGER, Role.FUEL_STOREKEEPER)
   @ApiOperation({ summary: 'Hồ sơ 360 độ của lái xe/thợ vận hành' })
-  async findDriverProfile(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findDriverProfile(id);
+  async findDriverProfile(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) {
+    return this.usersService.findDriverProfile(id, actor);
   }
 
-  @Public()
   @Post('drivers/profiles')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER)
   @ApiOperation({ summary: 'Tiếp nhận lái xe/thợ vận hành mới' })
-  async createDriverProfile(@Body() dto: CreateDriverProfileDto) {
-    return this.usersService.createDriverProfile(dto);
+  async createDriverProfile(@Body() dto: CreateDriverProfileDto, @CurrentUser() actor: OperationalActor) {
+    return this.usersService.createDriverProfile(dto, actor);
   }
 
-  @Public()
   @Patch('drivers/:id/profile')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER)
   @ApiOperation({ summary: 'Cập nhật hồ sơ lái xe/thợ vận hành' })
   async updateDriverProfile(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDriverProfileDto,
+    @CurrentUser() actor: OperationalActor,
   ) {
-    return this.usersService.updateDriverProfile(id, dto);
+    return this.usersService.updateDriverProfile(id, dto, actor);
   }
 
   @Public()

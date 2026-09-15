@@ -125,252 +125,365 @@ async function main() {
     },
   });
 
+  // Helper tạo đầy đủ 3 bảng: users, driver_profiles, employees để khi click vào bất kỳ lái xe nào đều có đủ hồ sơ 360°
+  async function upsertDriver(data: {
+    code: string;
+    username: string;
+    fullName: string;
+    phone: string;
+    unit: Unit;
+    employmentStatus: DriverEmploymentStatus;
+    joinedDate: Date;
+    licenseClass: DriverLicenseClass;
+    licenseNumber: string;
+    licenseExpiryDate: Date;
+    healthCheckExpiryDate: Date;
+    currentShiftStatus?: DriverShiftStatus | null;
+    currentLocation?: string | null;
+    avatarUrl?: string;
+    notes?: string;
+    resignedDate?: Date;
+    resignedReason?: string;
+    enterprise: string;
+    team: string;
+    position: string;
+  }) {
+    const user = await prisma.user.upsert({
+      where: { username: data.username },
+      update: {
+        code: data.code,
+        fullName: data.fullName,
+        phone: data.phone,
+        unit: data.unit,
+        employmentStatus: data.employmentStatus,
+        joinedDate: data.joinedDate,
+        resignedDate: data.resignedDate || null,
+        resignedReason: data.resignedReason || null,
+        licenseClass: data.licenseClass,
+        licenseNumber: data.licenseNumber,
+        licenseExpiryDate: data.licenseExpiryDate,
+        healthCheckExpiryDate: data.healthCheckExpiryDate,
+        currentShiftStatus: data.currentShiftStatus ?? null,
+        currentLocation: data.currentLocation || null,
+        avatarUrl: data.avatarUrl,
+        notes: data.notes,
+      },
+      create: {
+        code: data.code,
+        username: data.username,
+        passwordHash,
+        fullName: data.fullName,
+        phone: data.phone,
+        role: Role.DRIVER,
+        unit: data.unit,
+        employmentStatus: data.employmentStatus,
+        joinedDate: data.joinedDate,
+        resignedDate: data.resignedDate || null,
+        resignedReason: data.resignedReason || null,
+        licenseClass: data.licenseClass,
+        licenseNumber: data.licenseNumber,
+        licenseExpiryDate: data.licenseExpiryDate,
+        healthCheckExpiryDate: data.healthCheckExpiryDate,
+        currentShiftStatus: data.currentShiftStatus ?? DriverShiftStatus.SAN_SANG,
+        currentLocation: data.currentLocation || null,
+        avatarUrl: data.avatarUrl,
+        notes: data.notes,
+      },
+    });
+
+    await prisma.driverProfile.upsert({
+      where: { userId: user.id },
+      update: {
+        employmentStatus: data.employmentStatus,
+        joinedDate: data.joinedDate,
+        resignedDate: data.resignedDate || null,
+        resignedReason: data.resignedReason || null,
+        licenseClass: data.licenseClass,
+        licenseNumber: data.licenseNumber,
+        licenseExpiryDate: data.licenseExpiryDate,
+        healthCheckExpiryDate: data.healthCheckExpiryDate,
+        currentShiftStatus: data.currentShiftStatus ?? DriverShiftStatus.SAN_SANG,
+        currentLocation: data.currentLocation || null,
+      },
+      create: {
+        userId: user.id,
+        employmentStatus: data.employmentStatus,
+        joinedDate: data.joinedDate,
+        resignedDate: data.resignedDate || null,
+        resignedReason: data.resignedReason || null,
+        licenseClass: data.licenseClass,
+        licenseNumber: data.licenseNumber,
+        licenseExpiryDate: data.licenseExpiryDate,
+        healthCheckExpiryDate: data.healthCheckExpiryDate,
+        currentShiftStatus: data.currentShiftStatus ?? DriverShiftStatus.SAN_SANG,
+        currentLocation: data.currentLocation || null,
+      },
+    });
+
+    await prisma.employeeRecord.upsert({
+      where: { empCode: data.code },
+      update: {
+        fullName: data.fullName,
+        phone: data.phone,
+        email: `${data.username}@thacoagri.com.vn`,
+        businessUnit: data.enterprise,
+        enterprise: data.enterprise,
+        complex: 'Koun Mom (Campuchia)',
+        farm: data.enterprise,
+        team: data.team,
+        position: data.position,
+        licenseClass: data.licenseClass,
+        licenseNumber: data.licenseNumber,
+        licenseExpiryDate: data.licenseExpiryDate.toISOString().slice(0, 10),
+        healthCheckExpiryDate: data.healthCheckExpiryDate.toISOString().slice(0, 10),
+        status: data.employmentStatus === DriverEmploymentStatus.DANG_LAM_VIEC ? 'Hoạt động' : 'Đã nghỉ việc',
+        idCardNumber: `07920100${user.id.toString().padStart(4, '0')}`,
+        idCardIssueDate: '2021-05-15',
+        idCardIssuePlace: 'Cục Cảnh sát QLHC về TTXH',
+        joinedDate: data.joinedDate.toISOString().slice(0, 10),
+      },
+      create: {
+        empCode: data.code,
+        fullName: data.fullName,
+        phone: data.phone,
+        email: `${data.username}@thacoagri.com.vn`,
+        businessUnit: data.enterprise,
+        enterprise: data.enterprise,
+        complex: 'Koun Mom (Campuchia)',
+        farm: data.enterprise,
+        team: data.team,
+        position: data.position,
+        licenseClass: data.licenseClass,
+        licenseNumber: data.licenseNumber,
+        licenseExpiryDate: data.licenseExpiryDate.toISOString().slice(0, 10),
+        healthCheckExpiryDate: data.healthCheckExpiryDate.toISOString().slice(0, 10),
+        status: data.employmentStatus === DriverEmploymentStatus.DANG_LAM_VIEC ? 'Hoạt động' : 'Đã nghỉ việc',
+        idCardNumber: `07920100${user.id.toString().padStart(4, '0')}`,
+        idCardIssueDate: '2021-05-15',
+        idCardIssuePlace: 'Cục Cảnh sát QLHC về TTXH',
+        joinedDate: data.joinedDate.toISOString().slice(0, 10),
+      },
+    });
+
+    return user;
+  }
+
   // TÀI XẾ 1: Trần Đình Trọng (NT1 - Máy kéo - Thâm niên > 5 năm - Đang chạy máy)
-  const driverTrong = await prisma.user.upsert({
-    where: { username: 'driver.trong' },
-    update: {},
-    create: {
-      code: 'TX-NT1-001',
-      username: 'driver.trong',
-      passwordHash,
-      fullName: 'Trần Đình Trọng',
-      phone: '0988123456',
-      role: Role.DRIVER,
-      unit: Unit.NT1,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2021-03-10'),
-      licenseClass: DriverLicenseClass.BANG_MAY_NONG_NGHIEP,
-      licenseNumber: 'NN-2023-88991',
-      licenseExpiryDate: new Date('2028-12-20'),
-      healthCheckExpiryDate: new Date('2026-11-15'),
-      currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
-      currentLocation: 'Lô A03 - Khoảnh 4 (Nông Trường 1)',
-      avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150',
-      notes: 'Tài xế lành nghề, chuyên cày sâu 30cm và bừa đĩa chất lượng cao',
-    },
+  const driverTrong = await upsertDriver({
+    code: 'TX-NT1-001',
+    username: 'driver.trong',
+    fullName: 'Trần Đình Trọng',
+    phone: '0988123456',
+    unit: Unit.NT1,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2021-03-10'),
+    licenseClass: DriverLicenseClass.HANG_B2,
+    licenseNumber: 'B2-2023-88991',
+    licenseExpiryDate: new Date('2028-12-20'),
+    healthCheckExpiryDate: new Date('2026-11-15'),
+    currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
+    currentLocation: 'Lô A03 - Khoảnh 4 (Nông Trường 1)',
+    avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150',
+    notes: 'Tài xế lành nghề, chuyên cày sâu 30cm và bừa đĩa chất lượng cao',
+    enterprise: 'Xí nghiệp Chuối DP1',
+    team: 'Đội Cơ giới 1',
+    position: 'Thợ vận hành máy cày Kubota',
   });
 
   // TÀI XẾ 2: Đặng Quốc Thành (NT1 - Máy kéo - Thâm niên 4 năm - Đang chạy máy)
-  const driverThanh = await prisma.user.upsert({
-    where: { username: 'driver.thanh' },
-    update: {},
-    create: {
-      code: 'TX-NT1-002',
-      username: 'driver.thanh',
-      passwordHash,
-      fullName: 'Đặng Quốc Thành',
-      phone: '0977445566',
-      role: Role.DRIVER,
-      unit: Unit.NT1,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2022-07-15'),
-      licenseClass: DriverLicenseClass.BANG_MAY_NONG_NGHIEP,
-      licenseNumber: 'NN-2022-77123',
-      licenseExpiryDate: new Date('2027-06-18'),
-      healthCheckExpiryDate: new Date('2026-10-10'),
-      currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
-      currentLocation: 'Lô A02 - Khoảnh 4 (Nông Trường 1)',
-      avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
-      notes: 'Tay lái cày bừa chuẩn xác, tiết kiệm dầu trung bình 0.3L/ha',
-    },
+  const driverThanh = await upsertDriver({
+    code: 'TX-NT1-002',
+    username: 'driver.thanh',
+    fullName: 'Đặng Quốc Thành',
+    phone: '0977445566',
+    unit: Unit.NT1,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2022-07-15'),
+    licenseClass: DriverLicenseClass.HANG_B2,
+    licenseNumber: 'B2-2022-77123',
+    licenseExpiryDate: new Date('2027-06-18'),
+    healthCheckExpiryDate: new Date('2026-10-10'),
+    currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
+    currentLocation: 'Lô A02 - Khoảnh 4 (Nông Trường 1)',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
+    notes: 'Tay lái cày bừa chuẩn xác, tiết kiệm dầu trung bình 0.3L/ha',
+    enterprise: 'Xí nghiệp Chuối DP1',
+    team: 'Đội Cơ giới 1',
+    position: 'Thợ vận hành máy kéo John Deere',
   });
 
   // TÀI XẾ 3: Phan Văn Hùng (Logistics - Cont 40ft - Thâm niên 6.5 năm - Đang chạy tuyến cảng)
-  const driverHungCont = await prisma.user.upsert({
-    where: { username: 'driver.hung.cont' },
-    update: {},
-    create: {
-      code: 'TX-92C-003',
-      username: 'driver.hung.cont',
-      passwordHash,
-      fullName: 'Phan Văn Hùng',
-      phone: '0912334999',
-      role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2020-02-01'),
-      licenseClass: DriverLicenseClass.HANG_FC,
-      licenseNumber: 'FC-79-112233',
-      licenseExpiryDate: new Date('2027-09-05'),
-      healthCheckExpiryDate: new Date('2026-12-01'),
-      currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
-      currentLocation: 'Quốc Lộ 4 ➔ Cảng Quốc Tế Sihanoukville',
-      avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
-      notes: 'Tài xế Container đường dài xuất khẩu, luôn chạy đúng tốc độ <70km/h',
-    },
+  const driverHungCont = await upsertDriver({
+    code: 'TX-92C-003',
+    username: 'driver.hung.cont',
+    fullName: 'Phan Văn Hùng',
+    phone: '0912334999',
+    unit: Unit.BAN_CO_GIOI,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2020-02-01'),
+    licenseClass: DriverLicenseClass.HANG_CE,
+    licenseNumber: 'CE-79-112233',
+    licenseExpiryDate: new Date('2027-09-05'),
+    healthCheckExpiryDate: new Date('2026-12-01'),
+    currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
+    currentLocation: 'Quốc Lộ 4 ➔ Cảng Quốc Tế Sihanoukville',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
+    notes: 'Tài xế Container đường dài xuất khẩu, luôn chạy đúng tốc độ <70km/h',
+    enterprise: 'Ban Cơ Giới KLH',
+    team: 'Đội Xe Container Đường Dài',
+    position: 'Lái xe đầu kéo Container',
   });
 
   // TÀI XẾ 4: Choeun Sron (Logistics - Cont 40ft - Thâm niên 5.3 năm - Đang chạy nội bộ)
-  const driverChoeun = await prisma.user.upsert({
-    where: { username: 'driver.choeun' },
-    update: {},
-    create: {
-      code: 'TX-92C-004',
-      username: 'driver.choeun',
-      passwordHash,
-      fullName: 'Choeun Sron',
-      phone: '0887765432',
-      role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2021-05-14'),
-      licenseClass: DriverLicenseClass.HANG_FC,
-      licenseNumber: 'FC-KH-88341',
-      licenseExpiryDate: new Date('2028-11-12'),
-      healthCheckExpiryDate: new Date('2026-09-20'),
-      currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
-      currentLocation: 'DP2 ➔ DP Tổng kho',
-      avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-      notes: 'Tài xế bản địa Campuchia, thông thạo địa hình nội bộ KLH Koun Mom',
-    },
+  const driverChoeun = await upsertDriver({
+    code: 'TX-92C-004',
+    username: 'driver.choeun',
+    fullName: 'Choeun Sron',
+    phone: '0887765432',
+    unit: Unit.BAN_CO_GIOI,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2021-05-14'),
+    licenseClass: DriverLicenseClass.HANG_CE,
+    licenseNumber: 'CE-KH-88341',
+    licenseExpiryDate: new Date('2028-11-12'),
+    healthCheckExpiryDate: new Date('2026-09-20'),
+    currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
+    currentLocation: 'DP2 ➔ DP Tổng kho',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
+    notes: 'Tài xế bản địa Campuchia, thông thạo địa hình nội bộ KLH Koun Mom',
+    enterprise: 'Ban Cơ Giới KLH',
+    team: 'Đội Vận tải Nội bộ',
+    position: 'Lái xe container nội bộ',
   });
 
   // TÀI XẾ 5: Bùi Thanh Minh (Xe tải nhẹ - Thâm niên 3 năm - Sẵn sàng)
-  const driverMinh = await prisma.user.upsert({
-    where: { username: 'driver.minh' },
-    update: {},
-    create: {
-      code: 'TX-XTA-005',
-      username: 'driver.minh',
-      passwordHash,
-      fullName: 'Bùi Thanh Minh',
-      phone: '0905678123',
-      role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2023-08-19'),
-      licenseClass: DriverLicenseClass.HANG_C,
-      licenseNumber: 'C-92-445566',
-      licenseExpiryDate: new Date('2029-04-10'),
-      healthCheckExpiryDate: new Date('2026-11-18'),
-      currentShiftStatus: DriverShiftStatus.SAN_SANG,
-      currentLocation: 'Bãi Xe Trung Tâm - KLH Koun Mom',
-      avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150',
-      notes: 'Chuyên tuyến giao nhận bao bì thùng carton & chuối xuất khẩu',
-    },
+  const driverMinh = await upsertDriver({
+    code: 'TX-XTA-005',
+    username: 'driver.minh',
+    fullName: 'Bùi Thanh Minh',
+    phone: '0905678123',
+    unit: Unit.BAN_CO_GIOI,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2023-08-19'),
+    licenseClass: DriverLicenseClass.HANG_C,
+    licenseNumber: 'C-92-445566',
+    licenseExpiryDate: new Date('2029-04-10'),
+    healthCheckExpiryDate: new Date('2026-11-18'),
+    currentShiftStatus: DriverShiftStatus.SAN_SANG,
+    currentLocation: 'Bãi Xe Trung Tâm - KLH Koun Mom',
+    avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150',
+    notes: 'Chuyên tuyến giao nhận bao bì thùng carton & chuối xuất khẩu',
+    enterprise: 'Ban Cơ Giới KLH',
+    team: 'Đội Xe Tải Nhẹ',
+    position: 'Lái xe tải vận chuyển bao bì',
   });
 
   // TÀI XẾ 6: Lê Văn Hùng (XN Bò - Xe ben 10T - Thâm niên 3.9 năm - Sẵn sàng)
-  const driverHungBen = await prisma.user.upsert({
-    where: { username: 'driver.hung.ben' },
-    update: {},
-    create: {
-      code: 'TX-XNB-006',
-      username: 'driver.hung.ben',
-      passwordHash,
-      fullName: 'Lê Văn Hùng',
-      phone: '0966334455',
-      role: Role.DRIVER,
-      unit: Unit.XN_BO,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2022-11-05'),
-      licenseClass: DriverLicenseClass.HANG_C,
-      licenseNumber: 'C-70-998877',
-      licenseExpiryDate: new Date('2028-01-22'),
-      healthCheckExpiryDate: new Date('2026-10-30'),
-      currentShiftStatus: DriverShiftStatus.SAN_SANG,
-      currentLocation: 'Bãi Xe Xí Nghiệp Chăn Nuôi Bò',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      notes: 'Chuyên vận chuyển phụ phẩm bã chuối & thức ăn TMR cho đàn bò',
-    },
+  const driverHungBen = await upsertDriver({
+    code: 'TX-XNB-006',
+    username: 'driver.hung.ben',
+    fullName: 'Lê Văn Hùng',
+    phone: '0966334455',
+    unit: Unit.XN_BO,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2022-11-05'),
+    licenseClass: DriverLicenseClass.HANG_C,
+    licenseNumber: 'C-70-998877',
+    licenseExpiryDate: new Date('2028-01-22'),
+    healthCheckExpiryDate: new Date('2026-10-30'),
+    currentShiftStatus: DriverShiftStatus.SAN_SANG,
+    currentLocation: 'Bãi Xe Xí Nghiệp Chăn Nuôi Bò',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    notes: 'Chuyên vận chuyển phụ phẩm bã chuối & thức ăn TMR cho đàn bò',
+    enterprise: 'Xí nghiệp Bò Koun Mom',
+    team: 'Đội Xe Ben 10T',
+    position: 'Tài xế xe ben chở phụ phẩm',
   });
 
   // TÀI XẾ 7: Võ Hoài Nam (Xe bán tải cứu hộ - Thâm niên 6.4 năm - Đang cấp dầu)
-  const driverNam = await prisma.user.upsert({
-    where: { username: 'driver.nam' },
-    update: {},
-    create: {
-      code: 'TX-NT2-007',
-      username: 'driver.nam',
-      passwordHash,
-      fullName: 'Võ Hoài Nam',
-      phone: '0912889900',
-      role: Role.DRIVER,
-      unit: Unit.NT2,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2020-04-11'),
-      licenseClass: DriverLicenseClass.HANG_B2,
-      licenseNumber: 'B2-92-334455',
-      licenseExpiryDate: new Date('2030-08-15'),
-      healthCheckExpiryDate: new Date('2026-12-25'),
-      currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
-      currentLocation: 'Cung đường Lô NT2 (Đang cấp dầu DO)',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-      notes: 'Đội trưởng cứu hộ kỹ thuật cơ giới, kiêm cấp dầu lưu động',
-    },
+  const driverNam = await upsertDriver({
+    code: 'TX-NT2-007',
+    username: 'driver.nam',
+    fullName: 'Võ Hoài Nam',
+    phone: '0912889900',
+    unit: Unit.NT2,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2020-04-11'),
+    licenseClass: DriverLicenseClass.HANG_B2,
+    licenseNumber: 'B2-92-334455',
+    licenseExpiryDate: new Date('2030-08-15'),
+    healthCheckExpiryDate: new Date('2026-12-25'),
+    currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH,
+    currentLocation: 'Cung đường Lô NT2 (Đang cấp dầu DO)',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+    notes: 'Đội trưởng cứu hộ kỹ thuật cơ giới, kiêm cấp dầu lưu động',
+    enterprise: 'Xí nghiệp Chuối DP2',
+    team: 'Đội Cứu Hộ Kỹ Thuật',
+    position: 'Đội trưởng cứu hộ & cấp dầu',
   });
 
   // TÀI XẾ 8: Phạm Minh Đức (Máy kéo NT1 - Nghỉ ca luân phiên)
-  const driverDuc = await prisma.user.upsert({
-    where: { username: 'driver.duc' },
-    update: {},
-    create: {
-      code: 'TX-NT1-008',
-      username: 'driver.duc',
-      passwordHash,
-      fullName: 'Phạm Minh Đức',
-      phone: '0933221100',
-      role: Role.DRIVER,
-      unit: Unit.NT1,
-      employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
-      joinedDate: new Date('2024-01-10'),
-      licenseClass: DriverLicenseClass.BANG_MAY_NONG_NGHIEP,
-      licenseNumber: 'NN-2024-11223',
-      licenseExpiryDate: new Date('2029-03-01'),
-      healthCheckExpiryDate: new Date('2026-09-14'),
-      currentShiftStatus: DriverShiftStatus.NGHI_PHEP_CA,
-      currentLocation: 'Nghỉ ca luân phiên theo lịch điều động',
-      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-      notes: 'Hơn 2.5 năm kinh nghiệm máy kéo NT1, đang trong ca nghỉ phép',
-    },
+  const driverDuc = await upsertDriver({
+    code: 'TX-NT1-008',
+    username: 'driver.duc',
+    fullName: 'Phạm Minh Đức',
+    phone: '0933221100',
+    unit: Unit.NT1,
+    employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+    joinedDate: new Date('2024-01-10'),
+    licenseClass: DriverLicenseClass.HANG_B2,
+    licenseNumber: 'B2-2024-11223',
+    licenseExpiryDate: new Date('2029-03-01'),
+    healthCheckExpiryDate: new Date('2026-09-14'),
+    currentShiftStatus: DriverShiftStatus.NGHI_PHEP_CA,
+    currentLocation: 'Nghỉ ca luân phiên theo lịch điều động',
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+    notes: 'Hơn 2.5 năm kinh nghiệm máy kéo NT1, đang trong ca nghỉ phép',
+    enterprise: 'Xí nghiệp Chuối DP1',
+    team: 'Đội Cơ giới 1',
+    position: 'Thợ vận hành máy kéo',
   });
 
   // TÀI XẾ 9: Nguyễn Văn Hải (Đã nghỉ việc / Chấm dứt HĐLĐ tháng 06/2026)
-  const driverHaiResigned = await prisma.user.upsert({
-    where: { username: 'driver.hai.resigned' },
-    update: {},
-    create: {
-      code: 'TX-NT2-009',
-      username: 'driver.hai.resigned',
-      passwordHash,
-      fullName: 'Nguyễn Văn Hải',
-      phone: '0981776655',
-      role: Role.DRIVER,
-      unit: Unit.NT2,
-      employmentStatus: DriverEmploymentStatus.DA_NGHI_VIEC,
-      joinedDate: new Date('2022-03-12'),
-      resignedDate: new Date('2026-06-15'),
-      resignedReason: 'Chấm dứt HĐLĐ theo nguyện vọng cá nhân (chuyển về quê)',
-      licenseClass: DriverLicenseClass.BANG_MAY_NONG_NGHIEP,
-      licenseNumber: 'NN-2022-33441',
-      licenseExpiryDate: new Date('2027-03-12'),
-      healthCheckExpiryDate: new Date('2026-05-01'),
-      notes: 'Đã hoàn tất bàn giao máy kéo và công nợ dụng cụ.',
-    },
+  const driverHaiResigned = await upsertDriver({
+    code: 'TX-NT2-009',
+    username: 'driver.hai.resigned',
+    fullName: 'Nguyễn Văn Hải',
+    phone: '0981776655',
+    unit: Unit.NT2,
+    employmentStatus: DriverEmploymentStatus.DA_NGHI_VIEC,
+    joinedDate: new Date('2022-03-12'),
+    resignedDate: new Date('2026-06-15'),
+    resignedReason: 'Chấm dứt HĐLĐ theo nguyện vọng cá nhân (chuyển về quê)',
+    licenseClass: DriverLicenseClass.HANG_B2,
+    licenseNumber: 'B2-2022-33441',
+    licenseExpiryDate: new Date('2027-03-12'),
+    healthCheckExpiryDate: new Date('2026-05-01'),
+    notes: 'Đã hoàn tất bàn giao máy kéo và công nợ dụng cụ.',
+    enterprise: 'Xí nghiệp Chuối DP2',
+    team: 'Đội Cơ giới 2',
+    position: 'Thợ vận hành máy kéo (Đã nghỉ)',
   });
 
   // TÀI XẾ 10: Hoàng Quốc Dũng (Đã nghỉ việc / Hết hạn HĐLĐ tháng 04/2026)
-  const driverDungResigned = await prisma.user.upsert({
-    where: { username: 'driver.dung.resigned' },
-    update: {},
-    create: {
-      code: 'TX-92C-010',
-      username: 'driver.dung.resigned',
-      passwordHash,
-      fullName: 'Hoàng Quốc Dũng',
-      phone: '0903112334',
-      role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
-      employmentStatus: DriverEmploymentStatus.DA_NGHI_VIEC,
-      joinedDate: new Date('2021-08-05'),
-      resignedDate: new Date('2026-04-30'),
-      resignedReason: 'Hết hạn hợp đồng lao động 3 năm',
-      licenseClass: DriverLicenseClass.HANG_FC,
-      licenseNumber: 'FC-92-998811',
-      licenseExpiryDate: new Date('2026-08-05'),
-      healthCheckExpiryDate: new Date('2026-03-10'),
-      notes: 'Đã bàn giao đầu kéo Container 92C-14772 cho phòng Cơ Giới.',
-    },
+  const driverDungResigned = await upsertDriver({
+    code: 'TX-92C-010',
+    username: 'driver.dung.resigned',
+    fullName: 'Hoàng Quốc Dũng',
+    phone: '0903112334',
+    unit: Unit.BAN_CO_GIOI,
+    employmentStatus: DriverEmploymentStatus.DA_NGHI_VIEC,
+    joinedDate: new Date('2021-08-05'),
+    resignedDate: new Date('2026-04-30'),
+    resignedReason: 'Hết hạn hợp đồng lao động 3 năm',
+    licenseClass: DriverLicenseClass.HANG_CE,
+    licenseNumber: 'CE-92-998811',
+    licenseExpiryDate: new Date('2026-08-05'),
+    healthCheckExpiryDate: new Date('2026-03-10'),
+    notes: 'Đã bàn giao đầu kéo Container 92C-14772 cho phòng Cơ Giới.',
+    enterprise: 'Ban Cơ Giới KLH',
+    team: 'Đội Xe Container Đường Dài',
+    position: 'Lái xe container (Đã nghỉ)',
   });
 
   console.log('✅ Đã tạo đầy đủ nhân sự & danh bạ tài xế (Còn làm việc & Đã nghỉ việc).');
@@ -541,11 +654,11 @@ async function main() {
       name: 'Dàn cày 4 chảo Kubota DP244 (Cày sâu 30cm)',
       category: ImplementCategory.DAN_CAY,
       unit: Unit.NT1,
-      currentVehicleId: vehicle1.id,
-      status: ImplementStatus.ATTACHED,
+      currentVehicleId: null,
+      status: ImplementStatus.IN_DEPOT,
       technicalCondition: TechnicalCondition.GOOD,
       standardPurpose: 'Cày lật đất sâu 30cm, cắt đứt gốc rễ chuối cũ',
-      attachedAt: new Date(),
+      attachedAt: null,
     },
   });
 
@@ -557,15 +670,15 @@ async function main() {
       name: 'Dàn bừa đĩa 24 chảo phá váng',
       category: ImplementCategory.DAN_BUA,
       unit: Unit.NT1,
-      currentVehicleId: vehicle2.id,
-      status: ImplementStatus.ATTACHED,
+      currentVehicleId: null,
+      status: ImplementStatus.IN_DEPOT,
       technicalCondition: TechnicalCondition.GOOD,
       standardPurpose: 'Bừa tơi xốp bề mặt đất, nghiền nhỏ đất cục',
-      attachedAt: new Date(),
+      attachedAt: null,
     },
   });
 
-  console.log('✅ Đã tạo nông cụ phụ trợ và đính kèm máy kéo.');
+  console.log('✅ Đã tạo nông cụ phụ trợ ở trạng thái kho, không sinh liên kết xe giả.');
 
   // 4. Khởi tạo Kế Hoạch & Lệnh Sản Xuất Chuỗi 3 Giai Đoạn (Làm đất -> Trồng mới -> Thu hoạch)
   const prodPlan1 = await prisma.productionPlan.upsert({
@@ -772,41 +885,7 @@ async function main() {
 
   console.log('✅ Đã tạo kho bồn dầu DO 45kL và phiếu cấp dầu QR.');
 
-  // 8. Khởi tạo Bảo dưỡng 250h & Ghi nhận nợ lọc
-  const maintRecord1 = await prisma.maintenanceRecord.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
-      vehicleId: vehicle1.id,
-      technicianId: workshopManager.id,
-      currentHours: 1242.0,
-      hoursToNextService: 8.0, // Cảnh báo ĐỎ
-      alertTier: MaintenanceAlertTier.RED,
-      checklistJson: {
-        thayNhotDongCo: true,
-        thayLocNhot: true,
-        thayLocNhienLieuTinh: true,
-        thayLocTachNuoc: false, // Nợ lọc tách nước
-        bomMoBiMooc: true,
-        kiemTraDauThuyLuc: true,
-      },
-      status: MaintenanceStatus.SCHEDULED,
-    },
-  });
-
-  await prisma.workshopOwedPartNote.create({
-    data: {
-      maintenanceRecordId: maintRecord1.id,
-      vehicleId: vehicle1.id,
-      missingPartName: 'Lọc tách nước Donaldson P550881',
-      partCode: 'DL-P550881',
-      scheduledRestockDate: new Date('2026-08-20'),
-      isResolved: false,
-      technicianNotes: 'Hàng đang trên đường từ Tổng kho THACO Chu Lai sang Campuchia, cam kết lắp bù ngày 20/08.',
-    },
-  });
-
-  console.log('✅ Đã tạo hồ sơ bảo dưỡng 250h và quản lý nợ lọc phụ tùng.');
+  // Không seed phiếu xưởng demo. Hàng chờ WorkshopRequest được dựng động từ trạng thái tài sản thật.
 
   // 9. Khởi tạo Đánh giá KPI Tài Xế (4 Tiêu Chí 25%)
   await prisma.driverKpi.upsert({

@@ -47,6 +47,7 @@ export class DashboardService {
       activeRepairsCount,
       activeTransportTrips,
       activeSosAlerts,
+      gpsEquippedCount,
     ] = await Promise.all([
       this.prisma.vehicle.count({ where: vehicleWhere }),
       this.prisma.vehicle.count({ where: { ...vehicleWhere, status: VehicleStatus.HOAT_DONG } }),
@@ -69,8 +70,8 @@ export class DashboardService {
       this.prisma.vehicle.count({
         where: { ...vehicleWhere, alertTier: MaintenanceAlertTier.RED },
       }),
-      this.prisma.repairTicket.count({
-        where: { status: { in: [RepairStatus.RECEIVED, RepairStatus.IN_REPAIR, RepairStatus.WAITING_PARTS] } },
+      this.prisma.workshopRequest.count({
+        where: { type: 'REPAIR', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
       }),
       this.prisma.transportOrder.count({
         where: { ...transportWhere, status: { in: [TransportStatus.DEPARTED, TransportStatus.IN_TRANSIT, TransportStatus.AT_DELIVERY, TransportStatus.UNLOADING] } },
@@ -78,7 +79,16 @@ export class DashboardService {
       this.prisma.driverSosAlert.count({
         where: { status: SosStatus.PENDING },
       }),
+      this.prisma.vehicle.count({
+        where: {
+          ...vehicleWhere,
+          AND: [{ gpsImei: { not: null } }, { gpsImei: { not: '' } }],
+        },
+      }),
     ]);
+
+    const gpsEquippedVehicles = gpsEquippedCount || 0;
+    const noGpsVehicles = Math.max(0, totalVehicles - gpsEquippedVehicles);
 
     const availabilityRate = totalVehicles > 0
       ? (((runningVehicles + standbyVehicles) / totalVehicles) * 100).toFixed(1)
@@ -94,6 +104,8 @@ export class DashboardService {
           maintenance: maintenanceVehicles,
           repair: repairVehicles,
           availabilityRate: `${availabilityRate}%`,
+          gpsEquipped: gpsEquippedVehicles,
+          noGps: noGpsVehicles,
         },
         agriculturalProgress: {
           totalPlans,
@@ -127,10 +139,13 @@ export class DashboardService {
     };
   }
 
-  async getLiveFleetMap(unit?: Unit) {
+  async getLiveFleetMap(unit?: Unit, complexCode?: string) {
     const where: any = {};
     if (unit && unit !== Unit.TOAN_KLH) {
       where.unit = unit;
+    }
+    if (complexCode && complexCode !== 'ALL') {
+      where.complexCode = complexCode;
     }
 
     return this.prisma.vehicle.findMany({
@@ -142,6 +157,9 @@ export class DashboardService {
         name: true,
         category: true,
         unit: true,
+        assignedUnitCode: true,
+        regionCode: true,
+        gpsImei: true,
         status: true,
         alertTier: true,
         totalMachineHours: true,
@@ -158,6 +176,7 @@ export class DashboardService {
           select: { id: true, code: true, name: true, category: true },
         },
       },
+      orderBy: { id: 'asc' },
     });
   }
 }

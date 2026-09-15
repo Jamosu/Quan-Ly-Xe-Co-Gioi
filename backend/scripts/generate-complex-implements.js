@@ -4,19 +4,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('--- GENERATING AGRICULTURAL IMPLEMENTS FOR SNOUL AND NAM LAO ---');
 
-  // Find some tractors/vehicles in Snoul and Nam Lao to attach
-  const snoulTractors = await prisma.vehicle.findMany({
-    where: { complexCode: 'SNOUL' },
-    select: { id: true, code: true },
-    take: 10,
-  });
-
-  const namLaoTractors = await prisma.vehicle.findMany({
-    where: { complexCode: 'NAM_LAO' },
-    select: { id: true, code: true },
-    take: 10,
-  });
-
   // 1. SNOUL IMPLEMENT DEFINITIONS
   const snoulTemplates = [
     // DAN_CAY (Dàn cày)
@@ -98,14 +85,7 @@ async function main() {
 
     let status = ImplementStatus.IN_DEPOT;
     let condition = TechnicalCondition.GOOD;
-    let attachedVehicleId = null;
-    let attachedAt = null;
-
-    if (i % 8 === 0 && snoulTractors.length > 0) {
-      status = ImplementStatus.ATTACHED;
-      attachedVehicleId = snoulTractors[i % snoulTractors.length].id;
-      attachedAt = new Date(Date.now() - (i * 3600000 * 24));
-    } else if (i % 16 === 0) {
+    if (i % 16 === 0) {
       status = ImplementStatus.MAINTENANCE;
       condition = TechnicalCondition.NEED_REPAIR;
     } else if (i % 12 === 0) {
@@ -121,11 +101,13 @@ async function main() {
           name: `${tpl.name} #${seq}`,
           category: tpl.category,
           unit: tpl.unit,
-          currentVehicleId: attachedVehicleId,
+          currentVehicleId: null,
           status,
+          usageMode: 'ATTACHABLE',
+          sourceGroup: tpl.category,
           technicalCondition: condition,
           standardPurpose,
-          attachedAt,
+          attachedAt: null,
           managerName: tpl.mgr,
           gatheringLocation: tpl.loc,
           managerPhone: tpl.phone,
@@ -135,11 +117,13 @@ async function main() {
           name: `${tpl.name} #${seq}`,
           category: tpl.category,
           unit: tpl.unit,
-          currentVehicleId: attachedVehicleId,
+          currentVehicleId: null,
           status,
+          usageMode: 'ATTACHABLE',
+          sourceGroup: tpl.category,
           technicalCondition: condition,
           standardPurpose,
-          attachedAt,
+          attachedAt: null,
           managerName: tpl.mgr,
           gatheringLocation: tpl.loc,
           managerPhone: tpl.phone,
@@ -159,14 +143,7 @@ async function main() {
 
     let status = ImplementStatus.IN_DEPOT;
     let condition = TechnicalCondition.GOOD;
-    let attachedVehicleId = null;
-    let attachedAt = null;
-
-    if (i % 8 === 0 && namLaoTractors.length > 0) {
-      status = ImplementStatus.ATTACHED;
-      attachedVehicleId = namLaoTractors[i % namLaoTractors.length].id;
-      attachedAt = new Date(Date.now() - (i * 3600000 * 20));
-    } else if (i % 15 === 0) {
+    if (i % 15 === 0) {
       status = ImplementStatus.MAINTENANCE;
       condition = TechnicalCondition.NEED_REPAIR;
     } else if (i % 11 === 0) {
@@ -182,11 +159,13 @@ async function main() {
           name: `${tpl.name} #${seq}`,
           category: tpl.category,
           unit: tpl.unit,
-          currentVehicleId: attachedVehicleId,
+          currentVehicleId: null,
           status,
+          usageMode: 'ATTACHABLE',
+          sourceGroup: tpl.category,
           technicalCondition: condition,
           standardPurpose,
-          attachedAt,
+          attachedAt: null,
           managerName: tpl.mgr,
           gatheringLocation: tpl.loc,
           managerPhone: tpl.phone,
@@ -196,11 +175,13 @@ async function main() {
           name: `${tpl.name} #${seq}`,
           category: tpl.category,
           unit: tpl.unit,
-          currentVehicleId: attachedVehicleId,
+          currentVehicleId: null,
           status,
+          usageMode: 'ATTACHABLE',
+          sourceGroup: tpl.category,
           technicalCondition: condition,
           standardPurpose,
-          attachedAt,
+          attachedAt: null,
           managerName: tpl.mgr,
           gatheringLocation: tpl.loc,
           managerPhone: tpl.phone,

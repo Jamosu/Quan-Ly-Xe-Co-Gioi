@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { DispatchSourceType, Unit } from '@prisma/client';
+import { DispatchSourceType, Unit, VehicleOperationalDomain } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateDispatchOrderDto {
   @ApiProperty({ example: 'LC-2026-0512', description: 'Mã lệnh điều xe' })
@@ -28,6 +28,14 @@ export class CreateDispatchOrderDto {
   @IsString()
   destination: string;
 
+  @ApiPropertyOptional({ description: 'ID điểm xuất phát chuẩn hóa' })
+  @IsOptional() @Type(() => Number) @IsInt()
+  originLocationId?: number;
+
+  @ApiPropertyOptional({ description: 'ID điểm giao việc chuẩn hóa' })
+  @IsOptional() @Type(() => Number) @IsInt()
+  destinationLocationId?: number;
+
   @ApiPropertyOptional({ example: 1, description: 'ID phương tiện cơ giới' })
   @IsOptional()
   @IsNumber()
@@ -50,10 +58,20 @@ export class CreateDispatchOrderDto {
   @IsDate()
   returnTime?: Date;
 
-  @ApiPropertyOptional({ enum: DispatchSourceType, default: DispatchSourceType.MANUAL })
+  @ApiPropertyOptional({ enum: DispatchSourceType, default: DispatchSourceType.MANUAL_EXCEPTION })
   @IsOptional()
   @IsEnum(DispatchSourceType)
   sourceType?: DispatchSourceType;
+
+  @ApiPropertyOptional({ enum: VehicleOperationalDomain, description: 'Miền vận hành của lệnh thủ công' })
+  @IsOptional()
+  @IsEnum(VehicleOperationalDomain)
+  operationDomain?: VehicleOperationalDomain;
+
+  @ApiPropertyOptional({ description: 'Lý do bắt buộc khi tạo lệnh ngoại lệ không thuộc kế hoạch' })
+  @IsOptional()
+  @IsString()
+  exceptionReason?: string;
 
   @ApiPropertyOptional() @IsOptional() @IsNumber() productionOrderId?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() implementId?: number;

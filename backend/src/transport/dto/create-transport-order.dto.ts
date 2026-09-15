@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ReturnDriverStatus, RouteType, TransportFlowType, Unit } from '@prisma/client';
+import { DispatchSourceType, ReturnDriverStatus, RouteType, TransportFlowType, Unit } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 
@@ -16,6 +16,9 @@ export class CreateTransportItemDto {
 }
 
 export class CreateTransportOrderDto {
+  @ApiPropertyOptional({ enum: DispatchSourceType, default: DispatchSourceType.MANUAL_EXCEPTION }) @IsOptional() @IsEnum(DispatchSourceType) sourceType?: DispatchSourceType;
+  @ApiPropertyOptional() @IsOptional() @IsInt() productionOrderId?: number;
+  @ApiPropertyOptional({ description: 'Lý do bắt buộc khi tạo chuyến ngoại lệ không thuộc kế hoạch' }) @IsOptional() @IsString() exceptionReason?: string;
   @ApiProperty() @IsString() code: string;
   @ApiProperty({ enum: RouteType }) @IsEnum(RouteType) routeType: RouteType;
   @ApiPropertyOptional({ enum: TransportFlowType }) @IsOptional() @IsEnum(TransportFlowType) flowType?: TransportFlowType;
@@ -26,6 +29,8 @@ export class CreateTransportOrderDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) tonnage?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() origin?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() destination?: string;
+  @ApiPropertyOptional({ description: 'ID điểm lấy hàng chuẩn hóa' }) @IsOptional() @Type(() => Number) @IsInt() originLocationId?: number;
+  @ApiPropertyOptional({ description: 'ID điểm giao hàng chuẩn hóa' }) @IsOptional() @Type(() => Number) @IsInt() destinationLocationId?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() vehicleId?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() driverId?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() trailerId?: number;
@@ -43,7 +48,10 @@ export class CreateTransportOrderDto {
   @ApiPropertyOptional() @IsOptional() @IsString() legacyTrailer?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() returnCargoName?: string;
   @ApiPropertyOptional() @IsOptional() @IsNumber() returnTonnage?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() returnOrigin?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() returnDestination?: string;
+  @ApiPropertyOptional({ description: 'ID điểm lấy hàng chiều về' }) @IsOptional() @Type(() => Number) @IsInt() returnOriginLocationId?: number;
+  @ApiPropertyOptional({ description: 'ID điểm giao hàng chiều về' }) @IsOptional() @Type(() => Number) @IsInt() returnDestinationLocationId?: number;
   @ApiPropertyOptional({ enum: ReturnDriverStatus }) @IsOptional() @IsEnum(ReturnDriverStatus) returnDriverStatus?: ReturnDriverStatus;
   @ApiPropertyOptional() @IsOptional() @IsNumber() costSavedVnd?: number;
   @ApiPropertyOptional({ type: [CreateTransportItemDto] }) @IsOptional() @ValidateNested({ each: true }) @Type(() => CreateTransportItemDto) items?: CreateTransportItemDto[];

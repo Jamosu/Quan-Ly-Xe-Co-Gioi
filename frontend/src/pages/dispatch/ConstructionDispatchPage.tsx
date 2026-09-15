@@ -1,6 +1,8 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
+  CalendarDays,
+  ArrowUpDown,
   Clock,
   Download,
   Filter,
@@ -18,24 +20,32 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  Send,
+  Eye,
+  Truck,
+  User,
+  UserCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { operationsApi } from '../../api/operations';
 import { apiClient } from '../../api/client';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { TableRowActions } from '../../components/common/TableRowActions';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { StatusBadge, ViewSwitcher } from '../../components/operations/OperationUi';
-import { SosRescueModal } from '../../components/dispatch/SosRescueModal';
 import { WorkflowActionPanel, type DemoWorkflowStep } from '../../components/dispatch/WorkflowActionPanel';
 import { Vehicle24hScheduler, type SchedulerLane, type SchedulerItem } from '../../components/dispatch/Vehicle24hScheduler';
+import { DispatchCategoryTabs } from '../../components/dispatch/DispatchCategoryTabs';
 import { useAppStore } from '../../store/useAppStore';
 import { matchesKLH } from '../../utils/filterUtils';
 import { getWeeksOfYear, getWeekNumber } from './ProductionPlanPage';
 import { DAYS_OF_WEEK } from './CreateProductionPlanPage';
-import { syncAllApprovedSpecializedPlans } from './specializedPlanSync';
 
 function toDateString(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d;
@@ -77,6 +87,11 @@ export interface ConstructionShiftRecord {
   completedAt?: string;
   completedBy?: string;
   acceptanceRating?: string;
+  rawOrder?: any;
+  planCode?: string;
+  planTitle?: string;
+  unit?: string;
+  productionOrder?: any;
 }
 
 const INITIAL_SHIFTS: ConstructionShiftRecord[] = [];
@@ -104,6 +119,8 @@ const CONSTRUCTION_BOARDS: Array<{ title: string; statuses: ConstructionShiftRec
 ];
 
 export const ConstructionDispatchPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const globalKLH = useAppStore((state) => state.selectedKLH);
 
   const [shifts, setShifts] = useState<ConstructionShiftRecord[]>([]);
@@ -115,14 +132,7 @@ export const ConstructionDispatchPage: React.FC = () => {
       const res = await operationsApi.dispatchOrders({ limit: 1000 });
       if (res?.items) {
         const ctList: ConstructionShiftRecord[] = res.items
-          .filter((item: any) =>
-            item.vehicle?.assetGroup === 'MAY_CONG_TRINH' ||
-            item.code?.startsWith('LC-') ||
-            item.code?.startsWith('LCM-') ||
-            item.code?.startsWith('CM-') ||
-            item.code?.startsWith('LDX-CT-') ||
-            item.orderCategory === 'CONG_TRINH'
-          )
+          .filter((item: any) => item.status !== 'CANCELLED' && (item.productionOrder?.plan?.planType === 'CONSTRUCTION' || item.operationDomain === 'CONSTRUCTION'))
           .map((item: any) => {
             const dateStr = item.departureTime ? item.departureTime.slice(0, 10) : '2026-09-08';
             const timeStr = item.departureTime ? item.departureTime.slice(11, 16) : '07:00';
@@ -145,14 +155,22 @@ export const ConstructionDispatchPage: React.FC = () => {
               ACCEPTED: 'HOAN_THANH',
             };
 
+            const plan = item.productionOrder?.plan;
+            const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+            const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+
             return {
               id: String(item.id),
               code: item.code,
               workDate: dateStr,
               plannedStartTime: timeStr,
               shiftType: 'CA_NGAY' as const,
-              complexCode: item.unit || 'KOUN_MOM',
-              complexName: item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp',
+              complexCode,
+              complexName,
+              unit: item.unit,
+              planCode: plan?.code,
+              planTitle: plan?.title,
+              productionOrder: item.productionOrder,
               projectName: item.purpose || 'San gạt bù vê nền đường giao thông',
               locationDetails: `${item.origin || ''} ➔ ${item.destination || ''}`.trim() || 'Lô thửa công trường',
               jobCategory: (item.vehicle?.category === 'MAY_SAN' ? 'SAN_GAT_DUONG' : item.vehicle?.category === 'MAY_DAO' ? 'DAO_MƯƠNG_THOAT_NUOC' : item.vehicle?.category === 'MAY_LU' ? 'LU_LÈN_NỀN' : 'SAN_ỦI_MAT_BANG') as any,
@@ -173,56 +191,9 @@ export const ConstructionDispatchPage: React.FC = () => {
               workVolumeActual: item.status === 'COMPLETED' ? 450 : undefined,
               status: statusMap[item.status] || 'CHO_DUYET',
               notes: item.notes,
+              rawOrder: item,
             };
           });
-
-        // Tự động quét và đồng bộ các kế hoạch chuyên dùng đã duyệt nếu có
-        try {
-          syncAllApprovedSpecializedPlans();
-        } catch {}
-
-        // Nạp thêm các lệnh công trình được sinh từ kế hoạch chuyên dùng trong localStorage nếu chưa có
-        try {
-          const storedMasterRaw = localStorage.getItem('thaco_all_dispatch_orders_master_v4');
-          if (storedMasterRaw) {
-            const storedOrders = JSON.parse(storedMasterRaw);
-            if (Array.isArray(storedOrders)) {
-              storedOrders
-                .filter((so: any) => so.orderCategory === 'CONG_TRINH' || so.code?.startsWith('LDX-CT-'))
-                .forEach((so: any) => {
-                  if (!ctList.some((c) => c.code === so.code)) {
-                    const dateStr = so.departureTime ? so.departureTime.slice(0, 10) : '2026-09-09';
-                    const timeStr = so.departureTime ? so.departureTime.slice(11, 16) : '07:00';
-                    ctList.push({
-                      id: String(so.id),
-                      code: so.code,
-                      workDate: dateStr,
-                      plannedStartTime: timeStr,
-                      shiftType: 'CA_NGAY',
-                      complexCode: so.complexCode || 'KOUN_MOM',
-                      complexName: so.complexName || so.unit || 'Khu liên hợp',
-                      projectName: so.purpose || 'Thi công công trình ca máy',
-                      locationDetails: `${so.origin || ''} ➔ ${so.destination || ''}`.trim() || 'Công trường',
-                      jobCategory: 'SAN_GAT_DUONG',
-                      jobCategoryName: so.purpose || 'San gạt bù vê nền đường',
-                      machineCode: so.vehicle?.code || 'MAY-CT-01',
-                      machineName: so.vehicle?.name || 'Máy công trình',
-                      machineType: 'Máy công trình',
-                      operatorName: so.operatorName || 'Chưa phân công thợ máy',
-                      operatorPhone: '',
-                      plannedHours: 8.0,
-                      fuelQuotaLitersPerHour: 14.5,
-                      plannedFuelLiters: 116,
-                      workVolumeTarget: so.workVolumeTarget || 450,
-                      workVolumeUnit: 'm³',
-                      status: 'CHO_DUYET',
-                      notes: so.notes,
-                    });
-                  }
-                });
-            }
-          }
-        } catch {}
 
         setShifts(ctList);
         const currentAlert = useAppStore.getState().headerAlert;
@@ -263,7 +234,8 @@ export const ConstructionDispatchPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedMachine, setSelectedMachine] = useState('ALL');
-  const [view, setView] = useState<'table' | 'scheduler' | 'kanban' | 'completed'>('table');
+  const [selectedOperator, setSelectedOperator] = useState('ALL');
+  const [view, setView] = useState<'table' | 'scheduler' | 'kanban'>('table');
 
   // 52 Tuần trong năm
   const availableWeeks = useMemo(() => {
@@ -279,6 +251,7 @@ export const ConstructionDispatchPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return toDateString(new Date());
   });
+  const [sortOrder, setSortOrder] = useState<'time_asc' | 'time_desc'>('time_asc');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   // 7 ngày trong tuần đang chọn
@@ -325,7 +298,6 @@ export const ConstructionDispatchPage: React.FC = () => {
 
   const [selectedShift, setSelectedShift] = useState<ConstructionShiftRecord | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showSosModal, setShowSosModal] = useState(false);
 
   // Đếm 4 nhóm trạng thái chuẩn hóa
   const statusCounts = useMemo(() => {
@@ -344,15 +316,93 @@ export const ConstructionDispatchPage: React.FC = () => {
       if (selectedDate !== 'ALL' && s.workDate !== selectedDate) return false;
       return true;
     });
+    const chuaPhanCong = base.filter((s) => s.status === 'CHO_DUYET').length;
+    const daGiaoViec = base.filter((s) => ['DA_DUYET', 'DA_NHAN'].includes(s.status)).length;
+    const dangLamViec = base.filter((s) => ['DANG_THI_CONG', 'TAM_DUNG'].includes(s.status)).length;
+    const driverPending = base.filter((s) => s.status === 'DA_DUYET').length;
+    const completed = base.filter((s) => s.status === 'HOAN_THANH').length;
+
+    const currentWeekNum = getWeekNumber(new Date());
+    const currentWeekObj = availableWeeks.find((w) => w.weekNumber === currentWeekNum);
+    const currentWeekEnd = currentWeekObj?.endDateKey || toDateString(new Date());
+
+    const delayed = base.filter((s) => {
+      if (!s.workDate) return false;
+      const startTime = new Date(`${s.workDate}T${s.plannedStartTime || '07:00'}:00`).getTime();
+      return !isNaN(startTime) && startTime <= Date.now() && !['DANG_THI_CONG', 'HOAN_THANH'].includes(s.status);
+    }).length;
+
+    const futureUnassigned = shifts.filter((s) => {
+      if (globalKLH && globalKLH !== 'ALL' && !matchesKLH(s, globalKLH)) return false;
+      if (s.status === 'HOAN_THANH') return false;
+      const isAfterCurrentWeek = s.workDate > currentWeekEnd;
+      const isUnassigned = s.status === 'CHO_DUYET' || !s.machineCode || s.machineCode === 'CHUA_GAN' || !s.operatorName || s.operatorName.includes('Chưa');
+      return isAfterCurrentWeek && isUnassigned;
+    }).length;
+
     return {
       ALL: base.length,
-      CHO_DUYET: base.filter((s) => s.status === 'CHO_DUYET').length,
-      DA_DUYET: base.filter((s) => s.status === 'DA_DUYET').length,
-      WORKING: base.filter((s) => ['DA_NHAN', 'DANG_THI_CONG', 'TAM_DUNG'].includes(s.status)).length,
-      COMPLETED: base.filter((s) => s.status === 'HOAN_THANH').length,
+      CHO_DUYET: chuaPhanCong,
+      CHUA_PHAN_CONG: chuaPhanCong,
+      DA_DUYET: daGiaoViec,
+      DA_GIAO_VIEC: daGiaoViec,
+      WORKING: dangLamViec,
+      DANG_LAM_VIEC: dangLamViec,
+      DRIVER_PENDING: driverPending,
+      TAI_XE_CHUA_XAC_NHAN: driverPending,
+      COMPLETED: completed,
+      DELAYED: delayed,
+      FUTURE_UNASSIGNED: futureUnassigned,
       TAM_DUNG: base.filter((s) => s.status === 'TAM_DUNG').length,
     };
   }, [shifts, selectedCategory, selectedMachine, selectedWeek, availableWeeks, selectedDate, globalKLH]);
+
+  // Tính toán cảnh báo ca máy công trình quá hạn / chờ điều độ (CHỈ BÁO CA ĐÃ ĐẾN HẠN/QUÁ HẠN)
+  const computedOverdueSummary = useMemo(() => {
+    const scoped = shifts.filter((s) => {
+      if (globalKLH && globalKLH !== 'ALL' && !matchesKLH(s, globalKLH)) return false;
+      return true;
+    });
+
+    const now = Date.now();
+    const departureDelayThreshold = now - 15 * 60 * 1000;
+    // CHỈ BÁO CÁC CA ĐÃ ĐẾN HẠN HOẶC QUÁ HẠN (startTime <= now)
+    const active = scoped.filter((s) => {
+      if (s.status === 'HOAN_THANH') return false;
+      if (!s.workDate) return false;
+      const startTime = new Date(`${s.workDate}T${s.plannedStartTime || '07:00'}:00`).getTime();
+      return !isNaN(startTime) && startTime <= now;
+    });
+
+    const awaitingApproval = active.filter((s) => s.status === 'CHO_DUYET').length;
+    const missingVehicle = active.filter((s) => !s.machineCode || s.machineCode === 'CHUA_GAN' || s.machineCode === 'MAY-01').length;
+    const missingDriver = active.filter((s) => !s.operatorName || s.operatorName.includes('Chưa')).length;
+
+    const totalAttention = active.filter((s) =>
+      s.status === 'CHO_DUYET' ||
+      !s.machineCode || s.machineCode === 'CHUA_GAN' || s.machineCode === 'MAY-01' ||
+      !s.operatorName || s.operatorName.includes('Chưa')
+    ).length;
+
+    const delayedList = active.filter((s) => {
+      const startTime = new Date(`${s.workDate}T${s.plannedStartTime || '07:00'}:00`).getTime();
+      if (isNaN(startTime) || startTime > departureDelayThreshold) return false;
+      return !['DANG_THI_CONG', 'HOAN_THANH'].includes(s.status);
+    });
+
+    const lateAssigned = delayedList.filter((s) => s.status === 'DA_DUYET').length;
+    const lateAccepted = delayedList.filter((s) => s.status === 'DA_NHAN').length;
+
+    return {
+      totalAttention,
+      totalOverdue: delayedList.length,
+      awaitingApproval,
+      missingVehicle,
+      missingDriver,
+      lateAssigned,
+      lateAccepted,
+    };
+  }, [shifts, globalKLH]);
 
   const completedShifts = useMemo(() => {
     return shifts.filter((s) => {
@@ -363,13 +413,67 @@ export const ConstructionDispatchPage: React.FC = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem('thaco_construction_shifts_v1', JSON.stringify(shifts));
     } catch {}
   }, [shifts]);
 
   const updateShift = (id: string, patch: Partial<ConstructionShiftRecord>) => {
     setShifts((current) => current.map((shift) => shift.id === id ? { ...shift, ...patch } : shift));
     setSelectedShift((current) => current?.id === id ? { ...current, ...patch } : current);
+  };
+
+  const handleOpenShift = (shift: ConstructionShiftRecord) => {
+    let targetOrder = shift.rawOrder;
+    if (!targetOrder) {
+      targetOrder = {
+        id: Number(shift.id) || shift.id,
+        code: shift.code,
+        orderCategory: 'CONG_TRINH',
+        categoryLabel: 'Công trình ca máy',
+        purpose: shift.projectName,
+        origin: 'Bãi máy Công trình',
+        destination: shift.locationDetails,
+        departureTime: shift.plannedStartTime ? `${shift.workDate}T${shift.plannedStartTime}:00.000Z` : `${shift.workDate}T07:00:00.000Z`,
+        plannedEndTime: `${shift.workDate}T15:00:00.000Z`,
+        status: shift.status === 'HOAN_THANH' ? 'COMPLETED' : shift.status === 'DANG_THI_CONG' ? 'WORKING' : shift.status === 'DA_NHAN' ? 'DRIVER_ACCEPTED' : shift.status === 'DA_DUYET' ? 'ASSIGNED' : 'PENDING_APPROVAL',
+        vehicle: {
+          code: shift.machineCode,
+          name: shift.machineName,
+        },
+        driver: {
+          fullName: shift.operatorName,
+          phone: shift.operatorPhone,
+        },
+        workVolumeTarget: shift.workVolumeTarget,
+        workVolumeUnit: shift.workVolumeUnit,
+        notes: shift.notes,
+      };
+    } else {
+      targetOrder = {
+        ...targetOrder,
+        orderCategory: 'CONG_TRINH',
+        categoryLabel: 'Công trình ca máy',
+      };
+    }
+
+    const isPending = !targetOrder.status || ['CHO_DUYET', 'PENDING', 'DRAFT', 'CHO_PHAN_CONG'].includes(targetOrder.status);
+    if (isPending) {
+      const now = new Date();
+      const currentStart = now.toISOString();
+      const durationMs = 8 * 3_600_000;
+      const currentEnd = new Date(now.getTime() + durationMs).toISOString();
+      targetOrder = {
+        ...targetOrder,
+        departureTime: currentStart,
+        plannedEndTime: currentEnd,
+      };
+    }
+
+    navigate(`/lenh-dieu-xe/chi-tiet/${shift.id}`, {
+      state: {
+        order: targetOrder,
+        from: location.pathname + location.search,
+      },
+    });
   };
 
   const workflowStep = (status: ConstructionShiftRecord['status']): DemoWorkflowStep => {
@@ -397,30 +501,55 @@ export const ConstructionDispatchPage: React.FC = () => {
     notes: '',
   });
 
+  // Danh sách các máy thi công thực tế từ dữ liệu
+  const availableMachines = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const sItem of shifts) {
+      const code = sItem.machineCode;
+      const name = sItem.machineName;
+      if (code && code !== 'CHUA_GAN') {
+        map.set(code, `${code} - ${name || code}`);
+      }
+    }
+    return Array.from(map.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+  }, [shifts]);
+
+  // Danh sách thợ máy / lái xe thực tế từ dữ liệu
+  const availableOperators = useMemo(() => {
+    const s = new Set<string>();
+    for (const sItem of shifts) {
+      if (sItem.operatorName && !sItem.operatorName.includes('Chưa') && !sItem.operatorName.includes('?')) {
+        s.add(sItem.operatorName.trim());
+      }
+    }
+    return Array.from(s).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [shifts]);
+
   const filteredShifts = useMemo(() => {
     return shifts.filter((s) => {
       // Lọc theo Khu liên hợp từ Header
       if (globalKLH && globalKLH !== 'ALL' && !matchesKLH(s, globalKLH)) return false;
 
-      // Lọc theo từ khóa tìm kiếm
+      // Lọc theo từ khóa tìm kiếm (Mã lệnh, dự án, vị trí)
       if (search) {
         const q = search.toLowerCase();
         const matchCode = s.code.toLowerCase().includes(q);
         const matchProject = s.projectName.toLowerCase().includes(q);
         const matchLocation = s.locationDetails.toLowerCase().includes(q);
-        const matchMachine = s.machineName.toLowerCase().includes(q) || s.machineCode.toLowerCase().includes(q);
-        const matchOperator = s.operatorName.toLowerCase().includes(q);
-        if (!matchCode && !matchProject && !matchLocation && !matchMachine && !matchOperator) return false;
+        if (!matchCode && !matchProject && !matchLocation) return false;
       }
 
       // Lọc theo Hạng mục
       if (selectedCategory !== 'ALL' && s.jobCategory !== selectedCategory) return false;
 
-      // Lọc theo Máy
+      // Lọc theo Máy thi công
       if (selectedMachine !== 'ALL' && s.machineCode !== selectedMachine) return false;
 
-      // Lọc theo Tuần (selectedWeek)
-      if (selectedWeek !== 'ALL') {
+      // Lọc theo Thợ máy / Lái xe
+      if (selectedOperator !== 'ALL' && s.operatorName !== selectedOperator) return false;
+
+      // Lọc theo Tuần (selectedWeek) - bỏ qua khi đang lọc Lệnh trễ hoặc Lệnh tương lai
+      if (selectedWeek !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
         const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
         if (weekObj) {
           const start = weekObj.startDateKey;
@@ -429,27 +558,45 @@ export const ConstructionDispatchPage: React.FC = () => {
         }
       }
 
-      // Lọc theo Ngày (Mặc định hôm nay hoặc Cả tuần)
-      if (selectedDate !== 'ALL' && s.workDate !== selectedDate) return false;
+      // Lọc theo Ngày (Mặc định hôm nay hoặc Cả tuần) - bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai
+      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED' && s.workDate !== selectedDate) return false;
 
-      // Lọc theo 4 trạng thái chuẩn hóa
+      // Lọc theo trạng thái chuẩn hóa
       if (statusFilter !== 'ALL') {
-        if (statusFilter === 'CHO_DUYET') {
+        if (statusFilter === 'CHO_DUYET' || statusFilter === 'CHUA_PHAN_CONG') {
           if (s.status !== 'CHO_DUYET') return false;
-        } else if (statusFilter === 'DA_DUYET') {
+        } else if (statusFilter === 'DA_DUYET' || statusFilter === 'DA_GIAO_VIEC') {
+          if (!['DA_DUYET', 'DA_NHAN'].includes(s.status)) return false;
+        } else if (statusFilter === 'WORKING' || statusFilter === 'DANG_LAM_VIEC') {
+          if (!['DANG_THI_CONG', 'TAM_DUNG'].includes(s.status)) return false;
+        } else if (statusFilter === 'DRIVER_PENDING' || statusFilter === 'TAI_XE_CHUA_XAC_NHAN') {
           if (s.status !== 'DA_DUYET') return false;
-        } else if (statusFilter === 'WORKING') {
-          if (!['DA_NHAN', 'DANG_THI_CONG', 'TAM_DUNG'].includes(s.status)) return false;
         } else if (statusFilter === 'COMPLETED') {
           if (s.status !== 'HOAN_THANH') return false;
+        } else if (statusFilter === 'DELAYED') {
+          if (!s.workDate) return false;
+          const startTime = new Date(`${s.workDate}T${s.plannedStartTime || '07:00'}:00`).getTime();
+          if (isNaN(startTime) || startTime > Date.now() || ['DANG_THI_CONG', 'HOAN_THANH'].includes(s.status)) return false;
+        } else if (statusFilter === 'FUTURE_UNASSIGNED') {
+          if (s.status === 'HOAN_THANH') return false;
+          const currentWeekNum = getWeekNumber(new Date());
+          const currentWeekObj = availableWeeks.find((w) => w.weekNumber === currentWeekNum);
+          const currentWeekEnd = currentWeekObj?.endDateKey || toDateString(new Date());
+          const isAfterCurrentWeek = s.workDate > currentWeekEnd;
+          const isUnassigned = s.status === 'CHO_DUYET' || !s.machineCode || s.machineCode === 'CHUA_GAN' || !s.operatorName || s.operatorName.includes('Chưa');
+          if (!isAfterCurrentWeek || !isUnassigned) return false;
         } else if (statusFilter === 'TAM_DUNG') {
           if (s.status !== 'TAM_DUNG') return false;
         }
       }
 
       return true;
+    }).sort((a, b) => {
+      const timeA = `${a.workDate || ''} ${a.plannedStartTime || '00:00'}`;
+      const timeB = `${b.workDate || ''} ${b.plannedStartTime || '00:00'}`;
+      return sortOrder === 'time_asc' ? timeA.localeCompare(timeB) : timeB.localeCompare(timeA);
     });
-  }, [shifts, search, selectedCategory, selectedMachine, selectedWeek, availableWeeks, selectedDate, statusFilter, globalKLH]);
+  }, [shifts, search, selectedCategory, selectedMachine, selectedOperator, selectedWeek, availableWeeks, selectedDate, statusFilter, globalKLH, sortOrder]);
 
   // Danh sách các ngày có ca máy
   const availableDates = useMemo(() => {
@@ -576,7 +723,9 @@ export const ConstructionDispatchPage: React.FC = () => {
         purpose: `${formData.projectName} - ${formData.locationDetails}`,
         origin: 'Bãi máy Công trình',
         destination: formData.locationDetails,
-        sourceType: 'MANUAL',
+        sourceType: 'MANUAL_EXCEPTION',
+        operationDomain: 'CONSTRUCTION',
+        exceptionReason: formData.notes || 'Lệnh công trình phát sinh ngoài kế hoạch',
         departureTime,
         plannedEndTime,
         notes: formData.notes,
@@ -592,165 +741,204 @@ export const ConstructionDispatchPage: React.FC = () => {
   const columns: Column<ConstructionShiftRecord>[] = [
     {
       key: 'code',
-      title: 'Mã ca máy & Ca',
+      title: 'Mã lệnh & Phân loại',
+      width: '200px',
       sortable: true,
       render: (row) => (
         <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => setSelectedShift(row)}
-            className="font-mono font-bold text-primary hover:underline block text-left"
-          >
-            {row.code}
-          </button>
-          <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
-            {row.shiftType === 'CA_NGAY' ? 'Ca Ngày (07:00-17:00)' : 'Ca Đêm'} · {row.workDate}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'machine',
-      title: 'Thiết bị máy & Thợ máy',
-      render: (row) => (
-        <div className="space-y-0.5">
-          <div className="font-bold text-slate-900 flex items-center gap-1">
-            <Wrench className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-            <span className="font-mono text-xs text-amber-900 bg-amber-50 px-1 rounded border border-amber-200">
-              {row.machineCode}
-            </span>
-            <span className="truncate max-w-[200px]" title={row.machineName}>
-              {row.machineName}
-            </span>
-          </div>
-          <div className="text-[11px] text-slate-600 font-medium">
-            Thợ máy: <b className="text-slate-800">{row.operatorName}</b> ({row.operatorPhone})
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'project',
-      title: 'Hạng mục thi công & Tuyến đường / mương',
-      render: (row) => (
-        <div className="space-y-1 max-w-[280px]">
-          <div className="font-bold text-slate-900 text-xs truncate" title={row.projectName}>
-            {row.projectName}
-          </div>
-          <div className="text-[11px] text-slate-600 flex items-center gap-1">
-            <MapPin className="h-3 w-3 text-emerald-600 shrink-0" />
-            <span className="truncate" title={row.locationDetails}>
-              {row.locationDetails}
-            </span>
-          </div>
-          <span className="inline-block text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-            {row.jobCategoryName}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'hours',
-      title: 'Giờ máy (Engine Hours)',
-      sortable: true,
-      align: 'center',
-      render: (row) => (
-        <div className="text-center bg-slate-50 border border-slate-200 rounded-xl p-1.5">
-          <div className="text-xs font-black text-slate-900">
-            {row.actualWorkingHours !== undefined ? (
-              <>
-                <span className="text-emerald-700">{row.actualWorkingHours}h</span>
-                <span className="text-slate-400 font-normal"> / {row.plannedHours}h</span>
-              </>
-            ) : (
-              <span>{row.plannedHours}h</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <b
+              className="font-mono font-bold text-primary text-xs hover:underline cursor-pointer"
+              onClick={() => handleOpenShift(row)}
+            >
+              {row.code}
+            </b>
+            {row.status === 'CHO_DUYET' && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                <Clock className="h-3 w-3 text-amber-600" /> Chờ phân công
+              </span>
             )}
           </div>
-          {row.actualIdlingHours !== undefined && (
-            <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-              Chờ việc: {row.actualIdlingHours}h
+          {row.planCode && (
+            <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
+              <span className="text-slate-500 font-medium">KH:</span>
+              <span className="font-bold">{row.planCode}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+              <HardHat className="h-3 w-3 text-amber-600" /> Công trình ca máy
+            </span>
+            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
+              {row.shiftType === 'CA_NGAY' ? 'Ca Ngày (07:00-17:00)' : 'Ca Đêm'}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'departureTime',
+      title: 'Thời gian thực hiện',
+      width: '155px',
+      sortable: true,
+      render: (row) => {
+        if (!row.workDate) return <span className="text-slate-400">—</span>;
+        const d = new Date(row.workDate);
+        return (
+          <div className="text-xs">
+            <div className="font-bold text-slate-900 flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+              {d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+              <Clock className="h-3 w-3 text-slate-400" />
+              {row.plannedStartTime || '07:00'} ➔ 17:00
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'purpose',
+      title: 'Nhiệm vụ & Khối lượng',
+      width: '200px',
+      render: (row) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1 flex-wrap">
+            <b className="font-bold text-slate-900 text-xs leading-snug">{row.projectName}</b>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+            <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || row.complexCode || 'NT1'}</span>
+            <span className="font-bold text-emerald-700">
+              🎯 {row.workVolumeTarget} {row.workVolumeUnit}
+            </span>
+            <span className="text-[10.5px] font-semibold text-slate-600">({row.jobCategoryName})</span>
+          </div>
+          {row.notes && (
+            <div className="text-[10.5px] text-slate-500 italic line-clamp-1" title={`Ghi chú: ${row.notes}`}>
+              📝 {row.notes}
             </div>
           )}
         </div>
       ),
     },
     {
-      key: 'fuel',
-      title: 'Định mức & Dầu (Lít/h)',
+      key: 'vehicle',
+      title: 'Phương tiện & Thiết bị',
+      width: '120px',
       render: (row) => (
-        <div className="space-y-0.5">
-          <div className="font-semibold text-xs text-slate-900 flex items-center gap-1">
-            <Fuel className="h-3.5 w-3.5 text-amber-500" />
-            <span>{row.fuelQuotaLitersPerHour} Lít/giờ</span>
+        <div className="text-xs space-y-0.5 max-w-[115px]">
+          <div className={`font-bold flex items-center gap-1.5 ${(!row.machineCode || row.machineCode === 'CHUA_GAN') ? 'text-red-700' : 'text-slate-900'}`}>
+            <Wrench className={`h-3.5 w-3.5 shrink-0 ${(!row.machineCode || row.machineCode === 'CHUA_GAN') ? 'text-red-500' : 'text-amber-600'}`} />
+            <span className="truncate">{row.machineCode && row.machineCode !== 'CHUA_GAN' ? row.machineCode : 'Chưa gán máy'}</span>
           </div>
-          <div className="text-[11px] text-slate-500">
-            Dự kiến: <b className="text-slate-800">{row.plannedFuelLiters.toFixed(1)} Lít</b>
-            {row.actualFuelLiters !== undefined && (
-              <span className="text-slate-700 block text-[10px]">
-                Thực tế: {row.actualFuelLiters.toFixed(1)} Lít
-              </span>
-            )}
-          </div>
+          {row.machineName && row.machineCode !== 'CHUA_GAN' && (
+            <div className="text-[10px] text-slate-500 truncate" title={row.machineName}>
+              {row.machineName}
+            </div>
+          )}
         </div>
       ),
     },
     {
-      key: 'volume',
-      title: 'Khối lượng công việc',
-      align: 'center',
+      key: 'driver',
+      title: 'Lái xe / Thợ máy',
+      width: '135px',
       render: (row) => (
-        <div className="text-center">
-          <b className="text-slate-900 text-xs">
-            {row.workVolumeTarget} {row.workVolumeUnit}
-          </b>
-          {row.workVolumeActual !== undefined && (
-            <span className="block text-[10px] text-emerald-700 font-bold">
-              Đạt: {row.workVolumeActual} {row.workVolumeUnit}
-            </span>
+        <div className="text-xs">
+          <div className={`font-bold flex items-center gap-1 ${(!row.operatorName || row.operatorName.includes('Chưa')) ? 'text-red-700' : 'text-slate-800'}`}>
+            <User className={`h-3.5 w-3.5 shrink-0 ${(!row.operatorName || row.operatorName.includes('Chưa')) ? 'text-red-500' : 'text-slate-400'}`} />
+            <span className="truncate">{row.operatorName || 'Chưa gán thợ máy'}</span>
+          </div>
+          {row.operatorPhone && (
+            <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+              📞 {row.operatorPhone}
+            </div>
           )}
+        </div>
+      ),
+    },
+    {
+      key: 'route',
+      title: 'Lộ trình / Vị trí',
+      width: '260px',
+      render: (row) => (
+        <div className="text-xs space-y-0.5 min-w-[200px]">
+          <div className="flex items-start gap-1 text-slate-600">
+            <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+            <span className="font-medium text-slate-700 leading-snug">Bãi máy Công trình</span>
+          </div>
+          <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
+            ➔ {row.locationDetails || 'Khu vực công trường thi công'}
+          </div>
         </div>
       ),
     },
     {
       key: 'status',
       title: 'Trạng thái',
+      width: '135px',
       render: (row) => (
         <div className="space-y-1">
-          <span
-            className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border ${
-              ['DA_NHAN', 'DANG_THI_CONG'].includes(row.status)
-                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                : row.status === 'HOAN_THANH'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : row.status === 'DA_DUYET'
-                ? 'bg-purple-50 text-purple-800 border-purple-200'
-                : row.status === 'TAM_DUNG'
-                ? 'bg-amber-50 text-amber-800 border-amber-200'
-                : 'bg-slate-100 text-slate-700 border-slate-200'
-            }`}
-          >
-            {row.status === 'DANG_THI_CONG'
-              ? 'Đang thi công'
-              : row.status === 'DA_NHAN'
-              ? 'Đã nhận việc'
-              : row.status === 'DA_DUYET'
-              ? 'Đã duyệt & phân công'
-              : row.status === 'HOAN_THANH'
-              ? 'Đã hoàn thành'
-              : row.status === 'TAM_DUNG'
-              ? 'Tạm dừng máy'
-              : 'Chờ duyệt ca'}
-          </span>
+          <StatusBadge status={row.status} />
+          {(!row.machineCode || row.machineCode === 'CHUA_GAN' || !row.operatorName || row.operatorName.includes('Chưa')) && (
+            <div className="flex flex-wrap gap-1">
+              {(!row.machineCode || row.machineCode === 'CHUA_GAN') && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu máy</span>}
+              {(!row.operatorName || row.operatorName.includes('Chưa')) && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu thợ máy</span>}
+            </div>
+          )}
+          <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+            <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
+            <span>Định mức: <b>{row.plannedFuelLiters.toFixed(1)}L</b> ({row.fuelQuotaLitersPerHour}L/h)</span>
+          </div>
+          {row.actualWorkingHours !== undefined && row.actualWorkingHours > 0 && (
+            <div className="text-[10px] text-emerald-700 font-bold">
+              ⏱ Giờ máy: {row.actualWorkingHours}h / {row.plannedHours}h
+            </div>
+          )}
         </div>
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
       render: (row) => (
-        <Button size="sm" variant="outline" onClick={() => setSelectedShift(row)}>
-          Chi tiết
-        </Button>
+        <AuditUserPopover
+          createdDate={row.workDate || '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.workDate || '14-03-2026'}
+          updatedUser="admin"
+          title={`Ca máy: ${row.code}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '140px',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => handleOpenShift(row)}
+            className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 hover:text-amber-800 transition-colors border border-amber-200"
+            title="Điều động ca máy / Chi tiết"
+          >
+            <HardHat className="w-3.5 h-3.5" />
+          </button>
+          <TableRowActions
+            onView={() => handleOpenShift(row)}
+            onEdit={() => handleOpenShift(row)}
+            onDelete={() => {
+              if (window.confirm(`Xác nhận xóa ca máy ${row.code}?`)) {
+                setShifts((prev) => prev.filter((s) => s.id !== row.id));
+              }
+            }}
+          />
+        </div>
       ),
     },
   ];
@@ -766,7 +954,7 @@ export const ConstructionDispatchPage: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setSelectedShift(row)}
+              onClick={() => handleOpenShift(row)}
               className="font-mono font-bold text-primary hover:underline block text-left"
             >
               {row.code}
@@ -931,12 +1119,45 @@ export const ConstructionDispatchPage: React.FC = () => {
       ),
     },
     {
-      key: 'actions',
-      title: 'Thao tác',
+      key: 'user',
+      title: 'User',
+      width: '70px',
+      align: 'center',
       render: (row) => (
-        <Button size="sm" variant="outline" onClick={() => setSelectedShift(row)}>
-          Biên bản
-        </Button>
+        <AuditUserPopover
+          createdDate={row.workDate || '14-03-2026'}
+          createdUser="admin"
+          updatedDate={row.workDate || '14-03-2026'}
+          updatedUser="admin"
+          title={`Biên bản: ${row.code}`}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      title: 'Tác vụ',
+      align: 'center',
+      width: '140px',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => handleOpenShift(row)}
+            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 transition-colors border border-emerald-200"
+            title="Biên bản nghiệm thu công trình"
+          >
+            <HardHat className="w-3.5 h-3.5" />
+          </button>
+          <TableRowActions
+            onView={() => handleOpenShift(row)}
+            onEdit={() => handleOpenShift(row)}
+            onDelete={() => {
+              if (window.confirm(`Xác nhận xóa hồ sơ ca máy ${row.code}?`)) {
+                setShifts((prev) => prev.filter((s) => s.id !== row.id));
+              }
+            }}
+          />
+        </div>
       ),
     },
   ];
@@ -946,391 +1167,415 @@ export const ConstructionDispatchPage: React.FC = () => {
 
 
       {/* Header */}
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Lệnh điều xe Công trình</h1>
-          <p className="text-xs text-slate-500">
-            Chuyên trách máy ủi, máy xúc đào, máy san gạt, lu rung theo Tuyến đường nội đồng, Mương thoát nước & Giờ máy (Lít/h).
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold text-slate-900">Lệnh điều xe Công trình</h1>
+      </div>
+
+      {/* OVERDUE BANNER: Cảnh báo ca máy công trình quá hạn */}
+      {computedOverdueSummary && (computedOverdueSummary.totalAttention > 0 || computedOverdueSummary.totalOverdue > 0) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm">
+          <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 animate-pulse" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-700">
+              {computedOverdueSummary.totalAttention} ca máy công trình chờ điều độ · {computedOverdueSummary.totalOverdue} ca máy trễ thi công
+            </p>
+            <p className="text-xs text-red-500 mt-0.5">
+              {computedOverdueSummary.awaitingApproval} chưa duyệt · {computedOverdueSummary.missingVehicle} thiếu máy · {computedOverdueSummary.missingDriver} thiếu thợ máy · {computedOverdueSummary.lateAssigned} chờ thợ máy nhận · {computedOverdueSummary.lateAccepted} đã nhận nhưng chưa thi công.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+            onClick={() => { setSelectedWeek('ALL'); setSelectedDate('ALL'); setStatusFilter('CHUA_PHAN_CONG'); setView('table'); }}
+          >
+            Xem và xử lý
+          </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={() => window.print()}>
-            Xuất báo cáo ca máy
-          </Button>
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreateModal(true)}>
-            Lập ca máy mới
-          </Button>
+      )}
+
+      {/* THANH BỘ LỌC PHÂN LOẠI LỆNH (CATEGORY SEGMENTED TABS) */}
+      <DispatchCategoryTabs activeTab="CONG_TRINH" />
+
+      {/* 4. KPI Summary Cards 8 nhóm chuẩn hóa 4x2 */}
+      <KPIGrid cols={4}>
+        {/* Hàng 1: Toàn bộ | Lệnh trễ phân công | Đôn đốc | Kế hoạch tuần tới */}
+        <StatCard
+          label={selectedDate === 'ALL' ? 'Tổng ca máy điều độ' : `Tổng ca máy (${selectedDate})`}
+          value={statusCounts.ALL}
+          icon={<HardHat className="h-5 w-5 text-blue-600" />}
+          pillText="Toàn bộ"
+          pillVariant="neutral"
+          onClick={() => setStatusFilter('ALL')}
+          className={statusFilter === 'ALL' ? 'ring-2 ring-blue-500/30 border-blue-500' : ''}
+        />
+        <StatCard
+          label="Ca máy trễ do chưa phân công"
+          value={statusCounts.DELAYED}
+          icon={<AlertTriangle className="h-5 w-5 text-rose-600" />}
+          pillText="Lệnh trễ phân công"
+          pillVariant="danger"
+          onClick={() => {
+            setSelectedWeek('ALL');
+            setSelectedDate('ALL');
+            setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
+          }}
+          className={statusFilter === 'DELAYED' ? 'ring-2 ring-rose-500/30 border-rose-500' : ''}
+        />
+        <StatCard
+          label="Thợ máy chưa nhận ca thi công"
+          value={statusCounts.DRIVER_PENDING}
+          icon={<UserCheck className="h-5 w-5 text-amber-600" />}
+          pillText="Đôn đốc"
+          pillVariant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'DRIVER_PENDING' ? 'ALL' : 'DRIVER_PENDING')}
+          className={statusFilter === 'DRIVER_PENDING' ? 'ring-2 ring-amber-500/30 border-amber-500' : ''}
+        />
+        <StatCard
+          label="Chưa điều ca máy kế hoạch tuần sau"
+          value={statusCounts.FUTURE_UNASSIGNED}
+          icon={<CalendarDays className="h-5 w-5 text-purple-600" />}
+          pillText="Kế hoạch tuần tới"
+          pillVariant="neutral"
+          onClick={() => {
+            setSelectedWeek('ALL');
+            setSelectedDate('ALL');
+            setStatusFilter(statusFilter === 'FUTURE_UNASSIGNED' ? 'ALL' : 'FUTURE_UNASSIGNED');
+          }}
+          className={statusFilter === 'FUTURE_UNASSIGNED' ? 'ring-2 ring-purple-500/30 border-purple-500' : ''}
+        />
+
+        {/* Hàng 2: Chờ duyệt phân công | Đã phân công | Đang vận hành | Nghiệm thu */}
+        <StatCard
+          label="Chờ duyệt ca máy & thợ thi công"
+          value={statusCounts.CHUA_PHAN_CONG}
+          icon={<Clock className="h-5 w-5 text-amber-600" />}
+          pillText="Chờ duyệt phân công"
+          pillVariant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'CHUA_PHAN_CONG' ? 'ALL' : 'CHUA_PHAN_CONG')}
+          className={statusFilter === 'CHUA_PHAN_CONG' ? 'ring-2 ring-amber-500/30 border-amber-500' : ''}
+        />
+        <StatCard
+          label="Đã phân công máy & giao việc"
+          value={statusCounts.DA_GIAO_VIEC}
+          icon={<Send className="h-5 w-5 text-indigo-600" />}
+          pillText="Đã phân công"
+          pillVariant="neutral"
+          onClick={() => setStatusFilter(statusFilter === 'DA_GIAO_VIEC' ? 'ALL' : 'DA_GIAO_VIEC')}
+          className={statusFilter === 'DA_GIAO_VIEC' ? 'ring-2 ring-indigo-500/30 border-indigo-500' : ''}
+        />
+        <StatCard
+          label="Máy đang thi công ngoài công trình"
+          value={statusCounts.DANG_LAM_VIEC}
+          icon={<Activity className="h-5 w-5 text-emerald-600" />}
+          pillText="Đang vận hành"
+          pillVariant="success"
+          onClick={() => setStatusFilter(statusFilter === 'DANG_LAM_VIEC' ? 'ALL' : 'DANG_LAM_VIEC')}
+          className={statusFilter === 'DANG_LAM_VIEC' ? 'ring-2 ring-emerald-500/30 border-emerald-500' : ''}
+        />
+        <StatCard
+          label="Đã hoàn thành ca máy & nghiệm thu"
+          value={statusCounts.COMPLETED}
+          icon={<CheckCircle2 className="h-5 w-5 text-teal-600" />}
+          pillText="Nghiệm thu"
+          pillVariant="success"
+          onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+          className={statusFilter === 'COMPLETED' ? 'ring-2 ring-teal-500/30 border-teal-500' : ''}
+        />
+      </KPIGrid>
+
+      {/* Filter Bar theo chuẩn Enterprise (Hình 2: Grid trường có tiêu đề + Hàng nút thao tác) */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3.5">
+        {/* Hàng 1: Grid các trường lọc có Header Label in hoa bên trên */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* Cột 1: Mã ca máy / Từ khóa tìm kiếm */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Mã ca máy / Dự án / Vị trí
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm mã lệnh, vị trí..."
+                className="w-full h-9 pl-9 pr-7 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 text-xs font-medium text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-all shadow-2xs"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700 p-0.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Cột 2: Hạng mục công trình */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Hạng mục công trình
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả hạng mục ({JOB_CATEGORIES.length})</option>
+                {JOB_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 3: Máy / Thiết bị thi công */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Máy / Thiết bị thi công
+            </label>
+            <div className="relative">
+              <select
+                value={selectedMachine}
+                onChange={(e) => setSelectedMachine(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả máy ({availableMachines.length})</option>
+                {availableMachines.map((m) => (
+                  <option key={m.code} value={m.code}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 4: Thợ máy / Lái xe */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Thợ máy / Lái xe
+            </label>
+            <div className="relative">
+              <select
+                value={selectedOperator}
+                onChange={(e) => setSelectedOperator(e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả thợ máy ({availableOperators.length})</option>
+                {availableOperators.map((op) => (
+                  <option key={op} value={op}>
+                    {op}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 5: Tuần kế hoạch */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Tuần kế hoạch
+            </label>
+            <div className="relative">
+              <select
+                value={selectedWeek}
+                onChange={(e) => {
+                  const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                  setSelectedWeek(val);
+                  setSelectedDate('ALL');
+                }}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
+              >
+                <option value="ALL">Tất cả các tuần</option>
+                {availableWeeks.map((w) => (
+                  <option key={w.weekNumber} value={w.weekNumber}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cột 6: Ngày thi công */}
+          <div>
+            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
+              Ngày thi công cụ thể
+            </label>
+            <div className="flex items-center gap-1 bg-slate-50/70 rounded-xl border border-slate-200 p-0.5 h-9 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleStepDate(-1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Ngày trước"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <input
+                type="date"
+                value={selectedDate === 'ALL' ? '' : selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
+                className="w-full bg-transparent text-xs font-semibold text-slate-800 px-1 py-0.5 focus:outline-none cursor-pointer min-w-0"
+              />
+              <button
+                type="button"
+                onClick={() => handleStepDate(1)}
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Ngày sau"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất in, Tạo mới) */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Nhập lại */}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setSelectedCategory('ALL');
+                setSelectedMachine('ALL');
+                setSelectedOperator('ALL');
+                setSelectedWeek(getWeekNumber(new Date()));
+                setSelectedDate(toDateString(new Date()));
+                setStatusFilter('ALL');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Nhập lại</span>
+            </button>
+
+            {/* Nút Tìm kiếm */}
+            <button
+              type="button"
+              onClick={() => {
+                // Focus search or trigger refresh
+              }}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer select-none active:scale-95"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Tìm kiếm</span>
+            </button>
+
+            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần T2 -> CN */}
+            {selectedWeek !== 'ALL' && (
+              <div className="flex flex-wrap items-center gap-1 pl-1">
+                <span className="text-slate-300 mx-0.5">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('ALL')}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    selectedDate === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Cả tuần {selectedWeek}
+                </button>
+                {weekDays.map((d) => {
+                  const isDayActive = selectedDate === d.dateStr;
+                  return (
+                    <button
+                      key={d.dateStr}
+                      type="button"
+                      onClick={() => setSelectedDate(d.dateStr)}
+                      className={`flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                        isDayActive
+                          ? 'bg-primary text-white shadow-2xs'
+                          : d.isToday
+                          ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-extrabold'
+                          : 'bg-slate-100/90 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span>{d.shortName} ({d.displayDate})</span>
+                      {d.isToday && (
+                        <span className={`text-[9px] px-1 rounded font-black ${isDayActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'}`}>
+                          Nay
+                        </span>
+                      )}
+                      {d.count > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isDayActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'}`}>
+                          {d.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Cụm Action Buttons bên phải */}
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-600" />
+              <span>Xuất / In</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/lenh-dieu-xe/tao-moi?category=CONSTRUCTION')}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-extrabold shadow-2xs transition-all cursor-pointer select-none active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5 text-white" />
+              <span>Lập lệnh điều xe mới</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm mã ca, công trình, vị trí, thợ máy, thiết bị..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:border-primary focus:outline-none"
-            />
-          </div>
-
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-primary focus:outline-none"
-          >
-            <option value="ALL">Tất cả hạng mục công trình</option>
-            {JOB_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedMachine}
-            onChange={(e) => setSelectedMachine(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-primary focus:outline-none"
-          >
-            <option value="ALL">Tất cả thiết bị máy</option>
-            {MACHINES.map((m) => (
-              <option key={m.code} value={m.code}>
-                [{m.code}] {m.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-primary focus:outline-none"
-          >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="CHO_DUYET">Chờ duyệt / Phân công</option>
-            <option value="DA_DUYET">Đã giao xe / Tiếp nhận</option>
-            <option value="WORKING">Đang vận hành / Thi công</option>
-            <option value="COMPLETED">Hoàn tất & Nghiệm thu</option>
-            <option value="TAM_DUNG">Tạm dừng máy</option>
-          </select>
-
-          {/* 1. Bộ lọc Tuần */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
-            <Calendar className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Tuần:</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ViewSwitcher<'table' | 'scheduler' | 'kanban'>
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'table', label: 'Bảng kê tổng hợp toàn bộ lệnh' },
+            { value: 'scheduler', label: 'Scheduler lịch chạy theo xe' },
+            { value: 'kanban', label: 'Kanban 4 nhóm trạng thái' },
+          ]}
+        />
+        {(view === 'table' || view === 'scheduler') && (
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-1.5 shadow-xs">
+            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Lọc trạng thái:</span>
             <select
-              value={selectedWeek}
-              onChange={(e) => {
-                const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
-                setSelectedWeek(val);
-                setSelectedDate('ALL');
-              }}
-              className="bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer pr-1 py-0.5"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-900 focus:border-primary focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Tất cả các tuần (Toàn bộ)</option>
-              {availableWeeks.map((w) => (
-                <option key={w.weekNumber} value={w.weekNumber}>
-                  {w.label}
-                </option>
-              ))}
+              <option value="ALL">Toàn bộ trạng thái ({statusCounts.ALL})</option>
+              <option value="DELAYED">Lệnh trễ phân công ({statusCounts.DELAYED})</option>
+              <option value="DRIVER_PENDING">Đôn đốc thợ máy ({statusCounts.DRIVER_PENDING})</option>
+              <option value="FUTURE_UNASSIGNED">Kế hoạch tuần tới ({statusCounts.FUTURE_UNASSIGNED})</option>
+              <option value="CHUA_PHAN_CONG">Chờ duyệt phân công ({statusCounts.CHUA_PHAN_CONG})</option>
+              <option value="DA_GIAO_VIEC">Đã phân công ({statusCounts.DA_GIAO_VIEC})</option>
+              <option value="DANG_LAM_VIEC">Đang vận hành ({statusCounts.DANG_LAM_VIEC})</option>
+              <option value="COMPLETED">Nghiệm thu ({statusCounts.COMPLETED})</option>
+              {statusCounts.TAM_DUNG > 0 && <option value="TAM_DUNG">Tạm dừng máy ({statusCounts.TAM_DUNG})</option>}
             </select>
-          </div>
-
-          {/* 2. Nút Hôm nay */}
-          <button
-            type="button"
-            onClick={handleSelectToday}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all cursor-pointer select-none active:scale-95 ${
-              selectedDate === toDateString(new Date()) && selectedWeek === getWeekNumber(new Date())
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-            }`}
-            title="Xem tất cả các ca máy của ngày hôm nay"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>Hôm nay</span>
-            <span className="text-[10px] font-mono bg-white/30 text-current px-1 rounded">
-              {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-            </span>
-          </button>
-
-          {/* 3. Nút Xem tất cả */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedWeek('ALL');
-              setSelectedDate('ALL');
-            }}
-            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-              selectedWeek === 'ALL' && selectedDate === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả
-          </button>
-        </div>
-
-        <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl">
-          Tổng cộng: {filteredShifts.length} ca máy
-        </span>
-
-        {/* Hàng phụ: Bộ lọc các Thứ trong tuần đang chọn HOẶC Chọn ngày thủ công */}
-        {selectedWeek !== 'ALL' ? (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 w-full">
-            <span className="flex items-center gap-1 text-[11px] font-extrabold text-slate-600 mr-1">
-              <Calendar className="h-3.5 w-3.5 text-primary" /> Ngày trong Tuần {selectedWeek}:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedDate('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedDate === 'ALL'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Cả tuần {selectedWeek}
-            </button>
-            {weekDays.map((d) => {
-              const isDayActive = selectedDate === d.dateStr;
-              return (
-                <button
-                  key={d.dateStr}
-                  type="button"
-                  onClick={() => setSelectedDate(d.dateStr)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none active:scale-95 ${
-                    isDayActive
-                      ? 'bg-primary text-white shadow-xs'
-                      : d.isToday
-                      ? 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-extrabold'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <span>{d.shortName} ({d.displayDate})</span>
-                  {d.isToday && (
-                    <span className={`text-[9px] px-1 rounded font-black ${isDayActive ? 'bg-white/30 text-white' : 'bg-amber-500 text-white'}`}>
-                      Hôm nay
-                    </span>
-                  )}
-                  {d.count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isDayActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'}`}>
-                      {d.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-            <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5 ml-auto">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="bg-transparent text-[11px] font-semibold text-slate-800 px-1.5 py-0.5 focus:outline-none cursor-pointer"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs w-full">
-            <span className="text-xs text-slate-500">Đang hiển thị toàn bộ thời gian. Chọn ngày cụ thể:</span>
-            <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-0.5 ml-auto">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="bg-transparent text-xs font-semibold text-slate-800 px-2 py-0.5 focus:outline-none cursor-pointer"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
           </div>
         )}
       </div>
 
-      {/* KPI Cards */}
-      <KPIGrid cols={4}>
-        <StatCard
-          label={selectedDate === 'ALL' ? 'Tổng ca máy điều độ' : `Ca máy trong ngày (${selectedDate})`}
-          value={filteredShifts.length}
-          icon={<HardHat className="h-5 w-5 text-amber-600" />}
-        />
-        <StatCard
-          label="Tổng giờ máy kế hoạch"
-          value={`${totalPlannedHours.toFixed(1)} giờ`}
-          icon={<Clock className="h-5 w-5 text-blue-600" />}
-        />
-        <StatCard
-          label="Giờ máy thực tế đã chạy"
-          value={`${totalWorkingHours.toFixed(1)} giờ`}
-          icon={<Activity className="h-5 w-5 text-emerald-600" />}
-        />
-        <StatCard
-          label="Dự toán tiêu hao nhiên liệu"
-          value={`${totalFuelPlanned.toFixed(0)} Lít`}
-          icon={<Fuel className="h-5 w-5 text-purple-600" />}
-        />
-      </KPIGrid>
 
-      <ViewSwitcher<'table' | 'scheduler' | 'kanban' | 'completed'>
-        value={view}
-        onChange={setView}
-        options={[
-          { value: 'table', label: 'Bảng kê ca máy chuẩn hóa' },
-          { value: 'scheduler', label: 'Scheduler lịch chạy theo xe' },
-          { value: 'kanban', label: 'Kanban 4 nhóm trạng thái' },
-          { value: 'completed', label: 'Quản lý việc đã hoàn tất' },
-        ]}
-      />
-
-      {/* THANH LỌC 4 TRẠNG THÁI CHUẨN HÓA (CHO BẢNG KÊ & SCHEDULER NHƯ HÌNH) */}
-      {(view === 'table' || view === 'scheduler') && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              {
-                key: 'CHO_DUYET',
-                label: 'Chờ duyệt / Phân công',
-                count: statusCounts.CHO_DUYET,
-                activeBorder: 'border-b-4 border-b-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30',
-                badgeActive: 'bg-amber-500 text-white',
-                textActive: 'text-amber-900',
-              },
-              {
-                key: 'DA_DUYET',
-                label: 'Đã giao xe / Tiếp nhận',
-                count: statusCounts.DA_DUYET,
-                activeBorder: 'border-b-4 border-b-sky-500 ring-2 ring-sky-500/20 bg-sky-50/30',
-                badgeActive: 'bg-sky-600 text-white',
-                textActive: 'text-sky-900',
-              },
-              {
-                key: 'WORKING',
-                label: 'Đang vận hành / Thi công',
-                count: statusCounts.WORKING,
-                activeBorder: 'border-b-4 border-b-blue-600 ring-2 ring-blue-600/20 bg-blue-50/30',
-                badgeActive: 'bg-blue-600 text-white',
-                textActive: 'text-blue-900',
-              },
-              {
-                key: 'COMPLETED',
-                label: 'Hoàn tất & Nghiệm thu',
-                count: statusCounts.COMPLETED,
-                activeBorder: 'border-b-4 border-b-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/30',
-                badgeActive: 'bg-emerald-600 text-white',
-                textActive: 'text-emerald-900',
-              },
-            ].map((item) => {
-              const isActive = statusFilter === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setStatusFilter(isActive ? 'ALL' : item.key)}
-                  className={`group flex items-center justify-between rounded-t-2xl rounded-b-xl border px-4 py-3.5 text-left transition-all duration-150 select-none cursor-pointer active:scale-[0.99] ${
-                    isActive
-                      ? `${item.activeBorder} ${item.textActive} shadow-xs`
-                      : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 shadow-xs'
-                  }`}
-                  title={`Lọc theo trạng thái: ${item.label}`}
-                >
-                  <span className="text-xs sm:text-[13px] font-bold tracking-tight">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold font-mono transition-colors ${
-                      isActive ? item.badgeActive : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
-                    }`}
-                  >
-                    {item.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Hàng phụ: Nút Tất cả trạng thái + Tạm dừng máy */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('ALL')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
-                  statusFilter === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-xs text-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 text-xs'
-                }`}
-              >
-                <span>Tất cả trạng thái</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-2xs'
-                  }`}
-                >
-                  {statusCounts.ALL}
-                </span>
-              </button>
-              {statusFilter !== 'ALL' && (
-                <span className="text-[11px] font-medium text-slate-500">
-                  (Đang lọc trạng thái ca máy • Bấm lại vào thẻ hoặc nút <b>Tất cả trạng thái</b> để xem toàn bộ)
-                </span>
-              )}
-            </div>
-
-            {statusCounts.TAM_DUNG > 0 && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === 'TAM_DUNG' ? 'ALL' : 'TAM_DUNG')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  statusFilter === 'TAM_DUNG'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                <span>Tạm dừng máy ({statusCounts.TAM_DUNG})</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {view === 'table' ? (
         <DataTable
           columns={columns}
           data={filteredShifts}
-          onRowClick={setSelectedShift}
+          onRowClick={handleOpenShift}
           useGlobalFilters={false}
         />
       ) : view === 'scheduler' ? (
@@ -1342,10 +1587,10 @@ export const ConstructionDispatchPage: React.FC = () => {
           availableDates={availableDates}
           lanes={schedulerData.lanes}
           unassignedItems={schedulerData.unassigned}
-          onItemClick={setSelectedShift}
+          onItemClick={handleOpenShift}
           kind="CONSTRUCTION"
         />
-      ) : view === 'kanban' ? (
+      ) : (
         <div className="grid gap-3 lg:grid-cols-4">
           {CONSTRUCTION_BOARDS.map((board) => {
             const boardShifts = filteredShifts.filter((shift) => board.statuses.includes(shift.status));
@@ -1356,7 +1601,7 @@ export const ConstructionDispatchPage: React.FC = () => {
                 </h3>
                 <div className="space-y-2.5">
                   {boardShifts.map((shift) => (
-                    <button key={shift.id} type="button" onClick={() => setSelectedShift(shift)} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-xs shadow-xs hover:border-primary hover:shadow-md">
+                    <button key={shift.id} type="button" onClick={() => handleOpenShift(shift)} className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left text-xs shadow-xs hover:border-primary hover:shadow-md">
                       <b className="font-mono text-primary">{shift.code}</b>
                       <h4 className="my-1.5 font-bold text-slate-900">{shift.projectName}</h4>
                       <p className="text-[11px] text-slate-600">{shift.machineCode} · {shift.operatorName}</p>
@@ -1368,83 +1613,6 @@ export const ConstructionDispatchPage: React.FC = () => {
               </section>
             );
           })}
-        </div>
-      ) : (
-        /* GIAO DIỆN QUẢN LÝ CÁC VIỆC ĐÃ HOÀN TẤT */
-        <div className="space-y-4">
-          {/* Thẻ KPI hoàn tất ca máy */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-emerald-800">Ca máy đã hoàn thành</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-emerald-950">{completedShifts.length}</span>
-                <span className="text-xs font-semibold text-emerald-600">ca máy</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">100% nghiệm thu hiện trường đạt chuẩn</span>
-            </div>
-
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-blue-800">Tổng giờ máy thực tế</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-blue-950">
-                  {completedShifts.reduce((sum, s) => sum + (s.actualWorkingHours || s.plannedHours), 0).toFixed(1)}
-                </span>
-                <span className="text-xs font-semibold text-blue-600">giờ máy</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Nổ máy làm việc hiệu quả</span>
-            </div>
-
-            <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-purple-800">Dầu thực tế tiêu hao</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-purple-950">
-                  {completedShifts.reduce((sum, s) => sum + (s.actualFuelLiters || s.plannedFuelLiters), 0).toFixed(1)}
-                </span>
-                <span className="text-xs font-semibold text-purple-600">Lít dầu</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Tiêu hao đúng định mức định mức (Lít/h)</span>
-            </div>
-
-            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-xs">
-              <span className="text-xs font-bold text-amber-800">Khối lượng nghiệm thu</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-black text-amber-950">
-                  {completedShifts.reduce((sum, s) => sum + (s.workVolumeActual || s.workVolumeTarget), 0).toFixed(1)}
-                </span>
-                <span className="text-xs font-semibold text-amber-700">km / m³</span>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Biên bản nghiệm thu kỹ thuật bàn giao</span>
-            </div>
-          </div>
-
-          {/* Bảng kê việc đã hoàn tất */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50/70">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" />
-                </span>
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
-                    Bảng kê chi tiết ca máy công trình đã hoàn tất & Thời gian kết thúc
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Ghi nhận đầy đủ thiết bị máy, thợ máy vận hành, giờ máy nổ thực tế, khối lượng và thời điểm nghiệm thu
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
-                {completedShifts.length} ca hoàn tất
-              </span>
-            </div>
-
-            <DataTable
-              columns={completedColumns}
-              data={completedShifts}
-              onRowClick={setSelectedShift}
-              useGlobalFilters={false}
-            />
-          </div>
         </div>
       )}
 
@@ -1574,23 +1742,38 @@ export const ConstructionDispatchPage: React.FC = () => {
               existingOrders={shifts}
               initialStartTime={selectedShift.plannedStartTime || `${selectedShift.workDate}T07:00:00`}
               initialDurationHours={selectedShift.plannedHours}
-              onApprove={(vehicle, driver, schedule, implement) => updateShift(selectedShift.id, {
-                status: 'DA_DUYET',
-                machineCode: vehicle.code,
-                machineName: vehicle.name,
-                operatorName: driver.name,
-                plannedStartTime: schedule.startTime,
-                workDate: schedule.startTime.slice(0, 10),
-                plannedHours: schedule.durationHours,
-                plannedFuelLiters: schedule.durationHours * selectedShift.fuelQuotaLitersPerHour,
-                notes: implement ? `${selectedShift.notes ? selectedShift.notes + ' | ' : ''}Đầu công tác: ${implement.name}` : selectedShift.notes,
-              })}
-              onReceive={() => updateShift(selectedShift.id, { status: 'DA_NHAN' })}
-              onComplete={() => updateShift(selectedShift.id, {
-                status: 'HOAN_THANH',
-                actualWorkingHours: selectedShift.actualWorkingHours || selectedShift.plannedHours,
-                workVolumeActual: selectedShift.workVolumeActual || selectedShift.workVolumeTarget,
-              })}
+              unit="BAN_CO_GIOI"
+              complexCode={(selectedShift as any).complexCode || 'KOUN_MOM'}
+              onApprove={async (vehicle, driver, schedule, implement) => {
+                try {
+                  const orderId = Number(selectedShift.id);
+                  if (!Number.isInteger(orderId) || orderId <= 0) throw new Error('Lệnh công trình không có ID hợp lệ.');
+                  await operationsApi.assignDispatch(orderId, {
+                    vehicleId: vehicle.id,
+                    driverId: driver.id,
+                    ...(typeof implement?.id === 'number' && implement.id < 90_000 ? { implementId: implement.id } : {}),
+                    departureTime: schedule.startTime,
+                    plannedEndTime: schedule.endTime,
+                  });
+                  updateShift(selectedShift.id, {
+                    status: 'DA_DUYET',
+                    machineCode: vehicle.code,
+                    machineName: vehicle.name,
+                    operatorName: driver.name,
+                    plannedStartTime: schedule.startTime,
+                    workDate: schedule.startTime.slice(0, 10),
+                    plannedHours: schedule.durationHours,
+                    plannedFuelLiters: schedule.durationHours * selectedShift.fuelQuotaLitersPerHour,
+                    notes: implement ? `${selectedShift.notes ? selectedShift.notes + ' | ' : ''}Đầu công tác: ${implement.name}` : selectedShift.notes,
+                  });
+                  useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã phê duyệt và phân công ${vehicle.code} cho lệnh ${selectedShift.code}.` });
+                } catch (error: any) {
+                  const body = error?.response?.data;
+                  const reasons = body?.message?.reasons ?? body?.reasons;
+                  const message = Array.isArray(reasons) ? reasons.map((item: any) => item.message).filter(Boolean).join('; ') : typeof body?.message === 'string' ? body.message : error?.message;
+                  useAppStore.getState().setHeaderAlert({ type: 'error', message: `Phân công thất bại: ${message || 'Không thể phân công lệnh công trình.'}` });
+                }
+              }}
             />
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1757,11 +1940,6 @@ export const ConstructionDispatchPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* SOS Rescue Modal */}
-      <SosRescueModal
-        isOpen={showSosModal}
-        onClose={() => setShowSosModal(false)}
-      />
     </div>
   );
 };

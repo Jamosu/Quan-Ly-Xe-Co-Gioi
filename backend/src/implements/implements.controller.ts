@@ -8,10 +8,13 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Role, Unit } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -38,6 +41,20 @@ export class ImplementsController {
     return this.implementsService.create(dto);
   }
 
+  @Post('import')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Import thiết bị từ file Excel — tự động map NHOM_TB → usageMode (Nông cụ/Công trình/Vận hành)' })
+  @ApiResponse({ status: 200, description: 'Số dòng created/updated/skipped và danh sách lỗi.' })
+  async importWorkbook(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('unit') unit?: Unit,
+  ) {
+    if (!file?.buffer) throw new Error('Không tìm thấy file. Gửi multipart/form-data với trường "file".');
+    return this.implementsService.importFromWorkbook(file.buffer, unit);
+  }
+
   @Public()
   @Get()
   @ApiOperation({ summary: 'Danh mục 694 nông cụ & thiết bị đính kèm (Lọc theo chủng loại, trạng thái, độ mòn)' })
@@ -50,6 +67,13 @@ export class ImplementsController {
   @ApiOperation({ summary: 'Thống kê tổng quan nông cụ (Đang gắn, Tồn kho, Cần mài/thay chảo)' })
   async getStatistics() {
     return this.implementsService.getStatistics();
+  }
+
+  @Public()
+  @Get(':id/compatible-vehicles')
+  @ApiOperation({ summary: 'Danh sách xe đúng chủng loại có thể nhận thiết bị' })
+  async compatibleVehicles(@Param('id', ParseIntPipe) id: number, @Query('unit') unit?: Unit) {
+    return this.implementsService.compatibleVehicles(id, unit);
   }
 
   @Public()

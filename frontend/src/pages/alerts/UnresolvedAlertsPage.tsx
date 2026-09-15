@@ -1,205 +1,198 @@
-import React, { useState } from 'react';
-import { FilterBar } from '../../components/filters/FilterBar';
-import { DataTable, Column } from '../../components/data-display/DataTable';
-import { Button } from '../../components/common/Button';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AlertOctagon, AlertTriangle, CheckCircle2, Clock, Info, RefreshCw } from 'lucide-react';
+import { apiClient } from '../../api/client';
 import { Badge } from '../../components/common/Badge';
+import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
-import { StatCard } from '../../components/data-display/StatCard';
+import { Column, DataTable } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
-import {
-  AlertOctagon,
-  AlertTriangle,
-  Info,
-  Clock,
-  Download,
-  CheckCircle2,
-} from 'lucide-react';
+import { StatCard } from '../../components/data-display/StatCard';
+import { AlertItem, useAppStore } from '../../store/useAppStore';
 
-interface UnresolvedAlertItem {
-  id: string;
-  severity: 'critical' | 'warning' | 'info';
-  severityText: string;
-  timeStr: string;
-  timeAgo: string;
-  vehicleCode: string;
-  driverName: string;
-  alertType: string;
-  detailSpecs: string;
-  location: string;
-  actionText: string;
-  actionVariant: 'primary' | 'outline';
-}
+const severityRank: Record<string, number> = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+const categoryLabels: Record<string, string> = {
+  SOS: 'SOS', MAINTENANCE: 'Bảo dưỡng', EQUIPMENT: 'Thiết bị', DISPATCH: 'Điều xe',
+  FUEL: 'Nhiên liệu', GPS: 'GPS', COMPLIANCE: 'Hồ sơ tài xế', SYSTEM: 'Hệ thống',
+};
+
+const unwrap = (response: any) => response.data?.data || response.data || {};
 
 export const UnresolvedAlertsPage: React.FC = () => {
-  const [selectedAlert, setSelectedAlert] = useState<UnresolvedAlertItem | null>(null);
-  const [alertsList, setAlertsList] = useState<UnresolvedAlertItem[]>([]);
+  const { systemAlerts: globalAlerts, setSystemAlerts, markAlertRead, selectedKLH } = useAppStore();
+  const [items, setItems] = useState<AlertItem[]>([]);
+  const [selected, setSelected] = useState<AlertItem | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [readState, setReadState] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL');
+  const [category, setCategory] = useState('');
+  const [reason, setReason] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const columns: Column<UnresolvedAlertItem>[] = [
+  const fetchAlerts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const payload = unwrap(await apiClient.get('/alerts', {
+        params: {
+          limit: 100,
+          readState,
+          category: category || undefined,
+          complexCode: selectedKLH !== 'ALL' ? selectedKLH : undefined,
+        },
+      }));
+      const nextItems = Array.isArray(payload.items) ? payload.items : [];
+      setItems(nextItems);
+      if (readState === 'ALL' && !category) setSystemAlerts(nextItems);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, readState, selectedKLH, setSystemAlerts]);
+
+  useEffect(() => {
+    void fetchAlerts();
+    const timer = window.setInterval(() => void fetchAlerts(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [fetchAlerts]);
+
+  const alerts = useMemo(() => [...items].sort((a, b) => {
+    const read = Number(Boolean(a.isRead)) - Number(Boolean(b.isRead));
+    if (read) return read;
+    const severity = severityRank[a.severity] - severityRank[b.severity];
+    if (severity) return severity;
+    return new Date(b.occurredAt || b.createdAt).getTime() - new Date(a.occurredAt || a.createdAt).getTime();
+  }), [items]);
+
+  const openAlert = useCallback(async (alert: AlertItem) => {
+    let opened = alert;
+    if (!alert.isRead) {
+      const receipt = unwrap(await apiClient.patch(`/alerts/${alert.id}/read`));
+      markAlertRead(alert.id, receipt.readAt);
+      opened = { ...alert, isRead: true, readAt: receipt.readAt };
+      setItems((current) => current.map((item) => String(item.id) === String(alert.id) ? opened : item));
+    }
+    setSelected(opened);
+    setReason(opened.handlingReason || '');
+    setSearchParams({ alertId: String(opened.id) }, { replace: true });
+  }, [markAlertRead, setSearchParams]);
+
+  useEffect(() => {
+    const alertId = searchParams.get('alertId');
+    const target = alertId ? alerts.find((item) => String(item.id) === alertId) : undefined;
+    if (target && String(selected?.id) !== alertId) void openAlert(target);
+  }, [alerts, openAlert, searchParams, selected?.id]);
+
+  const closeModal = () => {
+    setSelected(null);
+    setReason('');
+    setSearchParams({}, { replace: true });
+  };
+
+  const changeStatus = async (status: 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED') => {
+    if (!selected) return;
+    if ((status === 'RESOLVED' || status === 'DISMISSED') && !reason.trim()) return;
+    await apiClient.patch(`/alerts/${selected.id}/status`, { status, reason: reason.trim() || undefined });
+    closeModal();
+    await fetchAlerts();
+  };
+
+  const markAll = async () => {
+    await apiClient.post('/alerts/read-all', null, {
+      params: { category: category || undefined, complexCode: selectedKLH !== 'ALL' ? selectedKLH : undefined },
+    });
+    setItems((current) => current.map((item) => ({ ...item, isRead: true, readAt: new Date().toISOString() })));
+    setSystemAlerts(globalAlerts.map((item) => !category || item.category === category
+      ? { ...item, isRead: true, readAt: new Date().toISOString() }
+      : item));
+    await fetchAlerts();
+  };
+
+  const columns: Column<AlertItem>[] = [
     {
-      key: 'severity',
-      title: 'MỨC ĐỘ',
-      render: (row) => {
-        if (row.severity === 'critical') return <Badge variant="red" dot>{row.severityText}</Badge>;
-        if (row.severity === 'warning') return <Badge variant="amber" dot>{row.severityText}</Badge>;
-        return <Badge variant="blue">{row.severityText}</Badge>;
-      },
+      key: 'isRead', title: 'TRẠNG THÁI XEM', render: (row) => row.isRead
+        ? <Badge variant="gray">Đã xem</Badge>
+        : <Badge variant="blue" dot>Chưa xem</Badge>,
     },
     {
-      key: 'timeStr',
-      title: 'THỜI GIAN',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <span className="font-bold text-slate-900 block text-xs">{row.timeStr}</span>
-          <span className="text-[10px] text-slate-400">{row.timeAgo}</span>
+      key: 'severity', title: 'MỨC ĐỘ', render: (row) => row.severity === 'CRITICAL'
+        ? <Badge variant="red" dot>Khẩn cấp</Badge>
+        : row.severity === 'WARNING' ? <Badge variant="amber" dot>Cảnh báo</Badge> : <Badge variant="blue">Thông tin</Badge>,
+    },
+    { key: 'category', title: 'PHÂN HỆ', render: (row) => <span className="font-semibold">{categoryLabels[row.category || ''] || row.category || 'Khác'}</span> },
+    {
+      key: 'title', title: 'NỘI DUNG', render: (row) => (
+        <div className={row.isRead ? 'opacity-65' : ''}>
+          <strong className="block text-xs text-slate-900">{row.title}</strong>
+          <span className="line-clamp-2 text-[11px] text-slate-500">{row.message}</span>
         </div>
       ),
     },
     {
-      key: 'vehicleCode',
-      title: 'PHƯƠNG TIỆN & LÁI XE',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <strong className="text-primary font-bold block">{row.vehicleCode}</strong>
-          <span className="text-[10px] text-slate-500">{row.driverName}</span>
+      key: 'vehicle', title: 'TÀI SẢN', render: (row) => (
+        <div className="text-xs">
+          <b>{row.vehicle?.plate || row.vehicle?.code || row.implement?.code || '—'}</b>
+          <span className="block text-[10px] text-slate-500">{row.driver?.fullName || row.implement?.name || row.location || ''}</span>
         </div>
       ),
     },
     {
-      key: 'alertType',
-      title: 'LOẠI CẢNH BÁO',
-      render: (row) => <span className="font-extrabold text-slate-900 text-xs">{row.alertType}</span>,
-    },
-    {
-      key: 'detailSpecs',
-      title: 'CHI TIẾT THÔNG SỐ',
-      render: (row) => (
-        <span className={`text-xs ${row.severity === 'critical' ? 'font-bold text-rose-600' : 'text-slate-700'}`}>
-          {row.detailSpecs}
-        </span>
+      key: 'createdAt', title: 'PHÁT SINH', render: (row) => (
+        <span className="text-xs">{new Date(row.occurredAt || row.createdAt).toLocaleString('vi-VN')}</span>
       ),
     },
-    { key: 'location', title: 'VỊ TRÍ PHÁT SINH', render: (row) => <span className="text-xs text-slate-600">📍 {row.location}</span> },
     {
-      key: 'actionText',
-      title: 'HÀNH ĐỘNG TRỰC TIẾP TRÊN WEB',
-      render: (row) => (
-        <Button
-          variant={row.actionVariant}
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedAlert(row);
-          }}
-        >
-          {row.actionText}
-        </Button>
+      key: 'status', title: 'XỬ LÝ', render: (row) => (
+        <Badge variant={row.status === 'IN_PROGRESS' ? 'amber' : 'gray'}>{row.status === 'IN_PROGRESS' ? 'Đang xử lý' : 'Đang mở'}</Badge>
       ),
     },
   ];
 
+  const unread = alerts.filter((item) => !item.isRead).length;
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading">
-            Bảng cảnh báo chưa xử lý (SOS Web)
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Hiển thị trực tiếp trên giao diện Web theo 3 mức độ ưu tiên: Khẩn cấp (Đỏ) - Cảnh báo (Vàng) - Nhắc nhở (Xanh).
-          </p>
+          <h1 className="font-heading text-xl font-extrabold text-slate-900 sm:text-2xl">Trung tâm cảnh báo</h1>
+          <p className="mt-0.5 text-xs text-slate-500">Trạng thái xem là riêng cho từng người; trạng thái xử lý được dùng chung toàn hệ thống.</p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="md" icon={<Download className="w-4 h-4" />}>
-            Xuất danh sách
-          </Button>
-          <Button variant="primary" size="md" icon={<CheckCircle2 className="w-4 h-4" />}>
-            Xác nhận tất cả
-          </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="md" icon={<RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />} onClick={() => void fetchAlerts()}>Làm mới</Button>
+          <Button variant="primary" size="md" icon={<CheckCircle2 className="h-4 w-4" />} onClick={() => void markAll()}>Đánh dấu tất cả đã xem</Button>
         </div>
       </div>
 
-      {/* Global FilterBar */}
-      <FilterBar
-        extraFilters={
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            <span>Trạng thái: Đang chờ (18 sự kiện)</span>
-          </div>
-        }
-      />
+      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3">
+        <select value={readState} onChange={(e) => setReadState(e.target.value as typeof readState)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">
+          <option value="ALL">Tất cả trạng thái xem</option><option value="UNREAD">Chưa xem</option><option value="READ">Đã xem</option>
+        </select>
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">
+          <option value="">Tất cả phân hệ</option>
+          {Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </div>
 
-      {/* 4 Stats Cards matching Mockup */}
       <KPIGrid cols={4}>
-        <StatCard
-          label="Cảnh báo Khẩn cấp (Đỏ)"
-          value={`${alertsList.filter((a) => a.severity === 'critical').length} sự kiện`}
-          subValue="Sụt dầu, SOS, Quá tốc"
-          icon={<AlertOctagon className="w-5 h-5" />}
-          iconBgColor="bg-rose-50"
-          iconColor="text-rose-600"
-        />
-        <StatCard
-          label="Cảnh báo Quan trọng (Vàng)"
-          value={`${alertsList.filter((a) => a.severity === 'warning').length} sự kiện`}
-          subValue="Geofence, Gần hạn BTSC"
-          icon={<AlertTriangle className="w-5 h-5" />}
-          iconBgColor="bg-amber-50"
-          iconColor="text-amber-600"
-        />
-        <StatCard
-          label="Nhắc nhở Vận hành (Xanh)"
-          value={`${alertsList.filter((a) => a.severity === 'info').length} sự kiện`}
-          subValue="Nổ máy tại chỗ"
-          icon={<Info className="w-5 h-5" />}
-          iconBgColor="bg-sky-50"
-          iconColor="text-sky-600"
-        />
-        <StatCard
-          label="Tổng cảnh báo đang mở"
-          value={`${alertsList.length} sự kiện`}
-          subValue="Cần xử lý kịp thời"
-          icon={<Clock className="w-5 h-5" />}
-          iconBgColor="bg-emerald-50"
-          iconColor="text-emerald-700"
-        />
+        <StatCard label="Chưa xem" value={unread} subValue="Theo tài khoản hiện tại" icon={<Clock className="h-5 w-5" />} iconBgColor="bg-blue-50" iconColor="text-blue-600" />
+        <StatCard label="Khẩn cấp" value={alerts.filter((a) => a.severity === 'CRITICAL').length} subValue="Ưu tiên xử lý số 1" icon={<AlertOctagon className="h-5 w-5" />} iconBgColor="bg-rose-50" iconColor="text-rose-600" />
+        <StatCard label="Cảnh báo" value={alerts.filter((a) => a.severity === 'WARNING').length} subValue="Cần theo dõi" icon={<AlertTriangle className="h-5 w-5" />} iconBgColor="bg-amber-50" iconColor="text-amber-600" />
+        <StatCard label="Thông tin" value={alerts.filter((a) => a.severity === 'INFO').length} subValue="Nhắc nhở vận hành" icon={<Info className="h-5 w-5" />} iconBgColor="bg-sky-50" iconColor="text-sky-600" />
       </KPIGrid>
 
-      {/* DataTable */}
-      <DataTable
-        title="Danh Sách Sự Kiện Cảnh Báo Trực Tiếp Trên Web"
-        subtitle="Hệ thống phát chuông cảnh báo SOS và cập nhật theo thời gian thực mỗi 10 giây"
-        columns={columns}
-        data={alertsList}
-        onRowClick={(row) => setSelectedAlert(row)}
-      />
+      <DataTable title="Cảnh báo đang mở" subtitle="Sắp xếp: Chưa xem → Khẩn cấp/Cảnh báo/Thông tin → mới nhất" columns={columns} data={alerts} isLoading={loading} onRowClick={(row) => void openAlert(row)} />
 
-      {/* Detail Modal */}
-      {selectedAlert && (
-        <Modal
-          isOpen={!!selectedAlert}
-          onClose={() => setSelectedAlert(null)}
-          title={`Xử Lý Cảnh Báo: ${selectedAlert.alertType}`}
-          subtitle={`Xe: ${selectedAlert.vehicleCode} | Lái xe: ${selectedAlert.driverName}`}
-          size="md"
-        >
-          <div className="space-y-3.5 text-xs text-slate-700">
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-              <div className="flex justify-between"><span>Thời gian phát sinh:</span> <b>{selectedAlert.timeStr} ({selectedAlert.timeAgo})</b></div>
-              <div className="flex justify-between"><span>Thông số ghi nhận:</span> <b className="text-rose-600 font-bold">{selectedAlert.detailSpecs}</b></div>
-              <div className="flex justify-between"><span>Vị trí bản đồ:</span> <span>{selectedAlert.location}</span></div>
-              <div className="flex justify-between"><span>Mức độ ưu tiên:</span> <b>{selectedAlert.severityText}</b></div>
+      {selected && (
+        <Modal isOpen onClose={closeModal} title={selected.title} subtitle={`${categoryLabels[selected.category || ''] || selected.category || 'Cảnh báo'} · ${selected.isRead ? 'Đã xem' : 'Chưa xem'}`} size="md">
+          <div className="space-y-4 text-xs text-slate-700">
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="font-semibold leading-relaxed text-slate-900">{selected.message}</p>
+              <div>Thời gian: <b>{new Date(selected.occurredAt || selected.createdAt).toLocaleString('vi-VN')}</b></div>
+              {selected.location && <div>Vị trí: <b>{selected.location}</b></div>}
+              <div>Trạng thái xử lý: <b>{selected.status === 'IN_PROGRESS' ? 'Đang xử lý' : 'Đang mở'}</b></div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedAlert(null)}>
-                Đóng
-              </Button>
-              <Button variant="primary" size="sm" onClick={() => setSelectedAlert(null)}>
-                Xác Nhận Đã Xử Lý
-              </Button>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Nhập lý do/kết luận bắt buộc khi đóng hoặc bỏ qua..." className="w-full rounded-xl border border-slate-200 p-3" />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={closeModal}>Đóng cửa sổ</Button>
+              {selected.status !== 'IN_PROGRESS' && <Button variant="outline" size="sm" onClick={() => void changeStatus('IN_PROGRESS')}>Bắt đầu xử lý</Button>}
+              <Button variant="outline" size="sm" onClick={() => void changeStatus('DISMISSED')} disabled={!reason.trim()}>Bỏ qua</Button>
+              <Button variant="primary" size="sm" onClick={() => void changeStatus('RESOLVED')} disabled={!reason.trim()}>Hoàn tất xử lý</Button>
             </div>
           </div>
         </Modal>

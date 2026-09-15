@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -113,6 +114,20 @@ export class CreateDriverProfileDto {
   @IsString()
   notes?: string;
 
+  @ApiPropertyOptional({ description: 'Đơn vị Cấp 2 trực tiếp quản lý hồ sơ tài xế' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  managementUnitId?: number;
+
+  @ApiPropertyOptional({ description: 'Đội/Tổ Cấp 3 trực thuộc đơn vị quản lý' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  teamUnitId?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -162,4 +177,9 @@ export class CreateDriverProfileDto {
   @IsOptional()
   @IsString()
   idCardIssuePlace?: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

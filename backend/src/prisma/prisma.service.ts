@@ -1,10 +1,15 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
+    const dbUrl = process.env.DATABASE_URL;
     super({
+      ...(dbUrl ? { datasources: { db: { url: dbUrl } } } : {}),
       // Chỉ in log truy vấn khi cấu hình PRISMA_LOG_QUERY=true, bình thường chỉ log 'warn' và 'error' để tránh làm tràn terminal
       log: process.env.PRISMA_LOG_QUERY === 'true' ? ['query', 'info', 'warn', 'error'] : ['warn', 'error'],
     });

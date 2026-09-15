@@ -14,6 +14,7 @@ import { AcceptTaskDto } from './dto/accept-task.dto';
 import { FinishTripDto } from './dto/finish-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
 import { MobileDriverService } from './mobile-driver.service';
+import { ReportIncidentDto } from './dto/report-incident.dto';
 
 @ApiTags('Mobile Driver App - API Ứng Dụng Di Động Dành Cho Tài Xế')
 @ApiBearerAuth()
@@ -63,6 +64,15 @@ export class MobileDriverController {
     return this.mobileDriverService.createSosAlert(driverId, dto);
   }
 
+  @Post('incidents')
+  @ApiOperation({ summary: 'Báo hỏng xe hoặc thiết bị phụ trợ đang được phân công' })
+  async reportIncident(
+    @CurrentUser('id') driverId: number,
+    @Body() dto: ReportIncidentDto,
+  ) {
+    return this.mobileDriverService.reportIncident(driverId, dto);
+  }
+
   @Get('my-kpi')
   @ApiOperation({ summary: 'Tra cứu điểm số KPI & xếp hạng thi đua cá nhân' })
   async getMyKpi(
@@ -70,5 +80,38 @@ export class MobileDriverController {
     @Query('monthYear') monthYear?: string,
   ) {
     return this.mobileDriverService.getMyKpi(driverId, monthYear);
+  }
+
+  @Get('alerts')
+  @ApiOperation({ summary: 'Lấy danh sách thông báo và cảnh báo cho tài xế' })
+  async getAlerts(@CurrentUser('id') driverId: number) {
+    return this.mobileDriverService.getDriverAlerts(driverId);
+  }
+
+  @Post('schedule-change')
+  @ApiOperation({ summary: 'Gửi yêu cầu xin điều chỉnh lịch thực hiện nhiệm vụ' })
+  async scheduleChange(
+    @CurrentUser('id') driverId: number,
+    @Body() dto: any,
+  ) {
+    return this.mobileDriverService.requestScheduleChange(driverId, dto);
+  }
+
+  @Post('transfer-request')
+  @ApiOperation({ summary: 'Gửi yêu cầu bàn giao / chuyển nhiệm vụ cho người khác' })
+  async transferRequest(
+    @CurrentUser('id') driverId: number,
+    @Body() dto: any,
+  ) {
+    return this.mobileDriverService.requestTransfer(driverId, dto);
+  }
+
+  @Post('progress')
+  @ApiOperation({ summary: 'Cập nhật tiến độ hoàn thành công việc hiện trường' })
+  async updateProgress(
+    @CurrentUser('id') driverId: number,
+    @Body() dto: any,
+  ) {
+    return this.mobileDriverService.updateProgress(driverId, dto);
   }
 }

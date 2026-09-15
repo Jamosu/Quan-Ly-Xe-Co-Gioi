@@ -127,7 +127,7 @@ export const catalogsApi = {
   // --------------------------------------------------------------------------
   // COMPANIES
   // --------------------------------------------------------------------------
-  async getCompanies(fallbackData: CompanyEntity[]): Promise<CompanyEntity[]> {
+  async getCompanies(fallbackData?: CompanyEntity[]): Promise<CompanyEntity[]> {
     try {
       const res = await apiClient.get<any, any>('/catalogs/companies/list');
       const data = unwrapCatalogResponse(res);
@@ -138,7 +138,7 @@ export const catalogsApi = {
     } catch (err) {
       console.warn('[Catalogs API] Companies fetch failed, using fallback:', err);
     }
-    return getStoredData('catalogs_companies', fallbackData);
+    return getStoredData('catalogs_companies', fallbackData || []);
   },
 
   async saveCompany(company: any, currentList: CompanyEntity[]): Promise<CompanyEntity[]> {

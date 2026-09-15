@@ -18,10 +18,9 @@ const catalogs = [
   ['Nhóm nông cụ', 'DAN_RAI_PHAN', 'Dàn rải phân & vôi'],
   ['Nhóm nông cụ', 'RO_MOOC', 'Rơ-moóc chuyên dụng'],
   ['Nhóm nông cụ', 'DAN_PHUN_THUOC', 'Dàn phun thuốc BVTV'],
-  ['Hạng GPLX', 'BANG_MAY_NONG_NGHIEP', 'Bằng điều khiển máy nông nghiệp'],
+  ['Hạng GPLX', 'HANG_B2', 'Bằng B2 (Máy cày, ô tô con <9 chỗ, tải ≤3.5T)'],
   ['Hạng GPLX', 'HANG_C', 'Bằng C'],
   ['Hạng GPLX', 'HANG_FC', 'Bằng FC'],
-  ['Hạng GPLX', 'HANG_B2', 'Bằng B2'],
   ['Hạng GPLX', 'HANG_D', 'Bằng D'],
   ['Đơn vị hệ thống', 'NT1', 'Nông trường 1'],
   ['Đơn vị hệ thống', 'NT2', 'Nông trường 2'],
@@ -49,7 +48,7 @@ const templates = [
   {
     filename: 'Template_Import_Ho_So_Lai_Xe_THACO_AGRI.xlsx', sheet: 'Ho_So_Lai_Xe', title: 'HỒ SƠ NHÂN SỰ LÁI XE & LÁI MÁY',
     headers: ['Mã nhân sự / Lái xe (*)','Họ và tên (*)','Tên đăng nhập hệ thống','Số điện thoại di động (*)','Email làm việc','Giới tính','Ngày tháng năm sinh','Quốc tịch','Số CCCD / CMND / Hộ chiếu','Ngày cấp CCCD','Nơi cấp CCCD','Địa chỉ thường trú','Nơi ở hiện tại / Cư xá','Khu liên hợp (*)','Đơn vị / Xí nghiệp (*)','Nông trường / Cụm','Tổ / Đội sản xuất','Chức danh / Vị trí (*)','Loại hợp đồng lao động','Ngày vào làm việc (*)','Tình trạng làm việc (*)','Ngày thôi việc (nếu có)','Lý do thôi việc','Hạng giấy phép lái xe (*)','Số giấy phép lái xe','Ngày cấp GPLX','Ngày hết hạn GPLX (*)','Hạn khám sức khỏe định kỳ','Mã xe cơ giới phụ trách chính','Trạng thái ca làm việc'],
-    sample: ['TX-NT1-001','Nguyễn Văn Tuấn','tuan.nv','0912345678','tuan.nv@thacoagri.com.vn','Nam','18/05/1990','Việt Nam','079201004567','15/06/2021','Cục Cảnh sát QLHC về TTXH','Huyện Koun Mom, Ratanakiri','Khu cư xá Nông trường 1','KOUN_MOM','XN Chuối DP1','Nông trường 1','Đội Cơ giới 1','Lái máy kéo nông nghiệp','HĐLĐ xác định thời hạn','01/01/2023','DANG_LAM_VIEC','','','BANG_MAY_NONG_NGHIEP','790123456789','12/04/2020','12/04/2028','15/10/2026','CHT-MDA-001','SAN_SANG'],
+    sample: ['TX-NT1-001','Nguyễn Văn Tuấn','tuan.nv','0912345678','tuan.nv@thacoagri.com.vn','Nam','18/05/1990','Việt Nam','079201004567','15/06/2021','Cục Cảnh sát QLHC về TTXH','Huyện Koun Mom, Ratanakiri','Khu cư xá Nông trường 1','KOUN_MOM','XN Chuối DP1','Nông trường 1','Đội Cơ giới 1','Lái máy kéo nông nghiệp','HĐLĐ xác định thời hạn','01/01/2023','DANG_LAM_VIEC','','','HANG_B2','790123456789','12/04/2020','12/04/2028','15/10/2026','CHT-MDA-001','SAN_SANG'],
   },
 ];
 

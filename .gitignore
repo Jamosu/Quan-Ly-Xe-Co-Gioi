@@ -1,32 +1,73 @@
-# Dependencies
+# ==========================================
+# THACO AGRI Fleet Management - .gitignore
+# ==========================================
+
+# --- Excluded non-code / documentation / database folders ---
+database/
+docs/
+legacy_mockup/
+Logs/
+logs/
+scratch/
+.tmp_brd_review/
+.android-toolchain/
+
+# --- Temporary export / scratch scripts ---
+export_mockup_pdf.js
+generate_image_only_pdf.js
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*.sql
+*.sqlite
+*.sqlite-journal
+*.apk
+*.aab
+releases/
+
+# --- Dependencies ---
 node_modules/
 .pnpm-store/
+package-lock.json.bak
 
-# Builds and dist
+# --- Builds and dist ---
 dist/
 build/
-.next/
 out/
+.next/
+*.tsbuildinfo
+vite.config.ts.timestamp-*
 
-# Environment files
+# --- Environment files ---
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
 
-# Logs and scratch
+# --- Logs and debug ---
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-scratch/
+pnpm-debug.log*
 
-# IDE / OS files
+# --- IDE / OS files ---
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 
-# Prisma / SQLite temporary files
-*.sqlite
-*.sqlite-journal
-.tmp_brd_review/
+# --- Mobile / Expo / Native build outputs ---
+.expo/
+web-build/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+.metro-health-check*
+/ios/
+/android/

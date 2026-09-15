@@ -12,12 +12,29 @@ export interface FilterCriteria {
 export function matchesKLH(item: any, selectedKLH?: string): boolean {
   if (!selectedKLH || selectedKLH === 'ALL') return true;
 
-  const itemKLH = (item.complexCode || item.klhId || item.klhCode || item.klh || item.unitId || '').toString().toUpperCase();
+  const planComplex = item.productionOrder?.plan?.complexCode || item.planComplexCode;
+  const itemKLH = (item.complexCode || planComplex || item.klhId || item.klhCode || item.klh || item.unitId || '').toString().toUpperCase();
   if (itemKLH) {
     if (itemKLH === selectedKLH.toUpperCase()) return true;
     if (selectedKLH === 'KOUN_MOM' && ['KOUN_MOM', 'KLH_KM', 'KM'].includes(itemKLH)) return true;
     if (selectedKLH === 'SNOUL' && ['SNOUL', 'KLH_SN', 'SN'].includes(itemKLH)) return true;
     if (selectedKLH === 'NAM_LAO' && ['NAM_LAO', 'KLH_NL', 'NL', 'HAGL_AGRI'].includes(itemKLH)) return true;
+  }
+
+  // Check unit mapping (NT1, NT2, NT3, NT4 belong to KOUN_MOM)
+  const unit = (item.unit || item.assignedUnitCode || '').toString().toUpperCase();
+  if (unit) {
+    if (selectedKLH === 'KOUN_MOM' && ['NT1', 'NT2', 'NT3', 'NT4', 'XN_CHUOI', 'BP_CO_GIOI_KM', 'BAN_CO_GIOI'].includes(unit)) return true;
+    if (selectedKLH === 'SNOUL' && ['NT_SN_1', 'NT_SN_2', 'BP_CO_GIOI_SN'].includes(unit)) return true;
+    if (selectedKLH === 'NAM_LAO' && ['NT_NL_1', 'NT_NL_2', 'BP_CO_GIOI_NL'].includes(unit)) return true;
+  }
+
+  // Check plan code: KH-KM-... is KOUN_MOM, KH-SN-... is SNOUL, KH-NL-... is NAM_LAO
+  const planCode = (item.planCode || item.productionOrder?.plan?.code || '').toString().toUpperCase();
+  if (planCode) {
+    if (selectedKLH === 'KOUN_MOM' && (planCode.includes('-KM-') || planCode.startsWith('KH-KM'))) return true;
+    if (selectedKLH === 'SNOUL' && (planCode.includes('-SN-') || planCode.startsWith('KH-SN'))) return true;
+    if (selectedKLH === 'NAM_LAO' && (planCode.includes('-NL-') || planCode.startsWith('KH-NL'))) return true;
   }
 
   const klhKeywords: Record<string, string[]> = {
@@ -29,7 +46,7 @@ export function matchesKLH(item: any, selectedKLH?: string): boolean {
   };
 
   const keywords = klhKeywords[selectedKLH] || [selectedKLH.toLowerCase()];
-  const textToCheck = `${item.complexName || ''} ${item.complexCode || ''} ${item.enterpriseName || ''} ${item.farmName || ''} ${item.unit || ''} ${item.unitName || ''} ${item.klhName || ''} ${item.location || ''} ${item.address || ''} ${item.code || ''} ${item.internalCode || ''} ${item.teamUnit || ''} ${item.fromLocation || ''} ${item.toLocation || ''} ${item.origin || ''} ${item.destination || ''} ${item.projectName || ''} ${item.locationDetails || ''} ${item.purpose || ''} ${item.notes || ''} ${item.planTitle || ''} ${item.taskPlot || ''} ${item.assignedUnitCode || ''} ${item.regionCode || ''}`.toLowerCase();
+  const textToCheck = `${item.complexName || ''} ${item.complexCode || ''} ${item.enterpriseName || ''} ${item.farmName || ''} ${item.unit || ''} ${item.unitName || ''} ${item.klhName || ''} ${item.location || ''} ${item.address || ''} ${item.code || ''} ${item.internalCode || ''} ${item.teamUnit || ''} ${item.fromLocation || ''} ${item.toLocation || ''} ${item.origin || ''} ${item.destination || ''} ${item.projectName || ''} ${item.locationDetails || ''} ${item.purpose || ''} ${item.notes || ''} ${item.planTitle || ''} ${item.taskPlot || ''} ${item.assignedUnitCode || ''} ${item.regionCode || ''} ${item.productionOrder?.plan?.code || ''} ${item.productionOrder?.plan?.title || ''} ${item.productionOrder?.plan?.complexName || ''}`.toLowerCase();
 
   return keywords.some((kw) => textToCheck.includes(kw));
 }

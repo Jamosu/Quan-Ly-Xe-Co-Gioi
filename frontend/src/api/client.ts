@@ -29,30 +29,29 @@ export const apiClient = axios.create({
   },
 });
 
-const demoAutoLoginEnabled = import.meta.env.VITE_DEMO_AUTO_LOGIN !== 'false';
-let demoLoginPromise: Promise<string> | null = null;
+export const getSessionToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem('thaco_agri_jwt_token') || localStorage.getItem('thaco_agri_jwt_token');
+};
 
-const getDemoAccessToken = async () => {
-  if (!demoLoginPromise) {
-    demoLoginPromise = axios
-      .post(`${API_BASE_URL}/auth/login`, {
-        username: import.meta.env.VITE_DEMO_USERNAME || 'admin',
-        password: import.meta.env.VITE_DEMO_PASSWORD || '123456',
-      }, { withCredentials: true })
-      .then((response) => {
-        const body = response.data?.data || response.data;
-        if (!body?.accessToken) throw new Error('Backend không trả access token.');
-        localStorage.setItem('thaco_agri_jwt_token', body.accessToken);
-        return body.accessToken as string;
-      })
-      .finally(() => { demoLoginPromise = null; });
-  }
-  return demoLoginPromise;
+export const setSessionAuth = (token: string, user: any) => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem('thaco_agri_jwt_token', token);
+  sessionStorage.setItem('thaco_auth_user', JSON.stringify(user));
+  useAppStore.getState().setCurrentUser(user);
+};
+
+export const clearSessionAuth = () => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem('thaco_agri_jwt_token');
+  sessionStorage.removeItem('thaco_auth_user');
+  localStorage.removeItem('thaco_agri_jwt_token');
+  useAppStore.getState().logout();
 };
 
 // Request interceptor to attach JWT Token
 apiClient.interceptors.request.use(async (config) => {
-  const token = localStorage.getItem('thaco_agri_jwt_token');
+  const token = getSessionToken();
 
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -72,27 +71,32 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor to handle token refresh and display header alert on error
+// Response interceptor to handle token refresh, retry network glitches during server restarts, and display header alert on error
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Tự động xóa thông báo lỗi kết nối nếu request đã thành công trở lại
+    const currentAlert = useAppStore.getState().headerAlert;
+    if (currentAlert?.type === 'error' && (currentAlert.message.includes('Network Error') || currentAlert.message.includes('Lỗi kết nối'))) {
+      useAppStore.getState().setHeaderAlert(null);
+    }
+    return response;
+  },
   async (error) => {
+    const originalRequest = error.config as (typeof error.config & { _retryCount?: number }) | undefined;
+
+    // Tự động retry tối đa 2 lần khi gặp Network Error (do backend đang restart trong lúc sửa code)
+    const isNetworkGlitch = !error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED');
+    if (isNetworkGlitch && originalRequest && (originalRequest._retryCount || 0) < 2) {
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      const retryDelay = originalRequest._retryCount * 600;
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      return apiClient(originalRequest);
+    }
+
     if (error.response?.status === 401) {
-      localStorage.removeItem('thaco_agri_jwt_token');
-      const originalRequest = error.config as (typeof error.config & { _demoAuthRetried?: boolean }) | undefined;
-      if (demoAutoLoginEnabled && originalRequest && !originalRequest._demoAuthRetried && !String(originalRequest.url).includes('/auth/login')) {
-        originalRequest._demoAuthRetried = true;
-        try {
-          const token = await getDemoAccessToken();
-          originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return apiClient(originalRequest);
-        } catch (authErr: any) {
-          useAppStore.getState().setHeaderAlert({
-            type: 'error',
-            message: 'Lỗi xác thực: Không thể tự động đăng nhập tài khoản.',
-          });
-          return Promise.reject(authErr);
-        }
+      clearSessionAuth();
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
       }
     }
 
@@ -346,6 +350,12 @@ export const apiService = {
     await apiClient.delete(`/vehicles/${numericId}`);
   },
 
+  async getSosAlerts(): Promise<any[]> {
+    const res = await apiClient.get('/vehicles/sos-alerts');
+    const payload = unwrapPayload(res);
+    return Array.isArray(payload) ? payload : payload.items || [];
+  },
+
   async getVehicleTypes(params?: Record<string, unknown>): Promise<VehicleTypeMaster[]> {
     const response = await apiClient.get('/vehicle-types', { params });
     return unwrapPayload(response) as VehicleTypeMaster[];
@@ -595,6 +605,13 @@ export const apiService = {
     return res.data?.data || res.data;
   },
 
+  async getCompatibleVehiclesForImplement(id: number, unit?: string): Promise<VehicleProfile[]> {
+    const res = await apiClient.get(`/implements/${id}/compatible-vehicles`, { params: { unit } });
+    const payload = res.data?.data || res.data;
+    const items = Array.isArray(payload) ? payload : payload?.items || [];
+    return items.map(mapVehicleResponse);
+  },
+
   async attachImplement(id: number, vehicleId: number) {
     const res = await apiClient.post(`/implements/${id}/attach`, { vehicleId });
     return res.data?.data || res.data;
@@ -679,6 +696,12 @@ export const apiService = {
 
   async updateDriverProfile(id: number, data: Record<string, unknown>) {
     const res = await apiClient.patch(`/users/drivers/${id}/profile`, data);
+    return res.data?.data || res.data;
+  },
+
+  // 14. Fleet History Events
+  async getFleetHistoryEvents(params?: Record<string, unknown>) {
+    const res = await apiClient.get('/vehicles/history/events', { params });
     return res.data?.data || res.data;
   },
 };

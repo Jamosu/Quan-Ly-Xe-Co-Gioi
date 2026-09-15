@@ -24,6 +24,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { VehicleDriverAssignmentsModule } from './vehicle-driver-assignments/vehicle-driver-assignments.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { OperationalLocationsModule } from './operational-locations/operational-locations.module';
+import { DriverManagementModule } from './driver-management/driver-management.module';
+import { WorkshopModule } from './workshop/workshop.module';
 
 @Module({
   imports: [
@@ -52,6 +55,9 @@ import { AlertsModule } from './alerts/alerts.module';
     WorkOrdersModule,
     VehicleDriverAssignmentsModule,
     AlertsModule,
+    OperationalLocationsModule,
+    DriverManagementModule,
+    WorkshopModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

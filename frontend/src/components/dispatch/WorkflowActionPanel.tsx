@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, ClipboardCheck, Timer, Tractor, Truck, UserCheck, Wrench, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { CalendarClock, CheckCircle2, ClipboardCheck, Clock, Timer, Tractor, Truck, UserCheck, Wrench, AlertTriangle, Plus, Trash2, Fuel, Info } from 'lucide-react';
 import { Button } from '../common/Button';
 import { SearchableSelect, type SelectOption } from '../common/SearchableSelect';
-import { apiClient } from '../../api/client';
+import { buildAttachedEquipmentUrl } from '../../utils/equipmentNavigation';
+import { schedulingApi, type VehicleRecommendation } from '../../api/scheduling';
 
 export type DemoOrderKind = 'AGRICULTURE' | 'CONSTRUCTION' | 'TRANSPORT';
 export type DemoWorkflowStep = 'PENDING' | 'APPROVED' | 'RECEIVED' | 'COMPLETED';
@@ -16,7 +18,7 @@ export interface AssignedTeamMember {
   durationHours: number;
 }
 
-interface DatabaseVehicle {
+export interface DatabaseVehicle {
   id: number;
   code: string;
   plate?: string;
@@ -24,7 +26,19 @@ interface DatabaseVehicle {
   status: string;
   unit?: string;
   category?: string;
-  vehicleType?: { name?: string; code?: string };
+  fuelQuotaRate?: number | null;
+  fuelStandardRate?: number | null;
+  fuelQuotaUnit?: string | null;
+  vehicleTypeId?: number | null;
+  vehicleType?: {
+    id?: number;
+    name?: string;
+    code?: string;
+    operationalDomain?: DemoOrderKind;
+    implementRequirement?: 'NONE' | 'OPTIONAL' | 'REQUIRED';
+    isAssignable?: boolean;
+    defaultFuelQuotaRate?: number | null;
+  };
 }
 
 interface DatabaseDriver {
@@ -38,7 +52,18 @@ interface DatabaseDriver {
   isActive?: boolean;
 }
 
-interface WorkflowActionPanelProps {
+interface DatabaseImplement {
+  id: number;
+  code: string;
+  name: string;
+  status?: string;
+  technicalCondition?: string;
+  unit?: string;
+  usageMode?: 'ATTACHABLE' | 'STANDALONE' | 'UNCLASSIFIED';
+  compatibleVehicleTypes?: Array<{ vehicleTypeId: number }>;
+}
+
+export interface WorkflowActionPanelProps {
   kind: DemoOrderKind;
   step: DemoWorkflowStep;
   taskName: string;
@@ -48,50 +73,81 @@ interface WorkflowActionPanelProps {
   initialStartTime?: string;
   initialDurationHours?: number;
   unit?: string;
+  complexCode?: string;
   estimatedVehiclesCount?: number;
   initialAssignedVehicles?: string[];
   currentOrderId?: number | string;
+  recommendationWorkOrderId?: number;
   existingOrders?: Array<any>;
+  onVehicleScheduleChange?: (details: {
+    vehicle?: DatabaseVehicle;
+    durationHours: number;
+    plannedFuelLiters?: number;
+    fuelQuotaRate?: string;
+  }) => void;
   onApprove: (
-    vehicle: { id: number; code: string; name: string },
+    vehicle: { id: number; code: string; name: string; fuelQuotaRate?: number; fuelQuotaUnit?: string },
     driver: { id: number; name: string; license: string },
     schedule: { startTime: string; endTime: string; durationHours: number },
     implement?: { id: number | string; code: string; name: string },
     team?: Array<{
-      vehicle: { id: number; code: string; name: string };
+      vehicle: { id: number; code: string; name: string; fuelQuotaRate?: number; fuelQuotaUnit?: string };
       driver: { id: number; name: string; license: string };
       implement?: { id: number | string; code: string; name: string };
       schedule?: { startTime: string; endTime: string; durationHours: number };
     }>,
-  ) => void;
-  onReceive: () => void;
-  onComplete: () => void;
+  ) => void | Promise<void>;
+  onReceive?: () => void | Promise<void>;
+  onComplete?: () => void | Promise<void>;
 }
 
-const DEMO_FALLBACK_VEHICLES: Record<DemoOrderKind, DatabaseVehicle[]> = {
+export const getVehicleFuelQuotaRate = (
+  v?: DatabaseVehicle | { code?: string; name?: string; fuelQuotaRate?: number | null; fuelStandardRate?: number | null; vehicleType?: { defaultFuelQuotaRate?: number | null } } | null,
+  kind?: string,
+): number => {
+  if (!v) return 0;
+  if (typeof v.fuelQuotaRate === 'number' && v.fuelQuotaRate > 0) return v.fuelQuotaRate;
+  if (typeof (v as any).fuelStandardRate === 'number' && (v as any).fuelStandardRate > 0) return (v as any).fuelStandardRate;
+  if (typeof v.vehicleType?.defaultFuelQuotaRate === 'number' && v.vehicleType.defaultFuelQuotaRate > 0) return v.vehicleType.defaultFuelQuotaRate;
+
+  const code = (v.code || '').toUpperCase();
+  const name = (v.name || '').toUpperCase();
+  if (code.includes('MĐA') || code.includes('MX') || name.includes('ĐÀO') || name.includes('XÚC')) return 14.5;
+  if (code.includes('MUI') || name.includes('ỦI')) return 18.0;
+  if (code.includes('MS') || name.includes('SAN')) return 15.0;
+  if (code.includes('ML') || name.includes('LU')) return 12.0;
+  if (code.includes('MK-90') || name.includes('90HP') || name.includes('95HP')) return 14.0;
+  if (code.includes('MK-75') || name.includes('75HP')) return 12.0;
+  if (code.includes('MK-50') || name.includes('50HP')) return 9.5;
+  if (kind === 'CONSTRUCTION' || kind === 'CONG_TRINH') return 14.5;
+  if (kind === 'TRANSPORT' || kind === 'VAN_CHUYEN') return 25.0;
+  return 10.0;
+};
+
+export const DEMO_FALLBACK_VEHICLES: Record<DemoOrderKind, DatabaseVehicle[]> = {
   AGRICULTURE: [
-    { id: 92001, code: 'MK-75-01', plate: '70A-001.23', name: 'Máy kéo New Holland TT4.75 (75HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO' },
-    { id: 92002, code: 'MK-90-02', plate: '70A-002.45', name: 'Máy kéo Kubota M9540 (95HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO' },
-    { id: 92003, code: 'MK-50-05', plate: '70A-005.67', name: 'Máy kéo Kubota L5018 (50HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO' },
-    { id: 92004, code: 'MK-50-08', plate: '70A-008.89', name: 'Máy kéo John Deere 5050D (50HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO' },
-    { id: 92005, code: 'MK-50-12', plate: '70A-012.01', name: 'Máy kéo New Holland TT4.55 (55HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO' },
-    { id: 92006, code: 'MK-BC-01', plate: '70A-033.11', name: 'Máy kéo bánh cao Kubota Boom 12m', status: 'CHO_PHAN_CONG', category: 'MAY_KEO' },
+    { id: 92001, code: 'MK-75-01', plate: '70A-001.23', name: 'Máy kéo New Holland TT4.75 (75HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO', fuelQuotaRate: 12.5, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92002, code: 'MK-90-02', plate: '70A-002.45', name: 'Máy kéo Kubota M9540 (95HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO', fuelQuotaRate: 15.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92003, code: 'MK-50-05', plate: '70A-005.67', name: 'Máy kéo Kubota L5018 (50HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO', fuelQuotaRate: 9.5, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92004, code: 'MK-50-08', plate: '70A-008.89', name: 'Máy kéo John Deere 5050D (50HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO', fuelQuotaRate: 9.5, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92005, code: 'MK-50-12', plate: '70A-012.01', name: 'Máy kéo New Holland TT4.55 (55HP)', status: 'CHO_PHAN_CONG', category: 'MAY_KEO', fuelQuotaRate: 10.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92006, code: 'MK-BC-01', plate: '70A-033.11', name: 'Máy kéo bánh cao Kubota Boom 12m', status: 'CHO_PHAN_CONG', category: 'MAY_KEO', fuelQuotaRate: 11.0, fuelQuotaUnit: 'L_PER_HOUR' },
   ],
   CONSTRUCTION: [
-    { id: 92009, code: 'MS-02', plate: '70C-009.11', name: 'Máy san Komatsu GD511A (135HP)', status: 'CHO_PHAN_CONG', category: 'MAY_SAN' },
-    { id: 92010, code: 'MX-01', plate: '70C-010.22', name: 'Máy xúc đào Komatsu PC200-8 (Gầu 0.8m³)', status: 'CHO_PHAN_CONG', category: 'MAY_XUC' },
-    { id: 92011, code: 'MUI-04', plate: '70C-011.33', name: 'Máy ủi Caterpillar D6 (165HP)', status: 'CHO_PHAN_CONG', category: 'MAY_UI' },
-    { id: 92012, code: 'ML-05', plate: '70C-012.44', name: 'Máy lu rung Hamm 3411 (14T)', status: 'CHO_PHAN_CONG', category: 'MAY_LU' },
+    { id: 92009, code: 'MS-02', plate: '70C-009.11', name: 'Máy san Komatsu GD511A (135HP)', status: 'CHO_PHAN_CONG', category: 'MAY_SAN', fuelQuotaRate: 15.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92010, code: 'MX-01', plate: '70C-010.22', name: 'Máy xúc đào Komatsu PC200-8 (Gầu 0.8m³)', status: 'CHO_PHAN_CONG', category: 'MAY_XUC', fuelQuotaRate: 18.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92011, code: 'MUI-04', plate: '70C-011.33', name: 'Máy ủi Caterpillar D6 (165HP)', status: 'CHO_PHAN_CONG', category: 'MAY_UI', fuelQuotaRate: 20.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92012, code: 'ML-05', plate: '70C-012.44', name: 'Máy lu rung Hamm 3411 (14T)', status: 'CHO_PHAN_CONG', category: 'MAY_LU', fuelQuotaRate: 12.0, fuelQuotaUnit: 'L_PER_HOUR' },
   ],
   TRANSPORT: [
-    { id: 92014, code: '92C-14689', plate: '92C-146.89', name: 'Đầu kéo Hyundai HD1000 (410HP)', status: 'CHO_PHAN_CONG', category: 'DAU_KEO' },
-    { id: 92015, code: 'XT-BEN-01', plate: '92C-088.32', name: 'Xe tải ben Howo 3 chân 371HP', status: 'CHO_PHAN_CONG', category: 'XE_TAI' },
-    { id: 92016, code: 'XTA-006', plate: '92C-155.82', name: 'Xe tải Thaco Auman C160 (9T)', status: 'CHO_PHAN_CONG', category: 'XE_TAI' },
-    { id: 92017, code: 'XB-02', plate: '92C-112.34', name: 'Xe bồn xitec chuyên dụng 2 ngăn (5 Khối)', status: 'CHO_PHAN_CONG', category: 'XE_BON' },
+    { id: 92014, code: '92C-14689', plate: '92C-146.89', name: 'Đầu kéo Hyundai HD1000 (410HP)', status: 'CHO_PHAN_CONG', category: 'DAU_KEO', fuelQuotaRate: 38.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92015, code: 'XT-BEN-01', plate: '92C-088.32', name: 'Xe tải ben Howo 3 chân 371HP', status: 'CHO_PHAN_CONG', category: 'XE_TAI', fuelQuotaRate: 32.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92016, code: 'XTA-006', plate: '92C-155.82', name: 'Xe tải Thaco Auman C160 (9T)', status: 'CHO_PHAN_CONG', category: 'XE_TAI', fuelQuotaRate: 22.0, fuelQuotaUnit: 'L_PER_HOUR' },
+    { id: 92017, code: 'XB-02', plate: '92C-112.34', name: 'Xe bồn xitec chuyên dụng 2 ngăn (5 Khối)', status: 'CHO_PHAN_CONG', category: 'XE_BON', fuelQuotaRate: 24.0, fuelQuotaUnit: 'L_PER_HOUR' },
   ],
 };
 
-const DEMO_FALLBACK_DRIVERS: Record<DemoOrderKind, DatabaseDriver[]> = {
+export const DEMO_FALLBACK_DRIVERS: Record<DemoOrderKind, DatabaseDriver[]> = {
   AGRICULTURE: [
     { id: 93001, fullName: 'Nguyễn Văn Hùng', licenseClass: 'Máy kéo A4 / Thợ bậc 4', phone: '0981.234.567' },
     { id: 93002, fullName: 'Trần Đình Trọng', licenseClass: 'Máy kéo A4', phone: '0982.345.678' },
@@ -112,7 +168,7 @@ const DEMO_FALLBACK_DRIVERS: Record<DemoOrderKind, DatabaseDriver[]> = {
   ],
 };
 
-const DEMO_EQUIPMENTS: Record<DemoOrderKind, Array<{ id: number | string; code: string; name: string }>> = {
+export const DEMO_EQUIPMENTS: Record<DemoOrderKind, Array<{ id: number | string; code: string; name: string }>> = {
   AGRICULTURE: [
     { id: 94001, code: 'NC-CAY-01', name: 'Dàn cày 4 chảo phá lâm Baldan' },
     { id: 94002, code: 'NC-BUA-01', name: 'Dàn bừa đĩa 24 chảo TATU' },
@@ -206,9 +262,11 @@ const DOMAIN_CONFIG: Record<
   },
 };
 
-const toLocalDateTimeInput = (value?: string) => {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return '';
+export const toLocalDateTimeInput = (value?: string) => {
+  let date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    date = new Date();
+  }
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 };
@@ -222,159 +280,232 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
   implementName,
   initialStartTime,
   initialDurationHours = 8,
+  unit,
+  complexCode,
   estimatedVehiclesCount,
   initialAssignedVehicles,
   currentOrderId,
+  recommendationWorkOrderId,
   existingOrders,
+  onVehicleScheduleChange,
   onApprove,
   onReceive,
   onComplete,
 }) => {
   const [databaseVehicles, setDatabaseVehicles] = useState<DatabaseVehicle[]>([]);
   const [databaseDrivers, setDatabaseDrivers] = useState<DatabaseDriver[]>([]);
+  const [databaseImplements, setDatabaseImplements] = useState<DatabaseImplement[]>([]);
+  const [databaseOrders] = useState<any[]>([]);
   const [loadingResources, setLoadingResources] = useState(step === 'PENDING');
+  const [resourceLoadFailed, setResourceLoadFailed] = useState(false);
+
+  // Availability map từ API thực tế: vehicleId/driverId → { available, availabilityStatus, reasons }
+  type AvailabilityMap = Record<number, { available: boolean; availabilityStatus: string; reasons: Array<{ code: string; message: string; relatedCode?: string; conflictInterval?: { startAt: string; endAt: string; overlapMinutes: number } }> }>;
+  const [vehicleAvailMap, setVehicleAvailMap] = useState<AvailabilityMap>({});
+  const [driverAvailMap, setDriverAvailMap] = useState<AvailabilityMap>({});
+  const [fetchingAvailability, setFetchingAvailability] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [recommendations, setRecommendations] = useState<VehicleRecommendation[]>([]);
+  const [excludedRecommendationCount, setExcludedRecommendationCount] = useState(0);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const availabilityRequestRef = useRef(0);
+  const resourcesLoadedRef = useRef(false);
+  const firstAvailabilityLoadRef = useRef(true);
 
   const config = DOMAIN_CONFIG[kind] || DOMAIN_CONFIG.AGRICULTURE;
-  const currentEquipments = useMemo(() => {
-    return DEMO_EQUIPMENTS[kind] || DEMO_EQUIPMENTS.AGRICULTURE;
-  }, [kind]);
 
   useEffect(() => {
-    if (step !== 'PENDING') return;
+    if (step !== 'PENDING' || !recommendationWorkOrderId || loadingResources) { setRecommendations([]); setExcludedRecommendationCount(0); return; }
     let active = true;
-    const load = async () => {
-      setLoadingResources(true);
-      try {
-        const [vehicleResponse, driverResponse] = await Promise.allSettled([
-          apiClient.get('/vehicles', { params: { page: 1, limit: 100 } }),
-          apiClient.get('/users', { params: { role: 'DRIVER' } }),
-        ]);
+    setLoadingRecommendations(true);
+    schedulingApi.recommendVehicles(recommendationWorkOrderId)
+      .then((result) => { if (active) { setRecommendations(result.recommendations); setExcludedRecommendationCount(result.excluded.length); } })
+      .catch(() => { if (active) { setRecommendations([]); setExcludedRecommendationCount(0); } })
+      .finally(() => { if (active) setLoadingRecommendations(false); });
+    return () => { active = false; };
+  }, [recommendationWorkOrderId, step, loadingResources]);
 
-        let vItems: DatabaseVehicle[] = [];
-        if (vehicleResponse.status === 'fulfilled') {
-          const body = (vehicleResponse.value.data as any)?.data ?? vehicleResponse.value.data;
-          vItems = Array.isArray(body?.items) ? body.items : Array.isArray(body) ? body : [];
-        }
+  const vehicles = useMemo<DatabaseVehicle[]>(() => {
+    const list = databaseVehicles.length > 0 ? databaseVehicles : resourceLoadFailed ? (DEMO_FALLBACK_VEHICLES[kind] || DEMO_FALLBACK_VEHICLES.AGRICULTURE) : [];
+    return list.filter((v) => v.status !== 'TAM_DUNG' && (v as any).status !== 'inactive' && (v as any).status !== 'NGUNG_HOAT_DONG');
+  }, [databaseVehicles, kind, resourceLoadFailed]);
 
-        let dItems: DatabaseDriver[] = [];
-        if (driverResponse.status === 'fulfilled') {
-          const body = (driverResponse.value.data as any)?.data ?? driverResponse.value.data;
-          dItems = Array.isArray(body?.items) ? body.items : Array.isArray(body) ? body : [];
-        }
+  const drivers = useMemo<DatabaseDriver[]>(() => {
+    const list = databaseDrivers.length > 0 ? databaseDrivers : resourceLoadFailed ? (DEMO_FALLBACK_DRIVERS[kind] || DEMO_FALLBACK_DRIVERS.AGRICULTURE).map((item) => ({
+      ...item,
+      id: typeof item.id === 'number' ? item.id : Number(item.id) || 93000,
+    })) : [];
+    return list.filter((d) => (d as any).isActive !== false && d.employmentStatus !== 'DA_NGHI_VIEC' && (d as any).status !== 'inactive');
+  }, [databaseDrivers, kind, resourceLoadFailed]);
 
-        if (active) {
-          setDatabaseVehicles(vItems);
-          setDatabaseDrivers(dItems);
-        }
-      } finally {
-        if (active) setLoadingResources(false);
+  const currentEquipments = useMemo<DatabaseImplement[]>(() => {
+    const list = databaseImplements.length > 0 ? databaseImplements : resourceLoadFailed ? (DEMO_EQUIPMENTS[kind] || DEMO_EQUIPMENTS.AGRICULTURE).map((item) => ({
+      id: typeof item.id === 'number' ? item.id : Number(item.id) || 94000,
+      code: item.code,
+      name: item.name,
+      status: 'IN_DEPOT',
+      technicalCondition: 'GOOD',
+      usageMode: 'ATTACHABLE' as const,
+      compatibleVehicleTypes: [{ vehicleTypeId: 12 }, { vehicleTypeId: 13 }, { vehicleTypeId: 3 }, { vehicleTypeId: 6 }, { vehicleTypeId: 7 }, { vehicleTypeId: 9 }, { vehicleTypeId: 1 }, { vehicleTypeId: 21 }],
+    })) : [];
+    return list.filter((eq) => eq.status !== 'TAM_DUNG' && (eq as any).status !== 'inactive' && (eq as any).status !== 'NGUNG_HOAT_DONG');
+  }, [databaseImplements, kind, resourceLoadFailed]);
+
+  // Fetch availability từ API thực tế khi startTime hoặc durationHours thay đổi
+  const fetchAvailabilityForSchedule = useCallback(async (startIso: string, durationH: number) => {
+    if (!startIso || durationH <= 0) return;
+    const startDate = new Date(startIso);
+    if (Number.isNaN(startDate.getTime())) return;
+    const endDate = new Date(startDate.getTime() + durationH * 3_600_000);
+
+    const requestId = ++availabilityRequestRef.current;
+    if (!resourcesLoadedRef.current) setLoadingResources(true);
+    setFetchingAvailability(true);
+    setResourceLoadFailed(false);
+    try {
+      const data = await schedulingApi.preparationContext({
+        category: kind,
+        unit: unit || 'NT1',
+        complexCode: complexCode || 'KOUN_MOM',
+        startAt: startDate.toISOString(),
+        endAt: endDate.toISOString(),
+        excludeWorkOrderId: recommendationWorkOrderId,
+      });
+      const vMap: AvailabilityMap = {};
+      const dMap: AvailabilityMap = {};
+      for (const v of data.vehicles) vMap[v.id] = v.availability;
+      for (const d of data.drivers) dMap[d.id] = d.availability;
+      if (requestId !== availabilityRequestRef.current) return;
+      setDatabaseVehicles(data.vehicles as DatabaseVehicle[]);
+      setDatabaseDrivers(data.drivers.map((item) => ({ ...item, currentShiftStatus: item.driverProfile?.currentShiftStatus })));
+      setDatabaseImplements(data.implements as DatabaseImplement[]);
+      setVehicleAvailMap(vMap);
+      setDriverAvailMap(dMap);
+      resourcesLoadedRef.current = true;
+    } catch {
+      if (requestId === availabilityRequestRef.current) setResourceLoadFailed(true);
+    } finally {
+      if (requestId === availabilityRequestRef.current) {
+        setFetchingAvailability(false);
+        setLoadingResources(false);
       }
-    };
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [step]);
-
-  // Merge database vehicles with rich fallbacks
-  const vehicles = useMemo(() => {
-    const fallback = DEMO_FALLBACK_VEHICLES[kind] || DEMO_FALLBACK_VEHICLES.AGRICULTURE;
-    const combined = [...fallback];
-    databaseVehicles.forEach((dv) => {
-      if (!combined.some((c) => c.code === dv.code)) {
-        combined.push(dv);
-      }
-    });
-    return combined;
-  }, [databaseVehicles, kind]);
-
-  // Merge database drivers with rich fallbacks tailored by domain
-  const drivers = useMemo(() => {
-    const fallback = DEMO_FALLBACK_DRIVERS[kind] || DEMO_FALLBACK_DRIVERS.AGRICULTURE;
-    const combined = [...fallback];
-    databaseDrivers.forEach((dd) => {
-      if (!combined.some((c) => c.fullName === dd.fullName)) {
-        combined.push(dd);
-      }
-    });
-    return combined;
-  }, [databaseDrivers, kind]);
+    }
+  }, [kind, unit, complexCode, recommendationWorkOrderId]);
 
   // Đơn lẻ cho Công trình & Vận chuyển: Ban đầu TRỐNG khi đang phân công (step === 'PENDING')
   const [selectedVehicle, setSelectedVehicle] = useState(step === 'PENDING' ? '' : (vehicleCode || ''));
   const [selectedDriver, setSelectedDriver] = useState(step === 'PENDING' ? '' : (driverName || ''));
   const [selectedImplement, setSelectedImplement] = useState(step === 'PENDING' ? '' : (implementName || ''));
 
-  // Danh sách tổ xe động cho Nông nghiệp: Mỗi xe là 1 dòng riêng kèm khung giờ độc lập (Ban đầu TRỐNG 100%)
+  // Phân công phương tiện và thợ máy: Đúng 1 xe duy nhất cho mỗi lệnh điều xe
   const [assignedTeam, setAssignedTeam] = useState<AssignedTeamMember[]>(() => {
-    const defaultStart = toLocalDateTimeInput(initialStartTime);
+    const defaultStart = step === 'PENDING' ? toLocalDateTimeInput() : toLocalDateTimeInput(initialStartTime);
     const defaultDur = initialDurationHours || 8;
-    const count = Math.max(1, Number(estimatedVehiclesCount) || (initialAssignedVehicles?.length || 1));
-
-    const initialList: AssignedTeamMember[] = [];
-    for (let i = 0; i < count; i++) {
-      initialList.push({
-        id: `team-${Date.now()}-${i}`,
-        vehicleCode: step === 'PENDING' ? '' : (initialAssignedVehicles?.[i] || (i === 0 ? vehicleCode || '' : '')),
-        implementName: step === 'PENDING' ? '' : (i === 0 ? implementName || '' : ''),
-        driverName: step === 'PENDING' ? '' : (i === 0 ? driverName || '' : ''),
-        startTime: defaultStart,
-        durationHours: defaultDur,
-      });
-    }
-    return initialList;
+    return [{
+      id: `team-${Date.now()}-0`,
+      vehicleCode: step === 'PENDING' ? '' : (vehicleCode || initialAssignedVehicles?.[0] || ''),
+      implementName: step === 'PENDING' ? '' : (implementName || ''),
+      driverName: step === 'PENDING' ? '' : (driverName || ''),
+      startTime: defaultStart,
+      durationHours: defaultDur,
+    }];
   });
 
-  const [startTime, setStartTime] = useState(toLocalDateTimeInput(initialStartTime));
+  const [startTime, setStartTime] = useState(step === 'PENDING' ? toLocalDateTimeInput() : toLocalDateTimeInput(initialStartTime));
   const [durationHours, setDurationHours] = useState(initialDurationHours || (kind === 'CONSTRUCTION' ? 7.5 : 8));
 
-  // Tự động đồng bộ và ĐẶT TRỐNG 100% khi mở lệnh ở trạng thái chờ duyệt / chờ phân công (step === 'PENDING')
+  const lastOrderIdRef = useRef(currentOrderId);
+  const lastStepRef = useRef(step);
+
+  // Tự động đồng bộ khi MỞ LỆNH MỚI hoặc BƯỚC QUY TRÌNH THAY ĐỔI
   useEffect(() => {
-    setSelectedVehicle(step === 'PENDING' ? '' : (vehicleCode || ''));
-    setSelectedDriver(step === 'PENDING' ? '' : (driverName || ''));
-    setSelectedImplement(step === 'PENDING' ? '' : (implementName || ''));
+    const isNewOrder = lastOrderIdRef.current !== currentOrderId;
+    const isStepChanged = lastStepRef.current !== step;
 
-    const defaultStart = toLocalDateTimeInput(initialStartTime);
-    const defaultDur = initialDurationHours || 8;
-    const count = Math.max(1, Number(estimatedVehiclesCount) || (initialAssignedVehicles?.length || 1));
+    if (isNewOrder || isStepChanged) {
+      lastOrderIdRef.current = currentOrderId;
+      lastStepRef.current = step;
 
-    const initialList: AssignedTeamMember[] = [];
-    for (let i = 0; i < count; i++) {
-      initialList.push({
-        id: `team-${currentOrderId || Date.now()}-${i}`,
-        vehicleCode: step === 'PENDING' ? '' : (initialAssignedVehicles?.[i] || (i === 0 ? vehicleCode || '' : '')),
-        implementName: step === 'PENDING' ? '' : (i === 0 ? implementName || '' : ''),
-        driverName: step === 'PENDING' ? '' : (i === 0 ? driverName || '' : ''),
+      setSelectedVehicle(step === 'PENDING' ? (vehicleCode || '') : (vehicleCode || ''));
+      setSelectedDriver(step === 'PENDING' ? (driverName || '') : (driverName || ''));
+      setSelectedImplement(step === 'PENDING' ? (implementName || '') : (implementName || ''));
+
+      const defaultStart = step === 'PENDING' ? toLocalDateTimeInput() : toLocalDateTimeInput(initialStartTime);
+      const defaultDur = initialDurationHours || 8;
+      setAssignedTeam([{
+        id: `team-${currentOrderId || Date.now()}-0`,
+        vehicleCode: vehicleCode || initialAssignedVehicles?.[0] || '',
+        implementName: implementName || '',
+        driverName: driverName || '',
         startTime: defaultStart,
         durationHours: defaultDur,
-      });
+      }]);
+      setStartTime(defaultStart);
+      setDurationHours(initialDurationHours || (kind === 'CONSTRUCTION' ? 7.5 : 8));
     }
-    setAssignedTeam(initialList);
-    setStartTime(defaultStart);
-    setDurationHours(initialDurationHours || (kind === 'CONSTRUCTION' ? 7.5 : 8));
   }, [currentOrderId, step, vehicleCode, driverName, implementName, estimatedVehiclesCount, initialAssignedVehicles, initialStartTime, initialDurationHours, kind]);
 
-  // Hàm phát hiện xung đột trùng xe trong cùng khung giờ
-  const getConflictingOrder = (vCode: string, startIso: string, duration: number) => {
-    if (!vCode || !startIso || !duration) return null;
-    const targetStart = new Date(startIso).getTime();
-    if (Number.isNaN(targetStart)) return null;
-    const targetEnd = targetStart + duration * 3600000;
+  // Lần mở đầu tải ngay; chỉ debounce các lần người dùng thay đổi khung giờ.
+  useEffect(() => {
+    const scheduleStart = kind === 'AGRICULTURE' ? assignedTeam[0]?.startTime : startTime;
+    const scheduleDuration = kind === 'AGRICULTURE' ? assignedTeam[0]?.durationHours : durationHours;
+    if (step !== 'PENDING' || !scheduleStart || !scheduleDuration || scheduleDuration <= 0) return;
+    if (firstAvailabilityLoadRef.current) {
+      firstAvailabilityLoadRef.current = false;
+      void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration);
+      return;
+    }
+    const timer = setTimeout(() => void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration), 250);
+    return () => clearTimeout(timer);
+  }, [startTime, durationHours, assignedTeam, kind, step, fetchAvailabilityForSchedule]);
 
-    let allOrders = existingOrders || [];
-    if (allOrders.length === 0) {
+  // Helper lấy danh sách toàn bộ các lệnh đang có (từ props, API và localStorage)
+  const getAllOrdersList = useCallback(() => {
+    let list: any[] = [];
+    if (existingOrders && existingOrders.length > 0) {
+      list = [...existingOrders];
+    }
+    if (databaseOrders && databaseOrders.length > 0) {
+      const map = new Map<string, any>();
+      list.forEach((o) => map.set(String(o.id || o.code), o));
+      databaseOrders.forEach((o) => {
+        const k = String(o.id || o.code);
+        if (!map.has(k)) map.set(k, o);
+      });
+      list = Array.from(map.values());
+    }
+    if (list.length === 0) {
       try {
         const raw = localStorage.getItem('thaco_all_dispatch_orders_master_v4');
-        if (raw) allOrders = JSON.parse(raw);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) list = parsed;
+        }
       } catch (e) {}
     }
+    return list;
+  }, [existingOrders, databaseOrders]);
+
+  const isOrderCompletedOrAccepted = (status?: string) => {
+    if (!status) return false;
+    const s = String(status).toUpperCase();
+    return ['CANCELLED', 'COMPLETED', 'CLOSED', 'ACCEPTED', 'DELIVERED', 'REJECTED', 'HOAN_THANH'].includes(s);
+  };
+
+  const getConflictingOrder = (vCode: string, startIso: string, duration: number) => {
+    if (!vCode) return null;
+    const targetStart = startIso ? new Date(startIso).getTime() : Date.now();
+    const targetEnd = startIso && duration ? targetStart + duration * 3600000 : targetStart + 8 * 3600000;
+
+    const allOrders = getAllOrdersList();
 
     for (const o of allOrders) {
       if (currentOrderId && String(o.id) === String(currentOrderId)) continue;
-      if (o.status === 'CANCELLED' || o.status === 'COMPLETED' || o.status === 'CLOSED') continue;
+      if (isOrderCompletedOrAccepted(o.status)) continue;
 
       const usesVehicle =
         o.vehicle?.code === vCode ||
+        o.vehicleCode === vCode ||
         (Array.isArray(o.assignedVehicleList) && o.assignedVehicleList.includes(vCode)) ||
         (Array.isArray(o.assignedTeamDetails) && o.assignedTeamDetails.some((d: any) => d.vehicleCode === vCode));
 
@@ -383,93 +514,423 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
       const oStart = o.departureTime ? new Date(o.departureTime).getTime() : 0;
       const oEnd = o.plannedEndTime ? new Date(o.plannedEndTime).getTime() : (oStart > 0 ? oStart + 8 * 3600000 : 0);
 
-      if (oStart > 0 && oEnd > 0) {
-        if (targetStart < oEnd && targetEnd > oStart) {
-          const oStartStr = new Date(oStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-          const oEndStr = new Date(oEnd).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-          return {
-            orderCode: o.code || `Lệnh #${o.id}`,
-            timeRange: `${oStartStr} - ${oEndStr}`,
-            purpose: o.purpose || o.taskJobName || 'Đang thực hiện nhiệm vụ',
-          };
-        }
+      const isCurrentlyActive = ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DA_NHAN', 'DANG_THI_CONG'].includes(o.status);
+      const isTimeOverlap = oStart > 0 && oEnd > 0 && targetStart < oEnd && targetEnd > oStart;
+
+      if (isCurrentlyActive || isTimeOverlap) {
+        const orderCode = o.code || `Lệnh #${o.id}`;
+        const statusText =
+          o.status === 'WORKING' || o.status === 'DANG_THI_CONG' || o.status === 'IN_TRANSIT'
+            ? 'Đang thi công'
+            : o.status === 'DRIVER_ACCEPTED' || o.status === 'DA_NHAN'
+            ? 'Đã nhận ca'
+            : o.status === 'ASSIGNED' || o.status === 'APPROVED'
+            ? 'Đã phân công'
+            : 'Đang trong lệnh';
+
+        const timeStr = oStart > 0
+          ? `${new Date(oStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${oEnd > 0 ? new Date(oEnd).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '...'}`
+          : '';
+
+        return {
+          orderCode,
+          status: o.status,
+          statusText,
+          timeRange: timeStr,
+          purpose: o.purpose || o.taskJobName || 'Đang thực hiện nhiệm vụ',
+          reason: `Đang bận tại ${orderCode} (${statusText} - Chưa nghiệm thu)${timeStr ? ` [${timeStr}]` : ''}`,
+        };
       }
     }
     return null;
   };
 
-  // Tạo danh sách tùy chọn xe có gắn nhãn khả dụng / bận ca theo thời gian
-  const getVehicleOptionsForSchedule = (startIso: string, duration: number): SelectOption[] => {
-    return vehicles.map((item) => {
+  const getConflictingDriver = (name: string, startIso: string, duration: number) => {
+    if (!name) return null;
+    const targetStart = startIso ? new Date(startIso).getTime() : Date.now();
+    const targetEnd = startIso && duration ? targetStart + duration * 3_600_000 : targetStart + 8 * 3_600_000;
+
+    const allOrders = getAllOrdersList();
+
+    for (const order of allOrders) {
+      if (currentOrderId && String(order.id) === String(currentOrderId)) continue;
+      if (isOrderCompletedOrAccepted(order.status)) continue;
+
+      const usesDriver =
+        order.driver?.fullName === name ||
+        order.driver?.name === name ||
+        order.driverName === name ||
+        (Array.isArray(order.assignedTeamDetails) && order.assignedTeamDetails.some((item: any) => item.driverName === name));
+
+      if (!usesDriver) continue;
+
+      const orderStart = order.departureTime ? new Date(order.departureTime).getTime() : 0;
+      const orderEnd = order.plannedEndTime ? new Date(order.plannedEndTime).getTime() : (orderStart > 0 ? orderStart + 8 * 3_600_000 : 0);
+
+      const isCurrentlyActive = ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DA_NHAN', 'DANG_THI_CONG'].includes(order.status);
+      const isTimeOverlap = orderStart > 0 && orderEnd > 0 && targetStart < orderEnd && targetEnd > orderStart;
+
+      if (isCurrentlyActive || isTimeOverlap) {
+        const orderCode = order.code || `Lệnh #${order.id}`;
+        const statusText =
+          order.status === 'WORKING' || order.status === 'DANG_THI_CONG' || order.status === 'IN_TRANSIT'
+            ? 'Đang thi công'
+            : order.status === 'DRIVER_ACCEPTED' || order.status === 'DA_NHAN'
+            ? 'Lái xe đã nhận ca'
+            : order.status === 'ASSIGNED' || order.status === 'APPROVED'
+            ? 'Đã phân công'
+            : 'Đang trong lệnh';
+
+        const timeStr = orderStart > 0
+          ? `${new Date(orderStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${orderEnd > 0 ? new Date(orderEnd).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '...'}`
+          : '';
+
+        return {
+          id: order.id,
+          code: orderCode,
+          status: order.status,
+          statusText,
+          timeRange: timeStr,
+          reason: `Đang bận tại ${orderCode} (${statusText} - Chưa nghiệm thu)${timeStr ? ` [${timeStr}]` : ''}`,
+        };
+      }
+    }
+    return null;
+  };
+
+  const getConflictingImplement = (value: string, startIso: string, duration: number) => {
+    if (!value) return null;
+    const selected = currentEquipments.find((item) => item.name === value || item.code === value);
+    if (!selected || selected.code === 'TB-NONE' || selected.code === 'XE-LIEN-THUNG') return null;
+
+    const targetStart = startIso ? new Date(startIso).getTime() : Date.now();
+    const targetEnd = startIso && duration ? targetStart + duration * 3_600_000 : targetStart + 8 * 3_600_000;
+
+    const allOrders = getAllOrdersList();
+
+    for (const order of allOrders) {
+      if (currentOrderId && String(order.id) === String(currentOrderId)) continue;
+      if (isOrderCompletedOrAccepted(order.status)) continue;
+
+      const usesImplement =
+        order.implement?.id === selected.id ||
+        order.implement?.code === selected.code ||
+        order.implement?.name === selected.name ||
+        order.implementName === selected.name ||
+        order.trailer?.id === selected.id ||
+        order.trailer?.code === selected.code ||
+        (Array.isArray(order.assignedTeamDetails) &&
+          order.assignedTeamDetails.some((d: any) => d.implementName === selected.name || d.implementCode === selected.code));
+
+      if (!usesImplement) continue;
+
+      const orderStart = order.departureTime ? new Date(order.departureTime).getTime() : 0;
+      const orderEnd = order.plannedEndTime ? new Date(order.plannedEndTime).getTime() : (orderStart > 0 ? orderStart + 8 * 3_600_000 : 0);
+
+      const isCurrentlyActive = ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DA_NHAN', 'DANG_THI_CONG'].includes(order.status);
+      const isTimeOverlap = orderStart > 0 && orderEnd > 0 && targetStart < orderEnd && targetEnd > orderStart;
+
+      if (isCurrentlyActive || isTimeOverlap) {
+        const orderCode = order.code || `Lệnh #${order.id}`;
+        const statusText =
+          order.status === 'WORKING' || order.status === 'DANG_THI_CONG' || order.status === 'IN_TRANSIT'
+            ? 'Đang thi công'
+            : 'Chưa nghiệm thu';
+        return {
+          id: order.id,
+          code: orderCode,
+          statusText,
+          reason: `Đang bận tại ${orderCode} (${statusText} - Chưa nghiệm thu)`,
+        };
+      }
+    }
+    return null;
+  };
+
+  // Tạo label xe với badge availability thực tế từ API (ưu tiên) hoặc local conflict check (fallback)
+  // Tạo label xe với badge availability thực tế từ API (ưu tiên) hoặc local conflict check (fallback)
+  // Sắp xếp: Xe sẵn sàng trước (rank 0), sau đó xe bận do đang lái/đang ca (rank 1), sau đó xe sửa chữa/bảo dưỡng (rank 2)
+  const getVehicleOptionsForSchedule = (startIso: string, duration: number, currentMemberIndex?: number): SelectOption[] => {
+    const list: Array<SelectOption & { rank: number; code: string }> = vehicles.map((item) => {
+      // 1. Kiểm tra xem xe đã được chọn ở dòng xe khác trong cùng ca hay chưa
+      const otherMemberIndex = assignedTeam.findIndex(
+        (m, idx) => idx !== currentMemberIndex && m.vehicleCode?.trim() === item.code.trim()
+      );
+      if (otherMemberIndex !== -1) {
+        const otherMemberNum = otherMemberIndex + 1;
+        return {
+          value: item.code,
+          code: item.code,
+          rank: 3,
+          label: `🔴 [Đã chọn ở xe #${otherMemberNum}] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}`,
+          disabled: true,
+          title: `Thiết bị xe máy đã được chọn ở Xe #${otherMemberNum}`,
+        };
+      }
+
+      // 2. Kiểm tra xe đang trong lệnh khác chưa được nghiệm thu (Đang lái / Đang thi công)
       const conflict = getConflictingOrder(item.code, startIso, duration);
+      if (conflict) {
+        return {
+          value: item.code,
+          code: item.code,
+          rank: 1, // Đang lái / bận ca
+          label: `🔴 [Đang lái] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''} [${conflict.reason}]`,
+          disabled: true,
+          title: `Xe đang thực hiện ${conflict.orderCode} (${conflict.statusText}), chưa được nghiệm thu đóng ca. Không thể chọn.`,
+        };
+      }
+
+      // 3. Ưu tiên dữ liệu từ API availability
+      const apiAvail = item.id < 90000 ? vehicleAvailMap[item.id] : undefined;
+      if (apiAvail) {
+        const isRepair =
+          item.status === 'SUA_CHUA' ||
+          item.status === 'BAO_DUONG' ||
+          apiAvail.reasons.some((r) => /MAINTENANCE|REPAIR|SUA_CHUA|BAO_DUONG/i.test(r.code) || /sửa chữa|bảo dưỡng/i.test(r.message));
+
+        if (!apiAvail.available) {
+          const reasonText = apiAvail.reasons.length > 0 ? apiAvail.reasons.map((r) => r.message).join('; ') : '';
+          if (isRepair) {
+            return {
+              value: item.code,
+              code: item.code,
+              rank: 2, // Sửa chữa / bảo dưỡng
+              label: `🔧 [Sửa chữa] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}${reasonText ? ` [${reasonText.substring(0, 60)}]` : ''}`,
+              disabled: true,
+              title: reasonText || 'Xe đang sửa chữa hoặc bảo dưỡng định kỳ',
+            };
+          } else {
+            return {
+              value: item.code,
+              code: item.code,
+              rank: 1, // Đang lái / bận lệnh
+              label: `🔴 [Đang lái/Bận] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}${reasonText ? ` [${reasonText.substring(0, 60)}]` : ''}`,
+              disabled: true,
+              title: reasonText || 'Xe đang có lịch công tác trùng giờ',
+            };
+          }
+        }
+
+        const statusIcon = apiAvail.availabilityStatus === 'WARNING' ? '🟡' : '🟢';
+        const reasonText = apiAvail.reasons.length > 0 ? apiAvail.reasons.map((r) => r.message).join('; ') : '';
+        const label = `${statusIcon} [Sẵn sàng] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}${reasonText ? ` ⚠️ [${reasonText.substring(0, 50)}]` : ''}`;
+        return {
+          value: item.code,
+          code: item.code,
+          rank: 0, // Sẵn sàng
+          label,
+          disabled: false,
+          title: reasonText || label,
+        };
+      }
+
+      // 4. Fallback kiểm tra trạng thái tĩnh
+      if (item.status === 'SUA_CHUA' || item.status === 'BAO_DUONG') {
+        return {
+          value: item.code,
+          code: item.code,
+          rank: 2,
+          label: `🔧 [Sửa chữa] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''} [${item.status}]`,
+          disabled: true,
+          title: `Xe đang ở trạng thái ${item.status}`,
+        };
+      }
+
       return {
         value: item.code,
-        label: conflict
-          ? `${item.code} — ${item.name} ⚠️ [BẬN CA: ${conflict.timeRange} (${conflict.orderCode})]`
-          : `${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}`,
+        code: item.code,
+        rank: 0,
+        label: `🟢 [Sẵn sàng] ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}`,
+        disabled: false,
+        title: 'Sẵn sàng điều phối',
       };
+    });
+
+    // Sắp xếp: Sẵn sàng (0) -> Đang lái/Bận ca (1) -> Sửa chữa/Bảo dưỡng (2) -> Đã gán (3)
+    return list.sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.code.localeCompare(b.code);
     });
   };
 
-  const equipmentOptions: SelectOption[] = useMemo(() => {
-    return currentEquipments.map((item) => ({
-      value: item.name,
-      label: `${item.code} — ${item.name}`,
-    }));
-  }, [currentEquipments]);
+  const getSelectedVehicle = (vehicleValue: string) =>
+    vehicles.find((item) => item.code === vehicleValue || item.plate === vehicleValue);
 
-  const driverOptions: SelectOption[] = useMemo(() => {
-    return drivers.map((item) => ({
-      value: item.fullName,
-      label: `${item.fullName} — ${item.licenseClass || 'Chứng chỉ nghề'}${item.phone ? ` (${item.phone})` : ''}`,
-    }));
-  }, [drivers]);
+  const getImplementRequirement = (vehicleValue: string): 'NONE' | 'OPTIONAL' | 'REQUIRED' =>
+    getSelectedVehicle(vehicleValue)?.vehicleType?.implementRequirement ?? 'NONE';
 
-  // Thêm xe mới vào tổ: kế thừa khung giờ từ xe trước đó, data xe/lái xe ĐỂ TRỐNG
-  const handleAddVehicle = () => {
-    const lastMember = assignedTeam[assignedTeam.length - 1];
-    const itemStart = lastMember?.startTime || toLocalDateTimeInput(initialStartTime);
-    const itemDur = lastMember?.durationHours || 8;
+  const getEquipmentOptionsForSchedule = (scheduleStart: string, scheduleDuration: number, vehicleValue: string, currentMemberIndex?: number): SelectOption[] => {
+    const vehicle = getSelectedVehicle(vehicleValue);
+    const vehicleTypeId = vehicle?.vehicleTypeId ?? vehicle?.vehicleType?.id;
+    if (!vehicleTypeId || getImplementRequirement(vehicleValue) === 'NONE') return [];
 
-    setAssignedTeam((prev) => [
-      ...prev,
-      {
-        id: `team-${Date.now()}-${prev.length}`,
-        vehicleCode: '',
-        implementName: '',
-        driverName: '',
-        startTime: itemStart,
-        durationHours: itemDur,
-      },
-    ]);
+    return currentEquipments
+      .filter((item) => item.usageMode === 'ATTACHABLE')
+      .filter((item) => item.compatibleVehicleTypes?.some((compatibility) => compatibility.vehicleTypeId === vehicleTypeId))
+      .map((item) => {
+        // 1. Kiểm tra xem phụ kiện đã được gắn ở xe khác trong ca hay chưa
+        const otherMemberIndex = assignedTeam.findIndex(
+          (m, idx) =>
+            idx !== currentMemberIndex &&
+            (m.implementName?.trim() === item.name.trim() || m.implementName?.trim() === item.code.trim())
+        );
+        if (otherMemberIndex !== -1) {
+          const otherMemberNum = otherMemberIndex + 1;
+          return {
+            value: item.name,
+            label: `🔴 ${item.code} — ${item.name} [Đã gắn ở xe #${otherMemberNum}]`,
+            disabled: true,
+            title: `Phụ kiện / nông cụ đã được gắn ở Xe #${otherMemberNum}`,
+          };
+        }
+
+        // 2. Kiểm tra phụ kiện đang trong lệnh khác chưa được nghiệm thu hoặc bảo dưỡng
+        const conflict = getConflictingImplement(item.name, scheduleStart, scheduleDuration);
+        const unavailable = item.status === 'MAINTENANCE' || (item.technicalCondition && item.technicalCondition !== 'GOOD');
+        if (conflict || unavailable) {
+          return {
+            value: item.name,
+            label: `🔴 ${item.code} — ${item.name} [${conflict ? conflict.reason : 'Đang bảo dưỡng/Không đủ điều kiện'}]`,
+            disabled: true,
+            title: conflict ? conflict.reason : 'Nông cụ không đủ điều kiện vận hành.',
+          };
+        }
+
+        return {
+          value: item.name,
+          label: `🟢 ${item.code} — ${item.name}`,
+          disabled: false,
+          title: 'Sẵn sàng gắn vào phương tiện',
+        };
+      });
   };
 
-  // Xóa xe khỏi tổ
-  const handleRemoveVehicle = (index: number) => {
-    if (assignedTeam.length <= 1) return;
-    setAssignedTeam((prev) => prev.filter((_, i) => i !== index));
+  const isDriverEligibleForAgriculture = (driver: DatabaseDriver): boolean => {
+    const lic = String((driver as any).driverProfile?.licenseClass || driver.licenseClass || '').toUpperCase();
+    const notes = String((driver as any).notes || '').toLowerCase();
+
+    // 1. Bằng chính là Hạng B (B2, B1), Hạng A4 hoặc bằng/chứng chỉ máy nông nghiệp, máy kéo
+    const hasB = lic.includes('B2') || lic.includes('B1') || lic === 'HANG_B' || lic.includes('HẠNG B') || lic.includes('A4') || lic.includes('NONG_NGHIEP') || lic.includes('MÁY KÉO') || lic.includes('MÁY CÀY');
+    if (hasB) return true;
+
+    // 2. Bằng chính là Hạng C, CE hoặc FC: chỉ hợp lệ nếu có thêm bằng Hạng B / chứng chỉ máy nông nghiệp
+    const isC = lic.includes('HANG_C') || lic.includes('HẠNG C') || lic.includes('HANG_CE') || lic.includes('HẠNG CE') || lic.includes('HANG_FC') || lic.includes('HẠNG FC');
+    const hasAddB = notes.includes('b2') || notes.includes('b1') || notes.includes('hạng b') || notes.includes('máy cày') || notes.includes('máy kéo') || notes.includes('bằng b') || notes.includes('a4');
+    if (isC) {
+      return hasAddB;
+    }
+
+    return hasAddB;
   };
 
-  // Cập nhật từng dòng xe (xe, nông cụ, thợ lái, giờ bắt đầu, số giờ ca)
+  const getDriverOptionsForSchedule = (scheduleStart: string, scheduleDuration: number, currentMemberIndex?: number, vehicleValue?: string): SelectOption[] => {
+    const vObj = getSelectedVehicle(vehicleValue || assignedTeam[currentMemberIndex || 0]?.vehicleCode || '');
+    const isAgriContext = kind === 'AGRICULTURE' || vObj?.category === 'MAY_CAY' || vObj?.category === 'MAY_KEO' || vObj?.vehicleType?.operationalDomain === 'AGRICULTURE';
+
+    // Lọc danh sách: Khi lái máy nông nghiệp, chỉ đưa người có bằng Hạng B (hoặc người có bằng C nhưng có thêm bằng B)
+    const eligibleDrivers = isAgriContext
+      ? drivers.filter(isDriverEligibleForAgriculture)
+      : drivers;
+
+    const list: Array<SelectOption & { rank: number; name: string }> = eligibleDrivers.map((item) => {
+      // 1. Kiểm tra xem thợ máy / lái xe đã được phân công ở xe khác trong ca hay chưa
+      const otherMemberIndex = assignedTeam.findIndex(
+        (m, idx) => idx !== currentMemberIndex && m.driverName?.trim() === item.fullName.trim()
+      );
+      if (otherMemberIndex !== -1) {
+        const otherMemberNum = otherMemberIndex + 1;
+        return {
+          value: item.fullName,
+          name: item.fullName,
+          rank: 2,
+          label: `🔴 [Đã chọn ở xe #${otherMemberNum}] ${item.fullName} — ${item.licenseClass || 'Chứng chỉ nghề'}${item.phone ? ` (${item.phone})` : ''}`,
+          disabled: true,
+          title: `Thợ máy / Lái xe đã được phân công ở Xe #${otherMemberNum}`,
+        };
+      }
+
+      // 2. Kiểm tra tài xế đang trong lệnh khác chưa được nghiệm thu
+      const conflict = getConflictingDriver(item.fullName, scheduleStart, scheduleDuration);
+      if (conflict) {
+        return {
+          value: item.fullName,
+          name: item.fullName,
+          rank: 1,
+          label: `🔴 [Đang bận ca] ${item.fullName} — ${item.licenseClass || 'Chứng chỉ nghề'}${item.phone ? ` (${item.phone})` : ''} [${conflict.reason}]`,
+          disabled: true,
+          title: `Tài xế đang bận tại ${conflict.code} (${conflict.statusText}), chưa được nghiệm thu đóng ca. Không thể chọn.`,
+        };
+      }
+
+      // 3. Ưu tiên dữ liệu từ API availability
+      const apiAvail = item.id < 90000 ? driverAvailMap[item.id] : undefined;
+      if (apiAvail) {
+        const statusIcon = apiAvail.availabilityStatus === 'AVAILABLE' ? '🟢' : apiAvail.availabilityStatus === 'WARNING' ? '🟡' : '🔴';
+        const reasonText = apiAvail.reasons.length > 0 ? apiAvail.reasons.map((r) => r.message).join('; ') : '';
+        const rank = apiAvail.available ? 0 : 1;
+        return {
+          value: item.fullName,
+          name: item.fullName,
+          rank,
+          label: `${statusIcon} [${apiAvail.available ? 'Sẵn sàng' : 'Đang bận'}] ${item.fullName} — ${item.licenseClass || 'Chứng chỉ nghề'}${item.phone ? ` (${item.phone})` : ''}${reasonText ? ` ⚠️ [${reasonText.substring(0, 50)}]` : ''}`,
+          disabled: !apiAvail.available,
+          title: reasonText || undefined,
+        };
+      }
+
+      // 4. Sẵn sàng điều phối
+      return {
+        value: item.fullName,
+        name: item.fullName,
+        rank: 0,
+        label: `🟢 [Sẵn sàng] ${item.fullName} — ${item.licenseClass || 'Chứng chỉ nghề'}${item.phone ? ` (${item.phone})` : ''}`,
+        disabled: false,
+        title: 'Sẵn sàng điều phối',
+      };
+    });
+
+    return list.sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  const selectedVehicleBlocked = (code: string, scheduleStart: string, scheduleDuration: number) => {
+    const resource = vehicles.find((item) => item.code === code);
+    const apiResult = resource ? vehicleAvailMap[resource.id] : undefined;
+    return apiResult ? !apiResult.available : Boolean(getConflictingOrder(code, scheduleStart, scheduleDuration));
+  };
+
+  const selectedDriverBlocked = (name: string, scheduleStart: string, scheduleDuration: number) => {
+    const resource = drivers.find((item) => item.fullName === name);
+    const apiResult = resource ? driverAvailMap[resource.id] : undefined;
+    return apiResult ? !apiResult.available : Boolean(getConflictingDriver(name, scheduleStart, scheduleDuration));
+  };
+
+  const selectedImplementBlocked = (value: string, scheduleStart: string, scheduleDuration: number) => {
+    if (!value) return false;
+    const resource = currentEquipments.find((item) => item.name === value || item.code === value);
+    return Boolean(
+      getConflictingImplement(value, scheduleStart, scheduleDuration) ||
+      resource?.status === 'MAINTENANCE' ||
+      (resource?.technicalCondition && resource.technicalCondition !== 'GOOD'),
+    );
+  };
+
+  // Cập nhật thông tin phân công xe (xe, nông cụ, thợ lái, giờ bắt đầu, số giờ ca)
   const handleUpdateMember = (index: number, field: keyof AssignedTeamMember, value: any) => {
     setAssignedTeam((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
+      if (next[0]) {
+        next[0] = {
+          ...next[0],
+          [field]: value,
+          ...(field === 'vehicleCode' ? { implementName: '' } : {}),
+        };
+      }
       return next;
     });
-  };
-
-  // Sao chép khung giờ của 1 xe sang toàn bộ các xe khác trong tổ
-  const handleCopyScheduleToAll = (fromIndex: number) => {
-    const source = assignedTeam[fromIndex];
-    if (!source) return;
-    setAssignedTeam((prev) =>
-      prev.map((item) => ({
-        ...item,
-        startTime: source.startTime,
-        durationHours: source.durationHours,
-      }))
-    );
   };
 
   const calculateEndTimeFormatted = (startIso: string, hours: number) => {
@@ -479,49 +940,77 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
     return `${e.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ngày ${e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
   };
 
-  const approve = () => {
-    if (kind === 'AGRICULTURE' && assignedTeam.length > 0) {
-      // Chuẩn bị toàn bộ tổ máy kèm khung giờ độc lập của từng xe
-      const teamList = assignedTeam.map((m, idx) => {
-        const v = vehicles.find((item) => item.code === m.vehicleCode) || { id: 95000 + idx, code: m.vehicleCode, name: m.vehicleCode };
-        const d = drivers.find((item) => item.fullName === m.driverName) || { id: 93000 + idx, fullName: m.driverName, licenseClass: 'Chứng chỉ thợ máy' };
-        const imp = currentEquipments.find((item) => item.name === m.implementName || item.code === m.implementName);
+  // Tính toán dự toán nhiên liệu theo từng xe và tổng hợp toàn tổ xe
+  const teamFuelCalculations = useMemo(() => {
+    return assignedTeam.map((m) => {
+      const v = getSelectedVehicle(m.vehicleCode);
+      const rate = getVehicleFuelQuotaRate(v, kind);
+      const hours = Number(m.durationHours) || 8;
+      const fuel = v && rate > 0 ? Number((hours * rate).toFixed(1)) : 0;
+      return { vehicle: v, rate, hours, fuel };
+    });
+  }, [assignedTeam, vehicles, kind]);
 
-        const mStart = new Date(m.startTime || startTime);
-        const mDur = Number(m.durationHours) || 8;
-        const mEnd = new Date(mStart.getTime() + mDur * 3600000);
+  const totalEstimatedFuel = useMemo(() => {
+    const sum = teamFuelCalculations.reduce((acc, cur) => acc + cur.fuel, 0);
+    return sum > 0 ? Number(sum.toFixed(1)) : undefined;
+  }, [teamFuelCalculations]);
 
-        return {
-          vehicle: { id: v.id, code: v.code, name: v.name },
-          driver: { id: d.id, name: d.fullName, license: d.licenseClass || 'Chứng chỉ nghề' },
-          implement: imp ? { id: imp.id, code: imp.code, name: imp.name } : undefined,
-          schedule: {
-            startTime: mStart.toISOString(),
-            endTime: mEnd.toISOString(),
-            durationHours: mDur,
-          },
-        };
+  const totalAssignedHours = useMemo(() => {
+    return assignedTeam.reduce((acc, cur) => acc + (Number(cur.durationHours) || 0), 0);
+  }, [assignedTeam]);
+
+  const onVehicleScheduleChangeRef = useRef(onVehicleScheduleChange);
+  useEffect(() => {
+    onVehicleScheduleChangeRef.current = onVehicleScheduleChange;
+  });
+
+  useEffect(() => {
+    if (onVehicleScheduleChangeRef.current) {
+      const leadVehicle = getSelectedVehicle(assignedTeam[0]?.vehicleCode);
+      const leadDuration = Number(assignedTeam[0]?.durationHours) || 8;
+      const leadRate = getVehicleFuelQuotaRate(leadVehicle, kind);
+      onVehicleScheduleChangeRef.current({
+        vehicle: leadVehicle,
+        durationHours: leadDuration,
+        plannedFuelLiters: totalEstimatedFuel,
+        fuelQuotaRate: leadRate > 0 ? `${leadRate} L/h` : undefined,
       });
+    }
+  }, [assignedTeam, totalEstimatedFuel, kind]);
 
-      const lead = teamList[0];
-      onApprove(lead.vehicle, lead.driver, lead.schedule, lead.implement, teamList);
-    } else {
-      const start = new Date(startTime);
-      if (Number.isNaN(start.getTime()) || durationHours <= 0) return;
-      const end = new Date(start.getTime() + durationHours * 3600000);
-      const schedule = { startTime: start.toISOString(), endTime: end.toISOString(), durationHours };
+  const approve = async () => {
+    if (assignedTeam.length === 0 || approving) return;
 
-      const vehicle = vehicles.find((item) => item.code === selectedVehicle) || vehicles[0];
-      const driver = drivers.find((item) => item.fullName === selectedDriver) || drivers[0];
-      const imp = currentEquipments.find((item) => item.name === selectedImplement || item.code === selectedImplement);
-      if (vehicle && driver) {
-        onApprove(
-          { id: vehicle.id, code: vehicle.code, name: vehicle.name },
-          { id: driver.id, name: driver.fullName, license: driver.licenseClass || 'Chứng chỉ nghề' },
-          schedule,
-          imp ? { id: imp.id, code: imp.code, name: imp.name } : undefined,
-        );
-      }
+    // Chuẩn bị toàn bộ tổ máy kèm khung giờ độc lập của từng xe
+    const teamList = assignedTeam.map((m, idx) => {
+      const v = vehicles.find((item) => item.code === m.vehicleCode) || { id: 95000 + idx, code: m.vehicleCode, name: m.vehicleCode };
+      const d = drivers.find((item) => item.fullName === m.driverName) || { id: 93000 + idx, fullName: m.driverName, licenseClass: 'Chứng chỉ thợ máy' };
+      const imp = currentEquipments.find((item) => item.name === m.implementName || item.code === m.implementName);
+      const vRate = getVehicleFuelQuotaRate(v, kind);
+
+      const mStart = new Date(m.startTime || startTime);
+      const mDur = Number(m.durationHours) || 8;
+      const mEnd = new Date(mStart.getTime() + mDur * 3600000);
+
+      return {
+        vehicle: { id: v.id, code: v.code, name: v.name, fuelQuotaRate: vRate, fuelQuotaUnit: 'L_PER_HOUR' },
+        driver: { id: d.id, name: d.fullName, license: d.licenseClass || 'Chứng chỉ nghề' },
+        implement: imp ? { id: imp.id, code: imp.code, name: imp.name } : undefined,
+        schedule: {
+          startTime: mStart.toISOString(),
+          endTime: mEnd.toISOString(),
+          durationHours: mDur,
+        },
+      };
+    });
+
+    const lead = teamList[0];
+    setApproving(true);
+    try {
+      await onApprove(lead.vehicle, lead.driver, lead.schedule, lead.implement, teamList);
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -548,458 +1037,280 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
         </span>
       </div>
 
-      {/* Form Phân công khi đang ở bước PENDING */}
+      {/* Form Phân công khi đang ở bước PENDING (Hỗ trợ 1 hoặc nhiều xe cho mọi phân hệ) */}
       {step === 'PENDING' && (
         <div className="space-y-4">
-          {/* NÔNG NGHIỆP: MỖI XE LÀ 1 DÒNG RIÊNG BIỆT + CÓ NÚT THÊM XE */}
-          {kind === 'AGRICULTURE' ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Tractor className="h-4 w-4 text-emerald-600" />
-                    <span>Danh sách Phương tiện & Thợ máy trong tổ ({assignedTeam.length} xe):</span>
-                  </span>
-                  {estimatedVehiclesCount && (
-                    <span className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                      Ước lượng kế hoạch: <b>{estimatedVehiclesCount} xe</b>
+          {recommendationWorkOrderId && <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+            <div className="mb-2 flex items-center justify-between"><span className="text-xs font-extrabold text-blue-900">Gợi ý xe đến sớm nhất</span><span className="text-[11px] text-blue-700">{loadingRecommendations ? 'Đang tính ETA...' : `${recommendations.length} xe phù hợp · ${excludedRecommendationCount} xe bị loại`}</span></div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{recommendations.slice(0, 6).map((item) => <button type="button" key={item.vehicle.id} onClick={() => handleUpdateMember(0, 'vehicleCode', item.vehicle.code)} className={`rounded-lg border bg-white p-2 text-left text-xs transition hover:border-blue-500 ${item.feasible ? 'border-blue-100' : 'border-amber-300'}`}><div className="flex items-center justify-between gap-2"><b>{item.vehicle.code}</b><span className={item.availability === 'AVAILABLE_NOW' ? 'text-emerald-700' : 'text-amber-700'}>{item.availability === 'AVAILABLE_NOW' ? 'Đang rảnh' : 'Sắp xong'}</span></div><div className="mt-1 text-slate-600">{item.etaMinutes ? `${item.etaMinutes} phút · ${item.distanceKm ?? '—'} km` : 'Chưa đủ tọa độ'}</div><div className="mt-1 text-[10px] text-slate-500">{item.positionSource === 'VEHICLE_GPS' ? 'GPS xe' : item.positionSource === 'PHOTO_EXIF' ? 'Ảnh EXIF' : item.positionSource === 'HOME_DEPOT' ? 'Theo bãi' : item.positionSource === 'TASK_DESTINATION' ? 'Điểm nhiệm vụ hiện tại' : 'Theo khu vực'} · {item.etaSource === 'ROUTING' ? 'ETA tuyến đường' : item.etaSource === 'HAVERSINE' ? 'ETA ước tính' : 'Chưa có ETA'} · Tin cậy {item.confidence === 'HIGH' ? 'cao' : item.confidence === 'MEDIUM' ? 'vừa' : 'thấp'}</div>{item.warnings[0] && <div className="mt-1 text-[10px] font-semibold text-amber-700">{item.warnings[0]}</div>}</button>)}</div>
+          </div>}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Tractor className="h-4 w-4 text-emerald-600" />
+                <span>Phương tiện & Thợ máy thực hiện lệnh (1 xe):</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Chi tiết phân công xe (1 lệnh = 1 xe duy nhất) */}
+          <div className="space-y-4">
+            {assignedTeam.slice(0, 1).map((member, index) => {
+              const isLead = true;
+              const vObj = getSelectedVehicle(member.vehicleCode);
+              const vRate = getVehicleFuelQuotaRate(vObj, kind);
+              const mDur = Number(member.durationHours) || 8;
+              const vFuel = vObj && vRate > 0 ? Number((mDur * vRate).toFixed(1)) : 0;
+              const conflict = getConflictingOrder(member.vehicleCode, member.startTime, member.durationHours);
+
+              const vehicleOpts = getVehicleOptionsForSchedule(member.startTime, member.durationHours, index);
+              const availVehiclesCount = vehicleOpts.filter((o) => !o.disabled).length;
+              const totalVehiclesCount = vehicleOpts.length;
+
+              const implementOpts = getEquipmentOptionsForSchedule(member.startTime, member.durationHours, member.vehicleCode, index);
+              const availImplementsCount = implementOpts.filter((o) => !o.disabled).length;
+              const totalImplementsCount = implementOpts.length;
+
+              const driverOpts = getDriverOptionsForSchedule(member.startTime, member.durationHours, index, member.vehicleCode);
+              const availDriversCount = driverOpts.filter((o) => !o.disabled).length;
+              const totalDriversCount = driverOpts.length;
+
+              return (
+                <div
+                  key={member.id}
+                  className="p-3.5 rounded-xl border border-slate-200 bg-white transition-all space-y-2.5 shadow-2xs"
+                >
+                  {/* Header thẻ xe */}
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/70">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-emerald-700 text-white shadow-2xs">
+                        Phương tiện phân công
+                      </span>
+                      {loadingResources && <span className="text-[11px] font-semibold text-blue-700">Đang tải nguồn lực...</span>}
+                      {resourceLoadFailed && <span className="text-[11px] font-semibold text-amber-700">API chậm/lỗi — đang dùng dữ liệu dự phòng</span>}
+                      {member.vehicleCode && (
+                        <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          {member.vehicleCode}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* DÒNG 1: THỜI GIAN CA MÁY (COMPACT 1 HÀNG) */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-200 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-[11px] font-bold text-slate-700 shrink-0">Ca máy:</span>
+                      <input
+                        type="datetime-local"
+                        value={member.startTime}
+                        onChange={(e) => handleUpdateMember(index, 'startTime', e.target.value)}
+                        className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-800 shadow-2xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateMember(index, 'startTime', toLocalDateTimeInput())}
+                        title="Chỉnh về ngày giờ hiện tại"
+                        className="h-7 px-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[10.5px] font-bold text-emerald-800 shrink-0 cursor-pointer"
+                      >
+                        Hiện tại
+                      </button>
+                      <input
+                        type="number"
+                        min="0.5"
+                        step="0.5"
+                        value={member.durationHours}
+                        onChange={(e) => handleUpdateMember(index, 'durationHours', Math.max(0.5, Number(e.target.value)))}
+                        className="w-12 h-7 rounded-lg border border-slate-300 bg-white text-center text-[11px] font-extrabold text-slate-900 shadow-2xs focus:border-primary focus:outline-none"
+                      />
+                      <span className="text-[11px] text-slate-500 font-medium">giờ</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {[4, 8, 10, 12].map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => handleUpdateMember(index, 'durationHours', h)}
+                          className={`h-6 px-2 rounded text-[10.5px] font-bold transition-all ${
+                            member.durationHours === h
+                              ? 'bg-slate-900 text-white shadow-2xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          {h}h
+                        </button>
+                      ))}
+
+                    </div>
+                  </div>
+
+                  {/* DÒNG 2: LƯỚI 3 CỘT NGANG (XE MÁY | PHỤ KIỆN | THỢ LÁI) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {/* Cột 1: Chọn Phương tiện / Thiết bị xe máy */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Tractor className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>1. Thiết bị xe máy:</span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80 font-mono" title="Số xe có thể hoạt động / Tổng số xe">
+                            {loadingResources ? '(...)' : `(${availVehiclesCount}/${totalVehiclesCount})`}
+                          </span>
+                        </span>
+                        {member.vehicleCode && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded">
+                            {member.vehicleCode}
+                          </span>
+                        )}
+                      </label>
+                      <SearchableSelect
+                        value={member.vehicleCode}
+                        onChange={(val) => handleUpdateMember(index, 'vehicleCode', val)}
+                        options={vehicleOpts}
+                        disabled={loadingResources}
+                        allowCustomInput={false}
+                        placeholder={loadingResources ? 'Đang tải danh sách xe...' : '-- Chọn xe máy --'}
+                        heightClass="h-9"
+                        roundedClass="rounded-lg"
+                        bgClass="bg-white"
+                        className="w-full"
+                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
+                        emptyOptionLabel="-- Chọn xe máy --"
+                        emptyValue=""
+                      />
+                    </div>
+
+                    {/* Cột 2: Chọn Phụ kiện / Đầu công tác gắn kèm */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                          <span>2. Phụ kiện gắn kèm:</span>
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 font-mono" title="Số phụ kiện có thể gắn / Tổng số phụ kiện">
+                            {loadingResources ? '(...)' : `(${availImplementsCount}/${totalImplementsCount})`}
+                          </span>
+                        </span>
+                        {getSelectedVehicle(member.vehicleCode) && (
+                          <Link
+                            to={buildAttachedEquipmentUrl(getSelectedVehicle(member.vehicleCode)?.id || '')}
+                            className="text-[10px] font-semibold text-blue-700 hover:underline"
+                          >
+                            Đang gắn ➔
+                          </Link>
+                        )}
+                      </label>
+                      <SearchableSelect
+                        value={member.implementName}
+                        onChange={(val) => handleUpdateMember(index, 'implementName', val)}
+                        options={implementOpts}
+                        disabled={!member.vehicleCode || getImplementRequirement(member.vehicleCode) === 'NONE'}
+                        placeholder="-- Chọn phụ kiện / moóc --"
+                        heightClass="h-9"
+                        roundedClass="rounded-lg"
+                        bgClass="bg-white"
+                        className="w-full"
+                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
+                        emptyOptionLabel="-- Chọn phụ kiện / moóc --"
+                        emptyValue=""
+                      />
+                    </div>
+
+                    {/* Cột 3: Chọn Thợ máy vận hành / Lái xe */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
+                          <span>3. Thợ máy / Lái xe:</span>
+                          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200/80 font-mono" title="Số thợ máy/lái xe sẵn sàng / Tổng số thợ máy đủ điều kiện">
+                            {loadingResources ? '(...)' : `(${availDriversCount}/${totalDriversCount})`}
+                          </span>
+                        </span>
+                        {member.driverName && (
+                          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded truncate max-w-[120px]">
+                            {member.driverName}
+                          </span>
+                        )}
+                      </label>
+                      <SearchableSelect
+                        value={member.driverName}
+                        onChange={(val) => handleUpdateMember(index, 'driverName', val)}
+                        options={driverOpts}
+                        disabled={loadingResources}
+                        allowCustomInput={false}
+                        placeholder={loadingResources ? 'Đang tải danh sách tài xế...' : '-- Chọn thợ máy / lái xe --'}
+                        heightClass="h-9"
+                        roundedClass="rounded-lg"
+                        bgClass="bg-white"
+                        className="w-full"
+                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
+                        emptyOptionLabel="-- Chọn thợ máy / lái xe --"
+                        emptyValue=""
+                      />
+                    </div>
+                  </div>
+
+                  {/* DÒNG 3: DỰ TOÁN NHIÊN LIỆU & CẢNH BÁO TRÙNG (COMPACT) */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                    {vObj ? (
+                      <div className="flex items-center gap-2 text-purple-950">
+                        <Fuel className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                        <span>Dầu dự toán xe #{index + 1}: <b className="text-purple-700 font-extrabold">{vFuel} Lít</b></span>
+                        <span className="text-[10.5px] text-purple-800 bg-purple-100/70 px-1.5 py-0.5 rounded border border-purple-200">
+                          {vRate} L/h × {mDur}h
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 italic">Vui lòng chọn thiết bị xe máy</span>
+                    )}
+
+                    <span className="text-[11px] text-slate-500">
+                      Kết thúc ca: <b>{calculateEndTimeFormatted(member.startTime, member.durationHours)}</b>
                     </span>
+                  </div>
+
+                  {/* Cảnh báo trùng xe */}
+                  {conflict && (
+                    <div className="p-2 rounded-lg bg-amber-50 border border-amber-300 text-[11px] text-amber-900 flex items-center gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span><b>Trùng xe {member.vehicleCode}:</b> Đã có ca {conflict.timeRange} ở {conflict.orderCode}. Vui lòng đổi xe hoặc khung giờ!</span>
+                    </div>
                   )}
                 </div>
+              );
+            })}
+          </div>
 
-                <button
-                  type="button"
-                  onClick={handleAddVehicle}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
-                >
-                  <Plus className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Thêm xe vào tổ</span>
-                </button>
+          {/* BANNER TỔNG HỢP & NÚT PHÊ DUYỆT (COMPACT TRÊN 1 KHỐI GỌN GÀNG) */}
+          <div className="p-3 rounded-xl bg-gradient-to-r from-purple-50 via-purple-50/50 to-indigo-50 border border-purple-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-2xs">
+                <Fuel className="h-4 w-4" />
               </div>
-
-              {/* Danh sách từng dòng xe */}
-              <div className="space-y-3">
-                {assignedTeam.map((member, index) => {
-                  const isLead = index === 0;
-                  return (
-                    <div
-                      key={member.id}
-                      className={`p-3.5 rounded-2xl border transition-all ${
-                        isLead
-                          ? 'bg-blue-50/40 border-blue-200/90 shadow-2xs'
-                          : 'bg-slate-50/70 border-slate-200 shadow-2xs'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/60">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
-                            isLead ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            {isLead ? 'Xe #1 (Máy trưởng)' : `Xe #${index + 1} (Hỗ trợ tổ)`}
-                          </span>
-                          <span className="text-xs text-slate-700 font-bold">
-                            {member.vehicleCode || 'Chưa gán máy kéo'}
-                          </span>
-                        </div>
-                        {assignedTeam.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVehicle(index)}
-                            className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                            title="Xóa xe này khỏi tổ"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span>Xóa</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* BƯỚC 1: KHUNG GIỜ & CA MÁY ĐỘC LẬP CỦA XE NÀY (Chọn trước) */}
-                      <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80 space-y-2 mb-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                            <CalendarClock className="h-3.5 w-3.5 text-primary" />
-                            <span>Bước 1: Ấn định giờ làm & Ca máy ({isLead ? 'Xe #1 - Máy trưởng' : `Xe #${index + 1}`}):</span>
-                            <span className="text-[10.5px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
-                              {member.durationHours} giờ
-                            </span>
-                          </span>
-
-                          {isLead && assignedTeam.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopyScheduleToAll(index)}
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95"
-                              title="Sao chép khung giờ và thời lượng ca này cho các xe còn lại trong tổ"
-                            >
-                              <span>🔗 Áp dụng giờ này cho cả tổ</span>
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                          <div className="sm:col-span-5">
-                            <input
-                              type="datetime-local"
-                              value={member.startTime}
-                              onChange={(e) => handleUpdateMember(index, 'startTime', e.target.value)}
-                              className="w-full h-8 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-900 shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-
-                          <div className="sm:col-span-3 flex items-center gap-1">
-                            <input
-                              type="number"
-                              min="0.5"
-                              step="0.5"
-                              value={member.durationHours}
-                              onChange={(e) => handleUpdateMember(index, 'durationHours', Math.max(0.5, Number(e.target.value)))}
-                              className="w-full h-8 rounded-xl border border-slate-300 bg-white px-2 text-xs font-extrabold text-center text-slate-900 shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
-                            <span className="text-xs text-slate-500 font-semibold pr-1">giờ</span>
-                          </div>
-
-                          <div className="sm:col-span-4 flex items-center gap-1">
-                            {[2, 4, 8, 10, 12].map((h) => (
-                              <button
-                                key={h}
-                                type="button"
-                                onClick={() => handleUpdateMember(index, 'durationHours', h)}
-                                className={`flex-1 h-7 rounded-lg text-[10.5px] font-bold transition-all ${
-                                  member.durationHours === h
-                                    ? 'bg-slate-900 text-white shadow-2xs'
-                                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                                }`}
-                              >
-                                {h}h
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="text-[11px] text-slate-500 flex items-center justify-between bg-white px-2.5 py-1 rounded-lg border border-slate-200/80">
-                          <span>Dự kiến hoàn thành ca:</span>
-                          <b className="text-slate-800 font-bold">{calculateEndTimeFormatted(member.startTime, member.durationHours)}</b>
-                        </div>
-                      </div>
-
-                      {/* BƯỚC 2: PHÂN CÔNG ĐẦU MÁY, NÔNG CỤ, THỢ LÁI (Data ban đầu Trống) */}
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                          <Tractor className="h-3.5 w-3.5 text-primary" />
-                          <span>Bước 2: Phân công Đầu máy, Nông cụ & Thợ lái (Chọn sau khi đã ấn định ca):</span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          {/* Cột 1: Chọn Đầu máy / Xe kéo */}
-                          <div className="space-y-1">
-                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                              <Tractor className="h-3 w-3 text-primary" />
-                              1. Đầu máy / Xe kéo:
-                            </span>
-                            <SearchableSelect
-                              value={member.vehicleCode}
-                              onChange={(val) => handleUpdateMember(index, 'vehicleCode', val)}
-                              options={getVehicleOptionsForSchedule(member.startTime, member.durationHours)}
-                              placeholder="-- Chọn máy kéo / xe --"
-                              heightClass="h-9"
-                              roundedClass="rounded-xl"
-                              bgClass="bg-white"
-                              className="w-full"
-                              inputClassName="text-xs font-semibold text-slate-900 border-slate-300"
-                              emptyOptionLabel="-- Chọn máy kéo / xe --"
-                              emptyValue=""
-                            />
-                          </div>
-
-                          {/* Cột 2: Chọn Nông cụ gắn kèm */}
-                          <div className="space-y-1">
-                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                              <Wrench className="h-3 w-3 text-primary" />
-                              2. Nông cụ gắn kèm:
-                            </span>
-                            <SearchableSelect
-                              value={member.implementName}
-                              onChange={(val) => handleUpdateMember(index, 'implementName', val)}
-                              options={equipmentOptions}
-                              placeholder="-- Chọn nông cụ gắn kèm --"
-                              heightClass="h-9"
-                              roundedClass="rounded-xl"
-                              bgClass="bg-white"
-                              className="w-full"
-                              inputClassName="text-xs font-semibold text-slate-900 border-slate-300"
-                              emptyOptionLabel="-- Chọn nông cụ gắn kèm --"
-                              emptyValue=""
-                            />
-                          </div>
-
-                          {/* Cột 3: Chọn Thợ máy / Lái xe */}
-                          <div className="space-y-1">
-                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                              <UserCheck className="h-3 w-3 text-primary" />
-                              3. Thợ máy / Lái xe:
-                            </span>
-                            <SearchableSelect
-                              value={member.driverName}
-                              onChange={(val) => handleUpdateMember(index, 'driverName', val)}
-                              options={driverOptions}
-                              placeholder="-- Chọn thợ máy / lái xe --"
-                              heightClass="h-9"
-                              roundedClass="rounded-xl"
-                              bgClass="bg-white"
-                              className="w-full"
-                              inputClassName="text-xs font-semibold text-slate-900 border-slate-300"
-                              emptyOptionLabel="-- Chọn thợ máy / lái xe --"
-                              emptyValue=""
-                            />
-                          </div>
-                        </div>
-
-                        {/* Cảnh báo nếu xe bị trùng ca với lệnh khác */}
-                        {(() => {
-                          const conflict = getConflictingOrder(member.vehicleCode, member.startTime, member.durationHours);
-                          if (!conflict) return null;
-                          return (
-                            <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-[11px] text-amber-900 flex items-start gap-2 shadow-2xs">
-                              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                              <div>
-                                <b>Cảnh báo trùng xe:</b> Phương tiện <b>{member.vehicleCode}</b> đã được giao ca <b>{conflict.timeRange}</b> ở {conflict.orderCode} ({conflict.purpose}). Vui lòng đổi xe khác hoặc đổi khung giờ!
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex items-baseline gap-2">
+                <span className="text-slate-600 text-xs font-semibold">
+                  Dự toán nhiên liệu ca (<b>1 xe</b>, <b>{totalAssignedHours}h</b>):
+                </span>
+                <span className="text-purple-900 font-black text-lg sm:text-xl">
+                  {totalEstimatedFuel !== undefined ? `${totalEstimatedFuel} Lít` : 'Chưa đủ dữ liệu'}
+                </span>
               </div>
             </div>
-          ) : (
-            /* CÁC PHÂN HỆ KHÁC (CÔNG TRÌNH / VẬN TẢI): BƯỚC 1 CHỌN GIỜ TRƯỚC, BƯỚC 2 CHỌN XE SAU */
-            <div className="space-y-4">
-              {/* BƯỚC 1: KHUNG GIỜ THI CÔNG / XUẤT BẾN & CA MÁY (Chọn trước) */}
-              <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    {config.scheduleIcon}
-                    <span>Bước 1: Ấn định khung giờ ca máy / xuất bến (Chọn trước để kiểm tra xe rảnh):</span>
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
-                    Thời lượng: {durationHours}h
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                  <div className="sm:col-span-5">
-                    <input
-                      type="datetime-local"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-900 shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-3 flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="0.5"
-                      step="0.5"
-                      value={durationHours}
-                      onChange={(e) => setDurationHours(Math.max(0.5, Number(e.target.value)))}
-                      className="w-full h-9 rounded-xl border border-slate-300 bg-white px-2 text-xs font-extrabold text-center text-slate-900 shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                    <span className="text-xs text-slate-500 font-semibold pr-1">giờ</span>
-                  </div>
-
-                  <div className="sm:col-span-4 flex items-center gap-1">
-                    {config.quickHours.map((h) => (
-                      <button
-                        key={h}
-                        type="button"
-                        onClick={() => setDurationHours(h)}
-                        className={`flex-1 h-8 rounded-lg text-[11px] font-bold transition-all ${
-                          durationHours === h
-                            ? 'bg-slate-900 text-white shadow-2xs'
-                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {h}h
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="text-xs text-slate-600 font-normal bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 flex items-center justify-between">
-                  <span>Hoàn thành dự kiến:</span>
-                  <b className="text-slate-900 font-bold">{calculateEndTimeFormatted(startTime, durationHours)}</b>
-                </div>
-              </div>
-
-              {/* BƯỚC 2: CHỌN PHƯƠNG TIỆN, PHỤ KIỆN / MOÓC, LÁI XE (Data ban đầu Trống) */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  {config.vehicleIcon}
-                  <span>Bước 2: Phân công Thiết bị xe máy, Thiết bị phụ trợ & Thợ vận hành:</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* 1. Chọn Phương tiện */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between min-h-[22px]">
-                      <span>{config.vehicleLabel}</span>
-                    </label>
-                    <SearchableSelect
-                      value={selectedVehicle}
-                      onChange={setSelectedVehicle}
-                      options={getVehicleOptionsForSchedule(startTime, durationHours)}
-                      placeholder="-- Chọn phương tiện / xe máy --"
-                      heightClass="h-10"
-                      roundedClass="rounded-xl"
-                      bgClass="bg-white"
-                      className="w-full"
-                      inputClassName="text-xs font-semibold text-slate-900 border-slate-300"
-                      emptyOptionLabel="-- Chọn phương tiện / xe máy --"
-                      emptyValue=""
-                    />
-                  </div>
-
-                  {/* 2. Chọn Nông cụ / Thiết bị phụ trợ */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between min-h-[22px]">
-                      <span>{config.accessoryLabel}</span>
-                    </label>
-                    <SearchableSelect
-                      value={selectedImplement}
-                      onChange={setSelectedImplement}
-                      options={equipmentOptions}
-                      placeholder="-- Chọn phụ kiện / moóc --"
-                      heightClass="h-10"
-                      roundedClass="rounded-xl"
-                      bgClass="bg-white"
-                      className="w-full"
-                      inputClassName="text-xs font-semibold text-slate-900 border-slate-300"
-                      emptyOptionLabel="-- Chọn phụ kiện / moóc --"
-                      emptyValue=""
-                    />
-                  </div>
-
-                  {/* 3. Chọn Lái xe / Thợ máy */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between min-h-[22px]">
-                      <span>{config.driverLabel}</span>
-                    </label>
-                    <SearchableSelect
-                      value={selectedDriver}
-                      onChange={setSelectedDriver}
-                      options={driverOptions}
-                      placeholder="-- Chọn lái xe / thợ máy --"
-                      heightClass="h-10"
-                      roundedClass="rounded-xl"
-                      bgClass="bg-white"
-                      className="w-full"
-                      inputClassName="text-xs font-semibold text-slate-900 border-slate-300"
-                      emptyOptionLabel="-- Chọn lái xe / thợ máy --"
-                      emptyValue=""
-                    />
-                  </div>
-                </div>
-
-                {/* Cảnh báo trùng xe cho Công trình / Vận tải */}
-                {(() => {
-                  const conflict = getConflictingOrder(selectedVehicle, startTime, durationHours);
-                  if (!conflict) return null;
-                  return (
-                    <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <b>Cảnh báo trùng xe:</b> Thiết bị <b>{selectedVehicle}</b> đã được giao ca <b>{conflict.timeRange}</b> ở {conflict.orderCode} ({conflict.purpose}). Vui lòng đổi xe khác hoặc đổi khung giờ!
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                disabled={
+                  loadingResources || fetchingAvailability || approving ||
+                  assignedTeam.length === 0 ||
+                  assignedTeam.some((m) => !m.vehicleCode || !m.driverName || !m.startTime || m.durationHours <= 0 || (getImplementRequirement(m.vehicleCode) === 'REQUIRED' && !m.implementName) || selectedVehicleBlocked(m.vehicleCode, m.startTime, m.durationHours) || selectedDriverBlocked(m.driverName, m.startTime, m.durationHours) || selectedImplementBlocked(m.implementName, m.startTime, m.durationHours))
+                }
+                icon={<ClipboardCheck className="h-4 w-4" />}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-2xs cursor-pointer"
+                onClick={approve}
+              >
+                {approving ? 'Đang phê duyệt...' : 'Phê duyệt & Phát hành lệnh'}
+              </Button>
             </div>
-          )}
-
-          {/* 4. Khung giờ ca máy chung (Chỉ dành cho Công trình & Vận chuyển xe đơn lẻ) */}
-          {kind !== 'AGRICULTURE' && (
-            <>
-              <div className="space-y-1.5 pt-1">
-                <label className="text-xs font-bold text-slate-700 flex items-center justify-between min-h-[26px]">
-                  <span className="flex items-center gap-1.5">
-                    {config.scheduleIcon}
-                    <span>Thời gian bắt đầu làm việc & Ca máy:</span>
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                    Thời lượng: {durationHours}h
-                  </span>
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
-                    type="datetime-local"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="sm:col-span-2 h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-900 shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="0.5"
-                      step="0.5"
-                      value={durationHours}
-                      onChange={(e) => setDurationHours(Math.max(0.5, Number(e.target.value)))}
-                      className="w-full h-10 rounded-xl border border-slate-300 bg-white px-2 text-xs font-extrabold text-center text-slate-900 shadow-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                    <span className="text-xs text-slate-500 font-semibold pr-1">giờ</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Hàng nút bấm chọn nhanh thời lượng ca */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <span className="font-semibold text-slate-700">Chọn nhanh ca:</span>
-                  {config.quickHours.map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setDurationHours(h)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
-                        durationHours === h
-                          ? 'bg-slate-900 text-white shadow-2xs'
-                          : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {h}h
-                    </button>
-                  ))}
-                </div>
-
-                <div className="text-xs text-slate-600 font-normal bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
-                  <span>Hoàn thành dự kiến: </span>
-                  <b className="text-slate-900 font-bold ml-1">{calculateEndTimeFormatted(startTime, durationHours)}</b>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Nút hành động phê duyệt */}
-          <div className="flex justify-end pt-3 border-t border-slate-100">
-            <Button
-              size="md"
-              disabled={
-                loadingResources ||
-                (kind === 'AGRICULTURE'
-                  ? assignedTeam.length === 0 ||
-                    assignedTeam.some((m) => !m.vehicleCode || !m.driverName || !m.startTime || m.durationHours <= 0)
-                  : !selectedVehicle || !selectedDriver || !startTime || durationHours <= 0)
-              }
-              icon={<ClipboardCheck className="h-4 w-4" />}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-xs hover:shadow-md transition-all active:scale-95 cursor-pointer text-xs sm:text-sm"
-              onClick={approve}
-            >
-              {config.submitLabel}
-            </Button>
           </div>
         </div>
       )}
@@ -1015,14 +1326,20 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
               Tài xế bấm nút bên phải để xác nhận tiếp nhận lệnh điều xe vào ca.
             </p>
           </div>
-          <Button
-            size="md"
-            icon={<UserCheck className="h-4 w-4" />}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
-            onClick={onReceive}
-          >
-            Tài xế xác nhận nhận việc
-          </Button>
+          {onReceive ? (
+            <Button
+              size="md"
+              icon={<UserCheck className="h-4 w-4" />}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
+              onClick={onReceive}
+            >
+              Tài xế xác nhận nhận việc
+            </Button>
+          ) : (
+            <span className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-800">
+              Chờ tài xế xác nhận trên ứng dụng di động
+            </span>
+          )}
         </div>
       )}
 
@@ -1036,14 +1353,20 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
               Khi hoàn thành khối lượng ca, cán bộ kỹ thuật nông trường bấm nghiệm thu để đóng lệnh.
             </p>
           </div>
-          <Button
-            size="md"
-            icon={<CheckCircle2 className="h-4 w-4" />}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
-            onClick={onComplete}
-          >
-            Nghiệm thu & Hoàn thành ca máy
-          </Button>
+          {onComplete ? (
+            <Button
+              size="md"
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
+              onClick={onComplete}
+            >
+              Nghiệm thu & Hoàn thành ca máy
+            </Button>
+          ) : (
+            <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-800">
+              Nghiệm thu tại hàng đợi sau khi tài xế hoàn tất ca
+            </span>
+          )}
         </div>
       )}
 

@@ -43,7 +43,7 @@ MODULES = [
         ('Xác nhận khối lượng & Cân', 'xac-nhan-khoi-luong-phieu-can.html', '')
     ]),
     ('⚒', 'Xưởng BTSC', 'E-xuong-btsc', [
-        ('Kế hoạch bảo trì (250h)', 'ke-hoach-bao-tri.html', ''),
+        ('Kế hoạch bảo trì ', 'ke-hoach-bao-tri.html', ''),
         ('Tiếp nhận báo hỏng', 'yeu-cau-sua-chua.html', ''),
         ('Phiếu sửa chữa & Vật tư', 'phieu-sua-chua.html', ''),
         ('Theo dõi tiến độ xưởng', 'theo-doi-sua-chua.html', ''),
@@ -137,7 +137,7 @@ PAGES_DATA["pages/C-doi-xe/ho-so-thiet-bi.html"] = (
             ["<b>TB-LL-DOI-04</b><small>SN: BEDDER-DB-04</small>", "Dàn lên luống đôi trồng chuối<small>Tạo rãnh sâu 40cm, luống rộng 1.2m</small>", "Dàn lên luống", "— <small>(Tại bãi Đội 1)</small>", "Đội Cơ giới 1 (NT1)<small>XN Chuối 1</small>", "05/04/2024", "Sẵn sàng sử dụng", make_pill("Dự phòng tại bãi", "pending")]
         ],
         "Tìm mã thiết bị, tên MMTB, xe gắn kèm...",
-        "Hiển thị 1–7 trên 215 thiết bị và nông cụ cơ giới"
+        "Hiển thị 1–7 trên 215 Thiết bị phụ trợ cơ giới"
     )
 )
 

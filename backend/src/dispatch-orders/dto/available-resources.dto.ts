@@ -8,6 +8,8 @@ export class AvailableResourcesDto {
   @ApiProperty() @Type(() => Date) @IsDate() end: Date;
   @ApiPropertyOptional({ enum: Unit }) @IsOptional() @IsEnum(Unit) unit?: Unit;
   @ApiPropertyOptional() @IsOptional() @IsInt() vehicleTypeId?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() dispatchOrderId?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() transportOrderId?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() excludeDispatchId?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() excludeTransportId?: number;
 }

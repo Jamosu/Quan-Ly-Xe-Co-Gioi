@@ -8,7 +8,7 @@ const labels: Record<string, string> = {
   DRIVER_ACCEPTED: 'Tài xế đã nhận', DEPARTED: 'Đã xuất phát', WORKING: 'Đang làm việc',
   IN_PROGRESS: 'Đang thực hiện', COMPLETED: 'Hoàn thành', ACCEPTED: 'Đã nghiệm thu', CLOSED: 'Đã đóng',
   REJECTED: 'Bị từ chối', ADJUSTED: 'Đã điều chỉnh', CANCELLED: 'Đã hủy', AT_PICKUP: 'Đến điểm nhận',
-  LOADING: 'Đang bốc hàng', IN_TRANSIT: 'Đang vận chuyển', AT_DELIVERY: 'Đến điểm giao',
+  LOADING: 'Đang bốc hàng', IN_TRANSIT: 'Đang vận chuyển', AT_DELIVERY: 'Đến điểm giao', AT_WORKSITE: 'Đã đến nơi giao việc', RETURNING_TO_DEPOT: 'Đang trở về bãi', AT_DEPOT: 'Đã về bãi',
   UNLOADING: 'Đang dỡ hàng', DELIVERED: 'Đã giao hàng', CONFIRMED: 'Đã xác nhận', PENDING: 'Chờ xác nhận',
   OVERDUE: 'Quá hạn',
 };

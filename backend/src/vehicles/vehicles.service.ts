@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   MaintenanceAlertTier,
+  OperationalLocationType,
   Prisma,
   VehicleStatus,
 } from '@prisma/client';
@@ -13,10 +14,47 @@ import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateTelemetryDto } from './dto/update-telemetry.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleFilterDto } from './dto/vehicle-filter.dto';
+import { FleetHistoryFilterDto } from './dto/fleet-history-filter.dto';
+import { MaintenanceService } from '../maintenance/maintenance.service';
 
 @Injectable()
 export class VehiclesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly maintenance: MaintenanceService) {}
+
+  private async resolveHomeDepotId(dto: {
+    homeDepotId?: number;
+    currentLocationName?: string;
+    complexCode?: string;
+  }) {
+    if (dto.homeDepotId) {
+      const depot = await this.prisma.operationalLocation.findFirst({
+        where: {
+          id: dto.homeDepotId,
+          type: OperationalLocationType.DEPOT,
+          active: true,
+        },
+        select: { id: true },
+      });
+      if (!depot) {
+        throw new NotFoundException(`Không tìm thấy bãi tập kết #${dto.homeDepotId}`);
+      }
+      return depot.id;
+    }
+
+    const locationName = dto.currentLocationName?.trim();
+    if (!locationName) return undefined;
+
+    const depot = await this.prisma.operationalLocation.findFirst({
+      where: {
+        name: locationName,
+        type: OperationalLocationType.DEPOT,
+        active: true,
+        ...(dto.complexCode ? { complexCode: dto.complexCode } : {}),
+      },
+      select: { id: true },
+    });
+    return depot?.id;
+  }
 
   private calculateAlertTier(hoursSinceLastService: number): MaintenanceAlertTier {
     const hoursRemaining = 250 - hoursSinceLastService;
@@ -49,6 +87,7 @@ export class VehiclesService {
 
     const hoursSinceLastService = dto.hoursSinceLastService || 0;
     const alertTier = this.calculateAlertTier(hoursSinceLastService);
+    const homeDepotId = await this.resolveHomeDepotId(dto);
 
     // Auto-resolve manufacturerRefId if only manufacturer name is passed
     let manufacturerRefId = dto.manufacturerRefId;
@@ -70,11 +109,12 @@ export class VehiclesService {
       if (m) modelRefId = m.id;
     }
 
-    return this.prisma.vehicle.create({
+    const created = await this.prisma.vehicle.create({
       data: {
         ...dto,
         manufacturerRefId,
         modelRefId,
+        homeDepotId,
         alertTier,
       },
       include: {
@@ -82,11 +122,14 @@ export class VehiclesService {
           select: { id: true, fullName: true, phone: true },
         },
         vehicleType: true,
+        homeDepot: true,
         manufacturerRef: true,
         modelRef: true,
         currentImplements: true,
       },
     });
+    await this.maintenance.refreshVehicleOccurrences(created.id);
+    return created;
   }
 
   async findAll(filter: VehicleFilterDto) {
@@ -112,6 +155,9 @@ export class VehiclesService {
       bravoCode,
       status,
       alertTier,
+      operationalDomain,
+      isAssignable,
+      hasGps,
     } = filter;
     const skip = (page - 1) * limit;
 
@@ -121,7 +167,13 @@ export class VehiclesService {
     if (category) where.category = category;
     if (assetGroup) where.assetGroup = assetGroup;
     if (vehicleTypeId) where.vehicleTypeId = vehicleTypeId;
-    if (vehicleTypeCode) where.vehicleType = { code: vehicleTypeCode };
+    if (vehicleTypeCode || operationalDomain || isAssignable !== undefined) {
+      where.vehicleType = {
+        ...(vehicleTypeCode ? { code: vehicleTypeCode } : {}),
+        ...(operationalDomain ? { operationalDomain } : {}),
+        ...(isAssignable !== undefined ? { isAssignable } : {}),
+      };
+    }
     if (unit) where.unit = unit;
     if (regionCode) where.regionCode = regionCode;
     if (assignedUnitCode) where.assignedUnitCode = { contains: assignedUnitCode };
@@ -135,6 +187,8 @@ export class VehiclesService {
     if (manufactureYear) where.manufactureYear = manufactureYear;
     if (status) where.status = status;
     if (alertTier) where.alertTier = alertTier;
+    if (hasGps === true) where.gpsImei = { not: null };
+    if (hasGps === false) where.gpsImei = null;
 
     if (search && search.trim()) {
       const q = search.trim();
@@ -169,11 +223,15 @@ export class VehiclesService {
               code: true,
               name: true,
               assetGroup: true,
+              operationalDomain: true,
+              implementRequirement: true,
+              isAssignable: true,
             },
           },
           defaultDriver: {
             select: { id: true, fullName: true, phone: true },
           },
+          homeDepot: true,
         }
       : {
           vehicleType: {
@@ -185,6 +243,9 @@ export class VehiclesService {
               defaultMaintenanceHours: true,
               defaultFuelQuotaRate: true,
               defaultFuelQuotaUnit: true,
+              operationalDomain: true,
+              implementRequirement: true,
+              isAssignable: true,
             },
           },
           manufacturerRef: {
@@ -203,6 +264,7 @@ export class VehiclesService {
           defaultDriver: {
             select: { id: true, fullName: true, phone: true },
           },
+          homeDepot: true,
           currentImplements: {
             select: {
               id: true,
@@ -276,7 +338,7 @@ export class VehiclesService {
           managerName: true,
           managerPhone: true,
           vehicleType: {
-            select: { assetGroup: true },
+            select: { id: true, code: true, name: true, assetGroup: true },
           },
           defaultDriver: {
             select: { id: true, fullName: true, phone: true },
@@ -312,7 +374,13 @@ export class VehiclesService {
       if (filter.category) baseWhere.category = filter.category;
       if (filter.assetGroup) baseWhere.assetGroup = filter.assetGroup;
       if (filter.vehicleTypeId) baseWhere.vehicleTypeId = filter.vehicleTypeId;
-      if (filter.vehicleTypeCode) baseWhere.vehicleType = { code: filter.vehicleTypeCode };
+      if (filter.vehicleTypeCode || filter.operationalDomain || filter.isAssignable !== undefined) {
+        baseWhere.vehicleType = {
+          ...(filter.vehicleTypeCode ? { code: filter.vehicleTypeCode } : {}),
+          ...(filter.operationalDomain ? { operationalDomain: filter.operationalDomain } : {}),
+          ...(filter.isAssignable !== undefined ? { isAssignable: filter.isAssignable } : {}),
+        };
+      }
       if (filter.unit) baseWhere.unit = filter.unit;
       if (filter.regionCode) baseWhere.regionCode = filter.regionCode;
       if (filter.assignedUnitCode) baseWhere.assignedUnitCode = { contains: filter.assignedUnitCode };
@@ -325,6 +393,8 @@ export class VehiclesService {
       if (filter.origin) baseWhere.origin = filter.origin;
       if (filter.status) baseWhere.status = filter.status;
       if (filter.alertTier) baseWhere.alertTier = filter.alertTier;
+      if (filter.hasGps === true) baseWhere.gpsImei = { not: null };
+      if (filter.hasGps === false) baseWhere.gpsImei = null;
     }
 
     // Exclude self-filter so user can select another option in that dimension
@@ -524,6 +594,7 @@ export class VehiclesService {
         vehicleType: true,
         manufacturerRef: true,
         modelRef: true,
+        homeDepot: true,
         defaultDriver: {
           select: { id: true, fullName: true, phone: true, avatarUrl: true },
         },
@@ -573,6 +644,8 @@ export class VehiclesService {
       alertTier = this.calculateAlertTier(dto.hoursSinceLastService);
     }
 
+    const homeDepotId = await this.resolveHomeDepotId(dto);
+
     let manufacturerRefId = dto.manufacturerRefId;
     if (!manufacturerRefId && dto.manufacturer) {
       const mf = await this.prisma.vehicleManufacturer.findFirst({
@@ -591,24 +664,28 @@ export class VehiclesService {
       if (m) modelRefId = m.id;
     }
 
-    return this.prisma.vehicle.update({
+    const updated = await this.prisma.vehicle.update({
       where: { id },
       data: {
         ...dto,
         ...(manufacturerRefId ? { manufacturerRefId } : {}),
         ...(modelRefId ? { modelRefId } : {}),
+        ...(homeDepotId ? { homeDepotId } : {}),
         ...(alertTier ? { alertTier } : {}),
       },
       include: {
         vehicleType: true,
         manufacturerRef: true,
         modelRef: true,
+        homeDepot: true,
         defaultDriver: {
           select: { id: true, fullName: true, phone: true },
         },
         currentImplements: true,
       },
     });
+    await this.maintenance.refreshVehicleOccurrences(id);
+    return updated;
   }
 
   async updateTelemetry(id: number, dto: UpdateTelemetryDto) {
@@ -625,7 +702,7 @@ export class VehiclesService {
     const newOdoKm = vehicle.odoKm + addedKm;
     const newAlertTier = this.calculateAlertTier(newServiceHours);
 
-    return this.prisma.vehicle.update({
+    const updated = await this.prisma.vehicle.update({
       where: { id },
       data: {
         totalMachineHours: newTotalHours,
@@ -639,6 +716,8 @@ export class VehiclesService {
         lastGpsUpdate: new Date(),
       },
     });
+    await this.maintenance.refreshVehicleOccurrences(id);
+    return updated;
   }
 
   async getStatistics(filter?: VehicleFilterDto) {
@@ -658,9 +737,15 @@ export class VehiclesService {
     if (filter?.category) {
       where.category = filter.category;
     }
-    if (filter?.vehicleTypeCode && filter.vehicleTypeCode !== 'ALL') {
-      where.vehicleType = { code: filter.vehicleTypeCode };
+    if ((filter?.vehicleTypeCode && filter.vehicleTypeCode !== 'ALL') || filter?.operationalDomain || filter?.isAssignable !== undefined) {
+      where.vehicleType = {
+        ...(filter?.vehicleTypeCode && filter.vehicleTypeCode !== 'ALL' ? { code: filter.vehicleTypeCode } : {}),
+        ...(filter?.operationalDomain ? { operationalDomain: filter.operationalDomain } : {}),
+        ...(filter?.isAssignable !== undefined ? { isAssignable: filter.isAssignable } : {}),
+      };
     }
+    if (filter?.hasGps === true) where.gpsImei = { not: null };
+    if (filter?.hasGps === false) where.gpsImei = null;
 
     const [
       total,
@@ -1008,12 +1093,389 @@ export class VehiclesService {
   }
 
   async getSosAlerts() {
-    return this.prisma.driverSosAlert.findMany({
-      include: {
-        driver: { select: { id: true, fullName: true, phone: true } },
-        vehicle: { select: { id: true, code: true, plate: true, name: true, category: true, complexCode: true, assignedUnitCode: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    try {
+      return await this.prisma.driverSosAlert.findMany({
+        include: {
+          driver: { select: { id: true, fullName: true, phone: true } },
+          vehicle: { select: { id: true, code: true, plate: true, name: true, category: true, complexCode: true, assignedUnitCode: true } },
+          workshopRequest: { select: { id: true, code: true, status: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          "UPDATE driver_sos_alerts SET status = 'PENDING' WHERE status NOT IN ('PENDING', 'DISPATCHED', 'RESOLVED') OR status IS NULL OR status = ''"
+        );
+        return await this.prisma.driverSosAlert.findMany({
+          include: {
+            driver: { select: { id: true, fullName: true, phone: true } },
+            vehicle: { select: { id: true, code: true, plate: true, name: true, category: true, complexCode: true, assignedUnitCode: true } },
+            workshopRequest: { select: { id: true, code: true, status: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  private formatVNDate(d: Date | string | null | undefined): string {
+    if (!d) return '';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '';
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+  }
+
+  async getFleetHistoryEvents(filter: FleetHistoryFilterDto) {
+    const {
+      complexCode,
+      unit,
+      search,
+      type = 'ALL',
+      vehicleId,
+      page = 1,
+      limit = 30,
+    } = filter;
+
+    const vehicleWhere: Prisma.VehicleWhereInput = {};
+    if (complexCode && complexCode !== 'ALL' && complexCode !== 'ALL_KLH') {
+      vehicleWhere.complexCode = complexCode;
+    }
+    if (unit && unit !== 'ALL') {
+      vehicleWhere.unit = unit as any;
+    }
+    if (vehicleId) {
+      vehicleWhere.id = Number(vehicleId);
+    }
+
+    const events: any[] = [];
+
+    // 1. WORKSHOP REQUESTS (Bảo dưỡng & Sửa chữa BTSC)
+    if (type === 'ALL' || type === 'bts') {
+      try {
+        const wrWhere: Prisma.WorkshopRequestWhereInput = {};
+        if (Object.keys(vehicleWhere).length > 0) {
+          wrWhere.vehicle = vehicleWhere;
+        }
+        if (search) {
+          wrWhere.OR = [
+            { code: { contains: search } },
+            { issueDescription: { contains: search } },
+            { vehicle: { code: { contains: search } } },
+            { vehicle: { plate: { contains: search } } },
+            { vehicle: { name: { contains: search } } },
+          ];
+        }
+        const workshopRequests = await this.prisma.workshopRequest.findMany({
+          where: wrWhere,
+          include: {
+            vehicle: {
+              select: { id: true, code: true, plate: true, name: true, unit: true, complexCode: true, assignedUnitCode: true },
+            },
+            reportedBy: {
+              select: { id: true, fullName: true, phone: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        });
+
+        for (const wr of workshopRequests) {
+          const v = wr.vehicle;
+          const reporterName = wr.reportedBy?.fullName || 'Bộ phận Kỹ thuật';
+          const unitName = v?.assignedUnitCode || v?.unit || 'Xưởng BTSC';
+          const typeLabel = wr.type === 'MAINTENANCE' ? 'Bảo dưỡng định kỳ' : 'Sửa chữa phục hồi kỹ thuật';
+          events.push({
+            id: `WR-${wr.id}`,
+            code: wr.code,
+            title: `Phiếu xưởng ${wr.code}: ${v?.name || 'Phương tiện'} (${v?.plate || v?.code || 'Chưa gắn biển'})`,
+            description: wr.issueDescription || `${typeLabel} tại xưởng BTSC`,
+            meta: `${this.formatVNDate(wr.createdAt)} • ${unitName} • KTV/Người lập: ${reporterName}`,
+            actionText: 'Xem phiếu xưởng',
+            badgeType: 'bts',
+            createdAt: wr.createdAt,
+            vehicleId: v?.id,
+            vehicleCode: v?.code,
+            vehicleName: v?.name,
+            plate: v?.plate,
+            unit: v?.unit,
+            complexCode: v?.complexCode,
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi truy vấn WorkshopRequest trong getFleetHistoryEvents:', err);
+      }
+    }
+
+    // 2. VEHICLE DRIVER ASSIGNMENTS (Đổi/Phân công tài xế)
+    if (type === 'ALL' || type === 'driver') {
+      try {
+        const vdaWhere: Prisma.VehicleDriverAssignmentWhereInput = {};
+        if (Object.keys(vehicleWhere).length > 0) {
+          vdaWhere.vehicle = vehicleWhere;
+        }
+        if (search) {
+          vdaWhere.OR = [
+            { reason: { contains: search } },
+            { vehicle: { code: { contains: search } } },
+            { vehicle: { plate: { contains: search } } },
+            { vehicle: { name: { contains: search } } },
+            { driver: { user: { fullName: { contains: search } } } },
+          ];
+        }
+        const driverAssignments = await this.prisma.vehicleDriverAssignment.findMany({
+          where: vdaWhere,
+          include: {
+            vehicle: {
+              select: { id: true, code: true, plate: true, name: true, unit: true, complexCode: true, assignedUnitCode: true },
+            },
+            driver: {
+              include: {
+                user: { select: { id: true, fullName: true, phone: true } },
+              },
+            },
+            assignedBy: {
+              select: { id: true, fullName: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        });
+
+        for (const vda of driverAssignments) {
+          const v = vda.vehicle;
+          const driverName = vda.driver?.user?.fullName || 'Tài xế';
+          const assignerName = vda.assignedBy?.fullName || 'Điều phối viên';
+          const typeStr = vda.type === 'PRIMARY' ? 'Lái chính' : vda.type === 'SECONDARY' ? 'Lái phụ' : 'Tạm thời';
+          events.push({
+            id: `VDA-${vda.id}`,
+            code: `PC-LX-${vda.id}`,
+            title: `Phân công ${typeStr}: ${driverName} - Xe ${v?.name || ''} (${v?.plate || v?.code || ''})`,
+            description: vda.reason || `Bàn giao quyền điều khiển phương tiện cho tài xế ${driverName} (${typeStr})`,
+            meta: `${this.formatVNDate(vda.effectiveFrom || vda.createdAt)} • ${v?.assignedUnitCode || v?.unit || 'Đội xe'} • Người duyệt: ${assignerName}`,
+            actionText: 'Xem hồ sơ lái xe',
+            badgeType: 'driver',
+            createdAt: vda.effectiveFrom || vda.createdAt,
+            vehicleId: v?.id,
+            vehicleCode: v?.code,
+            vehicleName: v?.name,
+            plate: v?.plate,
+            unit: v?.unit,
+            complexCode: v?.complexCode,
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi truy vấn VehicleDriverAssignment trong getFleetHistoryEvents:', err);
+      }
+    }
+
+    // 3. FUEL DISPENSE TICKETS (Cấp phát nhiên liệu)
+    if (type === 'ALL' || type === 'fuel') {
+      try {
+        const fuelWhere: Prisma.FuelDispenseTicketWhereInput = {};
+        if (Object.keys(vehicleWhere).length > 0) {
+          fuelWhere.vehicle = vehicleWhere;
+        }
+        if (search) {
+          fuelWhere.OR = [
+            { ticketCode: { contains: search } },
+            { vehicle: { code: { contains: search } } },
+            { vehicle: { plate: { contains: search } } },
+            { vehicle: { name: { contains: search } } },
+            { driver: { fullName: { contains: search } } },
+          ];
+        }
+        const fuelTickets = await this.prisma.fuelDispenseTicket.findMany({
+          where: fuelWhere,
+          include: {
+            vehicle: {
+              select: { id: true, code: true, plate: true, name: true, unit: true, complexCode: true, assignedUnitCode: true },
+            },
+            warehouse: {
+              select: { id: true, name: true },
+            },
+            operator: {
+              select: { id: true, fullName: true },
+            },
+            driver: {
+              select: { id: true, fullName: true },
+            },
+          },
+          orderBy: { dispensedAt: 'desc' },
+          take: 200,
+        });
+
+        for (const ft of fuelTickets) {
+          const v = ft.vehicle;
+          const operatorName = ft.operator?.fullName || ft.driver?.fullName || 'Thủ kho xăng dầu';
+          const whName = ft.warehouse?.name || 'Kho nhiên liệu';
+          const excessText = ft.isExcess ? ` (Vượt định mức ${ft.varianceLiters.toFixed(1)}L)` : ' (Đúng định mức)';
+          events.push({
+            id: `FUEL-${ft.id}`,
+            code: ft.ticketCode,
+            title: `Cấp phát ${ft.dispensedLiters}L dầu DO - Phiếu ${ft.ticketCode}`,
+            description: `Cấp nhiên liệu tại ${whName} cho xe ${v?.name || ''} (${v?.plate || v?.code || ''}). Chỉ số máy/ODO: ${ft.engineOdoHours}${excessText}.`,
+            meta: `${this.formatVNDate(ft.dispensedAt)} • ${whName} • Thủ kho: ${operatorName}`,
+            actionText: 'Xem phiếu cấp dầu',
+            badgeType: 'fuel',
+            createdAt: ft.dispensedAt,
+            vehicleId: v?.id,
+            vehicleCode: v?.code,
+            vehicleName: v?.name,
+            plate: v?.plate,
+            unit: v?.unit,
+            complexCode: v?.complexCode,
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi truy vấn FuelDispenseTicket trong getFleetHistoryEvents:', err);
+      }
+    }
+
+    // 4. MAINTENANCE RECORDS (Bảo dưỡng định kỳ mốc giờ)
+    if (type === 'ALL' || type === 'bts') {
+      try {
+        const mrWhere: Prisma.MaintenanceRecordWhereInput = {};
+        if (Object.keys(vehicleWhere).length > 0) {
+          mrWhere.vehicle = vehicleWhere;
+        }
+        if (search) {
+          mrWhere.OR = [
+            { conclusion: { contains: search } },
+            { vehicle: { code: { contains: search } } },
+            { vehicle: { plate: { contains: search } } },
+            { vehicle: { name: { contains: search } } },
+          ];
+        }
+        const maintenanceRecords = await this.prisma.maintenanceRecord.findMany({
+          where: mrWhere,
+          include: {
+            vehicle: {
+              select: { id: true, code: true, plate: true, name: true, unit: true, complexCode: true, assignedUnitCode: true },
+            },
+            technician: {
+              select: { id: true, fullName: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        });
+
+        for (const mr of maintenanceRecords) {
+          const v = mr.vehicle;
+          const techName = mr.technician?.fullName || 'KTV Cơ điện';
+          events.push({
+            id: `MR-${mr.id}`,
+            code: `BD-${mr.id}`,
+            title: `Bảo dưỡng định kỳ cấp ${mr.level} - Mốc ${mr.currentHours}h máy`,
+            description: mr.conclusion || `Thực hiện bảo dưỡng định kỳ kỹ thuật theo tiêu chuẩn mốc ${mr.currentHours}h máy cho xe ${v?.name} (${v?.plate || v?.code}).`,
+            meta: `${this.formatVNDate(mr.createdAt)} • Xưởng BTSC • KTV: ${techName}`,
+            actionText: 'Xem biên bản bảo dưỡng',
+            badgeType: 'bts',
+            createdAt: mr.createdAt,
+            vehicleId: v?.id,
+            vehicleCode: v?.code,
+            vehicleName: v?.name,
+            plate: v?.plate,
+            unit: v?.unit,
+            complexCode: v?.complexCode,
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi truy vấn MaintenanceRecord trong getFleetHistoryEvents:', err);
+      }
+    }
+
+    // 5. VEHICLE ALLOCATIONS / DELIVERY (Bàn giao & phân bổ xe)
+    if (type === 'ALL' || type === 'delivery') {
+      try {
+        const allocWhere: Prisma.VehicleWhereInput = {
+          ...vehicleWhere,
+        };
+        if (search) {
+          allocWhere.OR = [
+            { code: { contains: search } },
+            { plate: { contains: search } },
+            { name: { contains: search } },
+            { transferHistory: { contains: search } },
+          ];
+        }
+        const allocVehicles = await this.prisma.vehicle.findMany({
+          where: allocWhere,
+          select: {
+            id: true,
+            code: true,
+            plate: true,
+            name: true,
+            unit: true,
+            complexCode: true,
+            assignedUnitCode: true,
+            allocationDate: true,
+            transferHistory: true,
+            managerName: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        });
+
+        for (const v of allocVehicles) {
+          const date = v.allocationDate || v.createdAt;
+          const unitLabel = v.assignedUnitCode || v.unit || 'Ban Cơ Giới KLH';
+          events.push({
+            id: `ALLOC-${v.id}`,
+            code: `QĐ-PB-${v.code}`,
+            title: `Bàn giao & phân bổ phương tiện: ${v.name} (${v.plate || v.code})`,
+            description: v.transferHistory || `Phân bổ quyền quản lý sử dụng xe về đơn vị ${unitLabel} thuộc Khu liên hợp ${v.complexCode}.`,
+            meta: `${this.formatVNDate(date)} • Ban Cơ Giới KLH • Quản lý: ${v.managerName || 'Bộ phận Quản lý Xe'}`,
+            actionText: 'Xem quyết định phân bổ',
+            badgeType: 'delivery',
+            createdAt: date,
+            vehicleId: v.id,
+            vehicleCode: v.code,
+            vehicleName: v.name,
+            plate: v.plate,
+            unit: v.unit,
+            complexCode: v.complexCode,
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi truy vấn Vehicle Allocations trong getFleetHistoryEvents:', err);
+      }
+    }
+
+    // Sắp xếp thời gian giảm dần
+    events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Thống kê KPIs thực tế
+    const stats = {
+      totalEvents: events.length,
+      btsCount: events.filter(e => e.badgeType === 'bts').length,
+      driverCount: events.filter(e => e.badgeType === 'driver').length,
+      fuelCount: events.filter(e => e.badgeType === 'fuel').length,
+      deliveryCount: events.filter(e => e.badgeType === 'delivery').length,
+    };
+
+    // Phân trang
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const startIndex = (pageNum - 1) * limitNum;
+    const paginatedEvents = events.slice(startIndex, startIndex + limitNum);
+
+    return {
+      data: paginatedEvents,
+      total: events.length,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(events.length / limitNum) || 1,
+      stats,
+    };
   }
 }

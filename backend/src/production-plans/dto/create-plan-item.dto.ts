@@ -26,6 +26,11 @@ export class CreatePlanItemDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) quotaValue?: number;
   @ApiPropertyOptional({ enum: FuelQuotaUnit }) @IsOptional() @IsEnum(FuelQuotaUnit) quotaUnit?: FuelQuotaUnit;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() location?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() origin?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() destination?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() machineType?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) durationHours?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() taskStatus?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
 }

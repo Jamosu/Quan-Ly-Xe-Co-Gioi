@@ -1,0 +1,21 @@
+{
+  "cli": { "version": ">= 16.0.0" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": { "APP_ENV": "development", "EXPO_PUBLIC_API_BASE_URL": "http://10.23.3.8:3002/api" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": { "APP_ENV": "staging" }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
+      "env": { "APP_ENV": "production" }
+    }
+  }
+}

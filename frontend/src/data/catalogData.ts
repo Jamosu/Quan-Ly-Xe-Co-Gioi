@@ -19,7 +19,19 @@ export interface CatalogItem {
   enterpriseName?: string;
   farmName?: string;
   plotStatus?: string;  // Trạng thái thửa riêng (Đầu tư, Thu hoạch, ...)
-  type: 'COMPLEX' | 'REGION' | 'DEPARTMENT' | 'ENTERPRISE' | 'FARM' | 'TEAM' | 'PLOT' | 'LAND_PARCEL' | 'POSITION';
+  type:
+    | 'COMPLEX'
+    | 'REGION'
+    | 'DEPARTMENT'
+    | 'ENTERPRISE'
+    | 'FARM'
+    | 'TEAM'
+    | 'PLOT'
+    | 'LAND_PARCEL'
+    | 'POSITION'
+    | 'JOB_TYPE'
+    | 'VEHICLE_CATEGORY'
+    | string;
   systemId?: string;
   address?: string;
   managerName?: string;
@@ -1427,21 +1439,25 @@ export const mockPlots: CatalogItem[] = [];
 export const mockLandParcels: CatalogItem[] = [];
 
 export const mockPositions: CatalogItem[] = [
-  { id: 'POS1', code: 'CD_LAI_XE_CG', name: 'Lái xe cơ giới', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận hành các dòng xe ô tô tải, ben, phục vụ sản xuất', createdAt: '10-01-2026' },
-  { id: 'POS2', code: 'CD_LAI_MAY_NN', name: 'Lái máy nông nghiệp', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận hành máy cày Kubota/John Deere, máy xới đất', createdAt: '10-01-2026' },
-  { id: 'POS3', code: 'CD_THO_VAN_HANH', name: 'Thợ vận hành máy gặt/cày', type: 'POSITION', status: 'HOAT_DONG', description: 'Trực tiếp điều khiển dàn nông cụ và máy gặt liên hợp', createdAt: '10-01-2026' },
-  { id: 'POS4', code: 'CD_TX_TAI_NANG', name: 'Lái xe tải nặng (Hạng C/FC)', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận tải hàng container chuối xuất khẩu và vật tư nông nghiệp', createdAt: '12-01-2026' },
-  { id: 'POS5', code: 'CD_TX_BAN_TAI', name: 'Lái xe bán tải & phục vụ', type: 'POSITION', status: 'HOAT_DONG', description: 'Đưa đón kỹ sư, quản lý và vận chuyển vật tư nhanh', createdAt: '12-01-2026' },
-  { id: 'POS6', code: 'CD_THO_SUA_CHUA', name: 'Thợ sửa chữa cơ giới', type: 'POSITION', status: 'HOAT_DONG', description: 'Bảo dưỡng, đại tu và sửa chữa xe máy cơ giới', createdAt: '15-01-2026' },
-  { id: 'POS7', code: 'CD_THO_DIEN_MAY', name: 'Thợ điện & điện lạnh xe máy', type: 'POSITION', status: 'HOAT_DONG', description: 'Bảo trì hệ thống điện điều khiển và điều hòa máy cày/xe tải', createdAt: '15-01-2026' },
-  { id: 'POS8', code: 'CD_TO_TRUONG_CG', name: 'Tổ trưởng tổ cơ giới', type: 'POSITION', status: 'HOAT_DONG', description: 'Quản lý, phân công ca máy và giám sát tiến độ thực địa', createdAt: '15-01-2026' },
-  { id: 'POS9', code: 'CD_DIEU_DO_VIEN', name: 'Nhân viên điều độ vận tải', type: 'POSITION', status: 'HOAT_DONG', description: 'Điều hành lệnh điều xe và giám sát hành trình GPS', createdAt: '15-01-2026' },
-  { id: 'POS10', code: 'CD_KY_THUAT_VIEN', name: 'Kỹ thuật viên cơ giới', type: 'POSITION', status: 'HOAT_DONG', description: 'Kiểm tra kỹ thuật an toàn trước và sau ca vận hành', createdAt: '18-01-2026' },
-  { id: 'POS11', code: 'CD_THU_KHO_NL', name: 'Thủ kho nhiên liệu', type: 'POSITION', status: 'HOAT_DONG', description: 'Cấp phát dầu DO qua QR code và quản lý bồn chứa', createdAt: '18-01-2026' },
-  { id: 'POS12', code: 'CD_THU_KHO_PT', name: 'Thủ kho phụ tùng', type: 'POSITION', status: 'HOAT_DONG', description: 'Quản lý xuất nhập tồn phụ tùng, lốp, dầu nhờn BTSC', createdAt: '18-01-2026' },
-  { id: 'POS13', code: 'CD_THO_HAN', name: 'Thợ hàn cơ khí nông cụ', type: 'POSITION', status: 'HOAT_DONG', description: 'Gia công, phục hồi lưỡi cày, rơ-moóc và nông cụ kéo theo', createdAt: '20-01-2026' },
-  { id: 'POS14', code: 'CD_THO_LOP', name: 'Thợ bảo dưỡng săm lốp', type: 'POSITION', status: 'HOAT_DONG', description: 'Thay thế, vá lốp máy cày, xe tải và cân chỉnh áp suất', createdAt: '20-01-2026' },
-  { id: 'POS15', code: 'CD_LAI_XE_NANG', name: 'Lái xe nâng hàng (Forklift)', type: 'POSITION', status: 'HOAT_DONG', description: 'Bốc xếp phân bón, vật tư kho và đóng pallet chuối', createdAt: '20-01-2026' },
-  { id: 'POS16', code: 'CD_LAI_XE_BON', name: 'Lái xe bồn tiếp nhiên liệu lưu động', type: 'POSITION', status: 'HOAT_DONG', description: 'Cung ứng dầu DO tận ruộng cho máy cày và máy gặt', createdAt: '22-01-2026' },
-  { id: 'POS17', code: 'CD_GIAM_SAT_AT', name: 'Chuyên viên an toàn cơ giới', type: 'POSITION', status: 'HOAT_DONG', description: 'Huấn luyện an toàn lao động và thanh tra hiện trường', createdAt: '22-01-2026' },
+  { id: 'POS1', code: 'CD_TX_CONTAINER', name: 'Lái xe đầu kéo Container', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận tải container chuối xuất khẩu và đối lưu hàng hóa đường dài', createdAt: '10-01-2026' },
+  { id: 'POS2', code: 'CD_TX_BEN', name: 'Lái xe tải tự đổ (ben)', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận chuyển chuối buồng, phân bón, đất đắp và phụ phẩm nông nghiệp', createdAt: '10-01-2026' },
+  { id: 'POS3', code: 'CD_TX_TAI_THUNG', name: 'Lái xe tải thùng & xe tải nhẹ', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận chuyển bao bì đóng gói, vật tư nông trường và phân phối hàng hóa', createdAt: '10-01-2026' },
+  { id: 'POS4', code: 'CD_TX_BAN_TAI', name: 'Lái xe bán tải & phục vụ công vụ', type: 'POSITION', status: 'HOAT_DONG', description: 'Đưa đón kỹ sư, quản lý và kiểm tra tuần tra vườn cây thực địa', createdAt: '12-01-2026' },
+  { id: 'POS5', code: 'CD_TX_BON', name: 'Lái xe bồn chuyên dụng', type: 'POSITION', status: 'HOAT_DONG', description: 'Tiếp nhiên liệu lưu động, bồn tưới nước, bồn mật rỉ và cấp nước sinh hoạt', createdAt: '12-01-2026' },
+  { id: 'POS6', code: 'CD_TX_NANG', name: 'Lái xe nâng hàng (Forklift)', type: 'POSITION', status: 'HOAT_DONG', description: 'Bốc dỡ pallet chuối xuất khẩu, phân bón và sắp xếp hàng tổng kho', createdAt: '12-01-2026' },
+  { id: 'POS7', code: 'CD_TX_CAU', name: 'Lái xe cẩu tự hành & cứu hộ', type: 'POSITION', status: 'HOAT_DONG', description: 'Cứu hộ cơ giới hiện trường, bốc dỡ máy móc và vật tư quá khổ', createdAt: '12-01-2026' },
+  { id: 'POS8', code: 'CD_LAI_MAY_CAY', name: 'Thợ lái máy cày bánh hơi', type: 'POSITION', status: 'HOAT_DONG', description: 'Vận hành máy cày Kubota, John Deere làm đất, phay đất và kéo rơ-moóc', createdAt: '15-01-2026' },
+  { id: 'POS9', code: 'CD_LAI_MAY_XICH', name: 'Thợ lái máy cày bánh xích', type: 'POSITION', status: 'HOAT_DONG', description: 'Cày phá lâm, xới đất đầm lầy và khai hoang đất dốc', createdAt: '15-01-2026' },
+  { id: 'POS10', code: 'CD_MAY_GAT_DAP', name: 'Thợ vận hành máy gặt đập liên hợp', type: 'POSITION', status: 'HOAT_DONG', description: 'Thu hoạch lúa, ngô, đậu tương và cây trồng thương phẩm', createdAt: '15-01-2026' },
+  { id: 'POS11', code: 'CD_MAY_GAT_CO', name: 'Thợ vận hành máy gặt & cắt cỏ', type: 'POSITION', status: 'HOAT_DONG', description: 'Cắt cỏ voi, cao lương phục vụ thức ăn xanh cho đàn bò', createdAt: '15-01-2026' },
+  { id: 'POS12', code: 'CD_MAY_BAM_TMR', name: 'Thợ vận hành máy băm trộn TMR', type: 'POSITION', status: 'HOAT_DONG', description: 'Băm trộn thức ăn tổng hợp TMR và cấp phát tại các ô chuồng bò', createdAt: '18-01-2026' },
+  { id: 'POS13', code: 'CD_MAY_PHUN_THUOC', name: 'Thợ vận hành máy phun thuốc tự hành', type: 'POSITION', status: 'HOAT_DONG', description: 'Phun thuốc bảo vệ thực vật và tưới vi sinh diện rộng', createdAt: '18-01-2026' },
+  { id: 'POS14', code: 'CD_MAY_GIEO_HAT', name: 'Thợ vận hành máy gieo hạt & rải phân', type: 'POSITION', status: 'HOAT_DONG', description: 'Gieo hạt tự động, bón lót và bón thúc chính xác theo định mức', createdAt: '18-01-2026' },
+  { id: 'POS15', code: 'CD_MAY_DAO', name: 'Thợ lái máy đào thủy lực', type: 'POSITION', status: 'HOAT_DONG', description: 'Đào mương tiêu, đắp bờ bao, nạo vét lòng hồ chứa nước', createdAt: '20-01-2026' },
+  { id: 'POS16', code: 'CD_MAY_SAN_LU', name: 'Thợ lái máy san gạt & lu rung', type: 'POSITION', status: 'HOAT_DONG', description: 'San nền, gia cố và duy tu đường lô giao thông nội đồng', createdAt: '20-01-2026' },
+  { id: 'POS17', code: 'CD_CUU_HO_THO_MAY', name: 'Lái xe cứu hộ kiêm Thợ máy', type: 'POSITION', status: 'HOAT_DONG', description: 'Trực cứu hộ kỹ thuật 24/7 và sửa chữa nóng tại hiện trường lô thửa', createdAt: '20-01-2026' },
+  { id: 'POS18', code: 'CD_THO_SUA_CHUA', name: 'Thợ sửa chữa cơ giới lưu động', type: 'POSITION', status: 'HOAT_DONG', description: 'Bảo dưỡng định kỳ 250h, sửa chữa tiểu tu, trung tu và đại tu', createdAt: '20-01-2026' },
+  { id: 'POS19', code: 'CD_THO_DIEN_MAY', name: 'Thợ điện & điện lạnh xe máy', type: 'POSITION', status: 'HOAT_DONG', description: 'Bảo trì hệ thống điện điều khiển, rơ-le, dynamo và máy lạnh cabin', createdAt: '22-01-2026' },
+  { id: 'POS20', code: 'CD_THO_HAN', name: 'Thợ hàn cơ khí & phục hồi nông cụ', type: 'POSITION', status: 'HOAT_DONG', description: 'Gia công hàn, phục hồi lưỡi chảo cày, dàn bừa và rơ-moóc kéo', createdAt: '22-01-2026' },
+  { id: 'POS21', code: 'CD_THO_LOP', name: 'Thợ bảo dưỡng săm lốp cơ giới', type: 'POSITION', status: 'HOAT_DONG', description: 'Thay thế, vá lốp siêu tải, cân chỉnh áp suất và đảo lốp cơ giới', createdAt: '22-01-2026' },
 ];
