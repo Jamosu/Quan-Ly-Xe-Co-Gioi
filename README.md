@@ -270,6 +270,5 @@ Sau khi chạy lệnh `npm run prisma:seed`, hệ thống cung cấp sẵn các 
 
 ---
 
-## 📞 Hỗ Trợ Kỹ Thuật & Vận Hành
-* **Đơn vị phát triển:** Đội ngũ Dự án Số hóa Cơ giới THACO AGRI.
+
 * **Email:** it-support@thacoagri.vn | **Hotline nội bộ:** 8888.
