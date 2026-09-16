@@ -269,6 +269,3 @@ Sau khi chạy lệnh `npm run prisma:seed`, hệ thống cung cấp sẵn các 
    - Toàn bộ thao tác xuất file Excel/CSV phải sử dụng mã hóa **UTF-8 kèm ký tự BOM (`\uFEFF`)** để mở trên Microsoft Excel Tiếng Việt không bị lỗi font chữ.
 
 ---
-
-
-* **Email:** it-support@thacoagri.vn | **Hotline nội bộ:** 8888.
