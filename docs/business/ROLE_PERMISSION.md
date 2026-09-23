@@ -30,4 +30,6 @@ Role authorization does not itself prove row-level unit isolation. Check `manage
 
 **GAP:** Production driver management assignments have not yet been backfilled. The number of visible drivers can therefore differ between local and production even with the same team scope.
 
+Some production driver personnel codes still imply Snoul or Nam Lao while their active assigned vehicles belong to Koun Mom. Driver list filters use the active vehicle's complex for these scoped records; the historical personnel code remains unchanged.
+
 **RECOMMENDED CHANGE:** Backfill driver management assignments only after validating each driver's owning team against the actual active vehicle assignments; keep the scoped vehicle-assignment fallback until then.
