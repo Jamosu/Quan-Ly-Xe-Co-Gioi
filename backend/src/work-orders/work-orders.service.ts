@@ -1640,7 +1640,7 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
   private async ensureExecutionStarted(tx: Tx, order: { id: number; status: WorkOrderStatus }, vehicleAssignment: { id: number; vehicleId: number }, driverAssignment: { id: number; driverId: number }, vehicle: { odoKm: number; totalMachineHours: number }, dto: JourneyActionDto, now: Date) {
     const existing = await tx.workExecutionSegment.findFirst({ where: { workOrderId: order.id, endedAt: null } });
     if (!existing) {
-      await tx.workExecutionSegment.create({ data: { workOrderId: order.id, vehicleAssignmentId: vehicleAssignment.id, driverAssignmentId: driverAssignment.id, vehicleId: vehicleAssignment.vehicleId, driverId: driverAssignment.driverId, startedAt: now, startOdoKm: dto.odoKm ?? vehicle.odoKm, startMachineHours: dto.machineHours ?? vehicle.totalMachineHours, startLat: dto.lat, startLng: dto.lng } });
+      await tx.workExecutionSegment.create({ data: { workOrderId: order.id, vehicleAssignmentId: vehicleAssignment.id, driverAssignmentId: driverAssignment.id, vehicleId: vehicleAssignment.vehicleId, driverId: driverAssignment.driverId, startedAt: now, workDate: this.dateOnly(now), startOdoKm: dto.odoKm ?? vehicle.odoKm, startMachineHours: dto.machineHours ?? vehicle.totalMachineHours, startLat: dto.lat, startLng: dto.lng } });
     }
     await tx.vehicle.update({ where: { id: vehicleAssignment.vehicleId }, data: { status: VehicleStatus.HOAT_DONG, ...(dto.lat !== undefined && dto.lng !== undefined ? { currentLat: dto.lat, currentLng: dto.lng, lastGpsUpdate: now } : {}) } });
     await tx.user.update({ where: { id: driverAssignment.driverId }, data: { currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH } });
