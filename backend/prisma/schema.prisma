@@ -2469,7 +2469,7 @@ model WorkExecutionSegment {
   driverId            Int
   startedAt           DateTime
   endedAt             DateTime?
-  workDate            DateTime          @default(now()) @db.Date
+  workDate            DateTime          @db.Date
   status              WorkSessionStatus @default(ACTIVE)
   grossMinutes        Int               @default(0)
   breakMinutes        Int               @default(0)

@@ -15,7 +15,7 @@ async function main() {
   console.log('Password hash:', user.passwordHash);
 
   // Test common passwords
-  const candidates = ['admin123', 'Admin123', 'thaco123', 'Thaco@123', 'password', '123456', 'thaco@agri', 'admin@123', 'Thaco123'];
+  const candidates = ['123456', 'Thaco@1234$', 'admin', 'admin123', 'Admin123', 'thaco123', 'Thaco@123', 'password', 'thaco@agri', 'admin@123', 'Thaco123'];
   for (const pw of candidates) {
     const ok = await bcrypt.compare(pw, user.passwordHash);
     if (ok) {
