@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'crypto';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { basename, extname, join } from 'path';
 import * as exifr from 'exifr';
+import 'multer';
 import {
   DispatchStatus,
   DispatchAcceptStatus,

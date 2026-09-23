@@ -1,5 +1,6 @@
 import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { MobileSyncEventStatus, Prisma, Role, Unit, WorkBreakType, WorkPauseReason } from '@prisma/client';
+import 'multer';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperationalActor } from '../common/utils/operational-access';
 import { WorkOrdersService } from '../work-orders/work-orders.service';

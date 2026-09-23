@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import 'multer';
 import {
   DispatchStatus,
   RepairStatus,
