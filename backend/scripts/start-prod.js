@@ -5,28 +5,18 @@ console.log('====================================================');
 console.log('🚀 [THACO AGRI BACKEND] Initializing Production Environment');
 console.log('====================================================');
 
-// 1. Synchronize database schema with Prisma schema
-console.log('🔄 [Database] Synchronizing schema with target database...');
+// 1. Apply committed production migrations before starting the API.
+console.log('🔄 [Database] Applying production migrations...');
 try {
-  execSync('npx prisma db push --accept-data-loss --skip-generate', {
+  execSync('npx prisma migrate deploy', {
     stdio: 'inherit',
     cwd: path.resolve(__dirname, '..'),
     env: process.env,
   });
-  console.log('✅ [Database] Schema successfully synchronized with target database.');
-} catch (pushErr) {
-  console.error('⚠️ [Database] prisma db push encountered an issue:', pushErr.message);
-  try {
-    console.log('🔄 [Database] Attempting prisma migrate deploy as fallback...');
-    execSync('npx prisma migrate deploy', {
-      stdio: 'inherit',
-      cwd: path.resolve(__dirname, '..'),
-      env: process.env,
-    });
-    console.log('✅ [Database] Migrations deployed successfully.');
-  } catch (migrateErr) {
-    console.error('❌ [Database] Migration deploy also failed:', migrateErr.message);
-  }
+  console.log('✅ [Database] Production migrations applied successfully.');
+} catch (migrateErr) {
+  console.error('❌ [Database] Migration deploy failed:', migrateErr.message);
+  process.exit(1);
 }
 
 // 2. Check if database has data; if users table is empty, auto-restore production dump

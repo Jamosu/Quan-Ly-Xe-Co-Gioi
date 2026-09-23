@@ -12,19 +12,6 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
-  // Auto-synchronize database schema on startup to ensure all columns/tables match
-  try {
-    const { execSync } = require('child_process');
-    console.log('🔄 [Startup] Auto-syncing database schema with Prisma (db push)...');
-    execSync('npx prisma db push --accept-data-loss --skip-generate', {
-      stdio: 'inherit',
-      env: process.env,
-    });
-    console.log('✅ [Startup] Database schema synchronized.');
-  } catch (err: any) {
-    console.warn('⚠️ [Startup] Auto-sync schema warning:', err?.message);
-  }
-
   const app = await NestFactory.create(AppModule);
 
   // Increase payload size limit for large catalog bulk-sync and Excel imports (>500MB)

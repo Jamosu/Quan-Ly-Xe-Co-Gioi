@@ -57,7 +57,7 @@ ALTER TABLE `alert_events`
   FOREIGN KEY (`managementUnitId`) REFERENCES `driver_management_units`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Backfill only exact, unique catalog mappings. Ambiguous rows remain NULL for reconciliation.
-INSERT INTO `driver_management_units`
+INSERT IGNORE INTO `driver_management_units`
   (`complexCode`, `code`, `name`, `level`, `unitType`, `status`, `createdAt`, `updatedAt`)
 SELECT
   COALESCE(NULLIF(TRIM(c.`parentCode`), ''), 'KOUN_MOM'),

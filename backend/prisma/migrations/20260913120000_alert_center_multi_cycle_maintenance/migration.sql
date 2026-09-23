@@ -161,15 +161,18 @@ ALTER TABLE `maintenance_records`
   ADD INDEX `maintenance_records_occurrenceId_idx`(`occurrenceId`);
 
 ALTER TABLE `repair_tickets`
-  DROP FOREIGN KEY `repair_tickets_vehicleId_fkey`,
+  DROP FOREIGN KEY `repair_tickets_vehicleId_fkey`;
+
+ALTER TABLE `repair_tickets`
   MODIFY `vehicleId` INTEGER NULL,
   ADD COLUMN `implementId` INTEGER NULL,
   ADD COLUMN `incidentPhotoUrl` TEXT NULL,
   ADD COLUMN `incidentLocation` VARCHAR(191) NULL,
-  ADD INDEX `repair_tickets_implementId_idx`(`implementId`),
+  ADD INDEX `repair_tickets_implementId_idx`(`implementId`);
+
+ALTER TABLE `repair_tickets`
   ADD CONSTRAINT `repair_tickets_vehicleId_fkey` FOREIGN KEY (`vehicleId`) REFERENCES `vehicles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  ADD CONSTRAINT `repair_tickets_implementId_fkey` FOREIGN KEY (`implementId`) REFERENCES `agricultural_implements`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  ADD CONSTRAINT `repair_tickets_exactly_one_asset_chk` CHECK ((`vehicleId` IS NULL) <> (`implementId` IS NULL));
+  ADD CONSTRAINT `repair_tickets_implementId_fkey` FOREIGN KEY (`implementId`) REFERENCES `agricultural_implements`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE `maintenance_standards`
   ADD CONSTRAINT `maintenance_standards_vehicleTypeId_fkey` FOREIGN KEY (`vehicleTypeId`) REFERENCES `vehicle_types`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
