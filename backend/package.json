@@ -11,7 +11,7 @@
     "start": "nest start",
     "dev": "node scripts/dev-server.js --marker=thaco-agri-backend-dev",
     "start:debug": "node scripts/dev-server.js --debug --marker=thaco-agri-backend-dev",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node scripts/start-prod.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
