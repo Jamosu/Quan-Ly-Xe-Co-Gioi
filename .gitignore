@@ -32,6 +32,10 @@ generate_image_only_pdf.js
 *.xlsx
 *.xls
 *.csv
+~$*
+*.~*
+*.tmp
+*.bak
 *.sql
 !database/production_data_dump.sql
 !backend/prisma/production_data_dump.sql
