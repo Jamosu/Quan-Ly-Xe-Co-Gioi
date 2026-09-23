@@ -151,7 +151,7 @@ export const LoginPage: React.FC = () => {
       const matchedWeb = WEB_ACCOUNTS.find(
         (a) =>
           a.username.toLowerCase() === cleanUser &&
-          (loginPass === '123' || loginPass === '123456')
+          (loginPass === 'Thaco@1234$' || loginPass === '123' || loginPass === '123456')
       );
 
       if (

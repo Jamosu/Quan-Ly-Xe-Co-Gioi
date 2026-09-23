@@ -5,6 +5,8 @@ export interface AlertItem {
   severity: 'CRITICAL' | 'WARNING' | 'INFO';
   category?: string;
   alertType?: string;
+  sourceType?: string;
+  sourceId?: string;
   status?: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED';
   isRead?: boolean;
   readAt?: string | Date | null;

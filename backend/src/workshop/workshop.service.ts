@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,9 +15,24 @@ import {
   SosEmergencyType,
   AlertCategory,
   AlertSeverity,
+  AlertStatus,
+  DispatchSourceType,
+  DispatchStatus,
+  DriverEmploymentStatus,
+  DriverKpiEventType,
+  DriverShiftStatus,
+  OperationalEntityType,
   RepairTier,
+  Role,
   TechnicalCondition,
   VehicleStatus,
+  VehicleOperationalDomain,
+  WorkAssignmentMode,
+  WorkAssignmentStatus,
+  WorkOrderCategory,
+  WorkOrderStatus,
+  WorkOrderType,
+  WorkPriority,
   WorkshopDocumentType,
   WorkshopRepairRoute,
   WorkshopRequestSource,
@@ -30,6 +46,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   ConfirmWorkshopCandidatesDto,
   CreateWorkshopRequestDto,
+  DispatchSosRescueDto,
   UpdateWorkshopDocumentDto,
   UpdateWorkshopRequestDto,
   WorkshopAssetType,
@@ -210,8 +227,13 @@ export class WorkshopService {
     const existing = await this.prisma.workshopRequest.findFirst({ where: { vehicleId: dto.vehicleId, type: WorkshopRequestType.REPAIR, status: { notIn: TERMINAL_STATUSES } } });
     if (existing) throw new ConflictException(`Xe đang có yêu cầu sửa chữa ${existing.code}.`);
     const result = await this.prisma.$transaction(async (tx) => {
+      const activeSession = await tx.workExecutionSegment.findFirst({
+        where: { driverId, vehicleId: dto.vehicleId, status: { not: 'ENDED' } },
+        orderBy: { startedAt: 'desc' },
+        select: { id: true, workOrderId: true },
+      });
       const alert = await tx.driverSosAlert.create({
-        data: { driverId, vehicleId: dto.vehicleId, lat: dto.lat, lng: dto.lng, lotLocation: dto.lotLocation, emergencyType: dto.emergencyType, photoUrl: dto.photoUrl, description: dto.description, status: SosStatus.PENDING },
+        data: { driverId, vehicleId: dto.vehicleId, workOrderId: activeSession?.workOrderId, workSessionId: activeSession?.id, lat: dto.lat, lng: dto.lng, lotLocation: dto.lotLocation, emergencyType: dto.emergencyType, photoUrl: dto.photoUrl, description: dto.description, status: SosStatus.PENDING },
         include: { driver: { select: { id: true, fullName: true, phone: true } }, vehicle: { select: { id: true, code: true, plate: true, name: true, unit: true, complexCode: true } } },
       });
       const request = await tx.workshopRequest.create({
@@ -229,11 +251,241 @@ export class WorkshopService {
     await this.alerts.emit({
       ruleCode: 'SOS_EMERGENCY', dedupeKey: `SOS:${result.alert.id}`, sourceType: 'DriverSosAlert', sourceId: String(result.alert.id),
       category: AlertCategory.SOS, alertType: dto.emergencyType, severity: AlertSeverity.CRITICAL, title: `SOS ${result.alert.vehicle.plate || result.alert.vehicle.code}: ${dto.emergencyType}`,
-      message: dto.description, location: dto.lotLocation, targetUrl: `/doi-xe/quan-li-sos?alertId=${result.alert.id}`,
+      message: dto.description, location: dto.lotLocation, targetUrl: `/gps/realtime?sosId=${result.alert.id}`,
       vehicleId: dto.vehicleId, driverId, unit: result.alert.vehicle.unit, complexCode: result.alert.vehicle.complexCode,
       metadataJson: { photoUrl: dto.photoUrl || null, lat: dto.lat, lng: dto.lng, workshopRequestId: result.request.id },
     });
     return { message: 'Đã phát tín hiệu SOS và tạo yêu cầu sửa chữa cho Xưởng BTSC.', alert: result.alert, repairTicketCode: result.request.code, workshopRequestId: result.request.id };
+  }
+
+  private assertSosAccess(actor: OperationalActor, sos: { driverId: number; vehicle: { unit: any } }) {
+    if (actor.role === Role.DRIVER) {
+      if (actor.id !== sos.driverId) throw new ForbiddenException('Tài xế chỉ được xem tín hiệu SOS của chính mình.');
+      return;
+    }
+    scopedUnit(actor, sos.vehicle.unit);
+  }
+
+  private sosWithRescueContext(id: number) {
+    return this.prisma.driverSosAlert.findUnique({
+      where: { id },
+      include: {
+        driver: { select: { id: true, fullName: true, phone: true } },
+        vehicle: {
+          select: {
+            id: true, code: true, plate: true, name: true, unit: true, complexCode: true,
+            currentLat: true, currentLng: true, currentLocationName: true, lastGpsUpdate: true,
+          },
+        },
+        rescueDispatchOrder: {
+          include: {
+            vehicle: { select: { id: true, code: true, plate: true, name: true, currentLat: true, currentLng: true, currentLocationName: true, lastGpsUpdate: true } },
+            driver: { select: { id: true, fullName: true, phone: true } },
+            operationalWorkOrder: { select: { id: true, status: true, priority: true, plannedStartAt: true, plannedEndAt: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async getSosRescueContext(id: number, actor: OperationalActor) {
+    const sos = await this.sosWithRescueContext(id);
+    if (!sos) throw new NotFoundException(`Không tìm thấy SOS #${id}.`);
+    this.assertSosAccess(actor, sos);
+
+    const now = new Date();
+    const activeStatuses = [WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED];
+    const candidateVehicles = await this.prisma.vehicle.findMany({
+      where: {
+        isRescueCapable: true,
+        complexCode: sos.vehicle.complexCode,
+        status: { in: [VehicleStatus.CHO_PHAN_CONG, VehicleStatus.HOAT_DONG] },
+        workAssignments: {
+          none: {
+            status: { in: activeStatuses },
+            startAt: { lte: now },
+            OR: [{ endAt: null }, { endAt: { gt: now } }],
+          },
+        },
+      },
+      select: {
+        id: true, code: true, plate: true, name: true, unit: true, status: true, currentLat: true, currentLng: true,
+        currentLocationName: true, lastGpsUpdate: true,
+        defaultDriver: { select: { id: true, fullName: true, phone: true, currentShiftStatus: true } },
+      },
+      orderBy: [{ status: 'asc' }, { code: 'asc' }],
+    });
+    const candidateUnits = Array.from(new Set(candidateVehicles.map((vehicle) => vehicle.unit)));
+    const candidateDrivers = candidateUnits.length
+      ? await this.prisma.user.findMany({
+          where: {
+            role: Role.DRIVER,
+            unit: { in: candidateUnits },
+            isActive: true,
+            employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
+            currentShiftStatus: DriverShiftStatus.SAN_SANG,
+            driverProfile: {
+              is: {
+                licenseExpiryDate: { gte: now },
+                healthCheckExpiryDate: { gte: now },
+                workAssignments: {
+                  none: {
+                    status: { in: activeStatuses },
+                    startAt: { lte: now },
+                    OR: [{ endAt: null }, { endAt: { gt: now } }],
+                  },
+                },
+              },
+            },
+          },
+          select: { id: true, code: true, fullName: true, phone: true, unit: true, currentShiftStatus: true },
+          orderBy: { fullName: 'asc' },
+        })
+      : [];
+
+    return {
+      sos: {
+        id: sos.id,
+        status: sos.status,
+        emergencyType: sos.emergencyType,
+        description: sos.description,
+        lotLocation: sos.lotLocation,
+        lat: sos.lat,
+        lng: sos.lng,
+        createdAt: sos.createdAt,
+        driver: sos.driver,
+      },
+      incidentVehicle: sos.vehicle,
+      rescueOrder: sos.rescueDispatchOrder,
+      candidateVehicles,
+      candidateDrivers,
+      serverTime: now,
+    };
+  }
+
+  async dispatchSosRescue(id: number, dto: DispatchSosRescueDto, actor: OperationalActor) {
+    const now = new Date();
+    if (dto.plannedEndTime <= now) throw new BadRequestException('Thời gian dự kiến kết thúc phải sau thời điểm hiện tại.');
+
+    await this.prisma.$transaction(async (tx) => {
+      const sos = await tx.driverSosAlert.findUnique({
+        where: { id },
+        include: { vehicle: true, rescueDispatchOrder: { select: { id: true, code: true } } },
+      });
+      if (!sos) throw new NotFoundException(`Không tìm thấy SOS #${id}.`);
+      this.assertSosAccess(actor, sos);
+      if (sos.status === SosStatus.RESOLVED) throw new ConflictException('SOS đã được giải quyết.');
+      if (sos.rescueDispatchOrder) throw new ConflictException(`SOS đã có lệnh cứu hộ ${sos.rescueDispatchOrder.code}.`);
+
+      const [rescueVehicle, driver] = await Promise.all([
+        tx.vehicle.findUnique({ where: { id: dto.rescueVehicleId } }),
+        tx.user.findUnique({ where: { id: dto.driverId }, include: { driverProfile: true } }),
+      ]);
+      if (!rescueVehicle?.isRescueCapable) throw new BadRequestException('Phương tiện được chọn không phải xe cứu hộ đã được xác nhận.');
+      if (rescueVehicle.id === sos.vehicleId) throw new BadRequestException('Xe cứu hộ phải khác xe đang phát SOS.');
+      if (rescueVehicle.complexCode !== sos.vehicle.complexCode) throw new ForbiddenException('Xe cứu hộ không thuộc cùng Khu liên hợp với sự cố.');
+      const readyVehicleStatuses: VehicleStatus[] = [VehicleStatus.CHO_PHAN_CONG, VehicleStatus.HOAT_DONG];
+      if (!readyVehicleStatuses.includes(rescueVehicle.status)) {
+        throw new ConflictException('Xe cứu hộ không ở trạng thái sẵn sàng điều phối.');
+      }
+      if (!driver || driver.role !== Role.DRIVER || !driver.isActive || driver.employmentStatus !== DriverEmploymentStatus.DANG_LAM_VIEC || !driver.driverProfile) {
+        throw new BadRequestException('Tài xế cứu hộ không hợp lệ hoặc chưa có hồ sơ lái xe.');
+      }
+      if (driver.unit !== rescueVehicle.unit) throw new BadRequestException('Tài xế và xe cứu hộ phải thuộc cùng đơn vị điều phối.');
+      if (!driver.driverProfile.licenseExpiryDate || driver.driverProfile.licenseExpiryDate < now || !driver.driverProfile.healthCheckExpiryDate || driver.driverProfile.healthCheckExpiryDate < now) {
+        throw new BadRequestException('GPLX hoặc hạn khám sức khỏe của tài xế cứu hộ không còn hiệu lực.');
+      }
+      if (driver.currentShiftStatus !== DriverShiftStatus.SAN_SANG) throw new ConflictException('Tài xế đang bận hoặc không sẵn sàng nhận lệnh.');
+
+      const activeStatuses = [WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED];
+      const [busyVehicle, busyDriver] = await Promise.all([
+        tx.workVehicleAssignment.findFirst({
+          where: { vehicleId: rescueVehicle.id, status: { in: activeStatuses }, startAt: { lt: dto.plannedEndTime }, OR: [{ endAt: null }, { endAt: { gt: now } }] },
+          select: { id: true },
+        }),
+        tx.workDriverAssignment.findFirst({
+          where: { driverId: driver.id, status: { in: activeStatuses }, startAt: { lt: dto.plannedEndTime }, OR: [{ endAt: null }, { endAt: { gt: now } }] },
+          select: { id: true },
+        }),
+      ]);
+      if (busyVehicle) throw new ConflictException('Xe cứu hộ đã được phân cho nhiệm vụ khác trong khung giờ này.');
+      if (busyDriver) throw new ConflictException('Tài xế đã được phân cho nhiệm vụ khác trong khung giờ này.');
+
+      const code = `CH-SOS-${String(sos.id).padStart(6, '0')}`;
+      const purpose = `Cứu hộ SOS ${sos.vehicle.plate || sos.vehicle.code}`;
+      const order = await tx.dispatchOrder.create({
+        data: {
+          code,
+          requesterId: actor.id,
+          unit: sos.vehicle.unit,
+          purpose,
+          origin: rescueVehicle.currentLocationName || rescueVehicle.assignedUnitCode || 'Vị trí xe cứu hộ',
+          destination: sos.lotLocation,
+          sourceType: DispatchSourceType.MANUAL_EXCEPTION,
+          operationDomain: VehicleOperationalDomain.SUPPORT,
+          sosAlertId: sos.id,
+          vehicleId: rescueVehicle.id,
+          driverId: driver.id,
+          departureTime: now,
+          plannedEndTime: dto.plannedEndTime,
+          approvedById: actor.id,
+          assignedById: actor.id,
+          submittedAt: now,
+          approvedAt: now,
+          assignedAt: now,
+          status: DispatchStatus.ASSIGNED,
+          notes: `[SOS #${sos.id}] ${sos.description}`,
+        },
+      });
+      const workOrder = await tx.operationalWorkOrder.create({
+        data: {
+          type: WorkOrderType.DISPATCH,
+          unit: sos.vehicle.unit,
+          category: WorkOrderCategory.RESCUE,
+          sourceType: DispatchSourceType.MANUAL_EXCEPTION,
+          assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT,
+          status: WorkOrderStatus.ASSIGNED,
+          plannedStartAt: now,
+          plannedEndAt: dto.plannedEndTime,
+          complexCode: sos.vehicle.complexCode,
+          workLocationText: sos.lotLocation,
+          workLat: sos.lat,
+          workLng: sos.lng,
+          jobName: purpose,
+          jobDescription: sos.description,
+          priority: WorkPriority.URGENT,
+          dispatchOrderId: order.id,
+          createdById: actor.id,
+          approvedById: actor.id,
+          submittedAt: now,
+          approvedAt: now,
+          vehicleAssignments: { create: { vehicleId: rescueVehicle.id, assignedById: actor.id, startAt: now, endAt: dto.plannedEndTime, reason: `Cứu hộ SOS #${sos.id}` } },
+          driverAssignments: { create: { driverId: driver.id, assignedById: actor.id, startAt: now, endAt: dto.plannedEndTime, reason: `Cứu hộ SOS #${sos.id}` } },
+          events: { create: { actorId: actor.id, action: 'SOS_RESCUE_ASSIGNED', newStatus: WorkOrderStatus.ASSIGNED, payload: { sosAlertId: sos.id, vehicleId: rescueVehicle.id, driverId: driver.id } } },
+          kpiEvents: { create: { driverId: driver.id, type: DriverKpiEventType.ASSIGNED, payload: { sosAlertId: sos.id, priority: WorkPriority.URGENT } } },
+        },
+      });
+      await tx.dispatchOrder.update({ where: { id: order.id }, data: { workOrderId: workOrder.id, scheduledStartAt: now, scheduledEndAt: dto.plannedEndTime, reportOpenAt: new Date(dto.plannedEndTime.getTime() - 60 * 60_000), reportDeadlineAt: new Date(dto.plannedEndTime.getTime() + 15 * 60_000) } });
+      await Promise.all([
+        tx.driverSosAlert.update({ where: { id: sos.id }, data: { status: SosStatus.DISPATCHED } }),
+        tx.alertEvent.updateMany({
+          where: { sourceType: 'DriverSosAlert', sourceId: String(sos.id), status: { in: [AlertStatus.OPEN, AlertStatus.IN_PROGRESS] } },
+          data: { status: AlertStatus.IN_PROGRESS, handledById: actor.id, handledAt: now, targetUrl: `/gps/realtime?sosId=${sos.id}` },
+        }),
+        tx.operationalAuditLog.create({
+          data: {
+            entityType: OperationalEntityType.DISPATCH_ORDER,
+            entityId: order.id,
+            actorId: actor.id,
+            action: 'SOS_RESCUE_ASSIGNED',
+            newValue: { status: DispatchStatus.ASSIGNED, sosAlertId: sos.id, workOrderId: workOrder.id, vehicleId: rescueVehicle.id, driverId: driver.id },
+            reason: sos.description,
+          },
+        }),
+      ]);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    return this.getSosRescueContext(id, actor);
   }
 
   async findAll(filter: WorkshopRequestFilterDto, actor: OperationalActor) {

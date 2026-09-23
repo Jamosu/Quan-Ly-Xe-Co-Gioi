@@ -1,4 +1,4 @@
-import { Role, Unit, VehicleStatus, WorkAssignmentStatus, WorkOrderStatus } from '@prisma/client';
+﻿import { Role, Unit, VehicleStatus, WorkAssignmentStatus, WorkOrderStatus } from '@prisma/client';
 import { AvailabilityService } from './availability.service';
 
 describe('AvailabilityService proximity recommendations', () => {
@@ -7,14 +7,14 @@ describe('AvailabilityService proximity recommendations', () => {
 
   const targetOrder = {
     id: 99,
-    unit: Unit.NT1,
+    unit: Unit.KOUN_MOM,
     plannedStartAt,
     dispatchOrder: { destination: 'Lô mới', destinationLocation: { id: 5, name: 'Lô mới', lat: 13.5, lng: 106.8 }, productionOrder: { planItem: { vehicleTypeId: 7 } } },
     transportOrder: null,
   };
 
   const vehicle = (id: number, lng: number) => ({
-    id, code: `XE-${id}`, name: `Xe ${id}`, plate: null, unit: Unit.NT1,
+    id, code: `XE-${id}`, name: `Xe ${id}`, plate: null, unit: Unit.KOUN_MOM,
     status: id === 2 ? VehicleStatus.HOAT_DONG : VehicleStatus.CHO_PHAN_CONG,
     vehicleType: { id: 7, isAssignable: true }, vehicleTypeId: 7,
     gpsImei: null, lastGpsUpdate: null, currentLat: null, currentLng: null,

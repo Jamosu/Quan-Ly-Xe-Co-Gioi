@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, ClipboardCheck, Clock, Timer, Tractor, Truck, UserCheck, Wrench, AlertTriangle, Plus, Trash2, Fuel, Info } from 'lucide-react';
 import { Button } from '../common/Button';
@@ -12,7 +12,7 @@ export type DemoWorkflowStep = 'PENDING' | 'APPROVED' | 'RECEIVED' | 'COMPLETED'
 export interface AssignedTeamMember {
   id: string;
   vehicleCode: string;
-  implementName: string;
+  implementNames: string[];
   driverName: string;
   startTime: string;
   durationHours: number;
@@ -39,6 +39,10 @@ export interface DatabaseVehicle {
     isAssignable?: boolean;
     defaultFuelQuotaRate?: number | null;
   };
+  selection?: {
+    selectable: boolean;
+    reasons: Array<{ code: string; message: string }>;
+  };
 }
 
 interface DatabaseDriver {
@@ -61,6 +65,10 @@ interface DatabaseImplement {
   unit?: string;
   usageMode?: 'ATTACHABLE' | 'STANDALONE' | 'UNCLASSIFIED';
   compatibleVehicleTypes?: Array<{ vehicleTypeId: number }>;
+  selection?: {
+    selectable: boolean;
+    reasons: Array<{ code: string; message: string }>;
+  };
 }
 
 export interface WorkflowActionPanelProps {
@@ -74,6 +82,7 @@ export interface WorkflowActionPanelProps {
   initialDurationHours?: number;
   unit?: string;
   complexCode?: string;
+  managementUnitId?: number;
   estimatedVehiclesCount?: number;
   initialAssignedVehicles?: string[];
   currentOrderId?: number | string;
@@ -94,6 +103,7 @@ export interface WorkflowActionPanelProps {
       vehicle: { id: number; code: string; name: string; fuelQuotaRate?: number; fuelQuotaUnit?: string };
       driver: { id: number; name: string; license: string };
       implement?: { id: number | string; code: string; name: string };
+      implements?: Array<{ id: number | string; code: string; name: string }>;
       schedule?: { startTime: string; endTime: string; durationHours: number };
     }>,
   ) => void | Promise<void>;
@@ -282,6 +292,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
   initialDurationHours = 8,
   unit,
   complexCode,
+  managementUnitId,
   estimatedVehiclesCount,
   initialAssignedVehicles,
   currentOrderId,
@@ -326,34 +337,29 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
   }, [recommendationWorkOrderId, step, loadingResources]);
 
   const vehicles = useMemo<DatabaseVehicle[]>(() => {
-    const list = databaseVehicles.length > 0 ? databaseVehicles : resourceLoadFailed ? (DEMO_FALLBACK_VEHICLES[kind] || DEMO_FALLBACK_VEHICLES.AGRICULTURE) : [];
-    return list.filter((v) => v.status !== 'TAM_DUNG' && (v as any).status !== 'inactive' && (v as any).status !== 'NGUNG_HOAT_DONG');
-  }, [databaseVehicles, kind, resourceLoadFailed]);
+    return databaseVehicles.filter((v) =>
+      v.vehicleType?.operationalDomain === kind &&
+      v.vehicleType?.isAssignable !== false &&
+      v.status !== 'TAM_DUNG' &&
+      (v as any).status !== 'inactive' &&
+      (v as any).status !== 'NGUNG_HOAT_DONG'
+    );
+  }, [databaseVehicles, kind]);
 
   const drivers = useMemo<DatabaseDriver[]>(() => {
-    const list = databaseDrivers.length > 0 ? databaseDrivers : resourceLoadFailed ? (DEMO_FALLBACK_DRIVERS[kind] || DEMO_FALLBACK_DRIVERS.AGRICULTURE).map((item) => ({
-      ...item,
-      id: typeof item.id === 'number' ? item.id : Number(item.id) || 93000,
-    })) : [];
-    return list.filter((d) => (d as any).isActive !== false && d.employmentStatus !== 'DA_NGHI_VIEC' && (d as any).status !== 'inactive');
-  }, [databaseDrivers, kind, resourceLoadFailed]);
+    return databaseDrivers.filter((d) => (d as any).isActive !== false && d.employmentStatus !== 'DA_NGHI_VIEC' && (d as any).status !== 'inactive');
+  }, [databaseDrivers]);
 
   const currentEquipments = useMemo<DatabaseImplement[]>(() => {
-    const list = databaseImplements.length > 0 ? databaseImplements : resourceLoadFailed ? (DEMO_EQUIPMENTS[kind] || DEMO_EQUIPMENTS.AGRICULTURE).map((item) => ({
-      id: typeof item.id === 'number' ? item.id : Number(item.id) || 94000,
-      code: item.code,
-      name: item.name,
-      status: 'IN_DEPOT',
-      technicalCondition: 'GOOD',
-      usageMode: 'ATTACHABLE' as const,
-      compatibleVehicleTypes: [{ vehicleTypeId: 12 }, { vehicleTypeId: 13 }, { vehicleTypeId: 3 }, { vehicleTypeId: 6 }, { vehicleTypeId: 7 }, { vehicleTypeId: 9 }, { vehicleTypeId: 1 }, { vehicleTypeId: 21 }],
-    })) : [];
-    return list.filter((eq) => eq.status !== 'TAM_DUNG' && (eq as any).status !== 'inactive' && (eq as any).status !== 'NGUNG_HOAT_DONG');
-  }, [databaseImplements, kind, resourceLoadFailed]);
+    return databaseImplements.filter((eq) => eq.status !== 'TAM_DUNG' && (eq as any).status !== 'inactive' && (eq as any).status !== 'NGUNG_HOAT_DONG');
+  }, [databaseImplements]);
 
   // Fetch availability từ API thực tế khi startTime hoặc durationHours thay đổi
-  const fetchAvailabilityForSchedule = useCallback(async (startIso: string, durationH: number) => {
-    if (!startIso || durationH <= 0) return;
+  const fetchAvailabilityForSchedule = useCallback(async (startIso: string, durationH: number, vehicleId?: number) => {
+    if (!startIso || durationH <= 0 || !managementUnitId) {
+      setResourceLoadFailed(true);
+      return;
+    }
     const startDate = new Date(startIso);
     if (Number.isNaN(startDate.getTime())) return;
     const endDate = new Date(startDate.getTime() + durationH * 3_600_000);
@@ -364,12 +370,14 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
     setResourceLoadFailed(false);
     try {
       const data = await schedulingApi.preparationContext({
+        managementUnitId,
         category: kind,
-        unit: unit || 'NT1',
+        unit: unit || 'KOUN_MOM',
         complexCode: complexCode || 'KOUN_MOM',
         startAt: startDate.toISOString(),
         endAt: endDate.toISOString(),
         excludeWorkOrderId: recommendationWorkOrderId,
+        vehicleId,
       });
       const vMap: AvailabilityMap = {};
       const dMap: AvailabilityMap = {};
@@ -390,12 +398,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
         setLoadingResources(false);
       }
     }
-  }, [kind, unit, complexCode, recommendationWorkOrderId]);
-
-  // Đơn lẻ cho Công trình & Vận chuyển: Ban đầu TRỐNG khi đang phân công (step === 'PENDING')
-  const [selectedVehicle, setSelectedVehicle] = useState(step === 'PENDING' ? '' : (vehicleCode || ''));
-  const [selectedDriver, setSelectedDriver] = useState(step === 'PENDING' ? '' : (driverName || ''));
-  const [selectedImplement, setSelectedImplement] = useState(step === 'PENDING' ? '' : (implementName || ''));
+  }, [kind, unit, complexCode, managementUnitId, recommendationWorkOrderId]);
 
   // Phân công phương tiện và thợ máy: Đúng 1 xe duy nhất cho mỗi lệnh điều xe
   const [assignedTeam, setAssignedTeam] = useState<AssignedTeamMember[]>(() => {
@@ -404,15 +407,12 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
     return [{
       id: `team-${Date.now()}-0`,
       vehicleCode: step === 'PENDING' ? '' : (vehicleCode || initialAssignedVehicles?.[0] || ''),
-      implementName: step === 'PENDING' ? '' : (implementName || ''),
+      implementNames: step === 'PENDING' || !implementName ? [] : [implementName],
       driverName: step === 'PENDING' ? '' : (driverName || ''),
       startTime: defaultStart,
       durationHours: defaultDur,
     }];
   });
-
-  const [startTime, setStartTime] = useState(step === 'PENDING' ? toLocalDateTimeInput() : toLocalDateTimeInput(initialStartTime));
-  const [durationHours, setDurationHours] = useState(initialDurationHours || (kind === 'CONSTRUCTION' ? 7.5 : 8));
 
   const lastOrderIdRef = useRef(currentOrderId);
   const lastStepRef = useRef(step);
@@ -426,38 +426,34 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
       lastOrderIdRef.current = currentOrderId;
       lastStepRef.current = step;
 
-      setSelectedVehicle(step === 'PENDING' ? (vehicleCode || '') : (vehicleCode || ''));
-      setSelectedDriver(step === 'PENDING' ? (driverName || '') : (driverName || ''));
-      setSelectedImplement(step === 'PENDING' ? (implementName || '') : (implementName || ''));
-
       const defaultStart = step === 'PENDING' ? toLocalDateTimeInput() : toLocalDateTimeInput(initialStartTime);
       const defaultDur = initialDurationHours || 8;
       setAssignedTeam([{
         id: `team-${currentOrderId || Date.now()}-0`,
         vehicleCode: vehicleCode || initialAssignedVehicles?.[0] || '',
-        implementName: implementName || '',
+        implementNames: implementName ? [implementName] : [],
         driverName: driverName || '',
         startTime: defaultStart,
         durationHours: defaultDur,
       }]);
-      setStartTime(defaultStart);
-      setDurationHours(initialDurationHours || (kind === 'CONSTRUCTION' ? 7.5 : 8));
     }
   }, [currentOrderId, step, vehicleCode, driverName, implementName, estimatedVehiclesCount, initialAssignedVehicles, initialStartTime, initialDurationHours, kind]);
 
   // Lần mở đầu tải ngay; chỉ debounce các lần người dùng thay đổi khung giờ.
   useEffect(() => {
-    const scheduleStart = kind === 'AGRICULTURE' ? assignedTeam[0]?.startTime : startTime;
-    const scheduleDuration = kind === 'AGRICULTURE' ? assignedTeam[0]?.durationHours : durationHours;
+    const scheduleStart = assignedTeam[0]?.startTime;
+    const scheduleDuration = assignedTeam[0]?.durationHours;
+    const scheduleVehicleCode = assignedTeam[0]?.vehicleCode;
+    const scheduleVehicleId = vehicles.find((item) => item.code === scheduleVehicleCode || item.plate === scheduleVehicleCode)?.id;
     if (step !== 'PENDING' || !scheduleStart || !scheduleDuration || scheduleDuration <= 0) return;
     if (firstAvailabilityLoadRef.current) {
       firstAvailabilityLoadRef.current = false;
-      void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration);
+      void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration, scheduleVehicleId);
       return;
     }
-    const timer = setTimeout(() => void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration), 250);
+    const timer = setTimeout(() => void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration, scheduleVehicleId), 250);
     return () => clearTimeout(timer);
-  }, [startTime, durationHours, assignedTeam, kind, step, fetchAvailabilityForSchedule]);
+  }, [assignedTeam, step, vehicles, fetchAvailabilityForSchedule]);
 
   // Helper lấy danh sách toàn bộ các lệnh đang có (từ props, API và localStorage)
   const getAllOrdersList = useCallback(() => {
@@ -767,13 +763,14 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
 
     return currentEquipments
       .filter((item) => item.usageMode === 'ATTACHABLE')
+      .filter((item) => !item.selection?.reasons.some((reason) => reason.code === 'IMPLEMENT_CATEGORY_MISMATCH'))
       .filter((item) => item.compatibleVehicleTypes?.some((compatibility) => compatibility.vehicleTypeId === vehicleTypeId))
       .map((item) => {
         // 1. Kiểm tra xem phụ kiện đã được gắn ở xe khác trong ca hay chưa
         const otherMemberIndex = assignedTeam.findIndex(
           (m, idx) =>
             idx !== currentMemberIndex &&
-            (m.implementName?.trim() === item.name.trim() || m.implementName?.trim() === item.code.trim())
+            m.implementNames.some((name) => name.trim() === item.name.trim() || name.trim() === item.code.trim())
         );
         if (otherMemberIndex !== -1) {
           const otherMemberNum = otherMemberIndex + 1;
@@ -787,13 +784,15 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
 
         // 2. Kiểm tra phụ kiện đang trong lệnh khác chưa được nghiệm thu hoặc bảo dưỡng
         const conflict = getConflictingImplement(item.name, scheduleStart, scheduleDuration);
-        const unavailable = item.status === 'MAINTENANCE' || (item.technicalCondition && item.technicalCondition !== 'GOOD');
+        const selectionReasons = item.selection?.reasons ?? [];
+        const unavailable = item.selection?.selectable === false || item.status === 'MAINTENANCE' || (item.technicalCondition && item.technicalCondition !== 'GOOD');
         if (conflict || unavailable) {
+          const reason = selectionReasons.map((item) => item.message).join('; ');
           return {
             value: item.name,
-            label: `🔴 ${item.code} — ${item.name} [${conflict ? conflict.reason : 'Đang bảo dưỡng/Không đủ điều kiện'}]`,
+            label: `🔴 ${item.code} — ${item.name} [${conflict ? conflict.reason : reason || 'Đang bảo dưỡng/Không đủ điều kiện'}]`,
             disabled: true,
-            title: conflict ? conflict.reason : 'Nông cụ không đủ điều kiện vận hành.',
+            title: conflict ? conflict.reason : reason || 'Nông cụ không đủ điều kiện vận hành.',
           };
         }
 
@@ -908,14 +907,16 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
     return apiResult ? !apiResult.available : Boolean(getConflictingDriver(name, scheduleStart, scheduleDuration));
   };
 
-  const selectedImplementBlocked = (value: string, scheduleStart: string, scheduleDuration: number) => {
-    if (!value) return false;
-    const resource = currentEquipments.find((item) => item.name === value || item.code === value);
-    return Boolean(
-      getConflictingImplement(value, scheduleStart, scheduleDuration) ||
-      resource?.status === 'MAINTENANCE' ||
-      (resource?.technicalCondition && resource.technicalCondition !== 'GOOD'),
-    );
+  const selectedImplementsBlocked = (values: string[], scheduleStart: string, scheduleDuration: number) => {
+    return values.some((value) => {
+      const resource = currentEquipments.find((item) => item.name === value || item.code === value);
+      return Boolean(
+        getConflictingImplement(value, scheduleStart, scheduleDuration) ||
+        resource?.selection?.selectable === false ||
+        resource?.status === 'MAINTENANCE' ||
+        (resource?.technicalCondition && resource.technicalCondition !== 'GOOD'),
+      );
+    });
   };
 
   // Cập nhật thông tin phân công xe (xe, nông cụ, thợ lái, giờ bắt đầu, số giờ ca)
@@ -926,11 +927,29 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
         next[0] = {
           ...next[0],
           [field]: value,
-          ...(field === 'vehicleCode' ? { implementName: '' } : {}),
+          ...(field === 'driverName' ? { vehicleCode: '', implementNames: [] } : {}),
+          ...(field === 'vehicleCode' ? { implementNames: [] } : {}),
         };
       }
       return next;
     });
+  };
+
+  const addImplement = (index: number, value: string) => {
+    if (!value) return;
+    setAssignedTeam((prev) => prev.map((member, memberIndex) =>
+      memberIndex === index && !member.implementNames.includes(value)
+        ? { ...member, implementNames: [...member.implementNames, value] }
+        : member
+    ));
+  };
+
+  const removeImplement = (index: number, value: string) => {
+    setAssignedTeam((prev) => prev.map((member, memberIndex) =>
+      memberIndex === index
+        ? { ...member, implementNames: member.implementNames.filter((name) => name !== value) }
+        : member
+    ));
   };
 
   const calculateEndTimeFormatted = (startIso: string, hours: number) => {
@@ -986,17 +1005,20 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
     const teamList = assignedTeam.map((m, idx) => {
       const v = vehicles.find((item) => item.code === m.vehicleCode) || { id: 95000 + idx, code: m.vehicleCode, name: m.vehicleCode };
       const d = drivers.find((item) => item.fullName === m.driverName) || { id: 93000 + idx, fullName: m.driverName, licenseClass: 'Chứng chỉ thợ máy' };
-      const imp = currentEquipments.find((item) => item.name === m.implementName || item.code === m.implementName);
+      const implementsList = m.implementNames
+        .map((name) => currentEquipments.find((item) => item.name === name || item.code === name))
+        .filter((item): item is DatabaseImplement => Boolean(item));
       const vRate = getVehicleFuelQuotaRate(v, kind);
 
-      const mStart = new Date(m.startTime || startTime);
+      const mStart = new Date(m.startTime);
       const mDur = Number(m.durationHours) || 8;
       const mEnd = new Date(mStart.getTime() + mDur * 3600000);
 
       return {
         vehicle: { id: v.id, code: v.code, name: v.name, fuelQuotaRate: vRate, fuelQuotaUnit: 'L_PER_HOUR' },
         driver: { id: d.id, name: d.fullName, license: d.licenseClass || 'Chứng chỉ nghề' },
-        implement: imp ? { id: imp.id, code: imp.code, name: imp.name } : undefined,
+        implement: implementsList[0] ? { id: implementsList[0].id, code: implementsList[0].code, name: implementsList[0].name } : undefined,
+        implements: implementsList.map((item) => ({ id: item.id, code: item.code, name: item.name })),
         schedule: {
           startTime: mStart.toISOString(),
           endTime: mEnd.toISOString(),
@@ -1042,7 +1064,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
         <div className="space-y-4">
           {recommendationWorkOrderId && <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3">
             <div className="mb-2 flex items-center justify-between"><span className="text-xs font-extrabold text-blue-900">Gợi ý xe đến sớm nhất</span><span className="text-[11px] text-blue-700">{loadingRecommendations ? 'Đang tính ETA...' : `${recommendations.length} xe phù hợp · ${excludedRecommendationCount} xe bị loại`}</span></div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{recommendations.slice(0, 6).map((item) => <button type="button" key={item.vehicle.id} onClick={() => handleUpdateMember(0, 'vehicleCode', item.vehicle.code)} className={`rounded-lg border bg-white p-2 text-left text-xs transition hover:border-blue-500 ${item.feasible ? 'border-blue-100' : 'border-amber-300'}`}><div className="flex items-center justify-between gap-2"><b>{item.vehicle.code}</b><span className={item.availability === 'AVAILABLE_NOW' ? 'text-emerald-700' : 'text-amber-700'}>{item.availability === 'AVAILABLE_NOW' ? 'Đang rảnh' : 'Sắp xong'}</span></div><div className="mt-1 text-slate-600">{item.etaMinutes ? `${item.etaMinutes} phút · ${item.distanceKm ?? '—'} km` : 'Chưa đủ tọa độ'}</div><div className="mt-1 text-[10px] text-slate-500">{item.positionSource === 'VEHICLE_GPS' ? 'GPS xe' : item.positionSource === 'PHOTO_EXIF' ? 'Ảnh EXIF' : item.positionSource === 'HOME_DEPOT' ? 'Theo bãi' : item.positionSource === 'TASK_DESTINATION' ? 'Điểm nhiệm vụ hiện tại' : 'Theo khu vực'} · {item.etaSource === 'ROUTING' ? 'ETA tuyến đường' : item.etaSource === 'HAVERSINE' ? 'ETA ước tính' : 'Chưa có ETA'} · Tin cậy {item.confidence === 'HIGH' ? 'cao' : item.confidence === 'MEDIUM' ? 'vừa' : 'thấp'}</div>{item.warnings[0] && <div className="mt-1 text-[10px] font-semibold text-amber-700">{item.warnings[0]}</div>}</button>)}</div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{recommendations.slice(0, 6).map((item) => <button type="button" key={item.vehicle.id} disabled={!assignedTeam[0]?.driverName} title={!assignedTeam[0]?.driverName ? 'Chọn tài xế trước khi chọn xe' : undefined} onClick={() => handleUpdateMember(0, 'vehicleCode', item.vehicle.code)} className={`rounded-lg border bg-white p-2 text-left text-xs transition hover:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 ${item.feasible ? 'border-blue-100' : 'border-amber-300'}`}><div className="flex items-center justify-between gap-2"><b>{item.vehicle.code}</b><span className={item.availability === 'AVAILABLE_NOW' ? 'text-emerald-700' : 'text-amber-700'}>{item.availability === 'AVAILABLE_NOW' ? 'Đang rảnh' : 'Sắp xong'}</span></div><div className="mt-1 text-slate-600">{item.etaMinutes ? `${item.etaMinutes} phút · ${item.distanceKm ?? '—'} km` : 'Chưa đủ tọa độ'}</div><div className="mt-1 text-[10px] text-slate-500">{item.positionSource === 'VEHICLE_GPS' ? 'GPS xe' : item.positionSource === 'PHOTO_EXIF' ? 'Ảnh EXIF' : item.positionSource === 'HOME_DEPOT' ? 'Theo bãi' : item.positionSource === 'TASK_DESTINATION' ? 'Điểm nhiệm vụ hiện tại' : 'Theo khu vực'} · {item.etaSource === 'ROUTING' ? 'ETA tuyến đường' : item.etaSource === 'HAVERSINE' ? 'ETA ước tính' : 'Chưa có ETA'} · Tin cậy {item.confidence === 'HIGH' ? 'cao' : item.confidence === 'MEDIUM' ? 'vừa' : 'thấp'}</div>{item.warnings[0] && <div className="mt-1 text-[10px] font-semibold text-amber-700">{item.warnings[0]}</div>}</button>)}</div>
           </div>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1087,7 +1109,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
                         Phương tiện phân công
                       </span>
                       {loadingResources && <span className="text-[11px] font-semibold text-blue-700">Đang tải nguồn lực...</span>}
-                      {resourceLoadFailed && <span className="text-[11px] font-semibold text-amber-700">API chậm/lỗi — đang dùng dữ liệu dự phòng</span>}
+                      {resourceLoadFailed && <span className="text-[11px] font-semibold text-rose-700">Không tải được nguồn lực từ hệ thống. Vui lòng thử lại.</span>}
                       {member.vehicleCode && (
                         <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                           {member.vehicleCode}
@@ -1145,82 +1167,14 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* DÒNG 2: LƯỚI 3 CỘT NGANG (XE MÁY | PHỤ KIỆN | THỢ LÁI) */}
+                  {/* DÒNG 2: LƯỚI 3 CỘT NGANG (THỢ LÁI | XE MÁY | PHỤ KIỆN) */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    {/* Cột 1: Chọn Phương tiện / Thiết bị xe máy */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
-                        <span className="flex items-center gap-1">
-                          <Tractor className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>1. Thiết bị xe máy:</span>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80 font-mono" title="Số xe có thể hoạt động / Tổng số xe">
-                            {loadingResources ? '(...)' : `(${availVehiclesCount}/${totalVehiclesCount})`}
-                          </span>
-                        </span>
-                        {member.vehicleCode && (
-                          <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded">
-                            {member.vehicleCode}
-                          </span>
-                        )}
-                      </label>
-                      <SearchableSelect
-                        value={member.vehicleCode}
-                        onChange={(val) => handleUpdateMember(index, 'vehicleCode', val)}
-                        options={vehicleOpts}
-                        disabled={loadingResources}
-                        allowCustomInput={false}
-                        placeholder={loadingResources ? 'Đang tải danh sách xe...' : '-- Chọn xe máy --'}
-                        heightClass="h-9"
-                        roundedClass="rounded-lg"
-                        bgClass="bg-white"
-                        className="w-full"
-                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
-                        emptyOptionLabel="-- Chọn xe máy --"
-                        emptyValue=""
-                      />
-                    </div>
-
-                    {/* Cột 2: Chọn Phụ kiện / Đầu công tác gắn kèm */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
-                        <span className="flex items-center gap-1">
-                          <Wrench className="h-3.5 w-3.5 text-blue-600" />
-                          <span>2. Phụ kiện gắn kèm:</span>
-                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 font-mono" title="Số phụ kiện có thể gắn / Tổng số phụ kiện">
-                            {loadingResources ? '(...)' : `(${availImplementsCount}/${totalImplementsCount})`}
-                          </span>
-                        </span>
-                        {getSelectedVehicle(member.vehicleCode) && (
-                          <Link
-                            to={buildAttachedEquipmentUrl(getSelectedVehicle(member.vehicleCode)?.id || '')}
-                            className="text-[10px] font-semibold text-blue-700 hover:underline"
-                          >
-                            Đang gắn ➔
-                          </Link>
-                        )}
-                      </label>
-                      <SearchableSelect
-                        value={member.implementName}
-                        onChange={(val) => handleUpdateMember(index, 'implementName', val)}
-                        options={implementOpts}
-                        disabled={!member.vehicleCode || getImplementRequirement(member.vehicleCode) === 'NONE'}
-                        placeholder="-- Chọn phụ kiện / moóc --"
-                        heightClass="h-9"
-                        roundedClass="rounded-lg"
-                        bgClass="bg-white"
-                        className="w-full"
-                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
-                        emptyOptionLabel="-- Chọn phụ kiện / moóc --"
-                        emptyValue=""
-                      />
-                    </div>
-
-                    {/* Cột 3: Chọn Thợ máy vận hành / Lái xe */}
+                    {/* Cột 1: Chọn Thợ máy vận hành / Lái xe */}
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
                         <span className="flex items-center gap-1">
                           <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
-                          <span>3. Thợ máy / Lái xe:</span>
+                          <span>1. Thợ máy / Lái xe:</span>
                           <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200/80 font-mono" title="Số thợ máy/lái xe sẵn sàng / Tổng số thợ máy đủ điều kiện">
                             {loadingResources ? '(...)' : `(${availDriversCount}/${totalDriversCount})`}
                           </span>
@@ -1246,6 +1200,88 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
                         emptyOptionLabel="-- Chọn thợ máy / lái xe --"
                         emptyValue=""
                       />
+                    </div>
+
+                    {/* Cột 2: Chọn Phương tiện / Thiết bị xe máy */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Tractor className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>2. Thiết bị xe máy:</span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80 font-mono" title="Số xe đúng nhóm có thể hoạt động / Tổng số xe đúng nhóm">
+                            {loadingResources ? '(...)' : `(${availVehiclesCount}/${totalVehiclesCount})`}
+                          </span>
+                        </span>
+                        {member.vehicleCode && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded">
+                            {member.vehicleCode}
+                          </span>
+                        )}
+                      </label>
+                      <SearchableSelect
+                        value={member.vehicleCode}
+                        onChange={(val) => handleUpdateMember(index, 'vehicleCode', val)}
+                        options={vehicleOpts}
+                        disabled={loadingResources || !member.driverName}
+                        allowCustomInput={false}
+                        placeholder={!member.driverName ? '-- Chọn tài xế trước --' : '-- Chọn xe máy --'}
+                        heightClass="h-9"
+                        roundedClass="rounded-lg"
+                        bgClass="bg-white"
+                        className="w-full"
+                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
+                        emptyOptionLabel="-- Chọn xe máy --"
+                        emptyValue=""
+                      />
+                    </div>
+
+                    {/* Cột 3: Chọn nhiều Phụ kiện / Đầu công tác gắn kèm */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                          <span>3. Phụ kiện gắn kèm:</span>
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 font-mono" title="Số phụ kiện đúng nhóm và tương thích / Tổng số phụ kiện tương thích">
+                            {loadingResources ? '(...)' : `(${availImplementsCount}/${totalImplementsCount})`}
+                          </span>
+                        </span>
+                        {member.implementNames.length > 0 ? (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 rounded">
+                            Đã chọn {member.implementNames.length}
+                          </span>
+                        ) : getSelectedVehicle(member.vehicleCode) ? (
+                          <Link to={buildAttachedEquipmentUrl(getSelectedVehicle(member.vehicleCode)?.id || '')} className="text-[10px] font-semibold text-blue-700 hover:underline">
+                            Đang gắn ➔
+                          </Link>
+                        ) : null}
+                      </label>
+                      <SearchableSelect
+                        value=""
+                        onChange={(val) => addImplement(index, val)}
+                        options={implementOpts.filter((option) => !member.implementNames.includes(option.value))}
+                        disabled={!member.vehicleCode || getImplementRequirement(member.vehicleCode) === 'NONE'}
+                        placeholder={!member.vehicleCode ? '-- Chọn xe trước --' : member.implementNames.length ? '+ Chọn thêm thiết bị...' : '-- Chọn phụ kiện / moóc --'}
+                        heightClass="h-9"
+                        roundedClass="rounded-lg"
+                        bgClass="bg-white"
+                        className="w-full"
+                        inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
+                        emptyOptionLabel={member.implementNames.length ? '+ Chọn thêm thiết bị...' : '-- Chọn phụ kiện / moóc --'}
+                        emptyValue=""
+                      />
+                      {member.implementNames.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {member.implementNames.map((name) => {
+                            const item = currentEquipments.find((equipment) => equipment.name === name || equipment.code === name);
+                            return (
+                              <span key={name} className="inline-flex max-w-full items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-900">
+                                <span className="truncate">{item ? `${item.code} — ${item.name}` : name}</span>
+                                <button type="button" onClick={() => removeImplement(index, name)} className="text-slate-400 hover:text-rose-600" title="Bỏ thiết bị">×</button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1302,7 +1338,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
                 disabled={
                   loadingResources || fetchingAvailability || approving ||
                   assignedTeam.length === 0 ||
-                  assignedTeam.some((m) => !m.vehicleCode || !m.driverName || !m.startTime || m.durationHours <= 0 || (getImplementRequirement(m.vehicleCode) === 'REQUIRED' && !m.implementName) || selectedVehicleBlocked(m.vehicleCode, m.startTime, m.durationHours) || selectedDriverBlocked(m.driverName, m.startTime, m.durationHours) || selectedImplementBlocked(m.implementName, m.startTime, m.durationHours))
+                  assignedTeam.some((m) => !m.vehicleCode || !m.driverName || !m.startTime || m.durationHours <= 0 || (getImplementRequirement(m.vehicleCode) === 'REQUIRED' && m.implementNames.length === 0) || selectedVehicleBlocked(m.vehicleCode, m.startTime, m.durationHours) || selectedDriverBlocked(m.driverName, m.startTime, m.durationHours) || selectedImplementsBlocked(m.implementNames, m.startTime, m.durationHours))
                 }
                 icon={<ClipboardCheck className="h-4 w-4" />}
                 className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-2xs cursor-pointer"

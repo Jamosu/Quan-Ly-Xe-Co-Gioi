@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { DataTable, Column } from '../../components/data-display/DataTable';
 import { Button } from '../../components/common/Button';
@@ -27,7 +28,12 @@ import {
   WifiOff,
   Power,
   UserX,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
+
+type UserRoleCategory = 'ADMIN' | 'GENERAL_MANAGER' | 'MANAGER' | 'DRIVER';
 
 export interface SystemUserRecord {
   id: string;
@@ -37,7 +43,7 @@ export interface SystemUserRecord {
   fullName: string;
   phone: string;
   enterpriseEmail: string;
-  roleCategory: 'ADMIN' | 'MANAGER' | 'DRIVER';
+  roleCategory: UserRoleCategory;
   rawRole: string;
   roleName: string;
   workUnit: string;
@@ -216,17 +222,63 @@ export const UsersManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState<'ALL' | 'ADMIN' | 'MANAGER' | 'DRIVER'>('ALL');
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<'ALL' | UserRoleCategory>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'ONLINE' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [selectedKlhFilter, setSelectedKlhFilter] = useState<'ALL' | 'KM' | 'SN' | 'NL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Password update state
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordUpdateMsg, setPasswordUpdateMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleCloseDetailModal = () => {
+    setSelectedUser(null);
+    setNewPassword('');
+    setShowPassword(false);
+    setPasswordUpdateMsg(null);
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    if (!newPassword.trim() || newPassword.length < 3) {
+      setPasswordUpdateMsg({ type: 'error', text: 'Mật khẩu mới phải có ít nhất 3 ký tự.' });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    setPasswordUpdateMsg(null);
+    try {
+      if (selectedUser.rawId) {
+        await apiClient.patch(`/users/${selectedUser.rawId}`, {
+          password: newPassword,
+        });
+      }
+      setPasswordUpdateMsg({
+        type: 'success',
+        text: `Đã cập nhật mật khẩu mới thành công cho tài khoản "${selectedUser.username}".`,
+      });
+      setNewPassword('');
+    } catch (err: any) {
+      console.error('Lỗi khi cập nhật mật khẩu:', err);
+      const msg = err?.response?.data?.message || 'Không thể cập nhật mật khẩu. Vui lòng thử lại.';
+      setPasswordUpdateMsg({
+        type: 'error',
+        text: Array.isArray(msg) ? msg.join(', ') : msg,
+      });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   // Add user modal state
   const [newUser, setNewUser] = useState({
     username: '',
     fullName: '',
     phone: '',
-    roleCategory: 'DRIVER' as 'ADMIN' | 'MANAGER' | 'DRIVER',
+    roleCategory: 'DRIVER' as UserRoleCategory,
     klh: 'KLH Koun Mom' as 'KLH Koun Mom' | 'KLH Snoul' | 'KLH Nam Lào',
     workUnit: 'Nông trường 1',
     password: '123',
@@ -236,20 +288,22 @@ export const UsersManagementPage: React.FC = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/users', { params: { limit: 100 } });
+      const res = await apiClient.get('/users', { params: { limit: 500 } });
       const items = res.data?.data || res.data?.items || (Array.isArray(res.data) ? res.data : []);
       if (Array.isArray(items) && items.length > 0) {
         const mapped: SystemUserRecord[] = items.map((u: any) => {
           const role = String(u.role || '').toUpperCase();
-          let roleCategory: 'ADMIN' | 'MANAGER' | 'DRIVER' = 'DRIVER';
+          let roleCategory: UserRoleCategory = 'DRIVER';
           let roleName = 'Tài xế cơ giới';
 
           if (role === 'SUPER_ADMIN' || u.username === 'admin') {
             roleCategory = 'ADMIN';
             roleName = 'Quản trị viên (Admin)';
+          } else if (role === 'DISPATCHER') {
+            roleCategory = 'GENERAL_MANAGER';
+            roleName = 'Người quản lý';
           } else if (
             role.includes('MANAGER') ||
-            role === 'DISPATCHER' ||
             role === 'WORKSHOP_MANAGER' ||
             role === 'FUEL_STOREKEEPER' ||
             u.username.includes('quanly')
@@ -416,6 +470,7 @@ export const UsersManagementPage: React.FC = () => {
 
     const roleMap: Record<string, string> = {
       ADMIN: 'SUPER_ADMIN',
+      GENERAL_MANAGER: 'DISPATCHER',
       MANAGER: 'FARM_MANAGER',
       DRIVER: 'DRIVER',
     };
@@ -448,8 +503,10 @@ export const UsersManagementPage: React.FC = () => {
       roleName:
         newUser.roleCategory === 'ADMIN'
           ? 'Quản trị viên (Admin)'
+          : newUser.roleCategory === 'GENERAL_MANAGER'
+          ? 'Người quản lý'
           : newUser.roleCategory === 'MANAGER'
-          ? `Nhân sự quản lý (${assignedKlh})`
+          ? `NS quản lý cơ giới (${assignedKlh})`
           : `Tài xế (${assignedKlh})`,
       workUnit: assignedKlh,
       klhName: assignedKlh,
@@ -509,8 +566,10 @@ export const UsersManagementPage: React.FC = () => {
         const roleLabel =
           row.roleCategory === 'ADMIN'
             ? 'Quản trị viên (Admin)'
+            : row.roleCategory === 'GENERAL_MANAGER'
+            ? 'Người quản lý'
             : row.roleCategory === 'MANAGER'
-            ? 'Nhân sự quản lý'
+            ? 'NS quản lý cơ giới'
             : 'Tài xế cơ giới';
         return <span className="text-xs text-slate-800 font-medium">{roleLabel}</span>;
       },
@@ -629,45 +688,57 @@ export const UsersManagementPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading">
-            Quản Lý Người Dùng & Trạng Thái Hoạt Động
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý tài khoản, trạng thái <b>Còn hoạt động / Ngưng hoạt động</b> và đánh giá thực tế kết nối <b>Online / Offline</b> theo hồ sơ nhân sự 3 Khu Liên Hợp.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setShowAddModal(true)}
-            icon={<Plus className="w-4 h-4" />}
+      {/* 1. THANH ĐIỀU HƯỚNG PHÂN HỆ PHÂN QUYỀN */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/phan-quyen/nhan-vien"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
           >
-            Thêm Tài Khoản
-          </Button>
+            <Users className="h-4 w-4 text-slate-500" />
+            <span>Hồ sơ Nhân sự & Vai trò</span>
+          </Link>
+
+          <Link
+            to="/phan-quyen/nguoi-dung"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-white shadow-xs"
+          >
+            <KeyRound className="h-4 w-4" />
+            <span>Người dùng & Tài khoản</span>
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black">
+              {totalCount}
+            </span>
+          </Link>
+
+          <Link
+            to="/phan-quyen/vai-tro"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+          >
+            <Shield className="h-4 w-4 text-slate-500" />
+            <span>Vai trò & Ma trận quyền</span>
+          </Link>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-3 pr-2 text-xs text-slate-500 font-medium">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Đang Online: {onlineCount}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-teal-500" />
+            Còn hoạt động: {activeCount}
+          </span>
         </div>
       </div>
 
-      {/* Info Callout */}
-      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
-          <div className="leading-relaxed">
-            <span className="font-bold mr-1">Chính sách tài khoản & trạng thái làm việc:</span>
-            Khi lái xe/nhân viên chuyển trạng thái sang <b>"Đã nghỉ việc"</b>, tài khoản hệ thống sẽ tự động chuyển thành <b>"Ngưng hoạt động"</b> và bị chặn đăng nhập.
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            Còn hoạt động: Được phép đăng nhập
-          </span>
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-            Ngưng hoạt động: Khóa truy cập
-          </span>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-heading">
+          Quản Lý Người Dùng & Trạng Thái Hoạt Động
+        </h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Quản lý tài khoản, trạng thái <b>Còn hoạt động / Ngưng hoạt động</b> và đánh giá thực tế kết nối <b>Online / Offline</b> theo hồ sơ nhân sự 3 Khu Liên Hợp.
+        </p>
       </div>
 
       {/* 4 Stats Cards */}
@@ -709,7 +780,7 @@ export const UsersManagementPage: React.FC = () => {
       {/* Actionable Filter Toolbar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-xs space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* 3 Core Roles Switcher */}
+          {/* 4 Core Roles Switcher */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-bold text-slate-500 uppercase mr-1">Nhóm quyền:</span>
             <button
@@ -737,6 +808,18 @@ export const UsersManagementPage: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setSelectedRoleFilter('GENERAL_MANAGER')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedRoleFilter === 'GENERAL_MANAGER'
+                  ? 'bg-blue-700 text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Người quản lý
+            </button>
+            <button
+              type="button"
               onClick={() => setSelectedRoleFilter('MANAGER')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 selectedRoleFilter === 'MANAGER'
@@ -745,7 +828,7 @@ export const UsersManagementPage: React.FC = () => {
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              Quản lý
+              NS quản lý cơ giới
             </button>
             <button
               type="button"
@@ -790,6 +873,15 @@ export const UsersManagementPage: React.FC = () => {
                 <option value="NL">KLH Nam Lào (Lào)</option>
               </select>
             </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowAddModal(true)}
+              icon={<Plus className="w-4 h-4" />}
+            >
+              Thêm Tài Khoản
+            </Button>
           </div>
         </div>
 
@@ -818,77 +910,153 @@ export const UsersManagementPage: React.FC = () => {
         onRowClick={(row) => setSelectedUser(row)}
       />
 
-      {/* Detail Modal */}
+      {/* Detail & Password Modal */}
       {selectedUser && (
         <Modal
           isOpen={!!selectedUser}
-          onClose={() => setSelectedUser(null)}
+          onClose={handleCloseDetailModal}
           title={`Chi Tiết Tài Khoản: ${selectedUser.fullName}`}
           subtitle={`Username: ${selectedUser.username} · Mã NV: ${selectedUser.employeeCode}`}
-          size="md"
+          size="lg"
+          footer={
+            <Button variant="outline" size="sm" onClick={handleCloseDetailModal}>
+              Đóng
+            </Button>
+          }
         >
-          <div className="space-y-3.5 text-xs text-slate-700">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="font-semibold text-slate-500">Trạng thái hoạt động:</span>
-                <div className="flex items-center gap-2">
-                  {selectedUser.isActive ? (
-                    <span className="font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Còn hoạt động
-                    </span>
-                  ) : (
-                    <span className="font-bold text-rose-800 bg-rose-100 px-2.5 py-0.5 rounded-full border border-rose-200">
-                      Ngưng hoạt động
-                    </span>
-                  )}
-                </div>
+          <div className="space-y-4 text-xs text-slate-700">
+            {/* User Info Grid */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div>
+                <span className="text-slate-500 block text-[11px]">Tên đăng nhập:</span>
+                <span className="font-mono font-bold text-slate-900 text-sm">{selectedUser.username}</span>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="font-semibold text-slate-500">Trạng thái kết nối:</span>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Mã nhân viên:</span>
+                <span className="font-mono font-bold text-slate-900 text-sm">{selectedUser.employeeCode}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Họ và tên:</span>
+                <span className="font-bold text-slate-900">{selectedUser.fullName}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Vai trò chính:</span>
+                <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                  {selectedUser.roleName}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Khu liên hợp phụ trách:</span>
+                <b className="text-slate-900">{selectedUser.klhName}</b>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Số điện thoại:</span>
+                <span className="font-mono text-slate-900">{selectedUser.phone}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Email doanh nghiệp:</span>
+                <span className="font-mono text-primary font-medium">{selectedUser.enterpriseEmail}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Lần đăng nhập cuối:</span>
+                <span className="font-mono text-slate-700">{selectedUser.lastLogin}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-[11px]">Trạng thái:</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                    selectedUser.isActive
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  {selectedUser.isActive ? 'Hoạt động' : 'Ngưng hoạt động'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-[11px]">Kết nối:</span>
                 <span className="font-bold text-slate-800">
                   {selectedUser.isOnline ? '🟢 Đang Online' : '⚪ Offline'}
                 </span>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="font-semibold text-slate-500">Vai trò chính:</span>
-                <span className="font-bold text-slate-800">
-                  {selectedUser.roleName}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Khu Liên Hợp phụ trách:</span>
-                <b className="text-slate-900">{selectedUser.klhName}</b>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Số điện thoại:</span>
-                <span className="font-mono text-slate-900">{selectedUser.phone}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Email doanh nghiệp:</span>
-                <span className="font-mono text-primary">{selectedUser.enterpriseEmail}</span>
-              </div>
               {selectedUser.driverCode && (
-                <div className="flex justify-between pt-1 border-t border-slate-200">
+                <div className="md:col-span-2 pt-2 border-t border-slate-200 flex items-center justify-between">
                   <span className="font-semibold text-emerald-700">Hồ sơ lái xe liên kết:</span>
-                  <b className="font-mono text-emerald-800">
+                  <b className="font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                     Mã {selectedUser.driverCode} - GPLX Hạng {selectedUser.licenseClass}
                   </b>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Lần đăng nhập cuối:</span>
-                <span className="font-mono text-slate-600">{selectedUser.lastLogin}</span>
-              </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                <Lock className="w-3.5 h-3.5 text-slate-400" />
-                Mật khẩu mặc định: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono font-bold">123456</code>
+            {/* Password Update Section */}
+            <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-200 space-y-3">
+              <div className="flex items-center gap-2 text-amber-900">
+                <KeyRound className="w-4 h-4 text-amber-600" />
+                <h4 className="font-bold text-xs uppercase tracking-wide">Cập nhật mật khẩu tài khoản</h4>
               </div>
-              <Button variant="primary" size="sm" onClick={() => setSelectedUser(null)}>
-                Đóng
-              </Button>
+              <p className="text-[11px] text-slate-600">
+                Nhập mật khẩu mới để thiết lập hoặc đặt lại quyền truy cập cho tài khoản <b>{selectedUser.username}</b>.
+              </p>
+
+              {passwordUpdateMsg && (
+                <div
+                  className={`p-2.5 rounded-lg flex items-center gap-2 text-xs font-medium ${
+                    passwordUpdateMsg.type === 'success'
+                      ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                      : 'bg-rose-100 text-rose-900 border border-rose-200'
+                  }`}
+                >
+                  {passwordUpdateMsg.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{passwordUpdateMsg.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleUpdatePassword} className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Nhập mật khẩu mới (tối thiểu 3 ký tự)..."
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewPassword('Thaco@1234$')}
+                      className="px-2.5 py-2 text-[11px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                      title="Điền mật khẩu mặc định Thaco@1234$"
+                    >
+                      Mặc định (Thaco@1234$)
+                    </button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="submit"
+                      disabled={isUpdatingPassword || !newPassword.trim()}
+                      icon={<Lock className="w-3.5 h-3.5" />}
+                    >
+                      {isUpdatingPassword ? 'Đang lưu...' : 'Lưu mật khẩu'}
+                    </Button>
+                  </div>
+                </div>
+              </form>
             </div>
           </div>
         </Modal>
@@ -899,16 +1067,16 @@ export const UsersManagementPage: React.FC = () => {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         title="Thêm Tài Khoản Mới"
-        subtitle="Cấp tài khoản cho 1 trong 3 nhóm vai trò hoặc liên kết hồ sơ lái xe"
+        subtitle="Cấp tài khoản theo 4 vai trò vận hành"
         size="md"
       >
         <form onSubmit={handleCreateUser} className="space-y-3.5 text-xs">
-          {/* Role selector: 3 Main Roles */}
+          {/* Role selector: 4 Main Roles */}
           <div>
             <label className="font-bold text-slate-700 block mb-1.5">
-              1. Chọn 1 trong 3 Nhóm quyền chính: <span className="text-rose-500">*</span>
+              1. Chọn 1 trong 4 Nhóm quyền chính: <span className="text-rose-500">*</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <label
                 className={`p-2.5 rounded-xl border cursor-pointer text-center transition-all flex flex-col items-center gap-1 ${
                   newUser.roleCategory === 'ADMIN'
@@ -929,6 +1097,24 @@ export const UsersManagementPage: React.FC = () => {
 
               <label
                 className={`p-2.5 rounded-xl border cursor-pointer text-center transition-all flex flex-col items-center gap-1 ${
+                  newUser.roleCategory === 'GENERAL_MANAGER'
+                    ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold shadow-xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="roleCategory"
+                  className="hidden"
+                  checked={newUser.roleCategory === 'GENERAL_MANAGER'}
+                  onChange={() => setNewUser({ ...newUser, roleCategory: 'GENERAL_MANAGER' })}
+                />
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <span>Người quản lý</span>
+              </label>
+
+              <label
+                className={`p-2.5 rounded-xl border cursor-pointer text-center transition-all flex flex-col items-center gap-1 ${
                   newUser.roleCategory === 'MANAGER'
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs'
                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -942,7 +1128,7 @@ export const UsersManagementPage: React.FC = () => {
                   onChange={() => setNewUser({ ...newUser, roleCategory: 'MANAGER' })}
                 />
                 <UserCheck className="w-4 h-4 text-emerald-600" />
-                <span>Nhân sự quản lý</span>
+                <span>NS quản lý cơ giới</span>
               </label>
 
               <label
@@ -1062,58 +1248,7 @@ export const UsersManagementPage: React.FC = () => {
         </form>
       </Modal>
 
-      {selectedUser && (
-        <Modal
-          isOpen={!!selectedUser}
-          onClose={() => setSelectedUser(null)}
-          title={`Chi tiết tài khoản: ${selectedUser.fullName}`}
-          size="md"
-        >
-          <div className="space-y-3 text-xs">
-            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 block">Tên đăng nhập:</span>
-                <span className="font-mono font-bold text-slate-800 text-sm">{selectedUser.username}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Mã nhân viên:</span>
-                <span className="font-mono font-bold text-slate-800 text-sm">{selectedUser.employeeCode}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Họ và tên:</span>
-                <span className="font-bold text-slate-800">{selectedUser.fullName}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Vai trò:</span>
-                <span className="font-semibold text-primary">{selectedUser.roleName}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Số điện thoại:</span>
-                <span className="font-mono text-slate-800">{selectedUser.phone}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Khu liên hợp:</span>
-                <span className="font-semibold text-slate-800">{selectedUser.klhName}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Trạng thái:</span>
-                <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${selectedUser.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                  {selectedUser.isActive ? 'Hoạt động' : 'Ngưng hoạt động'}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Đăng nhập gần nhất:</span>
-                <span className="text-slate-700">{selectedUser.lastLogin}</span>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button variant="outline" size="sm" onClick={() => setSelectedUser(null)}>
-                Đóng lại
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
+
     </div>
   );
 };

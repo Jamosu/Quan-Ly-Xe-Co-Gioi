@@ -1,0 +1,71 @@
+{
+  "workbook": "00. DANH MỤC MMTB THUỘC KLH KOUN MOM.xlsx",
+  "generatedAt": "2026-09-21T08:02:29.978Z",
+  "dryRun": false,
+  "sourceRows": 694,
+  "uniqueImplements": 690,
+  "duplicateRowsMerged": 4,
+  "inserted": 0,
+  "updated": 690,
+  "removedOutOfWorkbook": [
+    "CHT-GĐH-084-2",
+    "CHT-GĐH-085-2",
+    "CNN-CNA-004-2",
+    "MOOC-CH-01",
+    "MOOC-CONT-01",
+    "MOOC-SAN-01",
+    "NC-BAM-01",
+    "NC-BUA-01",
+    "NC-CAY-01",
+    "NC-KHOAN-01",
+    "NC-LUONG-01",
+    "NC-MOOC-01",
+    "NC-NONE-01",
+    "NC-PHUN-01",
+    "NC-RAIPHAN-01",
+    "NC-XOI-01",
+    "TB-BD-12",
+    "TB-BUA-01",
+    "TB-DC-04",
+    "TB-GAU-01",
+    "TB-LU-01",
+    "TB-LUI-01",
+    "TB-NONE-CT",
+    "THUNG-BEN-01",
+    "XD3-MBC-002-2",
+    "XITEC-BON-01"
+  ],
+  "managementUnits": {
+    "exact": 675,
+    "alias": 0,
+    "liquidated": 0,
+    "unresolved": [
+      {
+        "label": "XN Chuối LP4",
+        "reason": "EXCLUDED",
+        "count": 6
+      },
+      {
+        "label": "",
+        "reason": "BLANK",
+        "count": 4
+      },
+      {
+        "label": "XN Chuối AD2",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "XN Chuối AD2",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "KLH SNOUL",
+        "reason": "EXCLUDED",
+        "count": 1
+      }
+    ]
+  },
+  "databaseImplementCount": 690
+}

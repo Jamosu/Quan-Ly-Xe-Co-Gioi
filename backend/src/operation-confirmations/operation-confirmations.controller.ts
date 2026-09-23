@@ -2,7 +2,6 @@ import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuar
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -16,15 +15,14 @@ import { OperationConfirmationsService } from './operation-confirmations.service
 export class OperationConfirmationsController {
   constructor(private service: OperationConfirmationsService) {}
 
-  @Public()
   @Get()
   findAll(@Query() filter: ConfirmationFilterDto, @CurrentUser() actor?: OperationalActor) { return this.service.findAll(filter, actor); }
 
-  @Public()
   @Post()
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER, Role.DISPATCHER, Role.DRIVER)
   create(@Body() dto: CreateConfirmationDto, @CurrentUser() actor?: OperationalActor) { return this.service.create(dto, actor); }
 
-  @Public()
   @Patch(':id/confirm')
+  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER, Role.DISPATCHER)
   confirm(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.confirm(id, actor); }
 }

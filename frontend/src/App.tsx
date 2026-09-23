@@ -4,7 +4,9 @@ import { MainLayout } from './layouts/MainLayout';
 import { unifiedSchedulingEnabled } from './config/features';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { apiClient } from './api/client';
+import { apiClient, getSessionToken } from './api/client';
+import { connectOperationalRealtime } from './realtime/operationalRealtime';
+import { WORKSHOP_ROUTES } from './config/workshopRoutes';
 
 // Module A: Dashboard
 import { DashboardPage } from './pages/dashboard/DashboardPage';
@@ -20,6 +22,7 @@ import { OfflineLogsPage } from './pages/gps/OfflineLogsPage';
 import { VehiclesPage } from './pages/fleet/VehiclesPage';
 import { EquipmentPage } from './pages/fleet/EquipmentPage';
 import { UnitAssignmentPage } from './pages/fleet/UnitAssignmentPage';
+import { OtherAssetsPage } from './pages/fleet/OtherAssetsPage';
 import { GPSSensorsPage } from './pages/fleet/GPSSensorsPage';
 import { FleetHistoryPage } from './pages/fleet/FleetHistoryPage';
 import { SosManagementPage } from './pages/fleet/SosManagementPage';
@@ -76,6 +79,7 @@ import { CrossKLHReportPage } from './pages/reports/CrossKLHReportPage';
 import { ProjectCatalogsDashboardPage } from './pages/master-data/ProjectCatalogsDashboardPage';
 import { DriverProfileCatalogPage } from './pages/master-data/DriverProfileCatalogPage';
 import { VehicleTypesPage } from './pages/master-data/VehicleTypesPage';
+import { CGManagersManagementPage } from './pages/master-data/CGManagersManagementPage';
 import { JobTypesPage } from './pages/master-data/JobTypesPage';
 import { SparePartsPage } from './pages/master-data/SparePartsPage';
 import { TechnicalQuotasPage } from './pages/master-data/TechnicalQuotasPage';
@@ -116,6 +120,20 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    let disconnect: (() => void) | undefined;
+    const reconnect = () => {
+      disconnect?.();
+      disconnect = getSessionToken() ? connectOperationalRealtime() : undefined;
+    };
+    reconnect();
+    window.addEventListener('auth-session-updated', reconnect);
+    return () => {
+      disconnect?.();
+      window.removeEventListener('auth-session-updated', reconnect);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -145,13 +163,18 @@ export const App: React.FC = () => {
           <Route path="gps/offline-logs" element={<OfflineLogsPage />} />
 
           {/* Module C: Fleet */}
-          <Route path="doi-xe/ho-so-xe" element={<VehiclesPage />} />
+          <Route path="doi-xe/ho-so-xe" element={<VehiclesPage assetScope="FLEET" />} />
           <Route path="doi-xe/thiet-bi" element={<EquipmentPage />} />
           <Route path="doi-xe/phan-xe" element={<UnitAssignmentPage />} />
           <Route path="doi-xe/gps-cam-bien" element={<GPSSensorsPage />} />
           <Route path="doi-xe/lich-su" element={<FleetHistoryPage />} />
           <Route path="doi-xe/quan-li-sos" element={<SosManagementPage />} />
           <Route path="doi-xe/quan-ly-sos" element={<SosManagementPage />} />
+          {/* Máy phụ trợ & Khác: trang chuyên biệt OtherAssetsPage */}
+          <Route path="doi-xe/tai-san-khac" element={<OtherAssetsPage />} />
+          <Route path="doi-xe/tai-san-khac/may-thiet-bi" element={<Navigate to="/doi-xe/tai-san-khac" replace />} />
+          <Route path="doi-xe/tai-san-khac/thiet-bi" element={<Navigate to="/doi-xe/tai-san-khac" replace />} />
+          <Route path="tai-san-khac/*" element={<Navigate to="/doi-xe/tai-san-khac" replace />} />
 
           {/* Module D: Dispatch Orders */}
           <Route path="lenh-dieu-xe" element={<Navigate to="/lenh-dieu-xe/danh-sach" replace />} />
@@ -191,13 +214,13 @@ export const App: React.FC = () => {
           {unifiedSchedulingEnabled && <Route path="mobile/driver" element={<DriverMobileWorkPage />} />}
 
           {/* Module E: Workshop & Maintenance */}
-          <Route path="xuong-btsc" element={<Navigate to="/xuong-btsc/ke-hoach" replace />} />
-          <Route path="xuong-btsc/ke-hoach" element={<MaintenancePlanPage />} />
-          <Route path="xuong-btsc/tai-san-hu-hong" element={<DamagedAssetsPage />} />
-          <Route path="xuong-btsc/yeu-cau" element={<WorkshopRequestsPage />} />
+          <Route path={WORKSHOP_ROUTES.root} element={<Navigate to={WORKSHOP_ROUTES.maintenancePlan} replace />} />
+          <Route path={WORKSHOP_ROUTES.maintenancePlan} element={<MaintenancePlanPage />} />
+          <Route path={`${WORKSHOP_ROUTES.damagedAssets}/*`} element={<DamagedAssetsPage />} />
+          <Route path={WORKSHOP_ROUTES.requests} element={<WorkshopRequestsPage />} />
           <Route path="xuong-btsc/phieu-sua-chua" element={<WorkshopRequestsPage />} />
           <Route path="xuong-btsc/tien-do" element={<WorkshopRequestsPage />} />
-          <Route path="xuong-btsc/dang-kiem" element={<InspectionInsurancePage />} />
+          <Route path={WORKSHOP_ROUTES.inspection} element={<InspectionInsurancePage />} />
 
           {/* Module J: Fuel */}
           <Route path="nhien-lieu" element={<Navigate to="/nhien-lieu/ton-kho" replace />} />
@@ -229,6 +252,8 @@ export const App: React.FC = () => {
           <Route path="danh-muc/danh-muc-ho-so" element={<DriverProfileCatalogPage />} />
           <Route path="danh-muc/chuc-danh" element={<Navigate to="/danh-muc/danh-muc-ho-so?tab=positions" replace />} />
           <Route path="danh-muc/loai-xe" element={<VehicleTypesPage />} />
+          <Route path="danh-muc/quan-ly-co-gioi" element={<CGManagersManagementPage />} />
+          <Route path="danh-muc/quan-ly-khu-vuc" element={<Navigate to="/danh-muc/quan-ly-co-gioi" replace />} />
           <Route path="danh-muc/loai-cong-viec" element={<Navigate to="/danh-muc/loai-cong-viec/nong-nghiep" replace />} />
           <Route path="danh-muc/loai-cong-viec/nong-nghiep" element={<JobTypesPage defaultDomain="NONG_NGHIEP" />} />
           <Route path="danh-muc/loai-cong-viec/cong-trinh" element={<JobTypesPage defaultDomain="CONG_TRINH" />} />

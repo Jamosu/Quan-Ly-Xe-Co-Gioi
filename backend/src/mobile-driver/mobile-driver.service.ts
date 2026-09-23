@@ -15,11 +15,13 @@ import {
   SosEmergencyType,
   AlertCategory,
   AlertSeverity,
+  AlertStatus,
   ImplementStatus,
   TechnicalCondition,
   WorkshopRequestSource,
   WorkshopRequestStatus,
   WorkshopRequestType,
+  Role,
 } from '@prisma/client';
 import { extname, join } from 'path';
 import { mkdir, writeFile } from 'fs/promises';
@@ -34,6 +36,8 @@ import { AlertsService } from '../alerts/alerts.service';
 import { MaintenanceService } from '../maintenance/maintenance.service';
 import { IncidentAssetType, ReportIncidentDto } from './dto/report-incident.dto';
 import { WorkshopService } from '../workshop/workshop.service';
+import { WorkOrdersService } from '../work-orders/work-orders.service';
+import { OperationalActor } from '../common/utils/operational-access';
 
 @Injectable()
 export class MobileDriverService {
@@ -42,18 +46,48 @@ export class MobileDriverService {
     private readonly maintenance: MaintenanceService,
     private readonly alerts: AlertsService,
     private readonly workshop: WorkshopService,
+    private readonly workOrders: WorkOrdersService,
   ) {}
+
+  private async operationalTarget(orderType: string, orderId: number) {
+    if (orderType === 'DISPATCH') {
+      const target = await this.prisma.dispatchOrder.findUnique({ where: { id: orderId }, select: { operationalWorkOrder: { select: { id: true } }, workTask: { select: { id: true } } } });
+      return target ? { operationalWorkOrder: target.workTask ?? target.operationalWorkOrder } : null;
+    }
+    if (orderType === 'TRANSPORT') return this.prisma.transportOrder.findUnique({ where: { id: orderId }, select: { operationalWorkOrder: { select: { id: true } } } });
+    if (orderType === 'FEED') return this.prisma.internalFeedTrip.findUnique({ where: { id: orderId }, select: { operationalWorkOrder: { select: { id: true } } } });
+    return null;
+  }
+
+  private async driverActor(driverId: number) {
+    const actor = await this.prisma.user.findUnique({ where: { id: driverId }, select: { id: true, role: true, unit: true } }) as OperationalActor | null;
+    if (!actor || actor.role !== Role.DRIVER) throw new NotFoundException('Không tìm thấy tài xế hợp lệ.');
+    return actor;
+  }
 
   async getAssignedTasks(driverId: number) {
     const [dispatchOrders, transportOrders, feedTrips] = await Promise.all([
       this.prisma.dispatchOrder.findMany({
         where: {
           driverId,
-          status: { in: [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE, DispatchStatus.WORKING, DispatchStatus.RETURNING_TO_DEPOT] },
+          status: { in: [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE, DispatchStatus.WORKING, DispatchStatus.SHIFT_FINISHED, DispatchStatus.WAITING_REPORT, DispatchStatus.WAITING_REVIEW, DispatchStatus.RETURNING_TO_DEPOT] },
         },
         include: {
           vehicle: true,
           requester: { select: { id: true, fullName: true, phone: true } },
+          operationalWorkOrder: {
+            include: {
+              executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 },
+              dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 },
+            },
+          },
+          workTask: {
+            include: {
+              executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 },
+              dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 },
+            },
+          },
+          dailyReport: { include: { submittedBy: { select: { id: true, fullName: true } } } },
         },
         orderBy: { departureTime: 'asc' },
       }),
@@ -64,6 +98,12 @@ export class MobileDriverService {
         },
         include: {
           vehicle: true,
+          operationalWorkOrder: {
+            include: {
+              executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 },
+              dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 },
+            },
+          },
         },
         orderBy: { departureTime: 'asc' },
       }),
@@ -82,7 +122,7 @@ export class MobileDriverService {
     ]);
 
     return {
-      dispatchOrders,
+      dispatchOrders: dispatchOrders.map((item) => ({ ...item, operationalWorkOrder: item.workTask ?? item.operationalWorkOrder })),
       transportOrders,
       feedTrips,
       totalPendingTasks: dispatchOrders.length + transportOrders.length + feedTrips.length,
@@ -90,163 +130,21 @@ export class MobileDriverService {
   }
 
   async acceptTask(driverId: number, dto: AcceptTaskDto) {
-    const entityType = dto.orderType === 'DISPATCH' ? OperationalEntityType.DISPATCH_ORDER : OperationalEntityType.TRANSPORT_ORDER;
-    return this.prisma.$transaction(async (tx) => {
-      if (dto.orderType === 'DISPATCH') {
-        const order = await tx.dispatchOrder.findUnique({ where: { id: dto.orderId } });
-        if (!order) throw new NotFoundException(`Không tìm thấy lệnh #${dto.orderId}`);
-        if (order.driverId !== driverId) throw new BadRequestException('Lệnh không được phân công cho tài xế hiện tại.');
-        if (order.status !== DispatchStatus.ASSIGNED) throw new BadRequestException('Lệnh không ở trạng thái chờ tài xế xác nhận.');
-        await tx.dispatchOrder.update({ where: { id: dto.orderId }, data: { status: DispatchStatus.DRIVER_ACCEPTED, driverAcceptedAt: new Date() } });
-      } else {
-        const order = await tx.transportOrder.findUnique({ where: { id: dto.orderId } });
-        if (!order) throw new NotFoundException(`Không tìm thấy vận đơn #${dto.orderId}`);
-        if (order.driverId !== driverId) throw new BadRequestException('Vận đơn không được phân công cho tài xế hiện tại.');
-        if (order.status !== TransportStatus.ASSIGNED) throw new BadRequestException('Vận đơn không ở trạng thái chờ tài xế xác nhận.');
-        await tx.transportOrder.update({ where: { id: dto.orderId }, data: { status: TransportStatus.DRIVER_ACCEPTED, driverAcceptedAt: new Date() } });
-      }
-      await tx.operationalAuditLog.create({ data: { entityType, entityId: dto.orderId, actorId: driverId, action: 'DRIVER_ACCEPT' } });
-      return { message: 'Đã xác nhận nhận lệnh.', ...dto };
-    });
+    const target = await this.operationalTarget(dto.orderType, dto.orderId);
+    if (target?.operationalWorkOrder) return this.workOrders.driverAccept(target.operationalWorkOrder.id, await this.driverActor(driverId));
+    throw new BadRequestException('Lệnh legacy chưa có OperationalWorkOrder. Cần chuyển đổi lệnh trước khi tài xế xác nhận.');
   }
 
   async startTrip(driverId: number, dto: StartTripDto) {
-    const result = await this.prisma.$transaction(async (tx) => {
-    let order: any = null;
-    let vehicleId: number | null = null;
-
-    if (dto.orderType === 'DISPATCH') {
-      order = await tx.dispatchOrder.findUnique({ where: { id: dto.orderId } });
-      if (!order) throw new NotFoundException(`Không tìm thấy lệnh điều xe #${dto.orderId}`);
-      if (order.driverId !== driverId) throw new BadRequestException('Lệnh không thuộc tài xế hiện tại.');
-      if (order.status !== DispatchStatus.DRIVER_ACCEPTED) throw new BadRequestException('Tài xế phải xác nhận lệnh trước khi bắt đầu.');
-      vehicleId = order.vehicleId;
-
-      await tx.dispatchOrder.update({
-        where: { id: dto.orderId },
-        data: { status: DispatchStatus.WORKING, actualDepartureTime: new Date(), actualStartTime: new Date() },
-      });
-    } else if (dto.orderType === 'TRANSPORT') {
-      order = await tx.transportOrder.findUnique({ where: { id: dto.orderId } });
-      if (!order) throw new NotFoundException(`Không tìm thấy vận đơn #${dto.orderId}`);
-      if (order.driverId !== driverId) throw new BadRequestException('Vận đơn không thuộc tài xế hiện tại.');
-      if (order.status !== TransportStatus.DRIVER_ACCEPTED) throw new BadRequestException('Tài xế phải xác nhận vận đơn trước khi bắt đầu.');
-      vehicleId = order.vehicleId;
-
-      await tx.transportOrder.update({
-        where: { id: dto.orderId },
-        data: { status: TransportStatus.IN_TRANSIT, departedAt: new Date() },
-      });
-    } else if (dto.orderType === 'FEED') {
-      order = await tx.internalFeedTrip.findUnique({ where: { id: dto.orderId } });
-      if (!order) throw new NotFoundException(`Không tìm thấy chuyến thức ăn #${dto.orderId}`);
-      vehicleId = order.vehicleId;
-
-      await tx.internalFeedTrip.update({
-        where: { id: dto.orderId },
-        data: { departureTime: new Date() },
-      });
-    }
-
-    if (vehicleId) {
-      await tx.vehicle.update({
-        where: { id: vehicleId },
-        data: {
-          status: VehicleStatus.HOAT_DONG,
-          lastGpsUpdate: new Date(),
-        },
-      });
-    }
-
-    if (dto.orderType !== 'FEED') {
-      await tx.operationalAuditLog.create({ data: { entityType: dto.orderType === 'DISPATCH' ? OperationalEntityType.DISPATCH_ORDER : OperationalEntityType.TRANSPORT_ORDER, entityId: dto.orderId, actorId: driverId, action: 'DRIVER_START', newValue: { startOdoKm: dto.startOdoKm } } });
-    }
-    return {
-      message: 'Bắt đầu ca làm việc thành công. Hệ thống đã kích hoạt giám sát GPS.',
-      orderType: dto.orderType,
-      orderId: dto.orderId,
-      startOdoKm: dto.startOdoKm,
-      vehicleId,
-    };
-    });
-    const bdc1 = result.vehicleId
-      ? await this.maintenance.ensureBdc1ForOperation(result.vehicleId, driverId)
-      : null;
-    return { ...result, bdc1Required: Boolean(bdc1?.required), bdc1LogId: bdc1?.log.id };
+    const target = await this.operationalTarget(dto.orderType, dto.orderId);
+    if (target?.operationalWorkOrder) return this.workOrders.startExecution(target.operationalWorkOrder.id, { startOdoKm: dto.startOdoKm }, await this.driverActor(driverId));
+    throw new BadRequestException('Lệnh legacy chưa có OperationalWorkOrder. Cần chuyển đổi lệnh trước khi mở phiên làm việc.');
   }
 
   async finishTrip(driverId: number, dto: FinishTripDto) {
-    const result = await this.prisma.$transaction(async (tx) => {
-    let vehicleId: number | null = null;
-
-    if (dto.orderType === 'DISPATCH') {
-      const order = await tx.dispatchOrder.findUnique({ where: { id: dto.orderId } });
-      if (!order) throw new NotFoundException(`Không tìm thấy lệnh #${dto.orderId}`);
-      if (order.driverId !== driverId || order.status !== DispatchStatus.WORKING) throw new BadRequestException('Lệnh không thuộc tài xế hoặc chưa ở trạng thái đang làm việc.');
-      vehicleId = order.vehicleId;
-
-      await tx.dispatchOrder.update({
-        where: { id: dto.orderId },
-        data: {
-          status: DispatchStatus.COMPLETED,
-          returnTime: new Date(),
-          notes: dto.completionNotes ? `${order.notes || ''} | Báo cáo: ${dto.completionNotes}` : order.notes,
-        },
-      });
-    } else if (dto.orderType === 'TRANSPORT') {
-      const order = await tx.transportOrder.findUnique({ where: { id: dto.orderId } });
-      if (!order) throw new NotFoundException(`Không tìm thấy vận đơn #${dto.orderId}`);
-      if (order.driverId !== driverId || order.status !== TransportStatus.IN_TRANSIT) throw new BadRequestException('Vận đơn không thuộc tài xế hoặc chưa đang vận chuyển.');
-      vehicleId = order.vehicleId;
-
-      await tx.transportOrder.update({
-        where: { id: dto.orderId },
-        data: {
-          status: TransportStatus.DELIVERED,
-          arrivalTime: new Date(),
-          deliveredAt: new Date(),
-        },
-      });
-    }
-
-    if (vehicleId) {
-      const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
-      if (vehicle) {
-        const addedKm = Math.max(0, dto.finishOdoKm - vehicle.odoKm);
-        const addedHours = Number((addedKm / 30).toFixed(1)); // Ước tính giờ máy theo km thực tế
-        const newServiceHours = vehicle.hoursSinceLastService + addedHours;
-
-        let alertTier = vehicle.alertTier;
-        if (250 - newServiceHours <= 20) alertTier = 'RED';
-        else if (250 - newServiceHours <= 50) alertTier = 'AMBER';
-
-        await tx.vehicle.update({
-          where: { id: vehicleId },
-          data: {
-            status: VehicleStatus.CHO_PHAN_CONG,
-            odoKm: dto.finishOdoKm,
-            totalMachineHours: vehicle.totalMachineHours + addedHours,
-            hoursSinceLastService: newServiceHours,
-            alertTier,
-            lastGpsUpdate: new Date(),
-          },
-        });
-      }
-    }
-
-    await tx.user.update({ where: { id: driverId }, data: { currentShiftStatus: DriverShiftStatus.SAN_SANG } });
-    if (dto.orderType !== 'FEED') {
-      await tx.operationalAuditLog.create({ data: { entityType: dto.orderType === 'DISPATCH' ? OperationalEntityType.DISPATCH_ORDER : OperationalEntityType.TRANSPORT_ORDER, entityId: dto.orderId, actorId: driverId, action: 'DRIVER_FINISH', newValue: { finishOdoKm: dto.finishOdoKm } } });
-    }
-
-    return {
-      message: 'Đã hoàn thành chuyến đi và ghi nhận ODO kết thúc thành công.',
-      finishOdoKm: dto.finishOdoKm,
-      vehicleId,
-    };
-    });
-    if (result.vehicleId) await this.maintenance.refreshVehicleOccurrences(result.vehicleId);
-    return result;
+    const target = await this.operationalTarget(dto.orderType, dto.orderId);
+    if (target?.operationalWorkOrder) return this.workOrders.endWorkSession(target.operationalWorkOrder.id, { endOdoKm: dto.finishOdoKm, notes: dto.completionNotes, confirmNoProgress: true }, await this.driverActor(driverId));
+    throw new BadRequestException('Lệnh legacy chưa có OperationalWorkOrder. Cần chuyển đổi lệnh trước khi kết thúc phiên làm việc.');
   }
 
   async createSosAlert(driverId: number, dto: CreateSosAlertDto) {
@@ -305,7 +203,7 @@ export class MobileDriverService {
       title: `SOS ${alert.vehicle.plate || alert.vehicle.code}: ${dto.emergencyType}`,
       message: dto.description,
       location: dto.lotLocation,
-      targetUrl: `/doi-xe/quan-ly-sos?alertId=${alert.id}`,
+      targetUrl: `/gps/realtime?sosId=${alert.id}`,
       vehicleId: dto.vehicleId,
       driverId,
       unit: alert.vehicle.unit,
@@ -323,12 +221,14 @@ export class MobileDriverService {
     */
   }
 
-  async getMyKpi(driverId: number, monthYear: string = '08/2026') {
+  async getMyKpi(driverId: number, monthYear?: string) {
+    const now = new Date();
+    const targetMonth = monthYear || `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
     const kpi = await this.prisma.driverKpi.findUnique({
       where: {
         driverId_monthYear: {
           driverId,
-          monthYear,
+          monthYear: targetMonth,
         },
       },
       include: {
@@ -337,23 +237,14 @@ export class MobileDriverService {
     });
 
     if (!kpi) {
-      return {
-        driverId,
-        monthYear,
-        totalScore: 88.5,
-        rankGrade: 'HANG_B',
-        tripsScore: 23.5,
-        distanceScore: 22.0,
-        hoursScore: 24.0,
-        fuelScore: 19.0,
-        bonusAmountVnd: 1200000,
-      };
+      return null;
     }
 
     return kpi;
   }
 
   async syncPull(driverId: number, since?: string) {
+    const changedAfter = since && !Number.isNaN(new Date(since).getTime()) ? new Date(since) : undefined;
     const driver = await this.prisma.user.findUnique({
       where: { id: driverId },
       select: {
@@ -374,11 +265,19 @@ export class MobileDriverService {
       this.prisma.dispatchOrder.findMany({
         where: {
           driverId,
-          ...(since ? { updatedAt: { gte: new Date(since) } } : {}),
+          ...(changedAfter ? {
+            OR: [
+              { updatedAt: { gte: changedAfter } },
+              { dailyReport: { is: { updatedAt: { gte: changedAfter } } } },
+            ],
+          } : {}),
         },
         include: {
           vehicle: true,
           requester: { select: { id: true, fullName: true, phone: true } },
+          operationalWorkOrder: { include: { executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' } }, dailyProgress: { orderBy: { progressDate: 'desc' } } } },
+          workTask: { include: { executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' } }, dailyProgress: { orderBy: { progressDate: 'desc' } } } },
+          dailyReport: { include: { submittedBy: { select: { id: true, fullName: true } } } },
         },
         orderBy: { departureTime: 'asc' },
       }),
@@ -433,7 +332,7 @@ export class MobileDriverService {
             klhName: 'KLH KOUN MOM',
           }
         : null,
-      dispatchOrders,
+      dispatchOrders: dispatchOrders.map((item) => ({ ...item, operationalWorkOrder: item.workTask ?? item.operationalWorkOrder })),
       transportOrders,
       feedTrips,
       vehicles,
@@ -502,13 +401,13 @@ export class MobileDriverService {
             result = await this.submitAcceptance(driverId, event);
             break;
           case 'JOB_COMPLETED':
-            result = await this.finishTrip(driverId, {
-              orderType: (event.orderType as any) || (event.payload?.orderType ?? 'DISPATCH'),
-              orderId: Number(event.orderId || event.payload?.orderId),
-              finishOdoKm: Number(event.payload?.finishOdoKm || 0),
-              completionNotes: event.payload?.completionNotes || event.note,
-            });
-            break;
+          case 'WORK_SESSION_ENDED':
+          case 'BREAK_STARTED':
+          case 'BREAK_ENDED':
+          case 'WORK_PAUSED':
+          case 'WORK_RESUMED':
+          case 'ORDER_COMPLETION_REQUESTED':
+            throw new BadRequestException('Lệnh legacy chưa có OperationalWorkOrder nên không thể ghi phiên làm việc an toàn. Vui lòng chuyển đổi lệnh trước khi thao tác.');
           case 'SOS_CREATED':
             result = await this.createSosAlert(driverId, {
               vehicleId: Number(event.payload?.vehicleId || 1),
@@ -794,39 +693,46 @@ export class MobileDriverService {
   }
 
   async getDriverAlerts(driverId: number) {
-    return [
-      {
-        id: 'alt-1',
-        type: 'CRITICAL',
-        title: 'Cảnh báo vận tốc trên đường lô',
-        message: 'Ghi nhận vận tốc 38 km/h vượt ngưỡng an toàn 30 km/h tại Lô B14 nông trường.',
-        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-        read: false,
+    const events = await this.prisma.alertEvent.findMany({
+      where: {
+        driverId,
+        status: { not: AlertStatus.DISMISSED },
       },
-      {
-        id: 'alt-2',
-        type: 'WARNING',
-        title: 'Cảnh báo bảo dưỡng định kỳ 250 giờ',
-        message: 'Xe MK-023 (John Deere 6120) đã vận hành 232/250 giờ máy. Cần bảo dưỡng trong 18 giờ tới.',
-        createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
-        read: false,
-      },
-      {
-        id: 'alt-3',
-        type: 'INFO',
-        title: 'Lệnh điều xe mới được phân công',
-        message: 'Bạn vừa được gán Lệnh điều xe LDX-20260912-001: Cày đất Lô A12.',
-        createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
-        read: true,
-      },
-      {
-        id: 'alt-4',
-        type: 'SUCCESS',
-        title: 'Nghiệm thu khối lượng đã phê duyệt',
-        message: 'Hồ sơ nghiệm thu diện tích cày 8,5 ha ngày 11/09 đã được Ban Nông trường duyệt 100%.',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        read: true,
-      },
-    ];
+      orderBy: { occurredAt: 'desc' },
+      take: 20,
+    });
+
+    return events.map((e) => {
+      let category: 'EMERGENCY' | 'OPERATION' | 'SYSTEM' = 'SYSTEM';
+      if (e.category === AlertCategory.SOS) category = 'EMERGENCY';
+      else if (
+        e.category === AlertCategory.MAINTENANCE ||
+        e.category === AlertCategory.DISPATCH ||
+        e.category === AlertCategory.FUEL ||
+        e.category === AlertCategory.EQUIPMENT
+      ) {
+        category = 'OPERATION';
+      }
+
+      let type: 'CRITICAL' | 'WARNING' | 'INFO' | 'SUCCESS' = 'INFO';
+      if (e.severity === AlertSeverity.CRITICAL) type = 'CRITICAL';
+      else if (e.severity === AlertSeverity.WARNING) type = 'WARNING';
+      else if (e.severity === AlertSeverity.INFO) type = 'INFO';
+
+      return {
+        id: `evt-${e.id}`,
+        type,
+        title: e.title,
+        message:
+          e.message && e.message !== 'None'
+            ? e.message
+            : e.location
+            ? `Vị trí: ${e.location}`
+            : e.title,
+        time: e.occurredAt.toISOString(),
+        read: e.status === AlertStatus.RESOLVED,
+        category,
+      };
+    });
   }
 }

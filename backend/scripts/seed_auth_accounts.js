@@ -1,4 +1,4 @@
-const { PrismaClient, Role, Unit, DriverEmploymentStatus, DriverShiftStatus, DriverLicenseClass } = require('@prisma/client');
+﻿const { PrismaClient, Role, Unit, DriverEmploymentStatus, DriverShiftStatus, DriverLicenseClass } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
@@ -42,7 +42,7 @@ async function main() {
       fullName: 'Lê Văn Hùng',
       passwordHash,
       role: Role.FARM_MANAGER,
-      unit: Unit.NT1,
+      unit: Unit.KOUN_MOM,
       isActive: true,
     },
     create: {
@@ -52,7 +52,7 @@ async function main() {
       fullName: 'Lê Văn Hùng',
       phone: '0912334455',
       role: Role.FARM_MANAGER,
-      unit: Unit.NT1,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
       joinedDate: new Date('2020-03-10'),
@@ -68,7 +68,7 @@ async function main() {
       fullName: 'Trần Đình Trọng',
       passwordHash,
       role: Role.DRIVER,
-      unit: Unit.NT1,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       licenseClass: DriverLicenseClass.HANG_B2,
       licenseNumber: 'B2-2023-88991',
@@ -80,7 +80,7 @@ async function main() {
       fullName: 'Trần Đình Trọng',
       phone: '0988123456',
       role: Role.DRIVER,
-      unit: Unit.NT1,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
       joinedDate: new Date('2021-03-10'),
@@ -102,7 +102,7 @@ async function main() {
       fullName: 'Phan Văn Đức',
       passwordHash,
       role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       licenseClass: DriverLicenseClass.HANG_CE,
       licenseNumber: 'CE-SN-2024-01',
@@ -114,7 +114,7 @@ async function main() {
       fullName: 'Phan Văn Đức',
       phone: '0912334999',
       role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
       joinedDate: new Date('2020-02-01'),
@@ -136,7 +136,7 @@ async function main() {
       fullName: 'Khamphou Somlith',
       passwordHash,
       role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       licenseClass: DriverLicenseClass.HANG_CE,
       licenseNumber: 'CE-NL-2023-88',
@@ -148,7 +148,7 @@ async function main() {
       fullName: 'Khamphou Somlith',
       phone: '0977889922',
       role: Role.DRIVER,
-      unit: Unit.BAN_CO_GIOI,
+      unit: Unit.KOUN_MOM,
       isActive: true,
       employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
       joinedDate: new Date('2021-06-15'),

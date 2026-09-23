@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EquipmentUsageMode, ImplementCategory, ImplementRequirement, ImplementStatus, Prisma, TechnicalCondition, Unit, VehicleStatus } from '@prisma/client';
+import { EquipmentUsageMode, ImplementCategory, ImplementRequirement, ImplementStatus, Prisma, Role, TechnicalCondition, Unit, VehicleStatus } from '@prisma/client';
 import { read as xlsxRead, utils as xlsxUtils } from 'xlsx';
 import { PrismaService } from '../prisma/prisma.service';
 import { AttachImplementDto } from './dto/attach-implement.dto';
@@ -12,10 +12,65 @@ import { CreateImplementDto } from './dto/create-implement.dto';
 import { DetachImplementDto } from './dto/detach-implement.dto';
 import { ImplementFilterDto } from './dto/implement-filter.dto';
 import { UpdateImplementDto } from './dto/update-implement.dto';
+import { OperationalActor } from '../common/utils/operational-access';
+import { scopedManagementUnitIds } from '../common/utils/management-scope';
+import { canonicalizeMasterDataValues } from '../common/utils/master-data-normalization';
+import { isLiquidatedAssignedUnit, operationalVehicleWhere } from '../common/utils/vehicle-lifecycle';
 
 @Injectable()
 export class ImplementsService {
   constructor(private prisma: PrismaService) {}
+
+  private async canonicalImplementReferences(data: { assignedUnitCode?: string | null; gatheringLocation?: string | null }) {
+    const [units, locations] = await Promise.all([
+      data.assignedUnitCode ? this.prisma.driverManagementUnit.findMany({ where: { status: 'ACTIVE' }, select: { name: true, code: true } }) : [],
+      data.gatheringLocation ? this.prisma.operationalLocation.findMany({ where: { active: true }, select: { name: true } }) : [],
+    ]);
+    return {
+      assignedUnitCode: data.assignedUnitCode === undefined ? undefined : data.assignedUnitCode === null ? null
+        : canonicalizeMasterDataValues([data.assignedUnitCode], units.flatMap((item) => [item.name, item.code]))[0] || null,
+      gatheringLocation: data.gatheringLocation === undefined ? undefined : data.gatheringLocation === null ? null
+        : canonicalizeMasterDataValues([data.gatheringLocation], locations.map((item) => item.name))[0] || null,
+    };
+  }
+
+  private async buildWhere(filter: ImplementFilterDto, actor: OperationalActor): Promise<Prisma.AgriculturalImplementWhereInput> {
+    const { search, category, unit, status, technicalCondition, vehicleId, usageMode, assetScope, managerUserId, managementUnitId } = filter;
+    const conditions: Prisma.AgriculturalImplementWhereInput[] = [];
+    if (category) conditions.push({ category });
+    if (unit) conditions.push({ unit });
+    if (status) conditions.push({ status });
+    if (technicalCondition) conditions.push({ technicalCondition });
+    if (vehicleId) conditions.push({ currentVehicleId: vehicleId });
+    if (usageMode) conditions.push({ usageMode });
+    if (assetScope === 'VEHICLE_RELATED') conditions.push({ usageMode: EquipmentUsageMode.ATTACHABLE });
+    if (assetScope === 'OTHER') conditions.push({ usageMode: { in: [EquipmentUsageMode.STANDALONE, EquipmentUsageMode.UNCLASSIFIED] } });
+    if (managementUnitId) conditions.push({ managementUnitId });
+    if (managerUserId) {
+      const now = new Date();
+      conditions.push({
+        managementUnit: {
+          managerAssignments: {
+            some: {
+              managerUserId,
+              managerType: 'PRIMARY',
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            },
+          },
+        },
+      });
+    }
+    if (search) conditions.push({ OR: [{ code: { contains: search } }, { name: { contains: search } }, { standardPurpose: { contains: search } }] });
+
+    if (actor.role === Role.DRIVER) {
+      conditions.push({ currentVehicle: { is: { OR: [{ defaultDriverId: actor.id }, { secondaryDriverId: actor.id }, { assignedUsers: { some: { id: actor.id } } }] } } });
+    } else {
+      const allowedIds = await scopedManagementUnitIds(this.prisma, actor);
+      if (allowedIds) conditions.push({ managementUnitId: { in: allowedIds } });
+    }
+    return conditions.length ? { AND: conditions } : {};
+  }
 
   async create(dto: CreateImplementDto) {
     const existing = await this.prisma.agriculturalImplement.findUnique({
@@ -27,10 +82,12 @@ export class ImplementsService {
     }
 
     const { compatibleVehicleTypeIds = [], ...data } = dto;
+    const canonicalReferences = await this.canonicalImplementReferences(data);
     return this.prisma.agriculturalImplement.create({
       data: {
         ...data,
-        unit: dto.unit || Unit.BAN_CO_GIOI,
+        ...canonicalReferences,
+        unit: dto.unit || Unit.KOUN_MOM,
         compatibleVehicleTypes: compatibleVehicleTypeIds.length
           ? { create: compatibleVehicleTypeIds.map((vehicleTypeId) => ({ vehicleTypeId, source: 'MANUAL' })) }
           : undefined,
@@ -39,25 +96,10 @@ export class ImplementsService {
     });
   }
 
-  async findAll(filter: ImplementFilterDto) {
-    const { page = 1, limit = 20, search, category, unit, status, technicalCondition, vehicleId, usageMode } = filter;
+  async findAll(filter: ImplementFilterDto, actor: OperationalActor) {
+    const { page = 1, limit = 20 } = filter;
     const skip = (page - 1) * limit;
-
-    const where: any = {};
-    if (category) where.category = category;
-    if (unit) where.unit = unit;
-    if (status) where.status = status;
-    if (technicalCondition) where.technicalCondition = technicalCondition;
-    if (vehicleId) where.currentVehicleId = vehicleId;
-    if (usageMode) where.usageMode = usageMode;
-
-    if (search) {
-      where.OR = [
-        { code: { contains: search } },
-        { name: { contains: search } },
-        { standardPurpose: { contains: search } },
-      ];
-    }
+    const where = await this.buildWhere(filter, actor);
 
     const [total, items] = await Promise.all([
       this.prisma.agriculturalImplement.count({ where }),
@@ -80,6 +122,16 @@ export class ImplementsService {
             },
           },
           compatibleVehicleTypes: { include: { vehicleType: true } },
+          managementUnit: {
+            select: {
+              managerAssignments: {
+                where: { managerType: 'PRIMARY', effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] },
+                select: { manager: { select: { id: true, fullName: true, phone: true } } },
+                orderBy: { effectiveFrom: 'desc' },
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: { id: 'asc' },
       }),
@@ -96,9 +148,87 @@ export class ImplementsService {
     };
   }
 
-  async findOne(id: number) {
-    const implement = await this.prisma.agriculturalImplement.findUnique({
-      where: { id },
+  async getFilterOptions(filter: ImplementFilterDto, actor: OperationalActor) {
+    const where = await this.buildWhere(filter, actor);
+    const [items, categories, catalogUnits, catalogLocations, managerAssignments] = await Promise.all([
+      this.prisma.agriculturalImplement.findMany({
+        where,
+        select: {
+          assignedUnitCode: true,
+          gatheringLocation: true,
+          managerName: true,
+          managerPhone: true,
+        },
+      }),
+      this.prisma.agriculturalImplement.groupBy({
+        by: ['category'],
+        where,
+        _count: { id: true },
+        orderBy: { category: 'asc' },
+      }),
+      this.prisma.driverManagementUnit.findMany({
+        where: { status: 'ACTIVE' },
+        select: { code: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.operationalLocation.findMany({
+        where: { active: true },
+        select: { code: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.managementUnitManagerAssignment.findMany({
+        where: {
+          managerType: 'PRIMARY',
+          effectiveFrom: { lte: new Date() },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
+          managementUnit: { implements: { some: where } },
+        },
+        select: {
+          manager: { select: { id: true, fullName: true, phone: true } },
+          managementUnit: { select: { _count: { select: { implements: { where } } } } },
+        },
+      }),
+    ]);
+
+    const units = canonicalizeMasterDataValues(
+      items.map((item) => item.assignedUnitCode),
+      catalogUnits.flatMap((item) => [item.name, item.code]),
+    );
+    const locations = canonicalizeMasterDataValues(
+      items.map((item) => item.gatheringLocation),
+      catalogLocations.map((item) => item.name),
+    );
+    const managers = [...managerAssignments.reduce((map, assignment) => {
+      const current = map.get(assignment.manager.id) || {
+        id: assignment.manager.id,
+        name: assignment.manager.fullName,
+        phone: assignment.manager.phone,
+        implementCount: 0,
+      };
+      current.implementCount += assignment.managementUnit._count.implements;
+      map.set(current.id, current);
+      return map;
+    }, new Map<number, { id: number; name: string; phone: string | null; implementCount: number }>()).values()]
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+    return {
+      units,
+      locations,
+      categories: categories.filter((item) => item._count.id > 0).map((item) => ({
+        code: item.category,
+        count: item._count.id,
+      })),
+      managers,
+      statuses: Object.values(ImplementStatus),
+      technicalConditions: Object.values(TechnicalCondition),
+      usageModes: Object.values(EquipmentUsageMode),
+    };
+  }
+
+  async findOne(id: number, actor?: OperationalActor) {
+    const scope = actor ? await this.buildWhere(new ImplementFilterDto(), actor) : {};
+    const implement = await this.prisma.agriculturalImplement.findFirst({
+      where: { id, ...scope },
       include: {
         currentVehicle: true,
         attachmentLogs: {
@@ -120,9 +250,10 @@ export class ImplementsService {
     return implement;
   }
 
-  async update(id: number, dto: UpdateImplementDto) {
-    await this.findOne(id);
+  async update(id: number, dto: UpdateImplementDto, actor?: OperationalActor) {
+    await this.findOne(id, actor);
     const { compatibleVehicleTypeIds, ...data } = dto;
+    const canonicalReferences = await this.canonicalImplementReferences(data);
     return this.prisma.$transaction(async (tx) => {
       if (compatibleVehicleTypeIds) {
         await tx.implementVehicleTypeCompatibility.deleteMany({ where: { implementId: id } });
@@ -135,13 +266,13 @@ export class ImplementsService {
       }
       return tx.agriculturalImplement.update({
         where: { id },
-        data,
+        data: { ...data, ...canonicalReferences },
         include: { compatibleVehicleTypes: { include: { vehicleType: true } } },
       });
     });
   }
 
-  async compatibleVehicles(id: number, unit?: Unit) {
+  async compatibleVehicles(id: number, unit: Unit | undefined, actor: OperationalActor) {
     const implement = await this.prisma.agriculturalImplement.findUnique({
       where: { id },
       include: { compatibleVehicleTypes: true },
@@ -155,14 +286,20 @@ export class ImplementsService {
     const where: Prisma.VehicleWhereInput = {
       vehicleTypeId: { in: vehicleTypeIds },
       vehicleType: { isAssignable: true, implementRequirement: { not: ImplementRequirement.NONE } },
-      status: { in: [VehicleStatus.CHO_PHAN_CONG, VehicleStatus.TAM_DUNG] },
-      ...(targetUnit !== Unit.BAN_CO_GIOI && targetUnit !== Unit.TOAN_KLH ? { unit: targetUnit } : {}),
+      ...operationalVehicleWhere,
+      ...(targetUnit !== Unit.TOAN_KLH ? { unit: targetUnit } : {}),
     };
+    if (actor.role === Role.DRIVER) {
+      where.OR = [{ defaultDriverId: actor.id }, { secondaryDriverId: actor.id }, { assignedUsers: { some: { id: actor.id } } }];
+    } else {
+      const allowedIds = await scopedManagementUnitIds(this.prisma, actor);
+      if (allowedIds) where.managementUnitId = { in: allowedIds };
+    }
     return this.prisma.vehicle.findMany({ where, include: { vehicleType: true }, orderBy: { code: 'asc' } });
   }
 
-  async attachToVehicle(id: number, dto: AttachImplementDto, actorId: number) {
-    const implement = await this.findOne(id);
+  async attachToVehicle(id: number, dto: AttachImplementDto, actor: OperationalActor) {
+    const implement = await this.findOne(id, actor);
 
     if (implement.status === ImplementStatus.ATTACHED) {
       throw new BadRequestException(
@@ -184,6 +321,12 @@ export class ImplementsService {
 
     if (!vehicle) {
       throw new NotFoundException(`Không tìm thấy xe #${dto.vehicleId}`);
+    }
+    if (
+      !new Set<VehicleStatus>([VehicleStatus.CHO_PHAN_CONG, VehicleStatus.HOAT_DONG]).has(vehicle.status) ||
+      isLiquidatedAssignedUnit(vehicle.assignedUnitCode)
+    ) {
+      throw new ConflictException({ code: 'VEHICLE_NOT_OPERATIONAL', message: `Xe ${vehicle.code} không ở trạng thái cho phép gắn thiết bị.` });
     }
     if (!vehicle.vehicleType || !vehicle.vehicleType.isAssignable) {
       throw new ConflictException({ code: 'VEHICLE_TYPE_UNCONFIGURED', message: `Xe ${vehicle.code} chưa có chủng loại hợp lệ để nhận thiết bị.` });
@@ -211,7 +354,7 @@ export class ImplementsService {
         data: {
           implementId: id,
           vehicleId: vehicle.id,
-          actorId,
+          actorId: actor.id,
           attachedAt: now,
           startWearMm: dto.startWearMm || 0,
           notes: dto.notes,
@@ -226,8 +369,8 @@ export class ImplementsService {
     };
   }
 
-  async detachFromVehicle(id: number, dto: DetachImplementDto, actorId: number) {
-    const implement = await this.findOne(id);
+  async detachFromVehicle(id: number, dto: DetachImplementDto, actor: OperationalActor) {
+    const implement = await this.findOne(id, actor);
 
     if (implement.status !== ImplementStatus.ATTACHED || !implement.currentVehicleId) {
       throw new BadRequestException(`Nông cụ ${implement.code} hiện không ở trạng thái đang gắn.`);
@@ -282,27 +425,38 @@ export class ImplementsService {
     };
   }
 
-  async getStatistics() {
-    const [total, attached, inDepot, maintenance, good, wornOut, needRepair] =
+  async getStatistics(filter: ImplementFilterDto, actor: OperationalActor) {
+    const where = await this.buildWhere(filter, actor);
+    const [total, attached, inDepot, maintenance, good, wornOut, needRepair, unassignedUnit] =
       await Promise.all([
-        this.prisma.agriculturalImplement.count(),
+        this.prisma.agriculturalImplement.count({ where }),
         this.prisma.agriculturalImplement.count({
-          where: { status: ImplementStatus.ATTACHED },
+          where: { ...where, status: ImplementStatus.ATTACHED },
         }),
         this.prisma.agriculturalImplement.count({
-          where: { status: ImplementStatus.IN_DEPOT },
+          where: { ...where, status: ImplementStatus.IN_DEPOT },
         }),
         this.prisma.agriculturalImplement.count({
-          where: { status: ImplementStatus.MAINTENANCE },
+          where: { ...where, status: ImplementStatus.MAINTENANCE },
         }),
         this.prisma.agriculturalImplement.count({
-          where: { technicalCondition: TechnicalCondition.GOOD },
+          where: { ...where, technicalCondition: TechnicalCondition.GOOD },
         }),
         this.prisma.agriculturalImplement.count({
-          where: { technicalCondition: TechnicalCondition.WORN_OUT },
+          where: { ...where, technicalCondition: TechnicalCondition.WORN_OUT },
         }),
         this.prisma.agriculturalImplement.count({
-          where: { technicalCondition: TechnicalCondition.NEED_REPAIR },
+          where: { ...where, technicalCondition: TechnicalCondition.NEED_REPAIR },
+        }),
+        this.prisma.agriculturalImplement.count({
+          where: {
+            ...where,
+            OR: [
+              { assignedUnitCode: null },
+              { assignedUnitCode: '' },
+              { assignedUnitCode: 'Chưa phân bổ' },
+            ],
+          },
         }),
       ]);
 
@@ -311,6 +465,7 @@ export class ImplementsService {
       attached,
       inDepot,
       maintenance,
+      unassignedUnit,
       condition: {
         good,
         wornOut,
@@ -389,7 +544,7 @@ export class ImplementsService {
       const code = row[0]?.toString().trim();
       const name = row[1]?.toString().trim() || code;
       const nhomTb = row[2]?.toString().trim() || '';
-      const rowUnit = (row[3]?.toString().trim() as Unit) || unit || Unit.BAN_CO_GIOI;
+      const rowUnit = (row[3]?.toString().trim() as Unit) || unit || Unit.KOUN_MOM;
       const categoryRaw = row[4]?.toString().trim() || '';
       const purpose = row[5]?.toString().trim() || undefined;
 

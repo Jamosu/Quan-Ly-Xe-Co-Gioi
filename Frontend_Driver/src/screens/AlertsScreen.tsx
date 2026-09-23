@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { EmptyState, OfflineBanner, ScreenTitle } from '../components';
+import { EmptyState, OfflineBanner, ScreenTitle, formatDate } from '../components';
+import { api } from '../api';
 import { useAppStore } from '../store';
 import { colors, shadow } from '../theme';
 
@@ -23,69 +24,61 @@ interface AlertItem {
   category: 'ALL' | 'EMERGENCY' | 'OPERATION' | 'SYSTEM';
 }
 
-const INITIAL_ALERTS: AlertItem[] = [
-  {
-    id: 'alt-1',
-    type: 'CRITICAL',
-    title: 'Cảnh báo vận tốc trên đường lô',
-    message: 'Ghi nhận vận tốc 38 km/h vượt ngưỡng 30 km/h tại đường liên lô B14 chiều hôm qua.',
-    time: '2 giờ trước',
-    read: false,
-    category: 'EMERGENCY',
-  },
-  {
-    id: 'alt-2',
-    type: 'WARNING',
-    title: 'Cảnh báo bảo dưỡng định kỳ 250 giờ',
-    message: 'Xe MK-023 (John Deere 6120) đã vận hành 232/250 giờ máy. Cần đưa vào xưởng trong 18 giờ tới.',
-    time: '8 giờ trước',
-    read: false,
-    category: 'OPERATION',
-  },
-  {
-    id: 'alt-3',
-    type: 'INFO',
-    title: 'Lệnh điều xe mới được phân công',
-    message: 'Bạn vừa được phân công Lệnh LDX-20260912-001: Cày đất Lô A12 cho ca sáng nay.',
-    time: '12 giờ trước',
-    read: true,
-    category: 'OPERATION',
-  },
-  {
-    id: 'alt-4',
-    type: 'SUCCESS',
-    title: 'Nghiệm thu khối lượng đã phê duyệt',
-    message: 'Hồ sơ nghiệm thu diện tích cày 8,5 ha ngày 11/09 đã được Ban Nông trường duyệt 100%.',
-    time: '1 ngày trước',
-    read: true,
-    category: 'SYSTEM',
-  },
-  {
-    id: 'alt-5',
-    type: 'INFO',
-    title: 'Dự báo thời tiết nông trường',
-    message: 'Khu vực KLH Koun Mom dự báo nắng ráo thuận lợi cho công tác cày xới đất cả ngày.',
-    time: '1 ngày trước',
-    read: true,
-    category: 'SYSTEM',
-  },
-];
+const INITIAL_ALERTS: AlertItem[] = [];
 
 export function AlertsScreen() {
-  const { online } = useAppStore();
+  const { online, setUnreadAlertsCount } = useAppStore();
   const [filter, setFilter] = useState<'ALL' | 'EMERGENCY' | 'OPERATION' | 'SYSTEM'>('ALL');
   const [alertList, setAlertList] = useState<AlertItem[]>(INITIAL_ALERTS);
   const [refreshing, setRefreshing] = useState(false);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const res = (await api.get('/mobile/driver/alerts')) as any;
+      if (Array.isArray(res)) {
+        const mapped: AlertItem[] = res.map((item: any) => ({
+          id: String(item.id),
+          type: item.type || 'INFO',
+          title: item.title,
+          message: item.message,
+          time: item.time ? formatDate(item.time, true) : 'Vừa xong',
+          read: Boolean(item.read),
+          category: item.category || 'SYSTEM',
+        }));
+        setAlertList(mapped);
+        setUnreadAlertsCount(mapped.filter(i => !i.read).length);
+      } else {
+        setAlertList([]);
+        setUnreadAlertsCount(0);
+      }
+    } catch {
+      // Offline / error: giữ danh sách hiện tại
+    }
+  }, [setUnreadAlertsCount]);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]);
 
   const filtered = alertList.filter(item => filter === 'ALL' || item.category === filter);
 
   const markAllAsRead = () => {
     setAlertList(list => list.map(item => ({ ...item, read: true })));
+    setUnreadAlertsCount(0);
   };
 
-  const onRefresh = () => {
+  const markAsRead = (id: string) => {
+    setAlertList(list => {
+      const next = list.map(item => (item.id === id ? { ...item, read: true } : item));
+      setUnreadAlertsCount(next.filter(i => !i.read).length);
+      return next;
+    });
+  };
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    await loadAlerts();
+    setRefreshing(false);
   };
 
   return (
@@ -139,7 +132,9 @@ export function AlertsScreen() {
             </View>
           </>
         }
-        renderItem={({ item }: { item: AlertItem }) => <AlertCard item={item} />}
+        renderItem={({ item }: { item: AlertItem }) => (
+          <AlertCard item={item} onPress={() => markAsRead(item.id)} />
+        )}
         ListEmptyComponent={
           <EmptyState
             icon="notifications-off-outline"
@@ -207,7 +202,7 @@ function FilterChip({
   );
 }
 
-function AlertCard({ item }: { item: AlertItem }) {
+function AlertCard({ item, onPress }: { item: AlertItem; onPress?: () => void }) {
   const typeConfig: Record<
     AlertItem['type'],
     { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string; border: string }
@@ -241,7 +236,11 @@ function AlertCard({ item }: { item: AlertItem }) {
   const cfg = typeConfig[item.type];
 
   return (
-    <View style={[styles.alertCard, !item.read && { borderColor: cfg.color, borderLeftWidth: 4 }]}>
+    <TouchableOpacity
+      style={[styles.alertCard, !item.read && { borderColor: cfg.color, borderLeftWidth: 4 }]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       <View style={styles.cardHeader}>
         <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
           <Ionicons name={cfg.icon} size={20} color={cfg.color} />
@@ -253,7 +252,7 @@ function AlertCard({ item }: { item: AlertItem }) {
         {!item.read && <View style={[styles.unreadDot, { backgroundColor: cfg.color }]} />}
       </View>
       <Text style={styles.alertMessage}>{item.message}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 

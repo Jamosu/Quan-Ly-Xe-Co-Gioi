@@ -1,6 +1,10 @@
 import type * as React from 'react';
-import type { StyleProp, ViewStyle, ScrollViewProps } from 'react-native';
+import type { ReactElement } from 'react';
+import type { ScrollViewProps, StyleProp, ViewStyle } from 'react-native';
 
+// React Native 0.86 ships class component declarations that TypeScript 6 does
+// not currently recognise as JSX constructors. Keep this compatibility bridge
+// local until the upstream declarations are aligned.
 declare module 'react-native' {
   interface View extends React.Component<any, any> {}
   interface Text extends React.Component<any, any> {}
@@ -17,13 +21,11 @@ declare module 'react-native' {
   interface RefreshControl extends React.Component<any, any> {}
   interface ScrollView extends React.Component<ScrollViewProps, any> {}
   interface FlatListProps<ItemT> {
-    contentContainerStyle?: StyleProp<ViewStyle> | undefined;
+    contentContainerStyle?: StyleProp<ViewStyle>;
+    refreshControl?: ReactElement;
+    ListHeaderComponent?: React.ComponentType<any> | ReactElement | null;
+    ListEmptyComponent?: React.ComponentType<any> | ReactElement | null;
   }
 }
 
 declare module 'invariant';
-declare module 'expo-asset';
-declare module '@react-native/assets-registry/registry';
-
-
-

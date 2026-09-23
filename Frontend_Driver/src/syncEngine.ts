@@ -36,9 +36,15 @@ async function runSync() {
     const normal = (await pendingQueue()).filter(item => item.priority > 1);
     if (normal.length) await pushItems(normal);
     const lastSyncAt = await getMeta('last_sync_at');
-    const pulled = await api.get('/mobile/sync/pull', { params: lastSyncAt ? { since: lastSyncAt } : undefined });
+    const pulled = await api.get('/mobile/sync/pull', { params: lastSyncAt ? { since: lastSyncAt } : undefined }) as any;
     await applyPull(pulled);
+    if (Array.isArray(pulled?.alerts)) {
+      const { useAppStore } = require('./store');
+      useAppStore.getState().setUnreadAlertsCount(pulled.alerts.filter((a: any) => !a.read).length);
+    }
     return true;
+  } catch (error) {
+    return false;
   } finally {
     await setMeta('sync_running', '0');
   }
@@ -57,7 +63,7 @@ async function pushItems(items: QueueItem[]) {
       })),
     }) as unknown as { processed: Array<{ eventId: string; status: string }>; failed: Array<{ eventId: string; message: string }> };
     for (const result of response.processed ?? []) {
-      await markQueue(result.eventId, result.status === 'CONFLICT' ? 'CONFLICT' : 'SYNCED', result);
+      await markQueue(result.eventId, result.status === 'CONFLICT' ? 'CONFLICT' : result.status === 'PROCESSING' ? 'PENDING' : 'SYNCED', result);
     }
     for (const result of response.failed ?? []) await markQueue(result.eventId, 'FAILED', undefined, result.message);
   } catch (error) {
@@ -66,6 +72,14 @@ async function pushItems(items: QueueItem[]) {
 }
 
 export async function initialPull() {
-  const payload = await api.get('/mobile/sync/pull');
-  await applyPull(payload);
+  try {
+    const payload = await api.get('/mobile/sync/pull') as any;
+    await applyPull(payload);
+    if (Array.isArray(payload?.alerts)) {
+      const { useAppStore } = require('./store');
+      useAppStore.getState().setUnreadAlertsCount(payload.alerts.filter((a: any) => !a.read).length);
+    }
+  } catch {
+    // Offline load fallback
+  }
 }

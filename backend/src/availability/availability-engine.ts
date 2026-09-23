@@ -8,6 +8,7 @@ export interface BusyInterval {
   relatedId?: number;
   relatedCode?: string;
   reasonCode?: string;
+  description?: string;
 }
 
 export interface AvailableSlot {

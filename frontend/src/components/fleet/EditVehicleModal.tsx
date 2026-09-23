@@ -7,7 +7,7 @@ import { catalogsApi } from '../../api/catalogsApi';
 import { VehicleProfile, VehicleFilterOptions } from '../../types';
 import { getStoredData } from '../../utils/storage';
 import { mockEnterprises, mockRegions, CatalogItem } from '../../data/catalogData';
-import { INITIAL_CG_MANAGERS } from '../../data/cgManagersData';
+import { driverManagementApi, type DriverManagementUnit } from '../../api/driverManagementApi';
 import {
   Tag,
   Building2,
@@ -59,17 +59,7 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
     getStoredData('catalogs_enterprises', mockEnterprises)
   );
 
-  // Units list from http://localhost:5173/danh-muc/loai-xe?tab=units
-  const [vehicleMasterUnits, setVehicleMasterUnits] = useState<string[]>(() => {
-    const saved = localStorage.getItem('vehicle_units_master');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {}
-    }
-    return INITIAL_CG_MANAGERS.map((m) => m.unitName);
-  });
+  const [managementUnits, setManagementUnits] = useState<DriverManagementUnit[]>([]);
 
   // Sync with Backend Database on modal open
   useEffect(() => {
@@ -80,12 +70,7 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
     catalogsApi.getCatalogs('ENTERPRISE', 'catalogs_enterprises', mockEnterprises).then((data) => {
       if (Array.isArray(data) && data.length > 0) setCatalogEnterprises(data);
     });
-    apiService.getVehicleFilterOptions().then((opts) => {
-      if (opts?.assignedUnits && opts.assignedUnits.length > 0) {
-        setVehicleMasterUnits(opts.assignedUnits);
-        localStorage.setItem('vehicle_units_master', JSON.stringify(opts.assignedUnits));
-      }
-    });
+    driverManagementApi.getUnits({ level: 'TEAM', status: 'ACTIVE' }).then((items) => setManagementUnits(items)).catch(() => setManagementUnits([]));
   }, [isOpen]);
 
   // Form state
@@ -104,6 +89,7 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
 
     // 2. Location & Assignment
     complexCode: 'KOUN_MOM',
+    managementUnitId: '',
     regionCode: '',
     assignedUnitCode: '',
     currentLocationName: '',
@@ -153,6 +139,7 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
         contractStatus: vehicle.contractStatus || 'KLH Koun Mom',
 
         complexCode: vehicle.complexCode || 'KOUN_MOM',
+        managementUnitId: vehicle.managementUnitId ? String(vehicle.managementUnitId) : '',
         regionCode: vehicle.regionCode || '',
         assignedUnitCode: vehicle.assignedUnitCode || vehicle.teamUnit || '',
         currentLocationName: vehicle.currentLocationName || '',
@@ -203,6 +190,7 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
         contractStatus: 'KLH Koun Mom',
 
         complexCode: 'KOUN_MOM',
+        managementUnitId: '',
         regionCode: 'DP',
         assignedUnitCode: '',
         currentLocationName: '',
@@ -264,13 +252,16 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
     const list = filterOptions.complexes && filterOptions.complexes.length > 0
       ? filterOptions.complexes
       : ['KOUN_MOM', 'SNOUL', 'NAM_LAO'];
-    return list.map((c) => ({
-      value: c,
-      label: c === 'KOUN_MOM' ? 'KOUN_MOM (Khu liên hợp Koun Mom)'
-        : c === 'SNOUL' ? 'SNOUL (Khu liên hợp Snoul)'
-        : c === 'NAM_LAO' ? 'NAM_LAO (Khu liên hợp Nam Lào)'
-        : c,
-    }));
+    return list.map((c: any) => {
+      const val = typeof c === 'object' && c !== null ? c.name : String(c);
+      return {
+        value: val,
+        label: val === 'KOUN_MOM' ? 'KOUN_MOM (Khu liên hợp Koun Mom)'
+          : val === 'SNOUL' ? 'SNOUL (Khu liên hợp Snoul)'
+          : val === 'NAM_LAO' ? 'NAM_LAO (Khu liên hợp Nam Lào)'
+          : val,
+      };
+    });
   }, [filterOptions.complexes]);
 
   // Handle Complex Change: auto reset/cascade Region and Unit dynamically
@@ -364,25 +355,10 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
     }));
   }, [formData.complexCode, catalogRegions, catalogEnterprises]);
 
-  // Dynamic Units: Take 100% directly from http://localhost:5173/danh-muc/loai-xe?tab=units
+  // Đội sử dụng lấy từ nguồn chuẩn DriverManagementUnit.
   const availableUnits = useMemo<SelectOption[]>(() => {
-    const rawList =
-      vehicleMasterUnits.length > 0
-        ? vehicleMasterUnits
-        : filterOptions.assignedUnits && filterOptions.assignedUnits.length > 0
-        ? filterOptions.assignedUnits
-        : INITIAL_CG_MANAGERS.map((m) => m.unitName);
-
-    // Filter unique, non-empty, and sort alphabetically
-    const uniqueUnits = Array.from(new Set(rawList.map((u) => u.trim()).filter(Boolean))).sort((a, b) =>
-      a.localeCompare(b, 'vi')
-    );
-
-    return uniqueUnits.map((u) => ({
-      value: u,
-      label: u,
-    }));
-  }, [vehicleMasterUnits, filterOptions.assignedUnits]);
+    return managementUnits.map((item) => ({ value: item.code, label: `${item.code} · ${item.name}` }));
+  }, [managementUnits]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -405,18 +381,28 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
       return;
     }
 
+    const resolvedUnit = managementUnits.find(
+      (item) => item.code === formData.assignedUnitCode || String(item.id) === formData.managementUnitId || item.name === formData.assignedUnitCode
+    );
+    const resolvedManagementUnitId = resolvedUnit?.id || (formData.managementUnitId ? Number(formData.managementUnitId) : undefined) || managementUnits[0]?.id;
+
+    if (!resolvedManagementUnitId && !formData.assignedUnitCode) {
+      setErrorMessage('Vui lòng chọn "Đơn vị sử dụng (Xí nghiệp / Đội)" tại Tab 2.');
+      setActiveTab('location');
+      return;
+    }
+
     try {
       setSaving(true);
       setErrorMessage(null);
 
       // Safe Unit Enum resolution
-      const rawUnitCode = (formData.assignedUnitCode || '').toUpperCase();
-      let resolvedUnit = 'BAN_CO_GIOI';
-      if (rawUnitCode.includes('NT1')) resolvedUnit = 'NT1';
-      else if (rawUnitCode.includes('NT2')) resolvedUnit = 'NT2';
-      else if (rawUnitCode.includes('BO')) resolvedUnit = 'XN_BO';
-      else if (rawUnitCode.includes('BTSC')) resolvedUnit = 'TT_BTSC';
-      else if (rawUnitCode.includes('TOAN_KLH') || rawUnitCode.includes('KLH')) resolvedUnit = 'TOAN_KLH';
+      const rawUnitCode = (resolvedUnit?.code || formData.assignedUnitCode || '').toUpperCase();
+      let resolvedUnitEnum = 'KOUN_MOM';
+      if (rawUnitCode.includes('KOUN_MOM')) resolvedUnitEnum = 'KOUN_MOM';
+      else if (rawUnitCode.includes('BO')) resolvedUnitEnum = 'KOUN_MOM';
+      else if (rawUnitCode.includes('BTSC')) resolvedUnitEnum = 'KOUN_MOM';
+      else if (rawUnitCode.includes('TOAN_KLH') || rawUnitCode.includes('KLH')) resolvedUnitEnum = 'TOAN_KLH';
 
       // Clean payload for backend
       const payload: Record<string, any> = {
@@ -431,10 +417,11 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
         companyOwner: formData.companyOwner.trim() || undefined,
         contractStatus: formData.contractStatus.trim() || undefined,
 
-        unit: resolvedUnit,
-        complexCode: formData.complexCode || 'KOUN_MOM',
+        unit: resolvedUnitEnum,
+        complexCode: resolvedUnit?.complexCode || formData.complexCode || 'KOUN_MOM',
         regionCode: formData.regionCode.trim() || undefined,
-        assignedUnitCode: formData.assignedUnitCode.trim() || undefined,
+        assignedUnitCode: resolvedUnit?.code || formData.assignedUnitCode.trim() || undefined,
+        managementUnitId: resolvedManagementUnitId,
         currentLocationName: formData.currentLocationName.trim() || undefined,
         managerName: formData.managerName.trim() || undefined,
         managerPhone: formData.managerPhone.trim() || undefined,
@@ -821,13 +808,21 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({
 
             <div>
               <label className="mb-1 block text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                Đơn vị sử dụng (Xí nghiệp / Đội)
+                Đơn vị sử dụng (Xí nghiệp / Đội) <span className="text-rose-500">*</span>
               </label>
               <SearchableSelect
                 value={formData.assignedUnitCode}
-                onChange={(val) => handleChange('assignedUnitCode', val)}
+                onChange={(val) => {
+                  const selected = managementUnits.find((item) => item.code === val || String(item.id) === val || item.name === val);
+                  setFormData((prev) => ({
+                    ...prev,
+                    assignedUnitCode: selected?.code || val,
+                    managementUnitId: selected ? String(selected.id) : prev.managementUnitId,
+                    complexCode: selected?.complexCode || prev.complexCode,
+                  }));
+                }}
                 options={availableUnits}
-                placeholder="Chọn đơn vị sử dụng"
+                placeholder="Chọn đơn vị sử dụng..."
                 emptyOptionLabel="-- Bỏ chọn đơn vị --"
                 heightClass="h-9"
               />

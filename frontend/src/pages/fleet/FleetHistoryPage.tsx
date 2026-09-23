@@ -278,12 +278,6 @@ export const FleetHistoryPage: React.FC = () => {
       {/* Global FilterBar */}
       <FilterBar
         searchPlaceholder="Tìm kiếm mã xe, biển số, mã phiếu, tài xế..."
-        extraFilters={
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Dữ liệu thực tế từ MySQL ({stats.totalEvents} sự kiện)</span>
-          </div>
-        }
       />
 
       {/* 4 Stats Cards với dữ liệu thực tế từ DB */}
@@ -540,56 +534,71 @@ export const FleetHistoryPage: React.FC = () => {
           title={`Hồ Sơ Chứng Từ: ${selectedEvent.code || selectedEvent.id}`}
           subtitle={selectedEvent.title}
           size="md"
+          footer={
+            <Button variant="primary" size="sm" onClick={() => setSelectedEvent(null)}>
+              Đóng
+            </Button>
+          }
         >
           <div className="space-y-3.5 text-xs text-slate-700">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="font-bold text-slate-500">Mã chứng từ:</span>
-                <span className="font-mono font-extrabold text-slate-900 bg-white border border-slate-200 px-2 py-0.5 rounded">
+            {/* Header meta badges */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                   {selectedEvent.code || selectedEvent.id}
                 </span>
+                {selectedEvent.badgeType === 'bts' && <Badge variant="red">Bảo dưỡng BTSC</Badge>}
+                {selectedEvent.badgeType === 'driver' && <Badge variant="blue">Đổi tài xế</Badge>}
+                {selectedEvent.badgeType === 'fuel' && <Badge variant="amber">Cấp nhiên liệu</Badge>}
+                {selectedEvent.badgeType === 'delivery' && <Badge variant="green">Bàn giao & Phân bổ</Badge>}
               </div>
+              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                Đã xác thực CSDL
+              </span>
+            </div>
 
-              {selectedEvent.vehicleName && (
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="font-bold text-slate-500">Phương tiện:</span>
-                  <span className="font-bold text-slate-900 text-right">
-                    {selectedEvent.vehicleName} ({selectedEvent.vehicleCode})
-                  </span>
-                </div>
-              )}
-
-              {selectedEvent.plate && (
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="font-bold text-slate-500">Biển số:</span>
-                  <span className="font-mono font-bold text-primary bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                    {selectedEvent.plate}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="font-bold text-slate-500">Thời gian & Đơn vị:</span>
-                <span className="font-semibold text-slate-700 text-right">{selectedEvent.meta}</span>
-              </div>
-
-              <div className="pt-1">
-                <span className="font-bold text-slate-500 block mb-1">Nội dung chi tiết:</span>
-                <p className="font-medium text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed">
-                  {selectedEvent.description}
+            {/* Information Grid */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <span className="text-[11px] text-slate-500 font-semibold block mb-0.5">Phương tiện</span>
+                <p className="font-bold text-slate-900 text-xs">
+                  {selectedEvent.vehicleName || selectedEvent.vehicleCode || 'Chưa định danh'}
                 </p>
+                {selectedEvent.vehicleCode && (
+                  <span className="text-[11px] font-mono text-primary font-semibold block mt-0.5">
+                    Mã xe: {selectedEvent.vehicleCode}
+                  </span>
+                )}
               </div>
 
-              <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-200 flex items-center justify-between">
-                <span>Trạng thái: <b>Đã xác thực trong CSDL</b></span>
-                <span>Khu liên hợp: <b>{selectedEvent.complexCode || 'KOUN_MOM'}</b></span>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <span className="text-[11px] text-slate-500 font-semibold block mb-0.5">Biển số & Đơn vị</span>
+                <p className="font-mono font-bold text-slate-900 text-xs">
+                  {selectedEvent.plate ? selectedEvent.plate : 'Chưa có biển số'}
+                </p>
+                <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                  KLH: {selectedEvent.complexCode || selectedKLH || 'KOUN_MOM'}
+                </span>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="primary" size="sm" onClick={() => setSelectedEvent(null)}>
-                Đóng
-              </Button>
+            {/* Thời gian & Đơn vị thực hiện */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-1">
+              <span className="text-[11px] text-slate-500 font-semibold block">Thời gian & Đơn vị thực hiện</span>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{selectedEvent.meta}</span>
+              </div>
+            </div>
+
+            {/* Nội dung chi tiết */}
+            <div className="space-y-1">
+              <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider block">
+                Nội dung chi tiết sự kiện
+              </span>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 leading-relaxed">
+                {selectedEvent.description}
+              </div>
             </div>
           </div>
         </Modal>
@@ -602,6 +611,16 @@ export const FleetHistoryPage: React.FC = () => {
         title="Tra Cứu Sổ Lý Lịch Theo Mã Xe / Biển Số"
         subtitle="Truy xuất dữ liệu lịch sử phương tiện từ hệ thống cơ sở dữ liệu thực tế"
         size="md"
+        footer={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowLookupModal(false)}>
+              Hủy
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleVinLookupSubmit}>
+              Tra Cứu Ngay
+            </Button>
+          </div>
+        }
       >
         <div className="space-y-3 text-xs">
           <div>
@@ -619,14 +638,6 @@ export const FleetHistoryPage: React.FC = () => {
               className="w-full p-2.5 border border-slate-300 rounded-xl bg-slate-50 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
               autoFocus
             />
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setShowLookupModal(false)}>
-              Hủy
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleVinLookupSubmit}>
-              Tra Cứu Ngay
-            </Button>
           </div>
         </div>
       </Modal>

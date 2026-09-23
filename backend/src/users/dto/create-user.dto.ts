@@ -13,7 +13,7 @@ export class CreateUserDto {
   @IsString()
   username: string;
 
-  @ApiProperty({ example: '123456', description: 'Mật khẩu khởi tạo' })
+  @ApiProperty({ example: 'Thaco@1234$', description: 'Mật khẩu khởi tạo' })
   @IsNotEmpty()
   @IsString()
   @MinLength(6)
@@ -33,7 +33,7 @@ export class CreateUserDto {
   @IsEnum(Role)
   role: Role;
 
-  @ApiProperty({ enum: Unit, default: Unit.NT1 })
+  @ApiProperty({ enum: Unit, default: Unit.KOUN_MOM })
   @IsEnum(Unit)
   unit: Unit;
 

@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsOptional } from 'class-validator';
 
 export class AvailableResourcesDto {
+  @ApiProperty() @Type(() => Number) @IsInt() managementUnitId: number;
   @ApiProperty() @Type(() => Date) @IsDate() start: Date;
   @ApiProperty() @Type(() => Date) @IsDate() end: Date;
   @ApiPropertyOptional({ enum: Unit }) @IsOptional() @IsEnum(Unit) unit?: Unit;

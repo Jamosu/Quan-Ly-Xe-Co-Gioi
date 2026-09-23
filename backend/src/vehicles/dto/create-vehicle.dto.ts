@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { FuelQuotaUnit, MaintenanceAlertTier, Unit, VehicleCategory, VehicleStatus } from '@prisma/client';
-import { IsDate, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateVehicleDto {
   @ApiProperty({ example: 'CHT-MĐA-001', description: 'Mã định danh MMTB mới' })
@@ -39,7 +39,7 @@ export class CreateVehicleDto {
   @IsString()
   vehicleSubtype?: string;
 
-  @ApiPropertyOptional({ enum: Unit, default: Unit.BAN_CO_GIOI })
+  @ApiPropertyOptional({ enum: Unit, default: Unit.KOUN_MOM })
   @IsOptional()
   @IsEnum(Unit, {
     message: 'Đơn vị quản lý (unit) phải thuộc một trong các giá trị hợp lệ: NT1, NT2, XN_BO, TT_BTSC, BAN_CO_GIOI, TOAN_KLH',
@@ -136,6 +136,12 @@ export class CreateVehicleDto {
   @IsString()
   assignedUnitCode?: string;
 
+  @ApiProperty({ example: 1, description: 'ID xí nghiệp/khu vực quản lý chính thức' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  managementUnitId: number;
+
   @ApiPropertyOptional({ example: 'DP', description: 'Mã khu vực (DP, LP, AD)' })
   @IsOptional()
   @IsString()
@@ -150,6 +156,11 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsEnum(VehicleStatus)
   status?: VehicleStatus;
+
+  @ApiPropertyOptional({ default: false, description: 'Xe đã được xác nhận đủ năng lực tham gia cứu hộ SOS' })
+  @IsOptional()
+  @IsBoolean()
+  isRescueCapable?: boolean;
 
   @ApiPropertyOptional({ example: 1250.5, description: 'Tổng số giờ máy lũy kế' })
   @IsOptional()
@@ -303,4 +314,10 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsString()
   managerPhone?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-21T08:00:00.000Z', description: 'Thời điểm cập nhật GPS gần nhất' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  lastGpsUpdate?: Date;
 }

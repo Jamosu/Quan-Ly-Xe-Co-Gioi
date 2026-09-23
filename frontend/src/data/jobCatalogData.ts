@@ -16,6 +16,7 @@ export interface MasterJobItem {
   quotaPerShift: string; // Định mức ca máy
   fuelQuota: number;
   fuelUnit: string;
+  routeFlowType?: 'ONE_WAY' | 'TWO_WAY';
   complexCode: string;
   description: string;
 }
@@ -399,22 +400,25 @@ export function getStoredJobs(): MasterJobItem[] {
 }
 
 export const DEFAULT_MASTER_STAGES: MasterStageItem[] = [
-  // 1. Nông nghiệp
+  // 1. Nông nghiệp (3 giai đoạn chuẩn chuối THACO AGRI)
   { id: 'STG-NN-01', code: 'LAM_DAT', name: '1. Làm đất', planType: 'NONG_NGHIEP', description: 'Cày sâu 30cm, bừa đĩa tơi xốp, phay xới tạo luống', sequence: 1, status: 'active' },
   { id: 'STG-NN-02', code: 'TRONG_MOI', name: '2. Trồng mới & Chăm sóc', planType: 'NONG_NGHIEP', description: 'Khoan hố đặt bầu, rải vôi khử trùng, bón lót hữu cơ, phun thuốc BVTV', sequence: 2, status: 'active' },
   { id: 'STG-NN-03', code: 'THU_HOACH', name: '3. Thu hoạch', planType: 'NONG_NGHIEP', description: 'Cắt buồng chuối, gom kéo mooc về trạm đóng gói, băm nghiền thân cây', sequence: 3, status: 'active' },
 
   // 2. Công trình
-  { id: 'STG-CT-01', code: 'DAO_DAP', name: '1. Đào đắp mương máng & hồ đập', planType: 'CONG_TRINH', description: 'Đào mương trục chính, nạo vét bùn lắng, đào hố móng hồ lắng sinh học', sequence: 1, status: 'active' },
-  { id: 'STG-CT-02', code: 'SAN_LAP', name: '2. San lấp mặt bằng & tạo cos nền', planType: 'CONG_TRINH', description: 'Ủi gạt tạo mặt bằng sân bãi, đắp bờ bao ngăn lũ và kè chống sạt lở', sequence: 2, status: 'active' },
-  { id: 'STG-CT-03', code: 'GIAO_THONG', name: '3. Mở đường & Lu lèn giao thông nội bộ', planType: 'CONG_TRINH', description: 'Bù vê tạo mặt đường, rải cấp phối đá dăm và lu rung đạt K95', sequence: 3, status: 'active' },
-  { id: 'STG-CT-04', code: 'BAO_DUONG', name: '4. Nạo vét & Duy tu hạ tầng công trình', planType: 'CONG_TRINH', description: 'Duy tu định kỳ đường trục nội bộ và hệ thống mương máng mùa mưa lũ', sequence: 4, status: 'active' },
+  { id: 'STG-CT-01', code: 'SAN_GAT', name: '1. San gạt & Lu lèn nền đường', planType: 'CONG_TRINH', description: 'San gạt 2 bên lề, bù vê mặt đường và đầm nén đạt chuẩn K95', sequence: 1, status: 'active' },
+  { id: 'STG-CT-02', code: 'DAO_MUONG', name: '2. Nạo vét & Đào mương', planType: 'CONG_TRINH', description: 'Nạo vét bùn đất lắng đọng đáy mương trục chính, tạo mái dốc taluy chống sạt lở', sequence: 2, status: 'active' },
+  { id: 'STG-CT-03', code: 'DAO_HO', name: '3. Đào hố móng & Hồ chứa nước', planType: 'CONG_TRINH', description: 'Đào hố móng sâu 3.5m tạo hồ chứa nước lắng cặn xử lý nước thải', sequence: 3, status: 'active' },
+  { id: 'STG-CT-04', code: 'MAT_BANG', name: '4. Cải tạo mặt bằng & Bãi tập kết', planType: 'CONG_TRINH', description: 'San lấp mặt bằng chuẩn độ dốc thoát nước 1.5% phục vụ dựng xưởng đóng gói', sequence: 4, status: 'active' },
+  { id: 'STG-CT-05', code: 'DE_BAO', name: '5. Đắp bờ bao & Đê ngăn lũ', planType: 'CONG_TRINH', description: 'Gom đất đắp tôn cao bờ bao quanh nông trường cao hơn đỉnh lũ lịch sử', sequence: 5, status: 'active' },
+  { id: 'STG-CT-06', code: 'BAO_DUONG', name: '6. Nạo vét & Duy tu hạ tầng', planType: 'CONG_TRINH', description: 'Duy tu định kỳ đường trục nội bộ và hệ thống mương máng mùa mưa lũ', sequence: 6, status: 'active' },
 
   // 3. Vận chuyển
-  { id: 'STG-VC-01', code: 'CHUYEN_CHUOI', name: '1. Vận chuyển chuối xuất khẩu', planType: 'VAN_CHUYEN', description: 'Chở buồng tươi về xưởng đóng gói và chở cont lạnh 40ft về kho trung tâm', sequence: 1, status: 'active' },
-  { id: 'STG-VC-02', code: 'CHUYEN_THUC_AN', name: '2. Vận chuyển thức ăn gia súc (Bò)', planType: 'VAN_CHUYEN', description: 'Chở thân lá chuối tươi, bắp sinh khối về hầm ủ chua và trại bò thịt', sequence: 2, status: 'active' },
-  { id: 'STG-VC-03', code: 'CHUYEN_VAT_TU', name: '3. Vận chuyển phân bón & vật tư', planType: 'VAN_CHUYEN', description: 'Vận chuyển phân bón, vôi, ống tưới, bao buồng từ kho tổng về chòi tập kết', sequence: 3, status: 'active' },
-  { id: 'STG-VC-04', code: 'CHUYEN_NOI_BO', name: '4. Tiếp liệu & Điều chuyển cơ giới', planType: 'VAN_CHUYEN', description: 'Tiếp ứng dầu Diesel, nước sinh hoạt và điều chuyển máy móc nông cụ', sequence: 4, status: 'active' },
+  { id: 'STG-VC-01', code: 'NONG_SAN', name: '1. Chuối & Nông sản xuất khẩu', planType: 'VAN_CHUYEN', description: 'Vận chuyển chuối đạt tiêu chuẩn xuất khẩu từ xưởng sơ chế về kho lạnh trung tâm', sequence: 1, status: 'active' },
+  { id: 'STG-VC-02', code: 'THUC_AN', name: '2. Vận chuyển thức ăn gia súc (Bò)', planType: 'VAN_CHUYEN', description: 'Chở thân lá chuối tươi, bắp sinh khối về hầm ủ chua và trại bò thịt', sequence: 2, status: 'active' },
+  { id: 'STG-VC-03', code: 'PHAN_BON', name: '3. Phân bón & Vật tư nông nghiệp', planType: 'VAN_CHUYEN', description: 'Xuất phân bón từ kho tổng KLH cấp cho chòi tập kết vật tư các nông trường', sequence: 3, status: 'active' },
+  { id: 'STG-VC-04', code: 'THIET_BI', name: '4. Nông cụ, Phụ tùng & Ống tưới', planType: 'VAN_CHUYEN', description: 'Chở cuộn ống tưới PE, béc tưới và dầu nhớt phụ tùng thay thế định kỳ', sequence: 4, status: 'active' },
+  { id: 'STG-VC-05', code: 'NHIEN_LIEU', name: '5. Nhiên liệu Diesel & Nước sinh hoạt', planType: 'VAN_CHUYEN', description: 'Cấp phát dầu Diesel trực tiếp cho các trạm bơm tưới tự động và tổ máy cày', sequence: 5, status: 'active' },
 ];
 
 export function getStoredStages(): MasterStageItem[] {
@@ -424,14 +428,16 @@ export function getStoredStages(): MasterStageItem[] {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        list = parsed.map((stage, index) => ({
-          ...stage,
-          id: stage.id || `STG-${stage.code || index + 1}`,
-          planType: ((stage.planType || 'NONG_NGHIEP') as string).toUpperCase() as JobPlanType,
-          description: stage.description || '',
-          sequence: Number(stage.sequence) || index + 1,
-          status: stage.status === 'inactive' ? 'inactive' : 'active',
-        })) as MasterStageItem[];
+        list = parsed
+          .filter((stage) => stage.code !== 'TAI_CANH')
+          .map((stage, index) => ({
+            ...stage,
+            id: stage.id || `STG-${stage.code || index + 1}`,
+            planType: ((stage.planType || 'NONG_NGHIEP') as string).toUpperCase() as JobPlanType,
+            description: stage.description || '',
+            sequence: Number(stage.sequence) || index + 1,
+            status: stage.status === 'inactive' ? 'inactive' : 'active',
+          })) as MasterStageItem[];
       }
     }
   } catch {}
@@ -443,7 +449,7 @@ export function getStoredStages(): MasterStageItem[] {
   // Khử trùng lặp tuyệt đối theo stage.code (Strict Deduplication by code)
   const uniqueMap = new Map<string, MasterStageItem>();
   list.forEach((stage) => {
-    if (stage.code && !uniqueMap.has(stage.code)) {
+    if (stage.code && stage.code !== 'TAI_CANH' && !uniqueMap.has(stage.code)) {
       uniqueMap.set(stage.code, stage);
     }
   });

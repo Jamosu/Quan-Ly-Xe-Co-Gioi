@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   LayoutGrid,
   Table as TableIcon,
+  X,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { operationsApi } from '../../api/operations';
@@ -39,18 +40,18 @@ import {
   type PreparationContextResponse,
 } from '../../api/scheduling';
 import { catalogsApi } from '../../api/catalogsApi';
+import { driverManagementApi, type DriverManagementUnit } from '../../api/driverManagementApi';
 import {
-  MASTER_JOBS,
   MasterJobItem,
-  getStoredJobs,
   getStoredStages,
 } from '../../data/jobCatalogData';
+import type { CatalogItem } from '../../data/catalogData';
+import { getStoredData } from '../../utils/storage';
 import {
   getStoredPlots,
   getStoredAgriTeams,
   getStoredConstructionSites,
   getStoredConstructionTeams,
-  getStoredTransportRoutes,
   AgriculturalPlotItem,
   ConstructionSiteItem,
   TransportRouteItem,
@@ -67,9 +68,6 @@ import {
   getWeekNumber,
 } from '../../pages/dispatch/ProductionPlanPage';
 import {
-  DEMO_FALLBACK_VEHICLES,
-  DEMO_FALLBACK_DRIVERS,
-  DEMO_EQUIPMENTS,
   toLocalDateTimeInput,
 } from './WorkflowActionPanel';
 import { Button } from '../common/Button';
@@ -85,6 +83,7 @@ export type RouteFlowType = 'ONE_WAY' | 'TWO_WAY';
 
 export interface FormState {
   category: Category;
+  managementUnitId: string;
 
   // Lập kế hoạch Nông nghiệp (Hình 1)
   selectedYear: number;
@@ -149,14 +148,17 @@ export interface FormState {
   // Thời gian & ca (Hình 3)
   plannedStartAt: string;
   plannedEndAt: string;
+  expectedCompletedAt: string;
   shift: string;
   priority: Priority;
+  breakHours?: number;
 
   // Nguồn lực (Hình 3)
   assignmentMode: AssignmentMode;
   vehicleId: string;
   driverId: string;
   implementId: string;
+  implementIds?: string[];
   notes: string;
 }
 
@@ -175,18 +177,22 @@ const freshForm = (initialCategory: Category = 'AGRICULTURE'): FormState => {
 
   const base = {
     category: initialCategory,
+    managementUnitId: '',
     selectedYear: currentYear,
     selectedWeekNumber: currentWeek,
-    durationHours: 10,
+    durationHours: 8,
+    breakHours: 1,
     startTime: localDateTime(start),
     plannedStartAt: localDateTime(start),
     plannedEndAt: localDateTime(end),
+    expectedCompletedAt: localDateTime(end).slice(0, 10),
     shift: 'CA_NGAY',
     priority: 'NORMAL' as Priority,
     assignmentMode: 'FIXED_ASSIGNMENT' as AssignmentMode,
-    vehicleId: '92001',
-    driverId: '93001',
-    implementId: '94001',
+    vehicleId: '',
+    driverId: '',
+    implementId: '',
+    implementIds: [],
     notes: '',
     complexCode: 'KOUN_MOM',
     complexName: 'Khu liên hợp Koun Mom',
@@ -196,46 +202,46 @@ const freshForm = (initialCategory: Category = 'AGRICULTURE'): FormState => {
   if (initialCategory === 'CONSTRUCTION') {
     return {
       ...base,
-      planCode: `KH-CT-${currentYear}-W${currentWeek}-${Math.floor(1000 + Math.random() * 9000)}`,
-      planTitle: `Kế hoạch cơ giới thi công công trình Tuần ${currentWeek}`,
-      selectedStageCode: 'SAN_GAT',
-      enterpriseCode: 'BE02',
-      enterpriseName: 'Ban Quản lý Xây dựng & Hạ tầng Koun Mom',
+      planCode: '',
+      planTitle: '',
+      selectedStageCode: '',
+      enterpriseCode: '',
+      enterpriseName: '',
       farmCode: '',
       farmName: '',
-      teamCode: 'TEAM-CT-01',
-      teamName: 'Đội San gạt & Đường sá Koun Mom',
-      unit: 'BAN_CO_GIOI',
+      teamCode: '',
+      teamName: '',
+      unit: 'KOUN_MOM',
       stageCode: '',
       stageName: '',
       cropType: '',
-      implementGroup: 'Lưỡi ben san gạt & Trục lu rung',
-      recommendedVehicle: 'Máy san gạt GD555 & Xe lu rung 14T',
-      quotaPerShift: '1.5 km/ca 8h',
-      fuelQuota: 14.5,
+      implementGroup: '',
+      recommendedVehicle: '',
+      quotaPerShift: '',
+      fuelQuota: 0,
       fuelUnit: 'Lít/h',
-      constructionCategory: 'SAN_GAT',
-      constructionItem: 'San gạt bù vê và lu lèn nền đường giao thông',
-      equipmentType: 'Máy san gạt GD555 & Xe lu rung 14T',
-      targetScope: 'Đường trục chính Km 0+000 - Km 5+200',
+      constructionCategory: '',
+      constructionItem: '',
+      equipmentType: '',
+      targetScope: '',
       expectedDurationHours: '8',
       transportCategory: '',
       cargoType: '',
       routeFlowType: 'ONE_WAY',
       distanceKm: '',
-      speedLimitKmH: '35',
+      speedLimitKmH: '',
       returnCargoName: '',
       returnOrigin: '',
       returnDestination: '',
       returnTonnage: '',
-      jobCode: 'CV-CT-01',
-      jobName: 'San gạt bù vê và lu lèn nền đường giao thông',
-      jobDescription: 'San gạt bù vê và lu lèn nền đường giao thông - Đạt chuẩn độ chặt K95',
-      workLocationKey: 'SITE-KM-01',
-      workLocationText: 'Đường trục chính nội bộ KLH Koun Mom (Km 0+000 - Km 5+200)',
-      origin: 'Bãi tập kết Ban Xây dựng Koun Mom',
-      destination: 'Đường trục chính nội bộ KLH Koun Mom',
-      targetQuantity: '1.5',
+      jobCode: '',
+      jobName: '',
+      jobDescription: '',
+      workLocationKey: '',
+      workLocationText: '',
+      origin: '',
+      destination: '',
+      targetQuantity: '',
       targetUnit: 'km',
     };
   }
@@ -243,46 +249,46 @@ const freshForm = (initialCategory: Category = 'AGRICULTURE'): FormState => {
   if (initialCategory === 'TRANSPORT') {
     return {
       ...base,
-      planCode: `KH-VC-${currentYear}-W${currentWeek}-${Math.floor(1000 + Math.random() * 9000)}`,
-      planTitle: `Kế hoạch vận chuyển nội bộ & tiếp liệu Tuần ${currentWeek}`,
-      selectedStageCode: 'NONG_SAN',
-      enterpriseCode: 'BE02',
-      enterpriseName: 'Xí nghiệp Vận tải & Tiếp liệu Koun Mom',
+      planCode: '',
+      planTitle: '',
+      selectedStageCode: '',
+      enterpriseCode: '',
+      enterpriseName: '',
       farmCode: '',
       farmName: '',
-      teamCode: 'TEAM-VC-01',
-      teamName: 'Đội Xe tải ben & Đầu kéo đường dài',
-      unit: 'BAN_CO_GIOI',
+      teamCode: '',
+      teamName: '',
+      unit: 'KOUN_MOM',
       stageCode: '',
       stageName: '',
       cropType: '',
-      implementGroup: 'Container lạnh 40ft',
-      recommendedVehicle: 'Đầu kéo Container lạnh 40ft',
-      quotaPerShift: '25 Tấn/chuyến',
-      fuelQuota: 32.0,
+      implementGroup: '',
+      recommendedVehicle: '',
+      quotaPerShift: '',
+      fuelQuota: 0,
       fuelUnit: 'Lít/100km',
       constructionCategory: '',
       constructionItem: '',
-      equipmentType: 'Đầu kéo Container lạnh 40ft',
+      equipmentType: '',
       targetScope: '',
       expectedDurationHours: '8',
-      transportCategory: 'NONG_SAN',
-      cargoType: 'Chuối tươi đóng pallet xuất khẩu',
+      transportCategory: '',
+      cargoType: '',
       routeFlowType: 'ONE_WAY',
-      distanceKm: '35',
-      speedLimitKmH: '45',
+      distanceKm: '',
+      speedLimitKmH: '',
       returnCargoName: '',
       returnOrigin: '',
       returnDestination: '',
       returnTonnage: '',
-      jobCode: 'CV-VC-02',
-      jobName: 'Chở chuối tươi đóng pallet về kho lạnh xuất khẩu',
-      jobDescription: 'Vận chuyển chuối đạt tiêu chuẩn xuất khẩu từ xưởng sơ chế về kho lạnh trung tâm',
-      workLocationKey: 'ROUTE-KM-02',
-      workLocationText: 'Tuyến: Xưởng đóng gói DP2 ➔ Kho lạnh trung tâm (35 km)',
-      origin: 'Xưởng đóng gói Chuối DP2 - KLH Koun Mom',
-      destination: 'Kho lạnh trung tâm KLH Koun Mom',
-      targetQuantity: '25',
+      jobCode: '',
+      jobName: '',
+      jobDescription: '',
+      workLocationKey: '',
+      workLocationText: '',
+      origin: '',
+      destination: '',
+      targetQuantity: '',
       targetUnit: 'Tấn',
     };
   }
@@ -290,23 +296,23 @@ const freshForm = (initialCategory: Category = 'AGRICULTURE'): FormState => {
   // Mặc định AGRICULTURE
   return {
     ...base,
-    planCode: `KH-${currentYear}-W${currentWeek}-${Math.floor(1000 + Math.random() * 9000)}`,
-    planTitle: `Kế hoạch cơ giới sản xuất Tuần ${currentWeek}`,
-    selectedStageCode: 'LAM_DAT',
-    enterpriseCode: 'BE02',
-    enterpriseName: 'Xí nghiệp Chuối DP2',
-    farmCode: 'BE02.00.01',
-    farmName: 'Nông trường DP2.1',
+    planCode: '',
+    planTitle: '',
+    selectedStageCode: '',
+    enterpriseCode: '',
+    enterpriseName: '',
+    farmCode: '',
+    farmName: '',
     teamCode: '',
     teamName: '',
-    unit: 'NT1',
-    stageCode: 'LAM_DAT',
-    stageName: '1. Làm đất',
-    cropType: 'Chuối Nam Mỹ Foc TR4',
-    implementGroup: 'Dàn cày 3 - 4 chảo',
-    recommendedVehicle: 'Máy kéo bánh hơi 70 - 90HP',
-    quotaPerShift: '2.5 ha/ca',
-    fuelQuota: 12.5,
+    unit: 'KOUN_MOM',
+    stageCode: '',
+    stageName: '',
+    cropType: '',
+    implementGroup: '',
+    recommendedVehicle: '',
+    quotaPerShift: '',
+    fuelQuota: 0,
     fuelUnit: 'Lít/ha',
     constructionCategory: '',
     constructionItem: '',
@@ -317,19 +323,19 @@ const freshForm = (initialCategory: Category = 'AGRICULTURE'): FormState => {
     cargoType: '',
     routeFlowType: 'ONE_WAY',
     distanceKm: '',
-    speedLimitKmH: '35',
+    speedLimitKmH: '',
     returnCargoName: '',
     returnOrigin: '',
     returnDestination: '',
     returnTonnage: '',
-    jobCode: 'CV-LD-01',
-    jobName: 'Cày lật phá lâm sâu 30cm',
-    jobDescription: 'Cày lật phá lâm sâu 30cm - Quy trình kỹ thuật làm đất',
-    workLocationKey: 'PLOT-KM-05',
-    workLocationText: 'LO-KM-05: Lô B1 - Nông trường 1',
-    origin: 'Bãi máy Nông trường 1',
-    destination: 'Lô B1 - Nông trường 1',
-    targetQuantity: '35',
+    jobCode: '',
+    jobName: '',
+    jobDescription: '',
+    workLocationKey: '',
+    workLocationText: '',
+    origin: '',
+    destination: '',
+    targetQuantity: '',
     targetUnit: 'ha',
   };
 };
@@ -379,29 +385,61 @@ const categoryInfo: Record<
   },
 };
 
-const AGRI_STAGES = [
-  { code: 'LAM_DAT', name: '1. Làm đất' },
-  { code: 'CHAM_SOC', name: '2. Chăm sóc' },
-  { code: 'THU_HOACH', name: '3. Thu hoạch' },
-  { code: 'TAI_CANH', name: '4. Tái canh & Khai hoang' },
-];
+const mapCatalogItemToDispatchJob = (item: CatalogItem): MasterJobItem => ({
+  id: item.id,
+  code: item.code,
+  name: item.name,
+  planType: (item.parentCode as MasterJobItem['planType']) || 'NONG_NGHIEP',
+  categoryCode: item.enterpriseName || '',
+  categoryName: item.parentName || '',
+  implementGroup: item.farmName || '',
+  recommendedVehicle: item.plotStatus || '',
+  routeFlowType: item.routeFlowType,
+  defaultUnit: item.systemId || '',
+  quotaPerShift: item.managerName || '',
+  fuelQuota: item.areaHa || 0,
+  fuelUnit: item.address || 'Lít/ha',
+  complexCode: item.phone || '',
+  description: item.description || '',
+});
 
-const CONSTRUCTION_CATEGORIES = [
-  { code: 'SAN_GAT', name: 'San gạt & Lu lèn nền đường' },
-  { code: 'DAO_MUONG', name: 'Nạo vét & Đào mương' },
-  { code: 'DAO_HO', name: 'Đào hố móng & Hồ chứa nước' },
-  { code: 'MAT_BANG', name: 'Cải tạo mặt bằng & Bãi tập kết' },
-  { code: 'DE_BAO', name: 'Đắp bờ bao & Đê ngăn lũ' },
-  { code: 'KHAC', name: 'Hạng mục khác' },
-];
+const mapCatalogItemToDispatchRoute = (item: CatalogItem): TransportRouteItem => {
+  const [origin = '', destination = ''] = (item.address || '').split('➔').map((value) => value.trim());
+  const description = item.description || '';
 
-const TRANSPORT_CATEGORIES = [
-  { code: 'NHIEN_LIEU', name: 'Nhiên liệu & Nước sinh hoạt' },
-  { code: 'NONG_SAN', name: 'Chuối & Nông sản xuất khẩu' },
-  { code: 'PHAN_BON', name: 'Phân bón & Vật tư nông nghiệp' },
-  { code: 'THIET_BI', name: 'Nông cụ, Phụ tùng & Ống tưới' },
-  { code: 'KHAC', name: 'Hàng hóa khác' },
-];
+  return {
+    id: item.id,
+    code: item.code,
+    name: item.name,
+    origin,
+    destination,
+    distanceKm: Number(description.match(/Cự ly:\s*([\d.]+)/)?.[1]) || 0,
+    complexCode: (item.parentCode as TransportRouteItem['complexCode']) || 'KOUN_MOM',
+    complexName: item.parentName || '',
+    cargoType: description.match(/Hàng:\s*([^|]+)/)?.[1]?.trim() || '',
+    speedLimitKmH: Number(description.match(/Tốc độ GPS:\s*(\d+)/)?.[1]) || 0,
+    recommendedVehicles: item.managerName || '',
+    routeFlowType: item.routeFlowType || 'ONE_WAY',
+    returnOrigin: item.returnOrigin || '',
+    returnDestination: item.returnDestination || '',
+    returnCargoName: item.returnCargoName || '',
+    returnTonnage: item.returnTonnage || 0,
+    status: item.status === 'TAM_DUNG' ? 'maintenance' : 'active',
+    statusLabel: item.status === 'TAM_DUNG' ? 'Tạm dừng' : 'Hoạt động',
+    notes: description,
+  };
+};
+
+
+export const calculateEndTimeFormatted = (startIso: string, hours: number, breakHours: number = 0) => {
+  const s = new Date(startIso);
+  if (Number.isNaN(s.getTime())) return '—';
+  const totalHours = Number(hours || 0) + Number(breakHours || 0);
+  const e = new Date(s.getTime() + totalHours * 3600000);
+  const timeStr = e.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `${timeStr} ngày ${dateStr}`;
+};
 
 const inputClass =
   'h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 disabled:bg-slate-100 disabled:cursor-not-allowed';
@@ -483,6 +521,12 @@ export const DispatchOrderForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [agriTaskViewMode, setAgriTaskViewMode] = useState<'CARD' | 'TABLE'>('CARD');
+  const [autoVehicleNotice, setAutoVehicleNotice] = useState<{
+    type: 'PRIMARY_1' | 'PRIMARY_2' | 'SECONDARY' | 'ALL_BUSY' | 'NO_ASSIGNED';
+    message: string;
+    badge: string;
+    tone: 'emerald' | 'amber' | 'blue' | 'rose' | 'slate';
+  } | null>(null);
 
   useEffect(() => {
     if (sourceOrder) return;
@@ -508,6 +552,18 @@ export const DispatchOrderForm: React.FC = () => {
   const [complexes, setComplexes] = useState<AdminUnitItem[]>(mockComplexes);
   const [enterprises, setEnterprises] = useState<AdminUnitItem[]>(mockEnterprises);
   const [farms, setFarms] = useState<AdminUnitItem[]>(mockFarms);
+  const [catalogJobs, setCatalogJobs] = useState<MasterJobItem[]>([]);
+  const [catalogTransportRoutes, setCatalogTransportRoutes] = useState<TransportRouteItem[]>([]);
+  const [managementUnits, setManagementUnits] = useState<DriverManagementUnit[]>([]);
+
+  useEffect(() => {
+    driverManagementApi.getUnits({ level: 'TEAM', status: 'ACTIVE' })
+      .then((items) => setManagementUnits(items.filter((item) => item.level === 'TEAM' && item.status === 'ACTIVE')))
+      .catch(() => {
+        setManagementUnits([]);
+        setError('Không tải được danh sách khu vực quản lý. Vui lòng thử lại.');
+      });
+  }, []);
 
   useEffect(() => {
     catalogsApi
@@ -556,8 +612,82 @@ export const DispatchOrderForm: React.FC = () => {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const loadAgricultureJobs = async () => {
+      const items = await catalogsApi.getCatalogs('JOB_ITEM', 'catalogs_job_items');
+      const jobs = items.length
+        ? items.map(mapCatalogItemToDispatchJob)
+        : getStoredData<MasterJobItem[]>('thaco_job_items_v5', []);
+
+      if (active) {
+        setCatalogJobs(jobs);
+      }
+    };
+
+    void loadAgricultureJobs();
+    window.addEventListener('catalogs-job-items-updated', loadAgricultureJobs);
+    return () => {
+      active = false;
+      window.removeEventListener('catalogs-job-items-updated', loadAgricultureJobs);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadTransportRoutes = async () => {
+      const items = await catalogsApi.getCatalogs('ROUTE', 'catalogs_routes');
+      if (active) setCatalogTransportRoutes(items.map(mapCatalogItemToDispatchRoute));
+    };
+
+    void loadTransportRoutes();
+    window.addEventListener('catalogs-routes-updated', loadTransportRoutes);
+    return () => {
+      active = false;
+      window.removeEventListener('catalogs-routes-updated', loadTransportRoutes);
+    };
+  }, []);
+
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((old) => ({ ...old, [key]: value }));
+
+  const selectManagementUnit = (val: string) => {
+    if (!val) {
+      setForm((old) => ({
+        ...old,
+        managementUnitId: '',
+        vehicleId: '',
+        driverId: '',
+        implementId: '',
+      }));
+      return;
+    }
+    const area = managementUnits.find((item) => item.id === Number(val));
+    setForm((old) => {
+      const nextComplexCode = area?.complexCode || old.complexCode || '';
+      const changesComplex = Boolean(old.complexCode && nextComplexCode !== old.complexCode);
+      return {
+        ...old,
+        managementUnitId: val,
+        complexCode: nextComplexCode,
+        complexName: complexes.find((item) => item.code === nextComplexCode)?.name || nextComplexCode || old.complexName || '',
+        unit: nextComplexCode || old.unit || '',
+        ...(changesComplex ? {
+          enterpriseCode: '',
+          enterpriseName: '',
+          farmCode: '',
+          farmName: '',
+          workLocationKey: '',
+          workLocationText: '',
+          origin: '',
+          destination: '',
+        } : {}),
+        vehicleId: '',
+        driverId: '',
+        implementId: '',
+      };
+    });
+  };
 
   // 1. Khi có planId + itemId mà chưa có workOrderId: tìm lệnh con
   useEffect(() => {
@@ -600,6 +730,7 @@ export const DispatchOrderForm: React.FC = () => {
         const cat = order.category as Category;
         setForm((prev) => ({
           ...prev,
+          managementUnitId: order.managementUnitId ? String(order.managementUnitId) : '',
           category: cat,
           selectedYear: order.plannedStartAt ? new Date(order.plannedStartAt).getFullYear() : prev.selectedYear,
           selectedWeekNumber: order.plannedStartAt ? getWeekNumber(new Date(order.plannedStartAt)) : prev.selectedWeekNumber,
@@ -616,7 +747,7 @@ export const DispatchOrderForm: React.FC = () => {
           farmName: order.farmName || '',
           teamCode: details.teamCode || details.constructionTeam || '',
           teamName: details.teamName || details.constructionTeam || '',
-          unit: order.unit || 'NT1',
+          unit: order.unit || 'KOUN_MOM',
 
           // Nông nghiệp
           stageCode: details.stageCode || (cat === 'AGRICULTURE' ? 'LAM_DAT' : ''),
@@ -677,6 +808,7 @@ export const DispatchOrderForm: React.FC = () => {
   useEffect(() => {
     if (
       !form.category ||
+      !form.managementUnitId ||
       !form.unit ||
       !form.plannedStartAt ||
       !form.plannedEndAt ||
@@ -690,33 +822,32 @@ export const DispatchOrderForm: React.FC = () => {
       setContextLoading(true);
       schedulingApi
         .preparationContext({
+          managementUnitId: Number(form.managementUnitId),
           category: form.category,
           unit: form.unit,
           complexCode: form.complexCode || 'KOUN_MOM',
           startAt: new Date(form.plannedStartAt).toISOString(),
           endAt: new Date(form.plannedEndAt).toISOString(),
           excludeWorkOrderId: workOrderIdParam,
+          vehicleId: form.vehicleId ? Number(form.vehicleId) : undefined,
         })
         .then((ctx) => {
           setContext(ctx);
-          if (ctx) {
-            setForm((prev) => {
-              const updates: Partial<FormState> = {};
-              if (!prev.vehicleId || prev.vehicleId.startsWith('92')) {
-                const firstVeh = ctx.vehicles.find((v) => v.availability?.available) || ctx.vehicles[0];
-                if (firstVeh) updates.vehicleId = String(firstVeh.id);
-              }
-              if (!prev.driverId || prev.driverId.startsWith('93')) {
-                const firstDrv = ctx.drivers.find((d) => d.availability?.available) || ctx.drivers[0];
-                if (firstDrv) updates.driverId = String(firstDrv.id);
-              }
-              if (!prev.implementId || prev.implementId.startsWith('94')) {
-                const firstImp = ctx.implements[0];
-                if (firstImp) updates.implementId = String(firstImp.id);
-              }
-              return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
-            });
-          }
+          setForm((old) => {
+            const remainsSelectable = <T extends { id: number; selection?: { selectable: boolean } },>(
+              selectedId: string,
+              resources: T[],
+            ) => !selectedId || resources.some(
+              (item) => String(item.id) === selectedId && item.selection?.selectable !== false,
+            );
+
+            return {
+              ...old,
+              vehicleId: remainsSelectable(old.vehicleId, ctx.vehicles) ? old.vehicleId : '',
+              driverId: remainsSelectable(old.driverId, ctx.drivers) ? old.driverId : '',
+              implementId: remainsSelectable(old.implementId, ctx.implements) ? old.implementId : '',
+            };
+          });
         })
         .catch(() => {
           setContext(null);
@@ -726,7 +857,15 @@ export const DispatchOrderForm: React.FC = () => {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [form.category, form.complexCode, form.plannedEndAt, form.plannedStartAt, form.unit, workOrderIdParam]);
+  }, [form.category, form.managementUnitId, form.complexCode, form.plannedEndAt, form.plannedStartAt, form.unit, form.vehicleId, workOrderIdParam]);
+
+  // Lắng nghe thay đổi Master Data từ màn hình Danh mục (/danh-muc/loai-cong-viec/*)
+  const [stagesVersion, setStagesVersion] = useState(0);
+  useEffect(() => {
+    const handleStorageChange = () => setStagesVersion((v) => v + 1);
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // 4. Tuần và Năm làm việc (Hình 1)
   const weeksOfYear = useMemo(() => getWeeksOfYear(form.selectedYear), [form.selectedYear]);
@@ -742,45 +881,101 @@ export const DispatchOrderForm: React.FC = () => {
     );
   }, [weeksOfYear, form.selectedWeekNumber]);
 
-  const yearOptions: SelectOption[] = useMemo(
-    () => [
-      { value: '2025', label: 'Năm 2025' },
-      { value: '2026', label: 'Năm 2026' },
-      { value: '2027', label: 'Năm 2027' },
-      { value: '2028', label: 'Năm 2028' },
-    ],
-    []
-  );
+  // Sinh động danh sách năm: chỉ cho phép năm hiện tại và năm hiện tại + 1 khi tạo mới, hỗ trợ năm của lệnh cũ nếu đang sửa
+  const yearOptions: SelectOption[] = useMemo(() => {
+    const curY = new Date().getFullYear();
+    const years = [curY, curY + 1];
+    const selY = form.selectedYear ? Number(form.selectedYear) : curY;
+    if (selY && !years.includes(selY)) {
+      years.push(selY);
+      years.sort((a, b) => a - b);
+    }
+    return years.map((y) => ({ value: String(y), label: `Năm ${y}` }));
+  }, [form.selectedYear]);
 
   const weekOptions: SelectOption[] = useMemo(() => {
-    return weeksOfYear.map((w) => ({
+    const curY = new Date().getFullYear();
+    const curW = getWeekNumber(new Date());
+    const selY = form.selectedYear ? Number(form.selectedYear) : curY;
+
+    // Sắp xếp tuần tăng dần: nếu là năm hiện tại, chỉ cho phép chọn từ tuần hiện tại trở đi
+    let sortedWeeks = [...weeksOfYear].sort((a, b) => a.weekNumber - b.weekNumber);
+    if (selY === curY) {
+      sortedWeeks = sortedWeeks.filter(
+        (w) => w.weekNumber >= curW || (sourceOrder && w.weekNumber === form.selectedWeekNumber)
+      );
+    } else if (selY < curY) {
+      sortedWeeks = sourceOrder ? sortedWeeks.filter((w) => w.weekNumber === form.selectedWeekNumber) : [];
+    }
+
+    return sortedWeeks.map((w) => ({
       value: String(w.weekNumber),
       label: w.label,
     }));
-  }, [weeksOfYear]);
+  }, [weeksOfYear, form.selectedYear, sourceOrder, form.selectedWeekNumber]);
 
-  const stageOptions: SelectOption[] = useMemo(
-    () => [
-      { value: 'LAM_DAT', label: '1. Làm đất', subLabel: 'Cày sâu 30cm, bừa đĩa tơi xốp, phay xới tạo luống' },
-      { value: 'CHAM_SOC', label: '2. Chăm sóc & Trồng mới', subLabel: 'Khoan hố đặt bầu, rải vôi, bón lót hữu cơ, phun thuốc' },
-      { value: 'THU_HOACH', label: '3. Thu hoạch', subLabel: 'Cắt buồng chuối, gom kéo moóc về trạm đóng gói, băm cây' },
-      { value: 'TAI_CANH', label: '4. Tái canh & Cải tạo', subLabel: 'Phá gốc chuối già cỗi, phay vùi hữu cơ, san gạt phẳng đất' },
-    ],
-    []
-  );
+  // Toàn bộ Giai đoạn / Phân loại tải động từ Danh mục Master Data (hỗ trợ cả Nông nghiệp, Công trình, Vận chuyển)
+  const masterStages = useMemo(() => {
+    return getStoredStages();
+  }, [stagesVersion]);
+
+  // Danh mục Giai đoạn Nông nghiệp (đồng bộ từ http://localhost:5173/danh-muc/loai-cong-viec/nong-nghiep?tab=stages)
+  const agriStageOptions: SelectOption[] = useMemo(() => {
+    return masterStages
+      .filter((s) => (s.planType === 'NONG_NGHIEP' || !s.planType) && s.status !== 'inactive')
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((s) => ({
+        value: s.code,
+        label: s.name,
+        subLabel: s.description,
+      }));
+  }, [masterStages]);
+
+  // Công trình phân loại theo categoryCode của JOB_ITEM.
+  const constructionCategoryOptions: SelectOption[] = useMemo(() => {
+    const categories = new Map<string, SelectOption>();
+    catalogJobs
+      .filter((job) => job.planType === 'CONG_TRINH' && job.categoryCode)
+      .forEach((job) => categories.set(job.categoryCode, {
+        value: job.categoryCode,
+        label: job.categoryName || job.categoryCode,
+      }));
+    return [...categories.values()];
+  }, [catalogJobs]);
+
+  // Vận chuyển phân loại theo categoryCode của JOB_ITEM.
+  const transportCategoryOptions: SelectOption[] = useMemo(() => {
+    const categories = new Map<string, SelectOption>();
+    catalogJobs
+      .filter((job) => job.planType === 'VAN_CHUYEN' && job.categoryCode)
+      .forEach((job) => categories.set(job.categoryCode, {
+        value: job.categoryCode,
+        label: job.categoryName || job.categoryCode,
+      }));
+    return [...categories.values()];
+  }, [catalogJobs]);
+
+  // stageOptions tương ứng theo lĩnh vực của lệnh hiện tại (mặc định Nông nghiệp)
+  const stageOptions: SelectOption[] = useMemo(() => {
+    if (form.category === 'CONSTRUCTION') return constructionCategoryOptions;
+    if (form.category === 'TRANSPORT') return transportCategoryOptions;
+    return agriStageOptions;
+  }, [form.category, agriStageOptions, constructionCategoryOptions, transportCategoryOptions]);
 
   // 5. Phân cấp đơn vị quản lý (Hình 1)
   const complexOptions: SelectOption[] = useMemo(() => {
-    return mockComplexes.map((k) => ({
+    const list = complexes.length > 0 ? complexes : mockComplexes;
+    return list.map((k) => ({
       value: k.code,
       label: `${k.name} (${k.code})`,
     }));
-  }, []);
+  }, [complexes]);
 
   const availableEnterprises = useMemo(() => {
     if (!form.complexCode) return [];
-    return mockEnterprises.filter((item) => item.parentCode === form.complexCode);
-  }, [form.complexCode]);
+    const list = enterprises.length > 0 ? enterprises : mockEnterprises;
+    return list.filter((item) => item.parentCode === form.complexCode);
+  }, [form.complexCode, enterprises]);
 
   const enterpriseOptions: SelectOption[] = useMemo(() => {
     return availableEnterprises.map((item) => ({
@@ -789,13 +984,36 @@ export const DispatchOrderForm: React.FC = () => {
     }));
   }, [availableEnterprises]);
 
+  const managementUnitOptions: SelectOption[] = useMemo(() => {
+    let list = managementUnits;
+    if (form.complexCode) {
+      const filtered = managementUnits.filter((item) => !item.complexCode || item.complexCode === form.complexCode);
+      if (filtered.length > 0) list = filtered;
+    }
+    return list.map((item) => {
+      const vCount = item.vehicleCount ?? item._count?.vehicles ?? 0;
+      const dCount = item.driverCount ?? item._count?.teamAssignments ?? 0;
+      const stats = `Hiện có: ${vCount} xe · ${dCount} tài xế`;
+      return {
+        value: String(item.id),
+        label: `${item.code} · ${item.name}`,
+        subLabel: [
+          item.parent?.name,
+          item.currentManager?.manager?.fullName ? `Đội trưởng: ${item.currentManager.manager.fullName}` : undefined,
+          stats,
+        ].filter(Boolean).join(' · ') || (item.complexCode ? `KLH ${item.complexCode}` : undefined),
+      };
+    });
+  }, [managementUnits, form.complexCode]);
+
   const availableFarms = useMemo(() => {
     if (!form.enterpriseCode) return [];
-    const list = mockFarms.filter((item) => item.parentCode === form.enterpriseCode);
+    const allFarms = farms.length > 0 ? farms : mockFarms;
+    const list = allFarms.filter((item) => item.parentCode === form.enterpriseCode);
     return list.length > 0
       ? list
-      : mockFarms.filter((item) => item.parentCode?.startsWith(form.enterpriseCode.slice(0, 3)));
-  }, [form.enterpriseCode]);
+      : allFarms.filter((item) => item.parentCode?.startsWith(form.enterpriseCode.slice(0, 3)));
+  }, [form.enterpriseCode, farms]);
 
   const farmOptions: SelectOption[] = useMemo(() => {
     return availableFarms.map((item) => ({
@@ -804,9 +1022,40 @@ export const DispatchOrderForm: React.FC = () => {
     }));
   }, [availableFarms]);
 
-  const selectedComplex = mockComplexes.find((item) => item.code === form.complexCode);
+  const selectedComplex = (complexes.length > 0 ? complexes : mockComplexes).find((item) => item.code === form.complexCode);
   const selectedEnterprise = availableEnterprises.find((item) => item.code === form.enterpriseCode);
   const selectedFarm = availableFarms.find((item) => item.code === form.farmCode);
+  const selectedManagementUnit = useMemo(() => {
+    return managementUnits.find((item) => String(item.id) === form.managementUnitId);
+  }, [managementUnits, form.managementUnitId]);
+
+  const unitVehicleCount = useMemo(() => {
+    if (!selectedManagementUnit) return 0;
+    if (selectedManagementUnit.vehicleCount !== undefined && selectedManagementUnit.vehicleCount > 0) {
+      return selectedManagementUnit.vehicleCount;
+    }
+    if (selectedManagementUnit._count?.vehicles !== undefined && selectedManagementUnit._count.vehicles > 0) {
+      return selectedManagementUnit._count.vehicles;
+    }
+    if (context?.vehicles && context.vehicles.length > 0) {
+      return context.vehicles.length;
+    }
+    return selectedManagementUnit.vehicleCount ?? 0;
+  }, [selectedManagementUnit, context?.vehicles]);
+
+  const unitDriverCount = useMemo(() => {
+    if (!selectedManagementUnit) return 0;
+    if (selectedManagementUnit.driverCount !== undefined && selectedManagementUnit.driverCount > 0) {
+      return selectedManagementUnit.driverCount;
+    }
+    if (selectedManagementUnit._count?.teamAssignments !== undefined && selectedManagementUnit._count.teamAssignments > 0) {
+      return selectedManagementUnit._count.teamAssignments;
+    }
+    if (context?.drivers && context.drivers.length > 0) {
+      return context.drivers.length;
+    }
+    return selectedManagementUnit.driverCount ?? 0;
+  }, [selectedManagementUnit, context?.drivers]);
 
   // 6. Danh mục Lô / Thửa lọc theo Nông trường (Hình 2)
   const plotOptions: SelectOption[] = useMemo(() => {
@@ -831,21 +1080,23 @@ export const DispatchOrderForm: React.FC = () => {
 
   // 7. Danh mục công việc lọc theo Giai đoạn sản xuất (Hình 2)
   const agriPlanningJobs = useMemo(() => {
-    return getStoredJobs()
+    return catalogJobs
       .filter((job) => job.planType === 'NONG_NGHIEP')
       .map((job) => ({
         code: job.code,
         name: job.name,
         stageCode: job.categoryCode,
         stageName: job.categoryName,
-        implementGroup: job.implementGroup || 'Dàn cày 3 - 4 chảo',
-        recommendedVehicle: job.recommendedVehicle || 'Máy kéo bánh hơi 70 - 90HP',
-        quotaPerShift: job.quotaPerShift || '2.5 ha/ca',
-        fuelQuota: job.fuelQuota || 12.5,
-        fuelUnit: job.fuelUnit || 'Lít/ha',
+        implementGroup: job.implementGroup,
+        recommendedVehicle: job.recommendedVehicle,
+        quotaPerShift: job.quotaPerShift,
+        fuelQuota: job.fuelQuota,
+        fuelUnit: job.fuelUnit,
+        routeFlowType: job.routeFlowType,
+        defaultUnit: job.defaultUnit,
         defaultQuota: 35,
       }));
-  }, []);
+  }, [catalogJobs]);
 
   const availableAgriJobsForStage = useMemo(() => {
     if (!form.selectedStageCode) return agriPlanningJobs;
@@ -856,16 +1107,15 @@ export const DispatchOrderForm: React.FC = () => {
   const jobOptions: SelectOption[] = useMemo(() => {
     return availableAgriJobsForStage.map((j) => ({
       value: j.code,
-      label: `${j.code}: ${j.name}`,
-      subLabel: `${j.implementGroup} • ${j.recommendedVehicle} • ${j.fuelQuota} ${j.fuelUnit}`,
+      label: j.name,
+      subLabel: `${j.code} • ${j.implementGroup} • ${j.recommendedVehicle} • ${j.fuelQuota} ${j.fuelUnit}`,
     }));
   }, [availableAgriJobsForStage]);
 
-  // Danh mục công việc Master dùng chung cho các phân hệ khác
+  // Danh mục công việc dùng chung cho các phân hệ, lấy từ JOB_ITEM
   const masterJobs = useMemo(() => {
-    const all = MASTER_JOBS;
-    return all.filter((item) => item.planType === categoryInfo[form.category].planType);
-  }, [form.category]);
+    return catalogJobs.filter((item) => item.planType === categoryInfo[form.category].planType);
+  }, [catalogJobs, form.category]);
 
   // Danh mục Lô nông nghiệp
   const agriPlots = useMemo(() => {
@@ -907,29 +1157,32 @@ export const DispatchOrderForm: React.FC = () => {
   // Danh mục Tuyến đường vận chuyển
   const transportRoutes = useMemo(() => {
     if (form.category !== 'TRANSPORT') return [];
-    const all = getStoredTransportRoutes();
-    const filtered = all.filter((r) => r.complexCode === form.complexCode);
-    return filtered.length ? filtered : all;
-  }, [form.category, form.complexCode]);
+    const all = catalogTransportRoutes;
+    const matchingFlow = catalogJobs.find((job) => job.code === form.jobCode)?.routeFlowType;
+    const scoped = matchingFlow ? all.filter((route) => route.routeFlowType === matchingFlow) : all;
+    const filtered = scoped.filter((route) => route.complexCode === form.complexCode);
+    return filtered.length ? filtered : scoped;
+  }, [catalogJobs, catalogTransportRoutes, form.category, form.complexCode, form.jobCode]);
 
   // Options riêng cho phân hệ Công trình
   const constructionPlanningJobs = useMemo(() => {
-    return getStoredJobs()
+    return catalogJobs
       .filter((job) => job.planType === 'CONG_TRINH')
       .map((job) => ({
         code: job.code,
         name: job.name,
         categoryCode: job.categoryCode,
         categoryName: job.categoryName,
-        implementGroup: job.implementGroup || 'Lưỡi ben san gạt & Trục lu rung',
-        recommendedVehicle: job.recommendedVehicle || 'Máy san gạt GD555 & Xe lu rung 14T',
-        quotaPerShift: job.quotaPerShift || '1.5 km/ca 8h',
-        fuelQuota: job.fuelQuota || 14.5,
-        fuelUnit: job.fuelUnit || 'Lít/h',
-        defaultUnit: job.defaultUnit || 'km',
+        implementGroup: job.implementGroup,
+        recommendedVehicle: job.recommendedVehicle,
+        quotaPerShift: job.quotaPerShift,
+        fuelQuota: job.fuelQuota,
+        fuelUnit: job.fuelUnit,
+        routeFlowType: job.routeFlowType,
+        defaultUnit: job.defaultUnit,
         description: job.description,
       }));
-  }, []);
+  }, [catalogJobs]);
 
   const availableConstructionJobs = useMemo(() => {
     if (!form.constructionCategory) return constructionPlanningJobs;
@@ -940,8 +1193,8 @@ export const DispatchOrderForm: React.FC = () => {
   const constructionJobOptions: SelectOption[] = useMemo(() => {
     return availableConstructionJobs.map((j) => ({
       value: j.code,
-      label: `${j.code}: ${j.name}`,
-      subLabel: `${j.recommendedVehicle} • Định mức: ${j.quotaPerShift} • ${j.fuelQuota} ${j.fuelUnit}`,
+      label: j.name,
+      subLabel: `${j.code} • ${j.recommendedVehicle} • Định mức: ${j.quotaPerShift} • ${j.fuelQuota} ${j.fuelUnit}`,
     }));
   }, [availableConstructionJobs]);
 
@@ -963,22 +1216,23 @@ export const DispatchOrderForm: React.FC = () => {
 
   // Options riêng cho phân hệ Vận chuyển
   const transportPlanningJobs = useMemo(() => {
-    return getStoredJobs()
+    return catalogJobs
       .filter((job) => job.planType === 'VAN_CHUYEN')
       .map((job) => ({
         code: job.code,
         name: job.name,
         categoryCode: job.categoryCode,
         categoryName: job.categoryName,
-        implementGroup: job.implementGroup || 'Container lạnh 40ft',
-        recommendedVehicle: job.recommendedVehicle || 'Đầu kéo Container lạnh 40ft',
-        quotaPerShift: job.quotaPerShift || '25 Tấn/chuyến',
-        fuelQuota: job.fuelQuota || 32.0,
-        fuelUnit: job.fuelUnit || 'Lít/100km',
-        defaultUnit: job.defaultUnit || 'Tấn',
+        implementGroup: job.implementGroup,
+        recommendedVehicle: job.recommendedVehicle,
+        quotaPerShift: job.quotaPerShift,
+        fuelQuota: job.fuelQuota,
+        fuelUnit: job.fuelUnit,
+        routeFlowType: job.routeFlowType,
+        defaultUnit: job.defaultUnit,
         description: job.description,
       }));
-  }, []);
+  }, [catalogJobs]);
 
   const availableTransportJobs = useMemo(() => {
     if (!form.transportCategory) return transportPlanningJobs;
@@ -989,8 +1243,8 @@ export const DispatchOrderForm: React.FC = () => {
   const transportJobOptions: SelectOption[] = useMemo(() => {
     return availableTransportJobs.map((j) => ({
       value: j.code,
-      label: `${j.code}: ${j.name}`,
-      subLabel: `${j.recommendedVehicle} • Định mức: ${j.quotaPerShift} • ${j.fuelQuota} ${j.fuelUnit}`,
+      label: j.name,
+      subLabel: `${j.code} • ${j.recommendedVehicle} • Định mức: ${j.quotaPerShift} • ${j.fuelQuota} ${j.fuelUnit}`,
     }));
   }, [availableTransportJobs]);
 
@@ -1002,249 +1256,192 @@ export const DispatchOrderForm: React.FC = () => {
     }));
   }, [transportRoutes]);
 
+  const returnOriginOptions: SelectOption[] = useMemo(() => [...new Set(
+    transportRoutes.filter((route) => route.routeFlowType === 'TWO_WAY').map((route) => route.returnOrigin).filter(Boolean),
+  )].map((value) => ({ value: value!, label: value! })), [transportRoutes]);
+
+  const returnDestinationOptions: SelectOption[] = useMemo(() => [...new Set(
+    transportRoutes.filter((route) => route.routeFlowType === 'TWO_WAY').map((route) => route.returnDestination).filter(Boolean),
+  )].map((value) => ({ value: value!, label: value! })), [transportRoutes]);
+
+  const returnCargoOptions: SelectOption[] = useMemo(() => [...new Set(
+    transportRoutes.filter((route) => route.routeFlowType === 'TWO_WAY').map((route) => route.returnCargoName).filter(Boolean),
+  )].map((value) => ({ value: value!, label: value! })), [transportRoutes]);
+
+  const returnTonnageOptions: SelectOption[] = useMemo(() => [...new Set(
+    transportRoutes.filter((route) => route.routeFlowType === 'TWO_WAY').map((route) => route.returnTonnage).filter((value) => value && value > 0),
+  )].map((value) => ({ value: String(value), label: `${value} Tấn` })), [transportRoutes]);
+
   // 8. Tùy chọn nguồn lực điều động (Hình 3): kết hợp context backend + fallback demo
   // Sắp xếp: Xe sẵn sàng trước (rank 0), sau đó xe bận do đang lái/đang ca (rank 1), sau đó xe sửa chữa/bảo dưỡng (rank 2)
   const vehicleOptions: SelectOption[] = useMemo(() => {
     const list: Array<SelectOption & { rank: number; sortKey: string }> = [];
     const seen = new Set<string>();
 
-    (context?.vehicles ?? []).forEach((item) => {
-      seen.add(String(item.id));
-      seen.add(item.code);
+    const backendVehicles = context?.vehicles ?? [];
 
-      const isAvailable = Boolean(item.availability?.available);
-      const reasons = (item.availability?.reasons ?? []).map((r) => r.message).join('; ');
-      const reasonCodes = (item.availability?.reasons ?? []).map((r) => r.code).join(' ');
-      const isRepair =
-        item.status === 'SUA_CHUA' ||
-        item.status === 'BAO_DUONG' ||
-        /MAINTENANCE|REPAIR|SUA_CHUA|BAO_DUONG/i.test(reasonCodes) ||
-        /sửa chữa|bảo dưỡng/i.test(reasons);
+    backendVehicles.forEach((item) => {
+        if (seen.has(String(item.id)) || seen.has(item.code)) return;
+        seen.add(String(item.id));
+        seen.add(item.code);
 
-      let rank = 0;
-      let badge = '🟢 [Sẵn sàng]';
-      if (!isAvailable) {
-        if (isRepair) {
-          rank = 2;
-          badge = '🔧 [Sửa chữa]';
-        } else {
-          rank = 1;
-          badge = '🔴 [Đang lái/Bận]';
+        const isAvailable = item.selection?.selectable ?? Boolean(item.availability?.available);
+        const selectionReasons = item.selection?.reasons ?? item.availability?.reasons ?? [];
+        const reasons = selectionReasons.map((r) => r.message).join('; ');
+        const reasonCodes = selectionReasons.map((r) => r.code).join(' ');
+        const isRepair =
+          item.status === 'SUA_CHUA' ||
+          item.status === 'BAO_DUONG' ||
+          /MAINTENANCE|REPAIR|SUA_CHUA|BAO_DUONG/i.test(reasonCodes) ||
+          /sửa chữa|bảo dưỡng/i.test(reasons);
+
+        let rank = 0;
+        let badge = '🟢 [Sẵn sàng]';
+        if (!isAvailable) {
+          if (isRepair) {
+            rank = 2;
+            badge = '🔧 [Sửa chữa]';
+          } else {
+            rank = 1;
+            badge = '🔴 [Không phù hợp/Bận]';
+          }
         }
-      }
 
-      list.push({
-        value: String(item.id),
-        disabled: !isAvailable,
-        rank,
-        sortKey: item.code,
-        label: `${badge} ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}`,
-        subLabel:
-          reasons ||
-          `${item.vehicleType?.name ?? 'Chưa phân loại'} • ${item.status}`,
-      });
-    });
-
-    const fallbacks =
-      form.category === 'AGRICULTURE'
-        ? DEMO_FALLBACK_VEHICLES.AGRICULTURE
-        : form.category === 'CONSTRUCTION'
-        ? DEMO_FALLBACK_VEHICLES.CONSTRUCTION
-        : DEMO_FALLBACK_VEHICLES.TRANSPORT;
-
-    fallbacks.forEach((v) => {
-      if (!seen.has(String(v.id)) && !seen.has(v.code)) {
         list.push({
-          value: String(v.id),
-          disabled: false,
-          rank: 0,
-          sortKey: v.code,
-          label: `🟢 [Sẵn sàng] ${v.code} — ${v.name} [${v.plate}]`,
-          subLabel: `${v.category} • Định mức: ${v.fuelQuotaRate} L/h • Sẵn sàng`,
+          value: String(item.id),
+          disabled: !isAvailable,
+          rank,
+          sortKey: item.code,
+          label: `${badge} ${item.code} — ${item.name}${item.plate ? ` [${item.plate}]` : ''}`,
+          subLabel:
+            reasons ||
+            `${item.vehicleType?.name ?? 'Chưa phân loại'} • ${item.status}`,
         });
-      }
-    });
+      });
 
     return list.sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank;
       return a.sortKey.localeCompare(b.sortKey);
     });
-  }, [context?.vehicles, form.category]);
+  }, [context?.vehicles]);
 
   const driverOptions: SelectOption[] = useMemo(() => {
     const list: Array<SelectOption & { rank: number; sortKey: string }> = [];
     const seen = new Set<string>();
 
-    const isEligibleDriver = (item: any) => {
-      if (form.category !== 'AGRICULTURE') return true;
-      const lic = String(item.licenseClass || item.driverProfile?.licenseClass || '').toUpperCase();
-      const notes = String(item.notes || '').toLowerCase();
-      const hasB = lic.includes('B2') || lic.includes('B1') || lic === 'HANG_B' || lic.includes('HẠNG B') || lic.includes('A4') || lic.includes('NONG_NGHIEP') || lic.includes('MÁY KÉO') || lic.includes('MÁY CÀY');
-      if (hasB) return true;
-      const isC = lic.includes('HANG_C') || lic.includes('HẠNG C') || lic.includes('HANG_CE') || lic.includes('HẠNG CE') || lic.includes('HANG_FC') || lic.includes('HẠNG FC');
-      const hasAddB = notes.includes('b2') || notes.includes('b1') || notes.includes('hạng b') || notes.includes('máy cày') || notes.includes('máy kéo') || notes.includes('bằng b') || notes.includes('a4');
-      if (isC) return hasAddB;
-      return hasAddB;
-    };
+    const backendDrivers = context?.drivers ?? [];
 
-    (context?.drivers ?? []).filter(isEligibleDriver).forEach((item) => {
-      seen.add(String(item.id));
-      const isAvailable = Boolean(item.availability?.available);
-      const reasons = (item.availability?.reasons ?? []).map((r) => r.message).join('; ');
-      const rank = isAvailable ? 0 : 1;
-      const badge = isAvailable ? '🟢 [Sẵn sàng]' : '🔴 [Đang bận]';
+    backendDrivers.forEach((item) => {
+        if (seen.has(String(item.id))) return;
+        seen.add(String(item.id));
 
-      list.push({
-        value: String(item.id),
-        disabled: !isAvailable,
-        rank,
-        sortKey: item.fullName,
-        label: `${badge} ${item.code} — ${item.fullName}`,
-        subLabel:
-          reasons ||
-          item.licenseClass ||
-          item.driverProfile?.licenseClass ||
-          'Chưa cập nhật GPLX',
-      });
-    });
+        const isAvailable = item.selection?.selectable ?? Boolean(item.availability?.available);
+        const reasons = (item.selection?.reasons ?? item.availability?.reasons ?? []).map((r) => r.message).join('; ');
+        const rank = isAvailable ? 0 : 1;
+        const badge = isAvailable ? '🟢 [Sẵn sàng]' : '🔴 [Không đủ điều kiện/Bận]';
 
-    const fallbacks =
-      form.category === 'AGRICULTURE'
-        ? DEMO_FALLBACK_DRIVERS.AGRICULTURE
-        : form.category === 'CONSTRUCTION'
-        ? DEMO_FALLBACK_DRIVERS.CONSTRUCTION
-        : DEMO_FALLBACK_DRIVERS.TRANSPORT;
-
-    fallbacks.filter(isEligibleDriver).forEach((d) => {
-      if (!seen.has(String(d.id))) {
         list.push({
-          value: String(d.id),
-          disabled: false,
-          rank: 0,
-          sortKey: d.fullName,
-          label: `🟢 [Sẵn sàng] ${d.fullName}`,
-          subLabel: `${d.licenseClass} • ĐT: ${d.phone} • Sẵn sàng điều động`,
+          value: String(item.id),
+          disabled: !isAvailable,
+          rank,
+          sortKey: item.fullName,
+          label: `${badge} ${item.code} — ${item.fullName}`,
+          subLabel:
+            reasons ||
+            item.licenseClass ||
+            item.driverProfile?.licenseClass ||
+            'Chưa cập nhật GPLX',
         });
-      }
-    });
+      });
 
     return list.sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank;
       return a.sortKey.localeCompare(b.sortKey);
     });
-  }, [context?.drivers, form.category]);
+  }, [context?.drivers]);
 
   const implementOptions: SelectOption[] = useMemo(() => {
     const list: SelectOption[] = [];
     const seen = new Set<string>();
 
-    (context?.implements ?? []).forEach((item) => {
-      seen.add(String(item.id));
-      seen.add(item.code);
-      list.push({
-        value: String(item.id),
-        label: `${item.code} — ${item.name}`,
-        subLabel: `${item.status} • ${item.technicalCondition}`,
-        disabled: item.status === 'MAINTENANCE' || item.technicalCondition === 'NEED_REPAIR',
-      });
-    });
+    const backendImplements = context?.implements ?? [];
 
-    const fallbacks =
-      form.category === 'AGRICULTURE'
-        ? DEMO_EQUIPMENTS.AGRICULTURE
-        : form.category === 'CONSTRUCTION'
-        ? DEMO_EQUIPMENTS.CONSTRUCTION
-        : DEMO_EQUIPMENTS.TRANSPORT;
-
-    fallbacks.forEach((eq) => {
-      if (!seen.has(String(eq.id)) && !seen.has(eq.code)) {
+    backendImplements.forEach((item) => {
+        if (seen.has(String(item.id)) || seen.has(item.code)) return;
+        seen.add(String(item.id));
+        seen.add(item.code);
+        const isSelectable = item.selection?.selectable ?? (item.status !== 'MAINTENANCE' && item.technicalCondition !== 'NEED_REPAIR');
+        const reasons = item.selection?.reasons.map((reason) => reason.message).join('; ');
         list.push({
-          value: String(eq.id),
-          label: `${eq.code} — ${eq.name}`,
-          subLabel: 'Thiết bị sẵn sàng trong xưởng / bãi máy',
+          value: String(item.id),
+          label: `${item.code} — ${item.name}`,
+          subLabel: reasons || `${item.status} • ${item.technicalCondition}`,
+          disabled: !isSelectable,
         });
-      }
-    });
+      });
 
-    return list;
-  }, [context?.implements, form.category]);
+    return list.sort((a, b) => Number(Boolean(a.disabled)) - Number(Boolean(b.disabled)) || a.label.localeCompare(b.label));
+  }, [context?.implements]);
 
   const availVehiclesCount = useMemo(() => vehicleOptions.filter((o) => !o.disabled).length, [vehicleOptions]);
-  const totalVehiclesCount = vehicleOptions.length;
+  const totalVehiclesCount = context?.summary?.vehicles.total ?? vehicleOptions.length;
 
   const availImplementsCount = useMemo(() => implementOptions.filter((o) => !o.disabled).length, [implementOptions]);
-  const totalImplementsCount = implementOptions.length;
+  const totalImplementsCount = context?.summary?.implements.total ?? implementOptions.length;
 
   const availDriversCount = useMemo(() => driverOptions.filter((o) => !o.disabled).length, [driverOptions]);
-  const totalDriversCount = driverOptions.length;
+  const totalDriversCount = context?.summary?.drivers.total ?? driverOptions.length;
+
+  const suggestedVehicles = useMemo(
+    () => (context?.vehicles ?? []).filter((item) => item.selection?.selectable !== false).slice(0, 6),
+    [context?.vehicles],
+  );
+  const stepTwoComplete = Boolean(form.managementUnitId && form.jobName && form.workLocationText);
 
   const selectedVehicle = useMemo(() => {
-    const fromCtx = context?.vehicles.find((item) => String(item.id) === form.vehicleId);
-    if (fromCtx) return fromCtx;
-    const allFallbacks = [
-      ...DEMO_FALLBACK_VEHICLES.AGRICULTURE,
-      ...DEMO_FALLBACK_VEHICLES.CONSTRUCTION,
-      ...DEMO_FALLBACK_VEHICLES.TRANSPORT,
-    ];
-    const fb = allFallbacks.find((v) => String(v.id) === form.vehicleId || v.code === form.vehicleId);
-    if (fb) {
-      return {
-        id: fb.id,
-        code: fb.code,
-        name: fb.name,
-        plate: fb.plate,
-        vehicleTypeId: 1,
-        vehicleType: { id: 1, code: fb.category, name: fb.category },
-        status: 'AVAILABLE',
-        fuelQuotaRate: fb.fuelQuotaRate,
-        availability: { available: true, reasons: [], intervals: [] },
-      } as any;
-    }
-    return undefined;
+    return context?.vehicles.find((item) => String(item.id) === form.vehicleId);
   }, [context?.vehicles, form.vehicleId]);
 
   const selectedDriver = useMemo(() => {
-    const fromCtx = context?.drivers.find((item) => String(item.id) === form.driverId);
-    if (fromCtx) return fromCtx;
-    const allFallbacks = [
-      ...DEMO_FALLBACK_DRIVERS.AGRICULTURE,
-      ...DEMO_FALLBACK_DRIVERS.CONSTRUCTION,
-      ...DEMO_FALLBACK_DRIVERS.TRANSPORT,
-    ];
-    const fb = allFallbacks.find((d) => String(d.id) === form.driverId || d.fullName === form.driverId);
-    if (fb) {
-      return {
-        id: fb.id,
-        code: `TX-${fb.id}`,
-        fullName: fb.fullName,
-        licenseClass: fb.licenseClass,
-        phone: fb.phone,
-        status: 'AVAILABLE',
-        availability: { available: true, reasons: [], intervals: [] },
-      } as any;
-    }
-    return undefined;
+    return context?.drivers.find((item) => String(item.id) === form.driverId);
   }, [context?.drivers, form.driverId]);
 
   const selectedImplement = useMemo(() => {
-    const fromCtx = context?.implements.find((item) => String(item.id) === form.implementId);
-    if (fromCtx) return fromCtx;
-    const allFallbacks = [
-      ...DEMO_EQUIPMENTS.AGRICULTURE,
-      ...DEMO_EQUIPMENTS.CONSTRUCTION,
-      ...DEMO_EQUIPMENTS.TRANSPORT,
-    ];
-    const fb = allFallbacks.find((eq) => String(eq.id) === form.implementId || eq.code === form.implementId);
-    if (fb) {
-      return {
-        id: fb.id,
-        code: fb.code,
-        name: fb.name,
-        status: 'AVAILABLE',
-      } as any;
-    }
-    return undefined;
+    return context?.implements.find((item) => String(item.id) === form.implementId);
   }, [context?.implements, form.implementId]);
+
+  const selectedImplementIds = useMemo(() => {
+    if (Array.isArray(form.implementIds) && form.implementIds.length > 0) return form.implementIds;
+    return form.implementId ? [form.implementId] : [];
+  }, [form.implementIds, form.implementId]);
+
+  const handleAddImplement = (val: string) => {
+    if (!val) return;
+    if (!selectedImplementIds.includes(val)) {
+      const nextIds = [...selectedImplementIds, val];
+      setForm((old) => ({ ...old, implementId: nextIds[0], implementIds: nextIds }));
+    }
+  };
+
+  const handleRemoveImplement = (idToRemove: string) => {
+    const nextIds = selectedImplementIds.filter((id) => id !== idToRemove);
+    setForm((old) => ({ ...old, implementId: nextIds[0] || '', implementIds: nextIds }));
+  };
+
+  const handleClearImplements = () => {
+    setForm((old) => ({ ...old, implementId: '', implementIds: [] }));
+  };
+
+  const selectedImplementItems = useMemo(() => {
+    return selectedImplementIds.map((id) => {
+      const opt = implementOptions.find((o) => o.value === id);
+      const foundInContext = context?.implements.find((item) => String(item.id) === String(id));
+      return {
+        id,
+        label: opt?.label || (foundInContext ? `${foundInContext.code} — ${foundInContext.name}` : `Thiết bị #${id}`),
+      };
+    });
+  }, [selectedImplementIds, implementOptions, context?.implements]);
 
   // Xử lý chuyển đổi loại lệnh (khi không bị khóa bởi kế hoạch cha)
   const selectCategory = (newCat: Category) => {
@@ -1254,11 +1451,30 @@ export const DispatchOrderForm: React.FC = () => {
       next.set('category', newCat);
       return next;
     }, { replace: true });
-    setForm(freshForm(newCat));
+    const nextState = freshForm(newCat);
+    nextState.managementUnitId = form.managementUnitId;
+    nextState.complexCode = form.complexCode || 'KOUN_MOM';
+    nextState.complexName = form.complexName || 'Khu liên hợp Koun Mom';
+    nextState.unit = form.complexCode || 'KOUN_MOM';
+    setForm(nextState);
   };
 
   // 9. Handlers riêng cho phân hệ Nông nghiệp
   const handleSelectAgriJob = (val: string) => {
+    if (!val || !val.trim() || val === 'ALL') {
+      setForm((old) => ({
+        ...old,
+        jobCode: '',
+        jobName: '',
+        jobDescription: '',
+        implementGroup: '',
+        recommendedVehicle: '',
+        quotaPerShift: '',
+        fuelQuota: 0,
+        fuelUnit: '',
+      }));
+      return;
+    }
     const job = agriPlanningJobs.find((j) => j.code === val || j.name === val);
     if (job) {
       setForm((old) => ({
@@ -1272,13 +1488,14 @@ export const DispatchOrderForm: React.FC = () => {
         fuelQuota: job.fuelQuota,
         fuelUnit: job.fuelUnit,
         targetQuantity: old.targetQuantity && Number(old.targetQuantity) > 0 ? old.targetQuantity : '35',
-        targetUnit: 'ha',
+        targetUnit: job.defaultUnit || 'ha',
       }));
     } else {
       setForm((old) => ({
         ...old,
-        jobCode: `CUSTOM-${Date.now()}`,
+        jobCode: val,
         jobName: val,
+        jobDescription: `${val} (Công việc tùy chỉnh)`,
       }));
     }
   };
@@ -1308,6 +1525,23 @@ export const DispatchOrderForm: React.FC = () => {
 
   // 10. Handlers riêng cho phân hệ Công trình
   const handleSelectConstructionJob = (val: string) => {
+    if (!val || !val.trim() || val === 'ALL') {
+      setForm((old) => ({
+        ...old,
+        jobCode: '',
+        jobName: '',
+        jobDescription: '',
+        constructionCategory: '',
+        constructionItem: '',
+        equipmentType: '',
+        recommendedVehicle: '',
+        implementGroup: '',
+        quotaPerShift: '',
+        fuelQuota: 0,
+        fuelUnit: '',
+      }));
+      return;
+    }
     const job = constructionPlanningJobs.find((j) => j.code === val || j.name === val);
     if (job) {
       setForm((old) => ({
@@ -1315,6 +1549,7 @@ export const DispatchOrderForm: React.FC = () => {
         jobCode: job.code,
         jobName: job.name,
         jobDescription: job.description || `${job.name} - Tiêu chuẩn kỹ thuật công trình`,
+        constructionCategory: job.categoryCode || old.constructionCategory,
         constructionItem: job.name,
         equipmentType: job.recommendedVehicle,
         recommendedVehicle: job.recommendedVehicle,
@@ -1322,15 +1557,16 @@ export const DispatchOrderForm: React.FC = () => {
         quotaPerShift: job.quotaPerShift,
         fuelQuota: job.fuelQuota,
         fuelUnit: job.fuelUnit,
-        targetUnit: job.defaultUnit,
+        targetUnit: job.defaultUnit || 'km',
         targetQuantity: old.targetQuantity && Number(old.targetQuantity) > 0 ? old.targetQuantity : '1.5',
       }));
     } else {
       setForm((old) => ({
         ...old,
-        jobCode: `CUSTOM-CT-${Date.now()}`,
+        jobCode: val,
         jobName: val,
         constructionItem: val,
+        jobDescription: `${val} (Công việc công trình tùy chỉnh)`,
       }));
     }
   };
@@ -1361,6 +1597,22 @@ export const DispatchOrderForm: React.FC = () => {
 
   // 11. Handlers riêng cho phân hệ Vận chuyển
   const handleSelectTransportJob = (val: string) => {
+    if (!val || !val.trim() || val === 'ALL') {
+      setForm((old) => ({
+        ...old,
+        jobCode: '',
+        jobName: '',
+        jobDescription: '',
+        cargoType: '',
+        equipmentType: '',
+        recommendedVehicle: '',
+        implementGroup: '',
+        quotaPerShift: '',
+        fuelQuota: 0,
+        fuelUnit: '',
+      }));
+      return;
+    }
     const job = transportPlanningJobs.find((j) => j.code === val || j.name === val);
     if (job) {
       setForm((old) => ({
@@ -1368,6 +1620,7 @@ export const DispatchOrderForm: React.FC = () => {
         jobCode: job.code,
         jobName: job.name,
         jobDescription: job.description || `${job.name} - Tiêu chuẩn vận tải THACO AGRI`,
+        transportCategory: job.categoryCode || old.transportCategory,
         cargoType: job.name,
         equipmentType: job.recommendedVehicle,
         recommendedVehicle: job.recommendedVehicle,
@@ -1375,15 +1628,20 @@ export const DispatchOrderForm: React.FC = () => {
         quotaPerShift: job.quotaPerShift,
         fuelQuota: job.fuelQuota,
         fuelUnit: job.fuelUnit,
-        targetUnit: job.defaultUnit,
+        routeFlowType: job.routeFlowType || old.routeFlowType,
+        targetUnit: job.defaultUnit || 'Tấn',
         targetQuantity: old.targetQuantity && Number(old.targetQuantity) > 0 ? old.targetQuantity : '25',
+        ...(job.routeFlowType === 'ONE_WAY'
+          ? { returnCargoName: '', returnOrigin: '', returnDestination: '', returnTonnage: '' }
+          : {}),
       }));
     } else {
       setForm((old) => ({
         ...old,
-        jobCode: `CUSTOM-VC-${Date.now()}`,
+        jobCode: val,
         jobName: val,
         cargoType: val,
+        jobDescription: `${val} (Nhu cầu vận chuyển tùy chỉnh)`,
       }));
     }
   };
@@ -1401,6 +1659,11 @@ export const DispatchOrderForm: React.FC = () => {
         speedLimitKmH: String(route.speedLimitKmH || '35'),
         cargoType: old.cargoType || route.cargoType,
         equipmentType: route.recommendedVehicles || old.equipmentType,
+        routeFlowType: route.routeFlowType || old.routeFlowType,
+        returnOrigin: route.routeFlowType === 'TWO_WAY' ? route.returnOrigin || '' : '',
+        returnDestination: route.routeFlowType === 'TWO_WAY' ? route.returnDestination || '' : '',
+        returnCargoName: route.routeFlowType === 'TWO_WAY' ? route.returnCargoName || '' : '',
+        returnTonnage: route.routeFlowType === 'TWO_WAY' ? String(route.returnTonnage || '') : '',
       }));
     } else {
       setForm((old) => ({
@@ -1413,7 +1676,8 @@ export const DispatchOrderForm: React.FC = () => {
 
   const handleStartTimeChange = (val: string) => {
     const startDate = new Date(val);
-    const endDate = new Date(startDate.getTime() + form.durationHours * 3600000);
+    const totalHours = form.durationHours + (form.breakHours ?? 1);
+    const endDate = new Date(startDate.getTime() + totalHours * 3600000);
     setForm((old) => ({
       ...old,
       startTime: val,
@@ -1425,7 +1689,8 @@ export const DispatchOrderForm: React.FC = () => {
   const handleSetCurrentTime = () => {
     const now = new Date();
     const val = localDateTime(now);
-    const endDate = new Date(now.getTime() + form.durationHours * 3600000);
+    const totalHours = form.durationHours + (form.breakHours ?? 1);
+    const endDate = new Date(now.getTime() + totalHours * 3600000);
     setForm((old) => ({
       ...old,
       startTime: val,
@@ -1436,7 +1701,8 @@ export const DispatchOrderForm: React.FC = () => {
 
   const handleDurationChange = (hours: number) => {
     const startDate = new Date(form.startTime || form.plannedStartAt);
-    const endDate = new Date(startDate.getTime() + hours * 3600000);
+    const totalHours = hours + (form.breakHours ?? 1);
+    const endDate = new Date(startDate.getTime() + totalHours * 3600000);
     setForm((old) => ({
       ...old,
       durationHours: hours,
@@ -1444,11 +1710,153 @@ export const DispatchOrderForm: React.FC = () => {
     }));
   };
 
+  const handleBreakChange = (breakH: number) => {
+    const startDate = new Date(form.startTime || form.plannedStartAt);
+    const totalHours = form.durationHours + breakH;
+    const endDate = new Date(startDate.getTime() + totalHours * 3600000);
+    setForm((old) => ({
+      ...old,
+      breakHours: breakH,
+      plannedEndAt: localDateTime(endDate),
+    }));
+  };
+
+  const handleDriverChange = (val: string) => {
+    setForm((old) => ({ ...old, driverId: val, vehicleId: '', implementId: '', implementIds: [] }));
+    setAutoVehicleNotice(null);
+
+    if (!val) {
+      return;
+    }
+
+    const driver = context?.drivers.find((d) => String(d.id) === val);
+    if (!driver) return;
+
+    // Lấy danh sách xe chính và xe phụ của tài xế
+    const primaryVehicles: Array<{ id: number; code: string; name: string; plate?: string }> = [];
+    const secondaryVehicles: Array<{ id: number; code: string; name: string; plate?: string }> = [];
+
+    // 1. Kiểm tra assignedVehicles từ DriverProfile
+    if (Array.isArray((driver as any).assignedVehicles) && (driver as any).assignedVehicles.length > 0) {
+      (driver as any).assignedVehicles.forEach((a: any) => {
+        if (a.vehicle) {
+          if (a.type === 'PRIMARY') primaryVehicles.push(a.vehicle);
+          else secondaryVehicles.push(a.vehicle);
+        }
+      });
+    }
+
+    // 2. Kiểm tra primaryVehicles / drivenVehicles
+    if (Array.isArray((driver as any).primaryVehicles) && (driver as any).primaryVehicles.length > 0) {
+      (driver as any).primaryVehicles.forEach((pv: any) => {
+        if (!primaryVehicles.some((p) => p.id === pv.id)) primaryVehicles.push(pv);
+      });
+    }
+    if (Array.isArray((driver as any).drivenVehicles) && (driver as any).drivenVehicles.length > 0) {
+      (driver as any).drivenVehicles.forEach((dv: any) => {
+        if (!primaryVehicles.some((p) => p.id === dv.id)) primaryVehicles.push(dv);
+      });
+    }
+
+    // 3. Kiểm tra secondaryVehicles
+    if (Array.isArray((driver as any).secondaryVehicles) && (driver as any).secondaryVehicles.length > 0) {
+      (driver as any).secondaryVehicles.forEach((sv: any) => {
+        if (!secondaryVehicles.some((s) => s.id === sv.id) && !primaryVehicles.some((p) => p.id === sv.id)) {
+          secondaryVehicles.push(sv);
+        }
+      });
+    }
+
+    // Helper kiểm tra xe có khả dụng trong khung giờ hiện tại hay không
+    const checkVehicleAvail = (vId: number) => {
+      const ctxVeh = context?.vehicles.find((v) => v.id === vId);
+      if (!ctxVeh) return { available: false, vehicle: null };
+      const isAvail = ctxVeh.selection
+        ? ctxVeh.selection.selectable
+        : ctxVeh.availability
+        ? ctxVeh.availability.available
+        : ctxVeh.status === 'READY' || ctxVeh.status === 'HOAT_DONG' || ctxVeh.status === 'CHO_PHAN_CONG';
+      return { available: isAvail, vehicle: ctxVeh };
+    };
+
+    // A. Ưu tiên xe chính #1
+    if (primaryVehicles.length > 0) {
+      const v1 = primaryVehicles[0];
+      const status1 = checkVehicleAvail(v1.id);
+      if (status1.available) {
+        setForm((old) => ({ ...old, vehicleId: String(v1.id), implementId: '', implementIds: [] }));
+        setAutoVehicleNotice({
+          type: 'PRIMARY_1',
+          message: `Đã tự động chọn Xe chính #1 (${v1.code}${v1.plate ? ' • ' + v1.plate : ''}) do tài xế ${driver.fullName} trực tiếp nắm giữ.`,
+          badge: '★ Xe chính #1',
+          tone: 'emerald',
+        });
+        return;
+      }
+
+      // Xe chính #1 bận! Kiểm tra tiếp Xe chính #2
+      if (primaryVehicles.length > 1) {
+        const v2 = primaryVehicles[1];
+        const status2 = checkVehicleAvail(v2.id);
+        if (status2.available) {
+          setForm((old) => ({ ...old, vehicleId: String(v2.id), implementId: '', implementIds: [] }));
+          setAutoVehicleNotice({
+            type: 'PRIMARY_2',
+            message: `Xe chính #1 (${v1.code}) đang bận; đã tự động chuyển sang Xe chính #2 (${v2.code}${v2.plate ? ' • ' + v2.plate : ''}) của tài xế.`,
+            badge: '★ Xe chính #2',
+            tone: 'amber',
+          });
+          return;
+        }
+      }
+    }
+
+    // B. Xe chính bận hoặc chưa có -> Kiểm tra Xe phụ (Secondary)
+    if (secondaryVehicles.length > 0) {
+      const vSec = secondaryVehicles[0];
+      const statusSec = checkVehicleAvail(vSec.id);
+      if (statusSec.available) {
+        setForm((old) => ({ ...old, vehicleId: String(vSec.id), implementId: '', implementIds: [] }));
+        setAutoVehicleNotice({
+          type: 'SECONDARY',
+          message: `Xe chính đang bận; đã tự động chọn Xe phụ đồng quản lý (${vSec.code}${vSec.plate ? ' • ' + vSec.plate : ''}) của tài xế ${driver.fullName}.`,
+          badge: '⚡ Xe phụ',
+          tone: 'blue',
+        });
+        return;
+      }
+    }
+
+    // C. Nếu tài xế có xe nhưng tất cả đều bận
+    if (primaryVehicles.length > 0 || secondaryVehicles.length > 0) {
+      setAutoVehicleNotice({
+        type: 'ALL_BUSY',
+        message: `Tất cả phương tiện của tài xế ${driver.fullName} (xe chính & xe phụ) hiện đều đang bận hoặc bảo dưỡng. Vui lòng chọn xe khả dụng khác từ danh sách.`,
+        badge: '⚠️ Xe của tài xế đang bận',
+        tone: 'rose',
+      });
+      return;
+    }
+
+    // D. Tài xế chưa được phân công xe cố định
+    setAutoVehicleNotice({
+      type: 'NO_ASSIGNED',
+      message: `Tài xế ${driver.fullName} chưa được bàn giao xe cố định. Vui lòng chọn xe khả dụng từ danh sách.`,
+      badge: 'ℹ️ Chưa gán xe cố định',
+      tone: 'slate',
+    });
+  };
+
   const handleVehicleChange = (val: string) => {
     setForm((old) => ({
       ...old,
       vehicleId: val,
+      implementId: '',
+      implementIds: [],
     }));
+    if (autoVehicleNotice) {
+      setAutoVehicleNotice(null);
+    }
   };
 
   // Xử lý chọn công việc từ Master Jobs
@@ -1461,7 +1869,7 @@ export const DispatchOrderForm: React.FC = () => {
       jobCode: job.code,
       jobName: job.name,
       jobDescription: job.description,
-      targetUnit: job.defaultUnit,
+      targetUnit: job.defaultUnit || old.targetUnit,
       stageCode: job.categoryCode,
       stageName: job.categoryName,
       implementGroup: job.implementGroup || old.implementGroup,
@@ -1541,6 +1949,7 @@ export const DispatchOrderForm: React.FC = () => {
 
   // Ràng buộc kiểm tra form trước khi lưu
   const validate = (action: 'SAVE_DRAFT' | 'ISSUE') => {
+    if (!form.managementUnitId) return 'Vui lòng chọn khu vực quản lý trước khi chọn tài xế và xe.';
     if (!form.complexCode) return 'Vui lòng chọn Khu liên hợp.';
     if (form.category === 'AGRICULTURE' && availableEnterprises.length > 0 && !form.enterpriseCode) {
       return 'Lệnh nông nghiệp yêu cầu chọn Xí nghiệp trực thuộc.';
@@ -1550,6 +1959,14 @@ export const DispatchOrderForm: React.FC = () => {
     }
     if (!form.jobName || !form.workLocationText) {
       return 'Vui lòng chọn hoặc nhập đủ Hạng mục công việc và Vị trí thực hiện.';
+    }
+    if (
+      action === 'ISSUE' &&
+      form.category === 'TRANSPORT' &&
+      form.routeFlowType === 'TWO_WAY' &&
+      (!form.returnCargoName || !form.returnOrigin || !form.returnDestination || Number(form.returnTonnage) <= 0)
+    ) {
+      return 'Lệnh vận chuyển đối lưu phải có điểm lấy/trả hàng về, tên hàng và tải trọng chiều về.';
     }
     if (
       !form.plannedStartAt ||
@@ -1563,18 +1980,21 @@ export const DispatchOrderForm: React.FC = () => {
       if (form.assignmentMode === 'FIXED_ASSIGNMENT' && !form.driverId) {
         return 'Chế độ giao cứng bắt buộc phải chọn Tài xế/Thợ máy trước khi phát hành.';
       }
-      if (selectedVehicle?.availability?.available === false) {
+      if (selectedVehicle?.selection?.selectable === false || selectedVehicle?.availability?.available === false) {
         return `Xe đã chọn đang có xung đột: ${
-          selectedVehicle.availability.reasons[0]?.message || 'Không khả dụng'
+          selectedVehicle.selection?.reasons[0]?.message || selectedVehicle.availability?.reasons[0]?.message || 'Không khả dụng'
         }. Vui lòng chọn xe khác hoặc dời khung giờ.`;
       }
       if (
         form.assignmentMode === 'FIXED_ASSIGNMENT' &&
-        selectedDriver?.availability?.available === false
+        (selectedDriver?.selection?.selectable === false || selectedDriver?.availability?.available === false)
       ) {
         return `Tài xế đã chọn không khả dụng: ${
-          selectedDriver.availability.reasons[0]?.message || 'Đang bận'
+          selectedDriver.selection?.reasons[0]?.message || selectedDriver.availability?.reasons[0]?.message || 'Đang bận'
         }.`;
+      }
+      if (selectedImplement?.selection?.selectable === false) {
+        return `Thiết bị đã chọn không khả dụng: ${selectedImplement.selection.reasons[0]?.message || 'Không phù hợp'}.`;
       }
     }
     return '';
@@ -1624,6 +2044,7 @@ export const DispatchOrderForm: React.FC = () => {
     }
 
     return {
+      managementUnitId: Number(form.managementUnitId),
       category: form.category,
       unit: form.unit,
       complexCode: form.complexCode,
@@ -1639,12 +2060,17 @@ export const DispatchOrderForm: React.FC = () => {
       jobDescription: form.jobDescription || form.jobName,
       plannedStartAt: new Date(form.plannedStartAt).toISOString(),
       plannedEndAt: new Date(form.plannedEndAt).toISOString(),
+      expectedCompletedAt: form.expectedCompletedAt ? new Date(`${form.expectedCompletedAt}T23:59:59`).toISOString() : undefined,
+      workDurationMinutes: Math.round(form.durationHours * 60),
+      breakDurationMinutes: Math.round((form.breakHours ?? 0) * 60),
       shift: form.shift,
       priority: form.priority,
       targetQuantity: form.targetQuantity ? Number(form.targetQuantity) : 0,
       targetUnit: form.targetUnit,
-      requestedVehicleTypeId: selectedVehicle?.vehicleTypeId,
-      categoryDetails,
+      categoryDetails: {
+        ...categoryDetails,
+        implementIds: selectedImplementIds,
+      },
       notes: form.notes || undefined,
       origin: form.origin,
       destination: form.destination,
@@ -1654,7 +2080,7 @@ export const DispatchOrderForm: React.FC = () => {
         form.assignmentMode === 'FIXED_ASSIGNMENT' && form.driverId
           ? Number(form.driverId)
           : undefined,
-      implementId: form.implementId ? Number(form.implementId) : undefined,
+      implementId: selectedImplementIds[0] ? Number(selectedImplementIds[0]) : undefined,
       action,
     };
   };
@@ -1965,14 +2391,22 @@ export const DispatchOrderForm: React.FC = () => {
                       value={String(form.selectedYear)}
                       onChange={(val) => {
                         const y = Number(val);
+                        const curY = new Date().getFullYear();
+                        const curW = getWeekNumber(new Date());
+                        let nextW = form.selectedWeekNumber;
+                        if (y === curY && nextW < curW) {
+                          nextW = curW;
+                        }
                         setForm((old) => ({
                           ...old,
                           selectedYear: y,
+                          selectedWeekNumber: nextW,
+                          planTitle: `Điều động cơ giới sản xuất Tuần ${nextW}`,
                         }));
                       }}
                       options={yearOptions}
                       placeholder="Chọn năm"
-                      disabled={Boolean(sourceOrder)}
+                      disabled={Boolean(sourceOrder) || Boolean(form.managementUnitId)}
                       heightClass="h-9"
                       bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
                     />
@@ -2066,6 +2500,64 @@ export const DispatchOrderForm: React.FC = () => {
                 </div>
 
                 <div className="space-y-3.5">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-extrabold text-emerald-900">
+                        Đội cơ giới quản lý lệnh <span className="text-rose-500">*</span>
+                      </label>
+                      {selectedManagementUnit && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300">
+                            <Tractor className="w-3 h-3 text-emerald-700" />
+                            <span>{unitVehicleCount} xe</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 bg-blue-100/90 px-2 py-0.5 rounded-md border border-blue-300">
+                            <UserCheck className="w-3 h-3 text-blue-700" />
+                            <span>{unitDriverCount} tài xế</span>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <SearchableSelect
+                      value={form.managementUnitId}
+                      onChange={(val) => {
+                        selectManagementUnit(val);
+                      }}
+                      options={managementUnitOptions}
+                      placeholder="Chọn Đội cơ giới trước khi chọn tài xế và xe..."
+                      disabled={Boolean(sourceOrder)}
+                      heightClass="h-10"
+                      bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
+                    />
+                    {selectedManagementUnit ? (
+                      <div className="mt-2 pt-2 border-t border-emerald-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                        <div className="flex items-center gap-2.5">
+                          <span className="inline-flex items-center gap-1.5 font-bold text-emerald-950">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                            <span>Xe đang có:</span>
+                            <strong className="text-emerald-700 text-xs">{unitVehicleCount} xe</strong>
+                          </span>
+                          <span className="text-slate-300">|</span>
+                          <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                            <span>Tài xế đang có:</span>
+                            <strong className="text-blue-700 text-xs">{unitDriverCount} tài xế</strong>
+                          </span>
+                        </div>
+                        {selectedManagementUnit.currentManager?.manager?.fullName && (
+                          <div className="text-[10.5px] text-emerald-800 font-medium">
+                            <span className="text-slate-500">Đội trưởng: </span>
+                            <span className="font-bold">{selectedManagementUnit.currentManager.manager.fullName}</span>
+                            {selectedManagementUnit.currentManager.manager.phone && (
+                              <span className="text-slate-500 ml-1">({selectedManagementUnit.currentManager.manager.phone})</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-[10px] font-semibold text-emerald-700">Tài xế, xe và thiết bị chỉ được tải từ Đội cơ giới này.</p>
+                    )}
+                  </div>
                   {/* 1. Khu liên hợp */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">
@@ -2079,6 +2571,7 @@ export const DispatchOrderForm: React.FC = () => {
                           ...old,
                           complexCode: val,
                           complexName: comp?.name || val,
+                          unit: val,
                           enterpriseCode: '',
                           enterpriseName: '',
                           farmCode: '',
@@ -2086,11 +2579,14 @@ export const DispatchOrderForm: React.FC = () => {
                           workLocationKey: '',
                           workLocationText: '',
                           destination: '',
+                          vehicleId: '',
+                          driverId: '',
+                          implementId: '',
                         }));
                       }}
                       options={complexOptions}
                       placeholder="Chọn Khu liên hợp..."
-                      disabled={Boolean(sourceOrder)}
+                      disabled={Boolean(sourceOrder) || Boolean(form.managementUnitId)}
                       heightClass="h-9"
                       bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
                     />
@@ -2114,6 +2610,9 @@ export const DispatchOrderForm: React.FC = () => {
                           workLocationKey: '',
                           workLocationText: '',
                           destination: '',
+                          vehicleId: '',
+                          driverId: '',
+                          implementId: '',
                         }));
                       }}
                       options={enterpriseOptions}
@@ -2133,15 +2632,17 @@ export const DispatchOrderForm: React.FC = () => {
                       value={form.farmCode}
                       onChange={(val) => {
                         const farm = availableFarms.find((f) => f.code === val);
-                        const unitCode = val.includes('NT2') ? 'NT2' : 'NT1';
                         setForm((old) => ({
                           ...old,
                           farmCode: val,
                           farmName: farm?.name || val,
-                          unit: unitCode,
+                          unit: old.complexCode,
                           workLocationKey: '',
                           workLocationText: '',
                           destination: '',
+                          vehicleId: '',
+                          driverId: '',
+                          implementId: '',
                         }));
                       }}
                       options={farmOptions}
@@ -2242,19 +2743,19 @@ export const DispatchOrderForm: React.FC = () => {
                         <span>Hạng mục công việc cơ giới:</span>
                         <span className="text-rose-500">*</span>
                       </span>
-                      {form.jobCode && (
+                      {form.jobCode && !form.jobCode.startsWith('CUSTOM-') && (
                         <span className="text-[10px] font-mono font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
                           {form.jobCode}
                         </span>
                       )}
                     </label>
                     <SearchableSelect
-                      value={form.jobCode}
+                      value={form.jobCode?.startsWith('CUSTOM-') && form.jobName ? form.jobName : form.jobCode}
                       onChange={handleSelectAgriJob}
                       options={jobOptions}
                       placeholder="Chọn công việc cơ giới..."
                       disabled={Boolean(sourceOrder)}
-                      allowCustomInput={false}
+                      allowCustomInput={true}
                       heightClass="h-10"
                       roundedClass="rounded-xl"
                       bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
@@ -2285,7 +2786,7 @@ export const DispatchOrderForm: React.FC = () => {
                       value={form.workLocationText}
                       onChange={handleSelectAgriPlot}
                       options={plotOptions}
-                      placeholder={!form.farmCode ? 'Chưa chọn Nông trường...' : 'Chọn/nhập Lô/Thửa...'}
+                      placeholder={!form.farmCode ? 'Chưa chọn Nông trường...' : 'Chọn Lô / Thửa canh tác...'}
                       disabled={Boolean(sourceOrder) || !form.farmCode}
                       allowCustomInput={false}
                       heightClass="h-10"
@@ -2395,12 +2896,12 @@ export const DispatchOrderForm: React.FC = () => {
                         {/* 1. Chọn Công việc cơ giới */}
                         <td className="p-3 align-middle">
                           <SearchableSelect
-                            value={form.jobCode}
+                            value={form.jobCode?.startsWith('CUSTOM-') && form.jobName ? form.jobName : form.jobCode}
                             onChange={handleSelectAgriJob}
                             options={jobOptions}
                             placeholder="Chọn công việc cơ giới..."
                             disabled={Boolean(sourceOrder)}
-                            allowCustomInput={false}
+                            allowCustomInput={true}
                             heightClass="h-9"
                             roundedClass="rounded-full"
                             bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
@@ -2414,7 +2915,7 @@ export const DispatchOrderForm: React.FC = () => {
                             value={form.workLocationText}
                             onChange={handleSelectAgriPlot}
                             options={plotOptions}
-                            placeholder={!form.farmCode ? 'Chưa chọn Nông trường...' : 'Chọn/nhập Lô/Thửa...'}
+                            placeholder={!form.farmCode ? 'Chưa chọn Nông trường...' : 'Chọn Lô / Thửa canh tác...'}
                             disabled={Boolean(sourceOrder) || !form.farmCode}
                             allowCustomInput={false}
                             heightClass="h-9"
@@ -2495,6 +2996,47 @@ export const DispatchOrderForm: React.FC = () => {
             </div>
           </section>
 
+          {stepTwoComplete && (
+            <section className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 shadow-xs">
+              <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-extrabold text-blue-950">Gợi ý xe đến sớm nhất</span>
+                <span className="text-[11px] font-medium text-blue-700">
+                  {contextLoading
+                    ? 'Đang kiểm tra xe phù hợp...'
+                    : `${suggestedVehicles.length} xe phù hợp · ${Math.max(0, totalVehiclesCount - suggestedVehicles.length)} xe bị loại`}
+                </span>
+              </div>
+              {!contextLoading && suggestedVehicles.length === 0 ? (
+                <p className="text-xs font-semibold text-amber-700">Chưa có xe đúng miền vận hành, đội quản lý và khung giờ đã chọn.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {suggestedVehicles.map((vehicle) => {
+                    const available = vehicle.availability?.available !== false;
+                    return (
+                      <button
+                        type="button"
+                        key={vehicle.id}
+                        disabled={!form.driverId || !available}
+                        title={!form.driverId ? 'Chọn tài xế trước khi chọn xe' : undefined}
+                        onClick={() => handleVehicleChange(String(vehicle.id))}
+                        className="rounded-xl border border-blue-100 bg-white p-2.5 text-left text-xs shadow-2xs transition hover:border-blue-500 disabled:cursor-not-allowed disabled:opacity-55"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <b className="font-mono text-slate-900">{vehicle.code}</b>
+                          <span className={available ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700'}>
+                            {available ? 'Đang rảnh' : 'Đang bận'}
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate text-slate-700">{vehicle.name}</div>
+                        <div className="mt-1 text-[10px] text-slate-500">Theo khu vực · Chưa có tọa độ để tính ETA</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
           {/* 3. HÌNH 3: ĐIỀU ĐỘNG CA MÁY & PHÂN BỔ NGUỒN LỰC THỜI GIAN THỰC */}
           <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -2517,68 +3059,172 @@ export const DispatchOrderForm: React.FC = () => {
             {/* CONTAINER PHÂN CÔNG (ĐÚNG HÌNH 3) */}
             <div className="p-3.5 rounded-xl border border-slate-200 bg-white transition-all space-y-3 shadow-2xs">
               {/* DÒNG 1: THỜI GIAN CA MÁY (COMPACT 1 HÀNG - ĐÚNG HÌNH 3) */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-200 text-xs">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Clock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span className="text-[11px] font-bold text-slate-700 shrink-0">Ca máy:</span>
-                  <input
-                    type="datetime-local"
-                    value={form.startTime}
-                    onChange={(e) => handleStartTimeChange(e.target.value)}
-                    className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSetCurrentTime}
-                    title="Chỉnh về ngày giờ hiện tại"
-                    className="h-7 px-2 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[10.5px] font-bold text-emerald-800 shrink-0 cursor-pointer"
-                  >
-                    Hiện tại
-                  </button>
-                  <input
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    value={form.durationHours}
-                    onChange={(e) => handleDurationChange(Math.max(0.5, Number(e.target.value)))}
-                    className="w-12 h-7 rounded-lg border border-slate-300 bg-white text-center text-[11px] font-extrabold text-slate-900 shadow-2xs focus:border-emerald-600 focus:outline-none"
-                  />
-                  <span className="text-[11px] text-slate-500 font-medium">giờ</span>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-200 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                    <Clock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="text-[11px] font-bold text-slate-700 shrink-0">Ca máy:</span>
+                    <input
+                      type="datetime-local"
+                      value={form.startTime}
+                      onChange={(e) => handleStartTimeChange(e.target.value)}
+                      className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-800 shadow-2xs focus:border-emerald-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSetCurrentTime}
+                      title="Chỉnh về ngày giờ hiện tại"
+                      className="h-7 px-2 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[10.5px] font-bold text-emerald-800 shrink-0 cursor-pointer"
+                    >
+                      Hiện tại
+                    </button>
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={form.durationHours}
+                      onChange={(e) => handleDurationChange(Math.max(0.5, Number(e.target.value)))}
+                      className="w-12 h-7 rounded-lg border border-slate-300 bg-white text-center text-[11px] font-extrabold text-slate-900 shadow-2xs focus:border-emerald-600 focus:outline-none"
+                    />
+                    <span className="text-[11px] text-slate-500 font-medium">giờ</span>
+
+                    <span className="text-slate-300 mx-1">|</span>
+                    <span className="text-[11px] font-bold text-slate-700 shrink-0">Nghỉ trưa:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="4"
+                      step="0.5"
+                      value={form.breakHours ?? 1}
+                      onChange={(e) => handleBreakChange(Math.max(0, Number(e.target.value)))}
+                      className="w-11 h-7 rounded-lg border border-slate-300 bg-white text-center text-[11px] font-extrabold text-slate-900 shadow-2xs focus:border-emerald-600 focus:outline-none"
+                    />
+                    <span className="text-[11px] text-slate-500 font-medium">giờ</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[10px] text-slate-400 font-semibold mr-0.5">Ca:</span>
+                    {[4, 8, 10, 12].map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => handleDurationChange(h)}
+                        className={`h-6 px-2 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
+                          form.durationHours === h
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                      >
+                        {h}h
+                      </button>
+                    ))}
+                    <span className="text-slate-200 mx-0.5">|</span>
+                    <span className="text-[10px] text-slate-400 font-semibold mr-0.5">Nghỉ:</span>
+                    {[0, 1, 1.5, 2].map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => handleBreakChange(b)}
+                        className={`h-6 px-2 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
+                          (form.breakHours ?? 1) === b
+                            ? 'bg-emerald-800 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                      >
+                        {b === 0 ? '0h' : `${b}h`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  {[4, 8, 10, 12].map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => handleDurationChange(h)}
-                      className={`h-6 px-2.5 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
-                        form.durationHours === h
-                          ? 'bg-slate-900 text-white shadow-2xs'
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                      }`}
-                    >
-                      {h}h
-                    </button>
-                  ))}
+                {/* DÒNG DƯỚI CA MÁY: KẾT THÚC CA LÚC */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-0.5 text-[11px] text-slate-600">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 font-medium">Kết thúc ca lúc:</span>
+                    <span className="font-bold text-slate-800">
+                      {calculateEndTimeFormatted(form.startTime || form.plannedStartAt, form.durationHours, form.breakHours ?? 1)}
+                    </span>
+                  </div>
+                  {(form.breakHours ?? 1) > 0 ? (
+                    <span className="text-[10.5px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                      Đã cộng {form.breakHours ?? 1}h nghỉ trưa (Tổng thời lượng: {form.durationHours + (form.breakHours ?? 1)}h)
+                    </span>
+                  ) : (
+                    <span className="text-[10.5px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                      Không nghỉ trưa / Làm liên tục
+                    </span>
+                  )}
+                  <label className="ml-auto flex items-center gap-2 font-medium">Dự kiến hoàn thành công việc:<input type="date" value={form.expectedCompletedAt} min={form.plannedStartAt.slice(0, 10)} onChange={(e) => update('expectedCompletedAt', e.target.value)} className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-800" /></label>
                 </div>
               </div>
 
-              {/* DÒNG 2: LƯỚI 3 CỘT NGANG (XE MÁY | PHỤ KIỆN | THỢ LÁI - ĐÚNG HÌNH 3) */}
+              {/* DÒNG 2: LƯỚI 3 CỘT NGANG: 1. THỢ LÁI (ƯU TIÊN) | 2. XE MÁY (TỰ ĐỘNG THEO TÀI) | 3. PHỤ KIỆN */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Cột 1: Chọn Phương tiện / Thiết bị xe máy */}
+                {/* Cột 1: Chọn Thợ máy / Lái xe (ƯU TIÊN CHỌN TRƯỚC) */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <User className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>1. Thợ máy / Lái xe:</span>
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200/80 font-mono" title="Số thợ máy/lái xe sẵn sàng / Tổng số thợ máy đủ điều kiện">
+                        ({availDriversCount}/{totalDriversCount})
+                      </span>
+                    </span>
+                    {selectedDriver ? (
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded truncate max-w-[120px]">
+                        {selectedDriver.fullName}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        Ưu tiên chọn trước
+                      </span>
+                    )}
+                  </label>
+                  <SearchableSelect
+                    value={form.driverId}
+                    onChange={handleDriverChange}
+                    options={driverOptions}
+                    allowCustomInput={false}
+                    placeholder="-- Chọn thợ máy / lái xe --"
+                    heightClass="h-9"
+                    roundedClass="rounded-lg"
+                    bgClass="bg-white"
+                    className="w-full"
+                    inputClassName="text-xs font-semibold text-slate-900 border-indigo-300 shadow-2xs focus:border-indigo-600"
+                    emptyOptionLabel="-- Chọn thợ máy / lái xe --"
+                    emptyValue=""
+                  />
+                  {form.managementUnitId && !contextLoading && totalDriversCount === 0 && (
+                    <p className="text-[10.5px] font-semibold text-rose-700">Đội này chưa có tài xế đang được phân công.</p>
+                  )}
+                  {form.managementUnitId && !contextLoading && totalDriversCount > 0 && availDriversCount === 0 && (
+                    <p className="text-[10.5px] font-semibold text-amber-700">Không có tài xế đủ điều kiện. Mở danh sách để xem rõ từng lý do: hạng GPLX, nghỉ phép/nghỉ ca, đang vận hành hoặc trùng lệnh.</p>
+                  )}
+                  {selectedDriver && (
+                    <div className="rounded-lg bg-indigo-50/70 border border-indigo-200/80 px-2.5 py-1.5 text-[11px] text-indigo-950 flex items-center justify-between">
+                      <span className="font-semibold truncate">{selectedDriver.fullName} • {selectedDriver.licenseClass || 'GPLX A4'}</span>
+                      <span className="font-bold text-indigo-800 shrink-0 ml-1">{selectedDriver.phone || 'Sẵn sàng'}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cột 2: Chọn Phương tiện / Thiết bị xe máy (TỰ ĐỘNG GÁN THEO TÀI XẾ) */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
                     <span className="flex items-center gap-1">
                       <Tractor className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>1. Thiết bị xe máy:</span>
+                      <span>2. Thiết bị xe máy:</span>
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80 font-mono" title="Số xe có thể hoạt động / Tổng số xe">
                         ({availVehiclesCount}/{totalVehiclesCount})
                       </span>
                     </span>
-                    {selectedVehicle && (
+                    {selectedVehicle ? (
                       <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded">
                         {selectedVehicle.code}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium italic">
+                        Tự động theo tài xế
                       </span>
                     )}
                   </label>
@@ -2586,6 +3232,7 @@ export const DispatchOrderForm: React.FC = () => {
                     value={form.vehicleId}
                     onChange={handleVehicleChange}
                     options={vehicleOptions}
+                    disabled={!form.driverId}
                     allowCustomInput={false}
                     placeholder="-- Chọn xe máy --"
                     heightClass="h-9"
@@ -2596,6 +3243,12 @@ export const DispatchOrderForm: React.FC = () => {
                     emptyOptionLabel="-- Chọn xe máy --"
                     emptyValue=""
                   />
+                  {form.managementUnitId && !contextLoading && totalVehiclesCount === 0 && (
+                    <p className="text-[10.5px] font-semibold text-rose-700">Đội này chưa có xe/máy.</p>
+                  )}
+                  {form.managementUnitId && !contextLoading && totalVehiclesCount > 0 && availVehiclesCount === 0 && (
+                    <p className="text-[10.5px] font-semibold text-amber-700">Không có xe/máy phù hợp loại lệnh hoặc đang sẵn sàng.</p>
+                  )}
                   {selectedVehicle && (
                     <div className="rounded-lg bg-emerald-50/70 border border-emerald-200/80 px-2.5 py-1.5 text-[11px] text-emerald-950 flex items-center justify-between">
                       <span className="font-semibold truncate">{selectedVehicle.name} • {selectedVehicle.plate || 'Chưa gắn biển'}</span>
@@ -2604,76 +3257,120 @@ export const DispatchOrderForm: React.FC = () => {
                   )}
                 </div>
 
-                {/* Cột 2: Chọn Phụ kiện gắn kèm */}
+                {/* Cột 3: Chọn Phụ kiện gắn kèm (HỖ TRỢ CHỌN NHIỀU THIẾT BỊ) */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
                     <span className="flex items-center gap-1">
                       <Wrench className="h-3.5 w-3.5 text-blue-600" />
-                      <span>2. Phụ kiện gắn kèm:</span>
+                      <span>3. Phụ kiện gắn kèm:</span>
                       <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 font-mono" title="Số phụ kiện có thể gắn / Tổng số phụ kiện">
                         ({availImplementsCount}/{totalImplementsCount})
                       </span>
                     </span>
-                  </label>
-                  <SearchableSelect
-                    value={form.implementId}
-                    onChange={(val) => update('implementId', val)}
-                    options={implementOptions}
-                    placeholder="-- Chọn phụ kiện / moóc --"
-                    heightClass="h-9"
-                    roundedClass="rounded-lg"
-                    bgClass="bg-white"
-                    className="w-full"
-                    inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
-                    emptyOptionLabel="-- Chọn phụ kiện / moóc --"
-                    emptyValue=""
-                  />
-                  {selectedImplement && (
-                    <div className="rounded-lg bg-blue-50/70 border border-blue-200/80 px-2.5 py-1.5 text-[11px] text-blue-950 flex items-center justify-between">
-                      <span className="font-semibold truncate">{selectedImplement.name}</span>
-                      <span className="font-bold text-blue-800 shrink-0 ml-1">Sẵn sàng</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cột 3: Chọn Thợ máy / Lái xe */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
-                    <span className="flex items-center gap-1">
-                      <User className="h-3.5 w-3.5 text-indigo-600" />
-                      <span>3. Thợ máy / Lái xe:</span>
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200/80 font-mono" title="Số thợ máy/lái xe sẵn sàng / Tổng số thợ máy đủ điều kiện">
-                        ({availDriversCount}/{totalDriversCount})
-                      </span>
-                    </span>
-                    {selectedDriver && (
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded truncate max-w-[120px]">
-                        {selectedDriver.fullName}
+                    {selectedImplementIds.length > 0 && (
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded-full border border-blue-200">
+                        Đã chọn {selectedImplementIds.length} thiết bị
                       </span>
                     )}
                   </label>
                   <SearchableSelect
-                    value={form.driverId}
-                    onChange={(val) => update('driverId', val)}
-                    options={driverOptions}
-                    allowCustomInput={false}
-                    placeholder="-- Chọn thợ máy / lái xe --"
+                    value=""
+                    onChange={handleAddImplement}
+                    options={implementOptions.filter((o) => !selectedImplementIds.includes(o.value))}
+                    disabled={!form.vehicleId}
+                    placeholder={selectedImplementIds.length > 0 ? "+ Chọn thêm thiết bị phụ trợ..." : "-- Chọn phụ kiện / moóc --"}
                     heightClass="h-9"
                     roundedClass="rounded-lg"
                     bgClass="bg-white"
                     className="w-full"
                     inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
-                    emptyOptionLabel="-- Chọn thợ máy / lái xe --"
+                    emptyOptionLabel={selectedImplementIds.length > 0 ? "+ Chọn thêm thiết bị phụ trợ..." : "-- Chọn phụ kiện / moóc --"}
                     emptyValue=""
                   />
-                  {selectedDriver && (
-                    <div className="rounded-lg bg-indigo-50/70 border border-indigo-200/80 px-2.5 py-1.5 text-[11px] text-indigo-950 flex items-center justify-between">
-                      <span className="font-semibold truncate">{selectedDriver.fullName} • {selectedDriver.licenseClass || 'GPLX A4'}</span>
-                      <span className="font-bold text-indigo-800 shrink-0 ml-1">{selectedDriver.phone || 'Sẵn sàng'}</span>
+                  {form.managementUnitId && !contextLoading && totalImplementsCount === 0 && (
+                    <p className="text-[10.5px] font-semibold text-slate-600">Đội này không có thiết bị gắn kèm.</p>
+                  )}
+                  {form.managementUnitId && !contextLoading && totalImplementsCount > 0 && availImplementsCount === 0 && (
+                    <p className="text-[10.5px] font-semibold text-amber-700">Không có thiết bị phù hợp với loại lệnh hoặc xe đã chọn.</p>
+                  )}
+                  {selectedImplementItems.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedImplementItems.map((item) => (
+                          <span
+                            key={item.id}
+                            className="inline-flex items-center gap-1 bg-blue-50 text-blue-900 border border-blue-200/90 rounded-lg px-2 py-1 text-[11px] font-bold shadow-2xs"
+                          >
+                            <Wrench className="h-3 w-3 text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[180px]">{item.label}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImplement(item.id)}
+                              className="ml-1 text-slate-400 hover:text-rose-600 font-black text-xs hover:bg-rose-100 rounded-full w-3.5 h-3.5 flex items-center justify-center transition-colors"
+                              title="Bỏ chọn thiết bị này"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      {selectedImplementIds.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={handleClearImplements}
+                          className="text-[10px] text-slate-400 hover:text-rose-600 font-semibold underline block"
+                        >
+                          Bỏ chọn tất cả ({selectedImplementIds.length} thiết bị)
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* THÔNG BÁO TỰ ĐỘNG GÁN XE THEO TÀI XẾ */}
+              {autoVehicleNotice && (
+                <div
+                  className={`flex items-start justify-between gap-3 p-3 rounded-xl border text-xs transition-all shadow-2xs ${
+                    autoVehicleNotice.tone === 'emerald'
+                      ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                      : autoVehicleNotice.tone === 'amber'
+                      ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                      : autoVehicleNotice.tone === 'blue'
+                      ? 'bg-blue-50/90 border-blue-300 text-blue-950'
+                      : autoVehicleNotice.tone === 'rose'
+                      ? 'bg-rose-50/90 border-rose-300 text-rose-950'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 ${
+                        autoVehicleNotice.tone === 'emerald'
+                          ? 'bg-emerald-200 text-emerald-900'
+                          : autoVehicleNotice.tone === 'amber'
+                          ? 'bg-amber-200 text-amber-900'
+                          : autoVehicleNotice.tone === 'blue'
+                          ? 'bg-blue-200 text-blue-900'
+                          : autoVehicleNotice.tone === 'rose'
+                          ? 'bg-rose-200 text-rose-900'
+                          : 'bg-slate-200 text-slate-800'
+                      }`}
+                    >
+                      {autoVehicleNotice.badge}
+                    </span>
+                    <p className="font-semibold text-xs leading-relaxed">{autoVehicleNotice.message}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutoVehicleNotice(null)}
+                    className="text-slate-400 hover:text-slate-700 p-0.5 rounded-md hover:bg-slate-200/50"
+                    title="Đóng thông báo"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
 
               {/* DÒNG 3: DỰ TOÁN NHIÊN LIỆU & GHI CHÚ */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs text-slate-600">
@@ -2764,6 +3461,13 @@ export const DispatchOrderForm: React.FC = () => {
           weekOptions={weekOptions}
           complexOptions={complexOptions}
           selectedComplex={selectedComplex}
+          managementUnits={managementUnits}
+          managementUnitOptions={managementUnitOptions}
+          selectManagementUnit={selectManagementUnit}
+          enterpriseOptions={enterpriseOptions}
+          availableEnterprises={availableEnterprises}
+          complexes={complexes}
+          constructionCategoryOptions={constructionCategoryOptions}
           constructionJobOptions={constructionJobOptions}
           availableConstructionJobs={availableConstructionJobs}
           constructionSiteOptions={constructionSiteOptions}
@@ -2775,7 +3479,13 @@ export const DispatchOrderForm: React.FC = () => {
           selectedDriver={selectedDriver}
           selectedImplement={selectedImplement}
           handleDurationChange={handleDurationChange}
+          handleBreakChange={handleBreakChange}
+          handleStartTimeChange={handleStartTimeChange}
+          handleSetCurrentTime={handleSetCurrentTime}
           handleVehicleChange={handleVehicleChange}
+          handleDriverChange={handleDriverChange}
+          autoVehicleNotice={autoVehicleNotice}
+          onCloseNotice={() => setAutoVehicleNotice(null)}
           handleSelectConstructionJob={handleSelectConstructionJob}
           handleSelectConstructionSite={handleSelectConstructionSite}
         />
@@ -2790,9 +3500,20 @@ export const DispatchOrderForm: React.FC = () => {
           weekOptions={weekOptions}
           complexOptions={complexOptions}
           selectedComplex={selectedComplex}
+          managementUnits={managementUnits}
+          managementUnitOptions={managementUnitOptions}
+          selectManagementUnit={selectManagementUnit}
+          enterpriseOptions={enterpriseOptions}
+          availableEnterprises={availableEnterprises}
+          complexes={complexes}
+          transportCategoryOptions={transportCategoryOptions}
           transportJobOptions={transportJobOptions}
           availableTransportJobs={availableTransportJobs}
           transportRouteOptions={transportRouteOptions}
+          returnOriginOptions={returnOriginOptions}
+          returnDestinationOptions={returnDestinationOptions}
+          returnCargoOptions={returnCargoOptions}
+          returnTonnageOptions={returnTonnageOptions}
           vehicleOptions={vehicleOptions}
           driverOptions={driverOptions}
           implementOptions={implementOptions}
@@ -2800,7 +3521,13 @@ export const DispatchOrderForm: React.FC = () => {
           selectedDriver={selectedDriver}
           selectedImplement={selectedImplement}
           handleDurationChange={handleDurationChange}
+          handleBreakChange={handleBreakChange}
+          handleStartTimeChange={handleStartTimeChange}
+          handleSetCurrentTime={handleSetCurrentTime}
           handleVehicleChange={handleVehicleChange}
+          handleDriverChange={handleDriverChange}
+          autoVehicleNotice={autoVehicleNotice}
+          onCloseNotice={() => setAutoVehicleNotice(null)}
           handleSelectTransportJob={handleSelectTransportJob}
           handleSelectTransportRoute={handleSelectTransportRoute}
         />

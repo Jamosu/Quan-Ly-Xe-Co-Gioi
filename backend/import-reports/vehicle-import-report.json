@@ -1,7 +1,7 @@
 {
   "workbook": "00. DANH MỤC MMTB THUỘC KLH KOUN MOM.xlsx",
-  "generatedAt": "2026-09-01T03:04:29.334Z",
-  "dryRun": false,
+  "generatedAt": "2026-09-22T03:46:10.552Z",
+  "dryRun": true,
   "sheets": [
     {
       "sheet": "TỔNG KLH + TN",
@@ -31,7 +31,7 @@
       "sheet": "03. THIẾT BỊ",
       "nonEmptyRows": 809,
       "parsedRows": 776,
-      "role": "VEHICLE_SOURCE"
+      "role": "EQUIPMENT_SOURCE"
     },
     {
       "sheet": "XE & MÁY CG AGRI",
@@ -43,7 +43,7 @@
       "sheet": "TB CG AGRI",
       "nonEmptyRows": 320,
       "parsedRows": 290,
-      "role": "VEHICLE_SOURCE"
+      "role": "EQUIPMENT_SOURCE"
     },
     {
       "sheet": "NS QUẢN LÝ CG",
@@ -61,7 +61,7 @@
       "sheet": "03.1 NHÓM TB",
       "nonEmptyRows": 890,
       "parsedRows": 707,
-      "role": "VEHICLE_SOURCE"
+      "role": "EQUIPMENT_SOURCE"
     },
     {
       "sheet": "Danh mục",
@@ -103,7 +103,7 @@
       "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
       "nonEmptyRows": 25,
       "parsedRows": 5,
-      "role": "VEHICLE_SOURCE"
+      "role": "EQUIPMENT_SOURCE"
     },
     {
       "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
@@ -115,7 +115,7 @@
       "sheet": "03.1-TB.SXCN",
       "nonEmptyRows": 114,
       "parsedRows": 103,
-      "role": "VEHICLE_SOURCE"
+      "role": "EQUIPMENT_SOURCE"
     },
     {
       "sheet": "TT BTSC",
@@ -126,13 +126,613 @@
   ],
   "totalWorkbookNonEmptyRows": 11212,
   "totalRowsRead": 10004,
-  "uniqueVehicles": 3196,
+  "uniqueVehicles": 2514,
   "newVehicles": 0,
-  "updatedVehicles": 3196,
+  "updatedVehicles": 2514,
   "inserted": 0,
-  "updated": 3196,
+  "updated": 2514,
   "mergedRows": 6690,
   "unresolvedRows": 118,
+  "unresolved": [
+    {
+      "sheet": "02. MM-KLH",
+      "row": 53,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 81,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 137,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 166,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 181,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 228,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 276,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 334,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 374,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 439,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 452,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 460,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 467,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 473,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 57,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 24,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 50,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 55,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 58,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 66,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 76,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 81,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 101,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
+      "row": 15,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
+      "row": 25,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 115,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 133,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 149,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 155,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 533,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 540,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 546,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 568,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 594,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 606,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 617,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 622,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 668,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 497,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 518,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 543,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 556,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 567,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 572,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 63,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 100,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 115,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 177,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 209,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 230,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 9,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 14,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 22,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 43,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 84,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 185,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 212,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 246,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 274,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 314,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 322,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 337,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 487,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 647,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 350,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 510,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 524,
+      "oldCode": "KHONGXOA"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 415,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 461,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 522,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 531,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 574,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 582,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 136,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 7,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 9,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 11,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 17,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 21,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 23,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 26,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 33,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 46,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 67,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 71,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 76,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 78,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 84,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 88,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 95,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 101,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 103,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 13,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 23,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 33,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 35,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 49,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 65,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 71,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 81,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 83,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 111,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 649,
+      "oldCode": "MK12-VCKLH",
+      "frameNumber": "C000032"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 675,
+      "oldCode": "MK12-VCKLH",
+      "frameNumber": "C000032"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 459,
+      "frameNumber": "C000032"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 650,
+      "oldCode": "MK67-VCKLH",
+      "frameNumber": "SD3000AD0-10355"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 676,
+      "oldCode": "MK67-VCKLH",
+      "frameNumber": "SD3000AD0-10355"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 460,
+      "frameNumber": "SD3000AD0-10355"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 716,
+      "frameNumber": "RW7810P001704",
+      "engineNumber": "RG6081T011143"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 740,
+      "assetCode": "ATM-A22-0012",
+      "frameNumber": "RW7810P001704",
+      "engineNumber": "RG6081T011143"
+    },
+    {
+      "sheet": "TỔNG KLH + TN",
+      "row": 661,
+      "frameNumber": "RW7810P001704",
+      "engineNumber": "RG6081T011143"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 64,
+      "bravoCode": "A23-XTA-048"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 66,
+      "bravoCode": "A23-XTA-050"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 67,
+      "bravoCode": "A23-XTA-051"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 68,
+      "bravoCode": "A23-XTA-052"
+    },
+    {
+      "sheet": "03.1 NHÓM TB",
+      "row": 895,
+      "oldCode": "TBCHỜPHÂNBỔVUILÒNGTHÊMTRÊNHÀNGNÀY"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 827,
+      "oldCode": "TBCHỜPHÂNBỔVUILÒNGTHÊMTRÊNHÀNGNÀY"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 99,
+      "oldCode": "KHÔGNXOÁ"
+    }
+  ],
   "conflicts": [
     {
       "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
@@ -147,6 +747,7328 @@
       "reason": "Một dòng khớp nhiều hồ sơ theo identifier tin cậy; không tự động gộp các candidate."
     }
   ],
+  "excludedEquipmentCount": 682,
+  "excludedEquipment": [
+    {
+      "code": "CHT-BDU-001",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-002",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-003",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-004",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-005",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-006",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-007",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-008",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-010",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-BDU-011",
+      "name": "Búa đục bê tông",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CMĐ-001",
+      "name": "Cần dài M.Đào Sumitomo (16m)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CMĐ-002",
+      "name": "Cần dài M.Đào Kobeco (18m)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CMĐ-003",
+      "name": "Cần dài M.Đào Sumitomo (16m)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CMĐ-004",
+      "name": "Cần dài M.Đào Doosan (12m)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CNA-001",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CNA-002",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-CNA-003",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-ĐTL-001",
+      "name": "Đầm taluy (Đầm rung thủy lực)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-ĐTL-002",
+      "name": "Đầm taluy (Đầm rung thủy lực)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-ĐTL-003",
+      "name": "Đầm taluy (Đầm rung thủy lực)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-ĐTL-004",
+      "name": "Đầm taluy (Đầm rung thủy lực)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-001",
+      "name": "Gàu định hình M2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-002",
+      "name": "Gàu định hình M0.6",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-003",
+      "name": "Gàu định hình M0.6",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-004",
+      "name": "Gàu định hình M0.6",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-005",
+      "name": "Gàu định hình M0.6",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-006",
+      "name": "Gàu định hình M0.6",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-007",
+      "name": "Gàu định hình M0.6",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-008",
+      "name": "Gàu định hình M0.8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-009",
+      "name": "Gàu định hình M0.8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-010",
+      "name": "Gàu định hình M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-011",
+      "name": "Gàu định hình M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-012",
+      "name": "Gàu định hình M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-013",
+      "name": "Gàu định hình M1.5",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-015",
+      "name": "Gàu định hình M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-016",
+      "name": "Gàu định hình M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-017",
+      "name": "Gàu định hình M0.6 (Cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-018",
+      "name": "Gàu định hình M0.6 (Cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-019",
+      "name": "Gàu định hình M0.6 (Cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-020",
+      "name": "Gàu định hình M0.6 (Cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-021",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-022",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-023",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-024",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-025",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-028",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-031",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-032",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-033",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-043",
+      "name": "Gàu định hình đào mương lô M1 (cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-044",
+      "name": "Gàu định hình đào mương lô M1 (cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-051",
+      "name": "Gàu định hình đào mương lô M1 (cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-052",
+      "name": "Gàu định hình đào mương lô M1 (cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-053",
+      "name": "Gàu định hình đào mương lô M1 (cải tiến)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-059",
+      "name": "Gàu định hình đảo mương thửa",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-060",
+      "name": "Gàu định hình đảo mương thửa",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-061",
+      "name": "Gàu định hình đảo mương thửa",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-062",
+      "name": "Gàu định hình đảo mương thửa",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-063",
+      "name": "Gàu định hình đảo mương thửa",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-064",
+      "name": "Gàu định hình đảo mương lô",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-069",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-070",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-071",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-072",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-073",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-074",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-075",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-076",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-077",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-078",
+      "name": "Gàu định hình đào mương thửa M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-079",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-080",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-081",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-082",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-083",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-084",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-085",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-086",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-087",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-088",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-089",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-090",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-091",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-092",
+      "name": "Gàu định hình đào mương M1.2",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-093",
+      "name": "Gàu định hình đào mương M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-GĐH-094",
+      "name": "Gàu định hình đào mương M1",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CHT-TCĐ-001",
+      "name": "Trống cào đá",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CKD-MKC-001",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CKD-RMC-001",
+      "name": "Rơ mooc RMHA",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CKD-RMC-002",
+      "name": "Rơ mooc RMHA",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CKD-RMC-003",
+      "name": "Rơ mooc RMHA",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CKD-RMC-004",
+      "name": "Rơ mooc RMHA",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BLC-052",
+      "name": "Thiết bị trang mặt bằng luống chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BLT-001",
+      "name": "Bộ bánh lồng thép",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BLT-002",
+      "name": "Bộ bánh lồng thép",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BLT-003",
+      "name": "Bộ bánh lồng thép",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BLT-004",
+      "name": "Bộ bánh lồng thép",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-001",
+      "name": "Thiết bị bừa 7 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-002",
+      "name": "Thiết bị bừa 7 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-003",
+      "name": "Thiết bị bừa 8 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-005",
+      "name": "Thiết Bị Bừa 8 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-006",
+      "name": "Thiết Bị Bừa 32 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-007",
+      "name": "Thiết bị bừa 9 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-008",
+      "name": "Thiết bị bừa 8 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-009",
+      "name": "Thiết bị bừa 8 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-010",
+      "name": "Thiết bị bừa 7 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-011",
+      "name": "Thiết bị bừa 24 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-012",
+      "name": "Thiết bị bừa 24 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-013",
+      "name": "Thiết bị bừa 36 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-014",
+      "name": "Thiết bị bừa 24 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-015",
+      "name": "Thiết bị bừa 30 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-016",
+      "name": "Thiết bị bừa 30 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-BUA-017",
+      "name": "Thiết bị bừa 7 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-C1B-002",
+      "name": "Thiết bị cắt cỏ 1 bên",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-001",
+      "name": "Thiết bị cày 3 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-002",
+      "name": "Thiết bị cày 3 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-003",
+      "name": "Thiết bị cày 3 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-004",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-005",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-006",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-007",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-008",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-009",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-010",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-013",
+      "name": "Thiết bị cày 4 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-014",
+      "name": "Thiết bị cày 4 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CCH-015",
+      "name": "Thiết bị cày 4 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-001",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-002",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-003",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-004",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-005",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-006",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-CNA-007",
+      "name": "Thiết bị cày ngầm 3 trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRP-001",
+      "name": "Dàn rải phân (10m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRP-002",
+      "name": "Dàn rải phân (10m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRP-003",
+      "name": "Dàn rải phân (10m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRP-004",
+      "name": "Dàn rải phân (10m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRP-005",
+      "name": "Dàn rải phân (10m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRP-006",
+      "name": "Dàn rải phân (10m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRT-001",
+      "name": "Thiết bị đào rãnh đặt ống tưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRT-002",
+      "name": "Thiết bị đào rãnh đặt ống tưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRT-003",
+      "name": "Thiết bị đào rãnh đặt ống tưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRT-004",
+      "name": "Thiết bị đào rãnh đặt ống tưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DRT-005",
+      "name": "Thiết bị đào rãnh đặt ống tưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DTR-001",
+      "name": "Thiết bị tạo rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DTR-002",
+      "name": "Thiết bị tạo rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DTR-003",
+      "name": "Thiết bị tạo rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DTR-004",
+      "name": "Thiết bị tạo rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DTR-005",
+      "name": "Thiết bị tạo rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DUL-001",
+      "name": "Thiết bị úp luống 6 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-DXP-001",
+      "name": "Thiết bị xới phân",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-KHO-001",
+      "name": "Thiết bị khoan hố",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-PKK-001",
+      "name": "Thiết bị phun khử khuẩn",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-001",
+      "name": "Thiết bị rạch luống trồng 2 lưỡi",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-002",
+      "name": "Thiết bị rạch tạo rãnh luống trồng 1 lưỡi",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-003",
+      "name": "Thiết bị rạch luống trồng chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-004",
+      "name": "Thiết bị rạch luống trồng cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-005",
+      "name": "Thiết bị rạch luống trồng chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-006",
+      "name": "Thiết bị rạch định vị hàng trồng 2 lưỡi",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RLT-007",
+      "name": "Thiết bị rạch định vị hàng trồng 2 lưỡi",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RMC-001",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RTC-001",
+      "name": "Thiết bị rạch luống trồng chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RTC-002",
+      "name": "Thiết bị rạch luống trồng chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RTC-003",
+      "name": "Thiết bị rạch luống trồng chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RVO-001",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RVO-003",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RVO-004",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RVO-005",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-RVO-006",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-TBC-001",
+      "name": "Thiết bị cắt cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-TBG-001",
+      "name": "Thiết bị gom gốc gắn máy kéo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-TBG-002",
+      "name": "Thiết bị gom gốc gắn máy kéo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-TKH-001",
+      "name": "Thiết bị khai hoang dạng con lăn gai",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VLU-001",
+      "name": "Thiết bị lên luống 2 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VLU-002",
+      "name": "Thiết bị lên luống 2 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VLU-003",
+      "name": "Thiết bị lên luống dứa",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VMU-001",
+      "name": "Thiết bị vét mương 2 đĩa quay",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VMU-002",
+      "name": "Thiết bị vét mương 2 đĩa quay",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VMU-003",
+      "name": "Thiết bị đào mương DBR 75/32-540",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-VMU-004",
+      "name": "Thiết bị đào mương DBR 75/32-540",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-001",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-002",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-003",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-004",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-006",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-007",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "03.1-TB.SXCN",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-008",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "CNN-XOI-009",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-001",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-002",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-003",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-004",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-005",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-006",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-007",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-GĐH-008",
+      "name": "Gàu định hình đào rãnh bỏ ống nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-RMC-001",
+      "name": "Rơ mooc RMHA",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "ĐNA-RMC-002",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "HCA-RMC-001",
+      "name": "Rơ mooc gắn máy kéo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-001",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-003",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-005",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-006",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-007",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-008",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-009",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-014",
+      "name": "SMRM xương sàn/mooc OPT",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-015",
+      "name": "SMRM xương sàn/mooc OPT",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-017",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-020",
+      "name": "SMRM xương sàn/mooc OPT",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-021",
+      "name": "SMRM xương sàn/mooc OPT",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-022",
+      "name": "SMRM xương sàn/mooc OPT",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-023",
+      "name": "SMRM xương sàn/mooc OPT",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-024",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "TND-RML-025",
+      "name": "SMRM LCD",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XA2-RMC-007",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XA2-SPT-001",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XAD-RMC-017(XA2-RMC-004)",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-BRN-001",
+      "name": "Bồn rỉ mật 5m3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-BUA-001",
+      "name": "Thiết bị bừa 32 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-BUA-002",
+      "name": "Thiết bị bừa 24 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-BUA-003",
+      "name": "Thiết bị bừa 24 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-BUA-004",
+      "name": "Thiết bị bừa 32 chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CCB-001",
+      "name": "Thiết bị cày chăm bắp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CCG-001",
+      "name": "Cắt cỏ gốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CCG-002",
+      "name": "Cắt cỏ gốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CĐQ-001",
+      "name": "Thiết bị cắt cỏ đĩa quay",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CĐQ-002",
+      "name": "Thiết bị cắt cỏ đĩa quay",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CĐQ-003",
+      "name": "Thiết bị cắt cỏ đĩa quay",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CĐQ-004",
+      "name": "Thiết bị cắt cỏ đĩa quay",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CRL-001",
+      "name": "Cày rạch luống 4 rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CRL-002",
+      "name": "Cày rạch luống 2 rãnh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-CXL-001",
+      "name": "Càng xúc lật gắn máy cày (0.68m3)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DCC-001",
+      "name": "Thiết bị cắt cỏ - Mower",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DCC-002",
+      "name": "Thiết bị cắt cỏ - Mower",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DKL-001",
+      "name": "Thiết bị khoan lỗ trụ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DKL-002",
+      "name": "Thiết bị khoan lỗ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DNL-001",
+      "name": "Thiết bị nén lá chuối khô",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-001",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-002",
+      "name": "Thiết bị phay cỏ (2 luống)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-003",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-004",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-005",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-006",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-007",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DPC-008",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DTP-001",
+      "name": "Thiết bị tung phân hữu cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DTP-002",
+      "name": "Thiết bị tung phân hữu cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-DXC-001",
+      "name": "Thiết bị xới cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-ĐBC-001",
+      "name": "Thiết bị đóng bánh cỏ Balentine",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-GHC-001",
+      "name": "Thiết bị gieo hạt cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-GHC-002",
+      "name": "Thiết bị gieo hạt cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-GKM-001",
+      "name": "Thiết bị khoan mẹ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-GTB-001",
+      "name": "Thiết bị tỉa bắp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-GTB-002",
+      "name": "Thiết bị tỉa bắp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-KGX-001",
+      "name": "Kẹp gỗ xoay 360 độ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MBD-001",
+      "name": "Máy băm cỏ di động",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MBD-002",
+      "name": "Máy băm cỏ di động",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MBG-001",
+      "name": "Máy băm gỗ DIESEL-VMECH",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MBG-002",
+      "name": "Máy băm gỗ cố định 185KW",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MBG-003",
+      "name": "Máy băm gỗ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCA-001",
+      "name": "Máy cao áp 5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCA-002",
+      "name": "Máy cao áp 5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCA-003",
+      "name": "Máy cao áp 5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCC-001",
+      "name": "Máy cắt lát chuối cho bê",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCL-001",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCL-002",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCO-001",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCO-002",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCO-003",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCO-004",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MCO-005",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MDP-001",
+      "name": "Máy đảo trộn phân hữu cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MLB-001",
+      "name": "Rơ mooc lưới ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRP-001",
+      "name": "Thiết bị rải phân chuồng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRT-002",
+      "name": "SMRM rải thức ăn TMR 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRT-003",
+      "name": "SMRM rải thức ăn TMR 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRT-004",
+      "name": "SMRM rải thức ăn TMR 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRT-005",
+      "name": "SMRM rải thức ăn TMR 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRT-006",
+      "name": "SMRM rải thức ăn TMR 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MRT-007",
+      "name": "SMRM rải thức ăn TMR 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTO-001",
+      "name": "Máy tời xe máy 3.5T",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTO-002",
+      "name": "Máy tời xe máy 3.5T",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTO-003",
+      "name": "Máy tời xe máy 3.5T",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTO-004",
+      "name": "Máy tời xe máy 3.5T",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTO-005",
+      "name": "Máy tời xe máy 3.5T",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTO-006",
+      "name": "Máy tời xe máy 3.5T",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTP-001",
+      "name": "Máy trộn premix",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MTP-002",
+      "name": "Máy trộn premix",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MXM-001",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-PTB-001",
+      "name": "Thiết bị phun thuốc bắp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-PTB-002",
+      "name": "Thiết bị phun thuốc bắp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RBP-001",
+      "name": "Thiết bị rạch hàng bón phân vô cơ (6 hàng)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RBP-002",
+      "name": "Thiết bị rạch hàng bón phân vô cơ (6 hàng)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RLT-001",
+      "name": "Thiết bị rạch luống trồng cỏ (6 hàng)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RLT-002",
+      "name": "Thiết bị rạch luống trồng cỏ (4 hàng)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RLT-003",
+      "name": "Thiết bị rạch luống trồng cỏ (4 hàng)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RLT-004",
+      "name": "Thiết bị rạch luống trồng cỏ (4 hàng)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMB-001",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMB-002",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMC-006",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMC-007",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMC-008",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RML-001",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RML-003",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RML-004",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RML-005",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RML-006",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMO-001",
+      "name": "Rơ mooc thùng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMO-002",
+      "name": "Rơ mooc thùng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMO-003",
+      "name": "Rơ mooc thùng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMO-004",
+      "name": "Rơ mooc thùng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RMO-005",
+      "name": "Rơ mooc đi cùng shibaura",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RP4-001",
+      "name": "Thiết bị rải phân hữu cơ 4 hàng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RP4-002",
+      "name": "Thiết bị rải phân hữu cơ 4 hàng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RPC-001",
+      "name": "Rải phân chuồng",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RVO-001",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RVO-002",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-RVO-003",
+      "name": "Thiết bị phun vôi/rải vô cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-SMR-001",
+      "name": "SMRM vận chuyển 50M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TBB-001",
+      "name": "Máy băm công nghiệp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TBN-001",
+      "name": "Thiết bị nghiền dăm gỗ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TBR-001",
+      "name": "Thiết bị rãi phân hữu cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TBT-001",
+      "name": "Thiết bị trồng bắp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TCT-001",
+      "name": "Máy trộn thức ăn tinh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TCT-002",
+      "name": "Máy trộn thức ăn tinh",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-001",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER II",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-002",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER II",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-003",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER II PLUS",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-004",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER II PLUS",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-005",
+      "name": "Thiết bị thu hoạch cỏ thân mềm Calabria 1800",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-006",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER IV",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-007",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER IV",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-008",
+      "name": "Thiết bị thu hoạch cỏ thân mềm Calabria 1800",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-009",
+      "name": "Thiết bị thu hoạch cỏ thân mềm Calabria 1800",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-010",
+      "name": "Thiết bị thu hoạch cỏ CHALLENGER IV",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-012",
+      "name": "Thiết bị thu hoạch cỏ thân mềm Calabria 1800",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-THC-013",
+      "name": "Thiết bị thu hoạch cỏ thân mềm Calabria 2100",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-001",
+      "name": "SMRM trung chuyển phân - CĐC 18/23M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-002",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-003",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-004",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-005",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-006",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-007",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-008",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-009",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TPC-010",
+      "name": "SMRM trung chuyển phân - CĐC 45M3",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TTA-001",
+      "name": "Cối trộn thức ăn TMR",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TTA-002",
+      "name": "Cối trộn thức ăn TMR",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-TTA-003",
+      "name": "Cối trộn thức ăn TMR",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-XĐL-002",
+      "name": "Máy xay đậu lupin",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XB1-XĐP-001",
+      "name": "Thiết bị xới đảo phân",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-DNL-001",
+      "name": "Thiết bị nén lá chuối khô",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GĐH-001",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GĐH-002",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GĐH-003",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GĐH-004",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GĐH-005",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GĐH-006",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GMĐ-001",
+      "name": "Gàu máy đào 05 (50*100*100cm)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GMĐ-002",
+      "name": "Gàu máy đào 05 (50*100*150cm)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-GMĐ-003",
+      "name": "Gàu máy đào 03 (40*80*100cm)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MBC-001",
+      "name": "Máy băm công nghiệp cố định 15Kw",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MBC-002",
+      "name": "Máy băm công nghiệp cố định 30Kw",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MBC-003",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-001",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-002",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-003",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-004",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-005",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-006",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-007",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-008",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MCA-009",
+      "name": "Máy cao áp phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-001",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-002",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-003",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-004",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-005",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-006",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-007",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-008",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-010",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-011",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-012",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-013",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MKC-014",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MNK-001",
+      "name": "Máy nén khí 5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MPT-001",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MPT-002",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MPT-003",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MPT-004",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-001",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-003",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-004",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-005",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-006",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-007",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-MXM-008",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-RMC-001",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-RMC-002",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-RMC-006",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-RMK-001",
+      "name": "Rơ mooc kéo máy băm",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-SPT-001",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD1-TBG-001",
+      "name": "Thiết bị gắp lá chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-GĐH-001",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-GĐH-002",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MBC-003",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MBC-005",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MBC-006",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-001",
+      "name": "Máy cao áp 7.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-002",
+      "name": "Máy cao áp 7.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-003",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-004",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-005",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-006",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-007",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-008",
+      "name": "Máy cao áp 2HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-009",
+      "name": "Máy cao áp 2HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-010",
+      "name": "Máy cao áp 2HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-011",
+      "name": "Máy cao áp 2HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-012",
+      "name": "Máy cao áp 7.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-013",
+      "name": "Máy cao áp 7.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-014",
+      "name": "Máy cao áp 7.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-015",
+      "name": "Máy cao áp 7.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-016",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-017",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-018",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCA-019",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCL-001",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MCL-002",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-001",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-002",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-003",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-004",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-005",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-006",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-007",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-008",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-009",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-010",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MKC-011",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-001",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-003",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-004",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-005",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-006",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-007",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-MXM-008",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMB-001",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMB-002",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMB-003",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMB-004",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMC-001",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMC-002",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMC-003",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMC-004",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMC-005",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RMG-001",
+      "name": "Rơ mooc chở giống",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-RML-001",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-SPT-001",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD2-SPT-002",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-GĐH-001",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-GĐH-002",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-GĐH-003",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-GĐH-004",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MBC-001",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MBC-002",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-001",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-002",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-003",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-004",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-005",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-006",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-007",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-008",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-009",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-010",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-011",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-012",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-013",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-014",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-015",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-016",
+      "name": "Máy cao áp 1.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MCA-017",
+      "name": "Máy cao áp 7HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-002",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-003",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-004",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-005",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-006",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-007",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-008",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-009",
+      "name": "Máy kéo chuối (Đcơ điện)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-010",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-011",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-012",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-013",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-014",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MKC-015",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MPT-001",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MPT-002",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MPT-003",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MPT-004",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MPT-005",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MXM-001",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MXM-003",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MXM-004",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MXM-005",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-MXM-006",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMB-001",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMB-002",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMB-003",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMB-005",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMB-006",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-001",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-004",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-006",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-007",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-008",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-009",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-010",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMC-011",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RML-001",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-RMR-001",
+      "name": "Rơ mooc thùng ben rải phân hữu cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XD3-SPT-001",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-BLT-001",
+      "name": "Bộ bánh lồng thép",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-DPC-001",
+      "name": "Thiết bị phay cỏ 1.5m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-001",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-002",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-003",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-004",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-005",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-006",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-007",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-GĐH-008",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MBC-001",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MCO-001",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-001",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-002",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-003",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-004",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-005",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-006",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-007",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-008",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-009",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-010",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MKC-011",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MNK-001",
+      "name": "Máy nén khí 10HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MPT-001",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MPT-002",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MPT-003",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MPT-004",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MXM-001",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MXM-003",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-MXM-004",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RMC-002",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RMC-003",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RMC-006",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RML-001",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RMR-001",
+      "name": "Rơ mooc ben rải phân",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-RMX-001",
+      "name": "Rơ mooc chở xốp",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-SPT-001",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL1-TBL-001",
+      "name": "Thiết bị lu",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-DPC-002",
+      "name": "Thiết bị phay cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GĐH-001",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GĐH-002",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GĐH-003",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GĐH-004",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GĐH-005",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GĐH-006",
+      "name": "Gàu định hình đào mương thoát nước",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GMĐ-001",
+      "name": "Gàu máy đào 05 gia công quy cách 1M",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-GXP-001",
+      "name": "Gàu xúc phân",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MBC-002",
+      "name": "Máy băm công nghiệp cố định 30Kw",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MBC-003",
+      "name": "Máy băm công nghiệp cố định 30Kw",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MBC-004",
+      "name": "Máy băm công nghiệp cố định 15Kw",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MBC-005",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MBC-006",
+      "name": "Máy băm cố định",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MCL-001",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MCL-002",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MCL-003",
+      "name": "Rơ mooc clethon",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-001",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-002",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-003",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-004",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-005",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-006",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-007",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-008",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-009",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-010",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-011",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-012",
+      "name": "Máy kéo chuối (Đcơ điện)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MKC-013",
+      "name": "Máy kéo chuối",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MNO-001",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MPT-001",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MPT-002",
+      "name": "Máy phun thuốc RELOAD 7045",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXL-001",
+      "name": "Thiết bị xắt lát",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-001",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-003",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-004",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-005",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-006",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-007",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-MXM-008",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMB-001",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMC-001",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMC-002",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMC-003",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMC-004",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMC-005",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMC-006",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMĐ-001",
+      "name": "Rơ mooc vận chuyển M.Đào 03",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMG-001",
+      "name": "Rơ mooc chở giống",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-RMR-001",
+      "name": "Rơ mooc thùng ben rải phân hữu cơ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-SPT-001",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL3-SPT-002",
+      "name": "Súng phun thuốc Hansung",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL4-MXM-002",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL4-MXM-003",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL4-MXM-004",
+      "name": "Rơ mooc gắn sau xe máy",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL4-RMB-001",
+      "name": "Rơ mooc thùng Ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL4-RMB-002",
+      "name": "Rơ mooc thùng ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XL4-RMC-002",
+      "name": "Rơ mooc thu hoạch",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XND-MCA-001",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XND-MCA-002",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-C1B-001",
+      "name": "Thiết bị cắt cỏ 1 bên",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-CCH-001",
+      "name": "Thiết Bị Cày 3 Chảo",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-CCO-001",
+      "name": "Thiết bị phay cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-CCO-002",
+      "name": "Thiết bị phay cỏ",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-CPP-001",
+      "name": "TB chở phụ phẩm",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-DCR-001",
+      "name": "Thiết bị cày đánh rãnh bón phân",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MBX-001",
+      "name": "Thiết bị băm cành xoài",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCA-001",
+      "name": "Máy cao áp 3.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCA-002",
+      "name": "Máy cao áp 7HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCA-003",
+      "name": "Máy cao áp 3.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCA-004",
+      "name": "Máy cao áp 3.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCA-005",
+      "name": "Máy cao áp 3.5HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCO-001",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MCO-002",
+      "name": "Máy cuộn cỏ (gắn sau máy kéo)",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MLB-001",
+      "name": "Rơ mooc lưới ben",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-001",
+      "name": "Máy nổ 140",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-002",
+      "name": "Máy nổ 140",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-003",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-004",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-005",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-006",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-007",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-008",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-MNO-010",
+      "name": "Máy nổ D8",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RMC-001",
+      "name": "Rơ mooc thu hoạch xoài",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-001",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-002",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-003",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-004",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-005",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-006",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-007",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RML-008",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RNB-001",
+      "name": "Rơ mooc chở bồn phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RNB-002",
+      "name": "Rơ mooc chở bồn phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RNB-003",
+      "name": "Rơ mooc chở bồn phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-RNB-004",
+      "name": "Rơ mooc chở bồn phun thuốc",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXA-XOI-001",
+      "name": "Thiết bị xới đất 2.2m",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXD-MCA-001",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXD-MCA-002",
+      "name": "Máy cao áp 3HP",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXD-RML-001",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    },
+    {
+      "code": "XXD-RML-002",
+      "name": "Rơ mooc lưới",
+      "sourceSheets": [
+        "03. THIẾT BỊ",
+        "03.1 NHÓM TB",
+        "Danh mục",
+        "TB CG AGRI",
+        "TỔNG KLH + TN"
+      ]
+    }
+  ],
+  "classificationConflicts": [],
   "skippedRows": 757,
-  "databaseVehicleCount": 3217
+  "databaseVehicleCount": 2514,
+  "managementUnits": {
+    "exact": 1692,
+    "alias": 120,
+    "liquidated": 338,
+    "unresolved": [
+      {
+        "label": "",
+        "reason": "BLANK",
+        "count": 129
+      },
+      {
+        "label": "B.ĐTXD AD",
+        "reason": "NOT_FOUND",
+        "count": 108
+      },
+      {
+        "label": "XN Chuối AD2",
+        "reason": "NOT_FOUND",
+        "count": 22
+      },
+      {
+        "label": "XN Chuối LP4",
+        "reason": "EXCLUDED",
+        "count": 17
+      },
+      {
+        "label": "CAT AD",
+        "reason": "EXCLUDED",
+        "count": 8
+      },
+      {
+        "label": "CGSX AD",
+        "reason": "NOT_FOUND",
+        "count": 6
+      },
+      {
+        "label": "Xưởng Cơ khí ADM&LP",
+        "reason": "NOT_FOUND",
+        "count": 5
+      },
+      {
+        "label": "THACO ID&ME",
+        "reason": "NOT_FOUND",
+        "count": 4
+      },
+      {
+        "label": "Đội cơ khí bảo trì DP",
+        "reason": "NOT_FOUND",
+        "count": 4
+      },
+      {
+        "label": "XN SX",
+        "reason": "NOT_FOUND",
+        "count": 4
+      },
+      {
+        "label": "RAT OYD",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "XN AD2",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "Hành chính ADM",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "Thaco M&E",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "BAN KT CHUỐI",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "THACO ID ME",
+        "reason": "NOT_FOUND",
+        "count": 3
+      },
+      {
+        "label": "KLH SNOUL",
+        "reason": "EXCLUDED",
+        "count": 2
+      },
+      {
+        "label": "Ban Điện Nước KV DP",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Hành chính AD",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Điện nước AD",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Xưởng CK-MMTB AD&LP",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Ban ĐN",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "BDTXD DP",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Cơ khí lắp đặt RR",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Xưởng GCHT RR",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "Điện nước LP",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "NT Xoài DP",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "CHƯA PHÂN BỔ",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "NT Nhãn DP",
+        "reason": "NOT_FOUND",
+        "count": 2
+      },
+      {
+        "label": "CGLĐ AD",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Ban Điện Nước KV ADM",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Ban QL DTXD LP mượn",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Nhà máy xốp",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Ban cơ giới MMTB",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Ban QLĐTXD ADM",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Hành chính DP",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "XĐG XOÀI lô 93",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "TTBT DP2",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "XN LP4",
+        "reason": "EXCLUDED",
+        "count": 1
+      },
+      {
+        "label": "Hành chính LP",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Thaco MI & E",
+        "reason": "NOT_FOUND",
+        "count": 1
+      },
+      {
+        "label": "Vườn tăng gia",
+        "reason": "NOT_FOUND",
+        "count": 1
+      }
+    ]
+  },
+  "retainedOutOfWorkbook": []
 }

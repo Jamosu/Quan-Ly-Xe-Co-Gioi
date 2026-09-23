@@ -7,6 +7,7 @@ import { createReadStream, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogType } from '@prisma/client';
+import { normalizeMasterDataKey } from '../common/utils/master-data-normalization';
 
 @Injectable()
 export class CatalogsService {
@@ -130,17 +131,24 @@ export class CatalogsService {
 
   async create(data: any) {
     const id = data.id || `CAT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const normalizedKey = normalizeMasterDataKey(data.name) || null;
     return this.prisma.catalogItem.upsert({
       where: { id },
       update: {
         code: data.code,
         name: data.name,
+        normalizedKey,
         type: data.type as CatalogType,
         parentCode: data.parentCode || null,
         parentName: data.parentName || null,
         enterpriseName: data.enterpriseName || null,
         farmName: data.farmName || null,
         plotStatus: data.plotStatus || null,
+        routeFlowType: data.routeFlowType || null,
+        returnOrigin: data.returnOrigin || null,
+        returnDestination: data.returnDestination || null,
+        returnCargoName: data.returnCargoName || null,
+        returnTonnage: data.returnTonnage !== undefined && data.returnTonnage !== null ? Number(data.returnTonnage) : null,
         systemId: data.systemId || null,
         address: data.address || null,
         managerName: data.managerName || null,
@@ -157,12 +165,18 @@ export class CatalogsService {
         id,
         code: data.code,
         name: data.name,
+        normalizedKey,
         type: data.type as CatalogType,
         parentCode: data.parentCode || null,
         parentName: data.parentName || null,
         enterpriseName: data.enterpriseName || null,
         farmName: data.farmName || null,
         plotStatus: data.plotStatus || null,
+        routeFlowType: data.routeFlowType || null,
+        returnOrigin: data.returnOrigin || null,
+        returnDestination: data.returnDestination || null,
+        returnCargoName: data.returnCargoName || null,
+        returnTonnage: data.returnTonnage !== undefined && data.returnTonnage !== null ? Number(data.returnTonnage) : null,
         systemId: data.systemId || null,
         address: data.address || null,
         managerName: data.managerName || null,
@@ -189,12 +203,18 @@ export class CatalogsService {
       data: {
         code: data.code !== undefined ? data.code : existing.code,
         name: data.name !== undefined ? data.name : existing.name,
+        normalizedKey: normalizeMasterDataKey(data.name !== undefined ? data.name : existing.name) || null,
         type: data.type !== undefined ? (data.type as CatalogType) : existing.type,
         parentCode: data.parentCode !== undefined ? data.parentCode : existing.parentCode,
         parentName: data.parentName !== undefined ? data.parentName : existing.parentName,
         enterpriseName: data.enterpriseName !== undefined ? data.enterpriseName : existing.enterpriseName,
         farmName: data.farmName !== undefined ? data.farmName : existing.farmName,
         plotStatus: data.plotStatus !== undefined ? data.plotStatus : existing.plotStatus,
+        routeFlowType: data.routeFlowType !== undefined ? data.routeFlowType : existing.routeFlowType,
+        returnOrigin: data.returnOrigin !== undefined ? data.returnOrigin : existing.returnOrigin,
+        returnDestination: data.returnDestination !== undefined ? data.returnDestination : existing.returnDestination,
+        returnCargoName: data.returnCargoName !== undefined ? data.returnCargoName : existing.returnCargoName,
+        returnTonnage: data.returnTonnage !== undefined ? (data.returnTonnage !== null ? Number(data.returnTonnage) : null) : existing.returnTonnage,
         systemId: data.systemId !== undefined ? data.systemId : existing.systemId,
         address: data.address !== undefined ? data.address : existing.address,
         managerName: data.managerName !== undefined ? data.managerName : existing.managerName,
@@ -261,6 +281,11 @@ export class CatalogsService {
           enterpriseName: item.enterpriseName || null,
           farmName: item.farmName || null,
           plotStatus: item.plotStatus || null,
+          routeFlowType: item.routeFlowType || null,
+          returnOrigin: item.returnOrigin || null,
+          returnDestination: item.returnDestination || null,
+          returnCargoName: item.returnCargoName || null,
+          returnTonnage: item.returnTonnage !== undefined && item.returnTonnage !== null ? Number(item.returnTonnage) : null,
           systemId: item.systemId || null,
           address: item.address || null,
           managerName: item.managerName || null,
@@ -284,7 +309,7 @@ export class CatalogsService {
         savedItems.push(saved);
       }
       return savedItems;
-    });
+    }, { timeout: 600000, maxWait: 60000 });
 
     return { count: results.length, data: results };
   }

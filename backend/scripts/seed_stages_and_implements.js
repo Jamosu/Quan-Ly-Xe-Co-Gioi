@@ -1,4 +1,4 @@
-const { PrismaClient, ImplementCategory, ImplementStatus, TechnicalCondition, EquipmentUsageMode, Unit, CatalogType } = require('@prisma/client');
+﻿const { PrismaClient, ImplementCategory, ImplementStatus, TechnicalCondition, EquipmentUsageMode, Unit, CatalogType } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const STAGES_BY_PLAN_TYPE = {
@@ -135,7 +135,7 @@ async function main() {
       update: {
         name: imp.name,
         category: prismaCategory,
-        unit: Unit.BAN_CO_GIOI,
+        unit: Unit.KOUN_MOM,
         status: ImplementStatus.IN_DEPOT,
         technicalCondition: TechnicalCondition.GOOD,
         standardPurpose: `${imp.planType} - ${imp.category}: ${imp.description}. Tương thích: ${imp.compatibleVehicles}`,
@@ -149,7 +149,7 @@ async function main() {
         code: imp.code,
         name: imp.name,
         category: prismaCategory,
-        unit: Unit.BAN_CO_GIOI,
+        unit: Unit.KOUN_MOM,
         status: ImplementStatus.IN_DEPOT,
         technicalCondition: TechnicalCondition.GOOD,
         standardPurpose: `${imp.planType} - ${imp.category}: ${imp.description}. Tương thích: ${imp.compatibleVehicles}`,

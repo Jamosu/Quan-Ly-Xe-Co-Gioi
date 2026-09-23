@@ -13,6 +13,11 @@ export class UpdateTelemetryDto {
   @IsNumber()
   currentLng?: number;
 
+  @ApiPropertyOptional({ example: 12.5, description: 'Tốc độ GPS tức thời (km/h)' })
+  @IsOptional()
+  @IsNumber()
+  currentSpeedKmH?: number;
+
   @ApiPropertyOptional({ example: 'Nông trường 1 - Lô A04', description: 'Địa danh vị trí' })
   @IsOptional()
   @IsString()

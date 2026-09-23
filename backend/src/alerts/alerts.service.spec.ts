@@ -1,8 +1,8 @@
-import { AlertStatus, DriverEmploymentStatus, Role, Unit } from '@prisma/client';
+﻿import { AlertStatus, DriverEmploymentStatus, Role, Unit } from '@prisma/client';
 import { AlertsService } from './alerts.service';
 
 describe('AlertsService read receipts', () => {
-  const alert = { id: 9, status: AlertStatus.OPEN, unit: Unit.NT1, complexCode: 'KOUN_MOM', dedupeKey: 'A:9' };
+  const alert = { id: 9, status: AlertStatus.OPEN, unit: Unit.KOUN_MOM, complexCode: 'KOUN_MOM', dedupeKey: 'A:9' };
   const prisma = {
     alertEvent: {
       findUnique: jest.fn().mockResolvedValue(alert),
@@ -51,7 +51,7 @@ describe('AlertsService driver compliance reconciliation', () => {
       transportOrder: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: jest.fn().mockResolvedValue([
         {
-          id: 10, code: 'TX-010', fullName: 'Tài xế đang làm', unit: Unit.NT1,
+          id: 10, code: 'TX-010', fullName: 'Tài xế đang làm', unit: Unit.KOUN_MOM,
           employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
           licenseClass: null, licenseNumber: 'USER', licenseExpiryDate: new Date('2030-01-01T00:00:00.000Z'),
           healthCheckExpiryDate: new Date('2030-01-01T00:00:00.000Z'),
@@ -62,7 +62,7 @@ describe('AlertsService driver compliance reconciliation', () => {
           },
         },
         {
-          id: 11, code: 'TX-011', fullName: 'Tài xế đã nghỉ', unit: Unit.NT1,
+          id: 11, code: 'TX-011', fullName: 'Tài xế đã nghỉ', unit: Unit.KOUN_MOM,
           employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC,
           licenseClass: null, licenseNumber: 'USER', licenseExpiryDate: new Date('2026-09-10T00:00:00.000Z'),
           healthCheckExpiryDate: new Date('2026-09-10T00:00:00.000Z'),

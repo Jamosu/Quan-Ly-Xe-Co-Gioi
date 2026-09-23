@@ -26,7 +26,9 @@ import {
   User,
   UserCheck,
   RotateCcw,
+  FileDown,
 } from 'lucide-react';
+import { exportConstructionShiftsToExcel, buildWeekRangeLabel } from '../../utils/dispatchExcel';
 import { operationsApi } from '../../api/operations';
 import { apiClient } from '../../api/client';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -156,8 +158,8 @@ export const ConstructionDispatchPage: React.FC = () => {
             };
 
             const plan = item.productionOrder?.plan;
-            const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
-            const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+            const complexCode = plan?.complexCode || (['KOUN_MOM', 'KOUN_MOM', 'NT3', 'NT4', 'KOUN_MOM'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+            const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'KOUN_MOM' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
 
             return {
               id: String(item.id),
@@ -242,22 +244,21 @@ export const ConstructionDispatchPage: React.FC = () => {
     return [...getWeeksOfYear(2026)].sort((a, b) => b.weekNumber - a.weekNumber);
   }, []);
 
-  // Bộ lọc Tuần: 'ALL' hoặc số tuần (Mặc định tuần hiện tại)
-  const [selectedWeek, setSelectedWeek] = useState<number | 'ALL'>(() => {
-    return getWeekNumber(new Date());
-  });
+  // Bộ lọc Tuần dạng khoảng: weekFrom đến weekTo
+  const [weekFrom, setWeekFrom] = useState<number | 'ALL'>(() => getWeekNumber(new Date()));
+  const [weekTo, setWeekTo] = useState<number | 'ALL'>(() => getWeekNumber(new Date()));
+  // Alias cho các nơi cần selectedWeek
+  const selectedWeek = weekFrom;
 
-  // Mặc định vừa vào chọn ngày hôm nay
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return toDateString(new Date());
-  });
+  // Mặc định ALL để hiển thị trọn vẹn theo khoảng tuần
+  const [selectedDate, setSelectedDate] = useState<string>('ALL');
   const [sortOrder, setSortOrder] = useState<'time_asc' | 'time_desc'>('time_asc');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   // 7 ngày trong tuần đang chọn
   const weekDays = useMemo(() => {
-    if (selectedWeek === 'ALL') return [];
-    const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
+    if (weekFrom === 'ALL') return [];
+    const weekObj = availableWeeks.find((w) => w.weekNumber === weekFrom);
     if (!weekObj?.monday) return [];
     const days: { dayName: string; shortName: string; dateStr: string; displayDate: string; isToday: boolean; count: number }[] = [];
     const mon = new Date(weekObj.monday);
@@ -282,7 +283,15 @@ export const ConstructionDispatchPage: React.FC = () => {
       days.push({ dayName, shortName, dateStr, displayDate, isToday, count });
     }
     return days;
-  }, [selectedWeek, availableWeeks, shifts, globalKLH, selectedCategory, selectedMachine]);
+  }, [weekFrom, availableWeeks, shifts, globalKLH, selectedCategory, selectedMachine]);
+
+  // Label khoảng tuần cho xuất file và hiển thị
+  const weekRangeLabel = useMemo(() => buildWeekRangeLabel(weekFrom, weekTo), [weekFrom, weekTo]);
+
+  // Handler xuất Excel
+  const handleExportExcel = () => {
+    exportConstructionShiftsToExcel(filteredShifts, weekRangeLabel);
+  };
 
   const handleStepDate = (delta: number) => {
     const base = selectedDate === 'ALL' ? new Date() : new Date(selectedDate);
@@ -292,7 +301,8 @@ export const ConstructionDispatchPage: React.FC = () => {
   };
 
   const handleSelectToday = () => {
-    setSelectedWeek(getWeekNumber(new Date()));
+    setWeekFrom(getWeekNumber(new Date()));
+    setWeekTo(getWeekNumber(new Date()));
     setSelectedDate(toDateString(new Date()));
   };
 
@@ -305,13 +315,10 @@ export const ConstructionDispatchPage: React.FC = () => {
       if (globalKLH && globalKLH !== 'ALL' && !matchesKLH(s, globalKLH)) return false;
       if (selectedCategory !== 'ALL' && s.jobCategory !== selectedCategory) return false;
       if (selectedMachine !== 'ALL' && s.machineCode !== selectedMachine) return false;
-      if (selectedWeek !== 'ALL') {
-        const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
-        if (weekObj) {
-          const start = weekObj.startDateKey;
-          const end = weekObj.endDateKey;
-          if (s.workDate < start || s.workDate > end) return false;
-        }
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL') {
+        const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
+        const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
+        if (fromObj && toObj && (s.workDate < fromObj.startDateKey || s.workDate > toObj.endDateKey)) return false;
       }
       if (selectedDate !== 'ALL' && s.workDate !== selectedDate) return false;
       return true;
@@ -355,7 +362,7 @@ export const ConstructionDispatchPage: React.FC = () => {
       FUTURE_UNASSIGNED: futureUnassigned,
       TAM_DUNG: base.filter((s) => s.status === 'TAM_DUNG').length,
     };
-  }, [shifts, selectedCategory, selectedMachine, selectedWeek, availableWeeks, selectedDate, globalKLH]);
+  }, [shifts, selectedCategory, selectedMachine, weekFrom, weekTo, availableWeeks, selectedDate, globalKLH]);
 
   // Tính toán cảnh báo ca máy công trình quá hạn / chờ điều độ (CHỈ BÁO CA ĐÃ ĐẾN HẠN/QUÁ HẠN)
   const computedOverdueSummary = useMemo(() => {
@@ -548,13 +555,12 @@ export const ConstructionDispatchPage: React.FC = () => {
       // Lọc theo Thợ máy / Lái xe
       if (selectedOperator !== 'ALL' && s.operatorName !== selectedOperator) return false;
 
-      // Lọc theo Tuần (selectedWeek) - bỏ qua khi đang lọc Lệnh trễ hoặc Lệnh tương lai
-      if (selectedWeek !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
-        const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
-        if (weekObj) {
-          const start = weekObj.startDateKey;
-          const end = weekObj.endDateKey;
-          if (s.workDate < start || s.workDate > end) return false;
+      // Lọc theo khoảng tuần (weekFrom → weekTo) - bỏ qua khi đang lọc Trễ hoặc Tương lai
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
+        const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
+        const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
+        if (fromObj && toObj) {
+          if (s.workDate < fromObj.startDateKey || s.workDate > toObj.endDateKey) return false;
         }
       }
 
@@ -719,7 +725,7 @@ export const ConstructionDispatchPage: React.FC = () => {
       const plannedEndTime = new Date(`${formData.workDate}T15:00:00.000Z`).toISOString();
       await apiClient.post('/dispatch-orders', {
         code: formData.code,
-        unit: 'NT1',
+        unit: 'KOUN_MOM',
         purpose: `${formData.projectName} - ${formData.locationDetails}`,
         origin: 'Bãi máy Công trình',
         destination: formData.locationDetails,
@@ -808,7 +814,7 @@ export const ConstructionDispatchPage: React.FC = () => {
             <b className="font-bold text-slate-900 text-xs leading-snug">{row.projectName}</b>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || row.complexCode || 'NT1'}</span>
+            <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || row.complexCode || 'KOUN_MOM'}</span>
             <span className="font-bold text-emerald-700">
               🎯 {row.workVolumeTarget} {row.workVolumeUnit}
             </span>
@@ -1186,7 +1192,7 @@ export const ConstructionDispatchPage: React.FC = () => {
           <button
             type="button"
             className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-            onClick={() => { setSelectedWeek('ALL'); setSelectedDate('ALL'); setStatusFilter('CHUA_PHAN_CONG'); setView('table'); }}
+            onClick={() => { setWeekFrom('ALL'); setWeekTo('ALL'); setSelectedDate('ALL'); setStatusFilter('CHUA_PHAN_CONG'); setView('table'); }}
           >
             Xem và xử lý
           </button>
@@ -1215,7 +1221,8 @@ export const ConstructionDispatchPage: React.FC = () => {
           pillText="Lệnh trễ phân công"
           pillVariant="danger"
           onClick={() => {
-            setSelectedWeek('ALL');
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
             setSelectedDate('ALL');
             setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
           }}
@@ -1237,7 +1244,8 @@ export const ConstructionDispatchPage: React.FC = () => {
           pillText="Kế hoạch tuần tới"
           pillVariant="neutral"
           onClick={() => {
-            setSelectedWeek('ALL');
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
             setSelectedDate('ALL');
             setStatusFilter(statusFilter === 'FUTURE_UNASSIGNED' ? 'ALL' : 'FUTURE_UNASSIGNED');
           }}
@@ -1376,64 +1384,68 @@ export const ConstructionDispatchPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Cột 5: Tuần kế hoạch */}
-          <div>
+          {/* Cột 5: Tuần kế hoạch (từ - đến) */}
+          <div className="col-span-1 sm:col-span-2">
             <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
-              Tuần kế hoạch
+              Tuần kế hoạch (từ → đến)
             </label>
-            <div className="relative">
+            <div className="flex items-center gap-1">
               <select
-                value={selectedWeek}
+                value={weekFrom}
                 onChange={(e) => {
                   const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
-                  setSelectedWeek(val);
+                  if (val === 'ALL') {
+                    setWeekFrom('ALL');
+                    setWeekTo('ALL');
+                  } else {
+                    setWeekFrom(val);
+                    if (weekTo === 'ALL' || Number(weekTo) < val) {
+                      setWeekTo(val);
+                    }
+                  }
                   setSelectedDate('ALL');
                 }}
                 className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <option value="ALL">Tất cả các tuần</option>
+                <option value="ALL">Tất cả</option>
                 {availableWeeks.map((w) => (
                   <option key={w.weekNumber} value={w.weekNumber}>
                     {w.label}
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          {/* Cột 6: Ngày thi công */}
-          <div>
-            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
-              Ngày thi công cụ thể
-            </label>
-            <div className="flex items-center gap-1 bg-slate-50/70 rounded-xl border border-slate-200 p-0.5 h-9 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                title="Ngày trước"
+              <span className="text-slate-400 text-xs font-bold shrink-0">→</span>
+              <select
+                value={weekTo}
+                onChange={(e) => {
+                  const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                  if (val === 'ALL') {
+                    setWeekFrom('ALL');
+                    setWeekTo('ALL');
+                  } else {
+                    setWeekTo(val);
+                    if (weekFrom === 'ALL' || Number(weekFrom) > val) {
+                      setWeekFrom(val);
+                    }
+                  }
+                  setSelectedDate('ALL');
+                }}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="w-full bg-transparent text-xs font-semibold text-slate-800 px-1 py-0.5 focus:outline-none cursor-pointer min-w-0"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+                <option value="ALL">Tất cả</option>
+                {availableWeeks
+                  .filter((w) => weekFrom === 'ALL' || w.weekNumber >= Number(weekFrom))
+                  .map((w) => (
+                    <option key={w.weekNumber} value={w.weekNumber}>
+                      {w.label}
+                    </option>
+                  ))}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất in, Tạo mới) */}
+        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất file, Tạo mới) */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             {/* Nút Nhập lại */}
@@ -1444,8 +1456,10 @@ export const ConstructionDispatchPage: React.FC = () => {
                 setSelectedCategory('ALL');
                 setSelectedMachine('ALL');
                 setSelectedOperator('ALL');
-                setSelectedWeek(getWeekNumber(new Date()));
-                setSelectedDate(toDateString(new Date()));
+                const curWeek = getWeekNumber(new Date());
+                setWeekFrom(curWeek);
+                setWeekTo(curWeek);
+                setSelectedDate('ALL');
                 setStatusFilter('ALL');
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
@@ -1466,8 +1480,8 @@ export const ConstructionDispatchPage: React.FC = () => {
               <span>Tìm kiếm</span>
             </button>
 
-            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần T2 -> CN */}
-            {selectedWeek !== 'ALL' && (
+            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần */}
+            {weekFrom !== 'ALL' && (
               <div className="flex flex-wrap items-center gap-1 pl-1">
                 <span className="text-slate-300 mx-0.5">|</span>
                 <button
@@ -1479,7 +1493,7 @@ export const ConstructionDispatchPage: React.FC = () => {
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  Cả tuần {selectedWeek}
+                  {weekFrom === weekTo ? `Cả tuần ${weekFrom}` : `Tuần ${Math.min(Number(weekFrom), Number(weekTo))}–${Math.max(Number(weekFrom), Number(weekTo))}`}
                 </button>
                 {weekDays.map((d) => {
                   const isDayActive = selectedDate === d.dateStr;
@@ -1518,11 +1532,12 @@ export const ConstructionDispatchPage: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              onClick={handleExportExcel}
+              title={`Xuất ${filteredShifts.length} ca máy đang hiển thị ra Excel`}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-300 hover:border-emerald-400 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5 text-slate-600" />
-              <span>Xuất / In</span>
+              <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Xuất Excel</span>
             </button>
 
             <button
@@ -1577,6 +1592,8 @@ export const ConstructionDispatchPage: React.FC = () => {
           data={filteredShifts}
           onRowClick={handleOpenShift}
           useGlobalFilters={false}
+          showSearch={false}
+          showExport={false}
         />
       ) : view === 'scheduler' ? (
         /* GIAO DIỆN SCHEDULER LỊCH CHẠY THEO XE / MÁY CÔNG TRÌNH 24 TIẾNG */
@@ -1638,9 +1655,6 @@ export const ConstructionDispatchPage: React.FC = () => {
                 </span>
                 <StatusBadge status={selectedShift.status} />
               </div>
-              <Button size="sm" variant="outline" icon={<Printer className="h-3.5 w-3.5" />} onClick={() => window.print()}>
-                In phiếu giao ca máy
-              </Button>
             </div>
 
             <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3 border border-slate-200">
@@ -1742,8 +1756,9 @@ export const ConstructionDispatchPage: React.FC = () => {
               existingOrders={shifts}
               initialStartTime={selectedShift.plannedStartTime || `${selectedShift.workDate}T07:00:00`}
               initialDurationHours={selectedShift.plannedHours}
-              unit="BAN_CO_GIOI"
+              unit="KOUN_MOM"
               complexCode={(selectedShift as any).complexCode || 'KOUN_MOM'}
+              managementUnitId={(selectedShift as any).managementUnitId}
               onApprove={async (vehicle, driver, schedule, implement) => {
                 try {
                   const orderId = Number(selectedShift.id);
@@ -1780,7 +1795,6 @@ export const ConstructionDispatchPage: React.FC = () => {
               <Button variant="outline" onClick={() => setSelectedShift(null)}>
                 Đóng
               </Button>
-              <Button onClick={() => window.print()}>In phiếu ca máy</Button>
             </div>
           </div>
         )}

@@ -1,0 +1,238 @@
+{
+  "mode": "applied",
+  "teams": 27,
+  "withManager": 21,
+  "withoutManager": 6,
+  "locations": 18,
+  "blankUnits": [
+    "BAN CG-CK & SXCN",
+    "THADICONS A&I",
+    "THAGRICONS",
+    "XN CHUOI DP4",
+    "XN CHUOI LP2",
+    "XUONG CO KHI DP"
+  ],
+  "linkedVehicles": 2321,
+  "linkedManagers": 21,
+  "endedSyntheticAssignments": 0,
+  "deactivatedDuplicateUnits": 20,
+  "unresolvedManagers": [],
+  "unmatchedVehicleUnits": [
+    {
+      "unitName": "Xưởng Cơ khí ADM&LP",
+      "vehicleCount": 5
+    },
+    {
+      "unitName": "BAN KT CHUỐI",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "Vườn tăng gia",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "CHƯA PHÂN BỔ",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "Loại biên",
+      "vehicleCount": 339
+    },
+    {
+      "unitName": "RAT OYD",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "0",
+      "vehicleCount": 6
+    },
+    {
+      "unitName": "CGLĐ AD",
+      "vehicleCount": 18
+    },
+    {
+      "unitName": "GNVC",
+      "vehicleCount": 18
+    },
+    {
+      "unitName": "XN Chuối LP4",
+      "vehicleCount": 23
+    },
+    {
+      "unitName": "XN Chuối AD2",
+      "vehicleCount": 26
+    },
+    {
+      "unitName": "NT XOÀI AD",
+      "vehicleCount": 27
+    },
+    {
+      "unitName": "NT BƯỞI AD",
+      "vehicleCount": 14
+    },
+    {
+      "unitName": "CAT DP",
+      "vehicleCount": 21
+    },
+    {
+      "unitName": "CAT AD",
+      "vehicleCount": 8
+    },
+    {
+      "unitName": "B.ĐTXD AD",
+      "vehicleCount": 108
+    },
+    {
+      "unitName": "THACO ID ME",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "CGSX AD",
+      "vehicleCount": 6
+    },
+    {
+      "unitName": "XN SX",
+      "vehicleCount": 4
+    },
+    {
+      "unitName": "NT Xoài DP",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "THACO ID&ME",
+      "vehicleCount": 4
+    },
+    {
+      "unitName": "Ban Điện Nước KV DP",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "Ban Điện Nước KV ADM",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Hành chính AD",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "Ban QL DTXD LP mượn",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "XN AD2",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "Điện nước AD",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "Nhà máy xốp",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Hành chính ADM",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "XNB",
+      "vehicleCount": 6
+    },
+    {
+      "unitName": "Ban cơ giới MMTB",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Ban QLĐTXD ADM",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Thaco M&E",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "Xưởng CK-MMTB AD&LP",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "XNB ( NT Cỏ)",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Ban ĐN",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "XN DP1",
+      "vehicleCount": 31
+    },
+    {
+      "unitName": "XN DP2",
+      "vehicleCount": 3
+    },
+    {
+      "unitName": "XN DP3",
+      "vehicleCount": 6
+    },
+    {
+      "unitName": "Hành chính DP",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Đội cơ khí bảo trì DP",
+      "vehicleCount": 4
+    },
+    {
+      "unitName": "BDTXD DP",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "Cơ khí lắp đặt RR",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "XĐG XOÀI lô 93",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "TTBT DP2",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Xưởng GCHT RR",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "XN LP1",
+      "vehicleCount": 4
+    },
+    {
+      "unitName": "XN LP4",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Hành chính LP",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "Điện nước LP",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "Thaco MI & E",
+      "vehicleCount": 1
+    },
+    {
+      "unitName": "XN LP3",
+      "vehicleCount": 4
+    },
+    {
+      "unitName": "NT Nhãn DP",
+      "vehicleCount": 2
+    },
+    {
+      "unitName": "CK DP",
+      "vehicleCount": 5
+    }
+  ]
+}

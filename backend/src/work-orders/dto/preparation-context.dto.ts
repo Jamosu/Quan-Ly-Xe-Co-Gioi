@@ -1,9 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Unit, WorkOrderCategory } from '@prisma/client';
 
 export class PreparationContextDto {
+  @ApiProperty({ description: 'ID xí nghiệp/khu vực quản lý' })
+  @Type(() => Number)
+  @IsInt()
+  managementUnitId: number;
+
   @ApiProperty({ enum: WorkOrderCategory })
   @IsEnum(WorkOrderCategory)
   category: WorkOrderCategory;
@@ -12,10 +17,10 @@ export class PreparationContextDto {
   @IsEnum(Unit)
   unit: Unit;
 
-  @ApiPropertyOptional({ description: 'Mã khu liên hợp (mặc định KOUN_MOM)' })
-  @IsOptional()
+  @ApiProperty({ description: 'Mã khu liên hợp cụ thể của lệnh' })
   @IsString()
-  complexCode?: string;
+  @IsNotEmpty()
+  complexCode: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
   @Type(() => Date)
@@ -32,4 +37,10 @@ export class PreparationContextDto {
   @Type(() => Number)
   @IsInt()
   excludeWorkOrderId?: number;
+
+  @ApiPropertyOptional({ description: 'Xe đã chọn để lọc nông cụ tương thích' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  vehicleId?: number;
 }

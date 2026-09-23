@@ -148,19 +148,20 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
   }, [editingPlan, currentIsoWeek]);
 
   // Năm & Tuần
+  const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(() => {
-    return editingPlan?.year || 2026;
+    return editingPlan?.year || currentYear;
   });
 
   const weeksOfYear = useMemo(() => {
-    return [...getWeeksOfYear(selectedYear)].sort((a, b) => b.weekNumber - a.weekNumber);
+    return [...getWeeksOfYear(selectedYear)].sort((a, b) => a.weekNumber - b.weekNumber);
   }, [selectedYear]);
 
   const [selectedWeekNumber, setSelectedWeekNumber] = useState<number>(() => {
     if (editingPlan) {
       return editingPlan.weekNumber;
     }
-    return currentIsoWeek <= 52 ? currentIsoWeek : 37;
+    return currentIsoWeek <= 52 ? currentIsoWeek : 1;
   });
 
   // Tìm thông tin tuần đã chọn
@@ -368,24 +369,39 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
     }));
   }, [complexCode]);
 
-  // Options cho Năm làm việc
-  const yearOptions: SelectOption[] = useMemo(
-    () => [
-      { value: '2025', label: 'Năm 2025' },
-      { value: '2026', label: 'Năm 2026' },
-      { value: '2027', label: 'Năm 2027' },
-      { value: '2028', label: 'Năm 2028' },
-    ],
-    []
-  );
+  // Options cho Năm làm việc (chỉ năm hiện tại và năm hiện tại + 1 khi tạo mới)
+  const yearOptions: SelectOption[] = useMemo(() => {
+    const curY = new Date().getFullYear();
+    const years = [curY, curY + 1];
+    const selY = selectedYear || curY;
+    if (selY && !years.includes(selY)) {
+      years.push(selY);
+      years.sort((a, b) => a - b);
+    }
+    return years.map((y) => ({ value: String(y), label: `Năm ${y}` }));
+  }, [selectedYear]);
 
-  // Options cho Tuần làm việc với ngày chi tiết
+  // Options cho Tuần làm việc với ngày chi tiết (từ tuần hiện tại trở đi nếu là năm hiện tại)
   const weekOptions: SelectOption[] = useMemo(() => {
-    return weeksOfYear.map((w) => ({
+    const curY = new Date().getFullYear();
+    const curW = getWeekNumber(new Date());
+    const selY = selectedYear || curY;
+
+    // Sắp xếp tuần tăng dần: nếu là năm hiện tại, chỉ cho phép chọn từ tuần hiện tại trở đi
+    let filteredWeeks = weeksOfYear;
+    if (selY === curY) {
+      filteredWeeks = weeksOfYear.filter(
+        (w) => w.weekNumber >= curW || (editingPlan && w.weekNumber === selectedWeekNumber)
+      );
+    } else if (selY < curY) {
+      filteredWeeks = editingPlan ? weeksOfYear.filter((w) => w.weekNumber === selectedWeekNumber) : [];
+    }
+
+    return filteredWeeks.map((w) => ({
       value: String(w.weekNumber),
       label: w.label,
     }));
-  }, [weeksOfYear]);
+  }, [weeksOfYear, selectedYear, editingPlan, selectedWeekNumber]);
 
   // Phân loại hạng mục lấy từ danh mục chuẩn (http://localhost:5173/danh-muc/loai-cong-viec/cong-trinh?tab=stages)
   const specializedStages = useMemo(() => {
@@ -431,8 +447,8 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
   const jobOptions: SelectOption[] = useMemo(() => {
     return catalogJobs.map((j) => ({
       value: j.code,
-      label: `${j.code}: ${j.name}`,
-      subLabel: `${j.recommendedVehicle || j.implementGroup} • ${j.quotaPerShift}`,
+      label: j.name,
+      subLabel: `${j.code} • ${j.recommendedVehicle || j.implementGroup} • ${j.quotaPerShift}`,
     }));
   }, [catalogJobs]);
 
@@ -668,7 +684,7 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
     const payload = {
       code: normalizedPlan.code, title: normalizedPlan.title,
       planType: isConstruction ? 'CONSTRUCTION' : 'INTERNAL_TRANSPORT',
-      stage: isConstruction ? 'HAU_CAN' : 'VAN_CHUYEN', unit: 'NT1',
+      stage: isConstruction ? 'HAU_CAN' : 'VAN_CHUYEN', unit: 'KOUN_MOM',
       lotPlot: tasks[0]?.location || 'Khu vực thực hiện', categoryCode, categoryName,
       complexCode, complexName: currentKlhName, enterpriseName, farmName,
       weekNumber: selectedWeekNumber,
@@ -867,7 +883,20 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
                 </label>
                 <SearchableSelect
                   value={String(selectedYear)}
-                  onChange={(val) => setSelectedYear(Number(val))}
+                  onChange={(val) => {
+                    const y = Number(val);
+                    setSelectedYear(y);
+                    const curY = new Date().getFullYear();
+                    const curW = getWeekNumber(new Date());
+                    let nextW = selectedWeekNumber;
+                    if (y === curY && nextW < curW) {
+                      nextW = curW;
+                      setSelectedWeekNumber(nextW);
+                    }
+                    if (!editingPlan) {
+                      setPlanCode(`${isConstruction ? 'KH-CT' : 'KH-VC'}-${y}-W${nextW}`);
+                    }
+                  }}
                   options={yearOptions}
                   placeholder="Chọn năm"
                   disabled={isViewMode}
@@ -1220,7 +1249,7 @@ export const CreateSpecializedPlanPage: React.FC<{ kind: SpecializedPlanKind }> 
                           value={task.location}
                           onChange={(val) => handleChangeTaskLocation(index, val)}
                           options={locationOptions}
-                          placeholder={isConstruction ? 'Chọn/nhập Tuyến/Vị trí thi công...' : 'Chọn/nhập Tuyến nhận – giao...'}
+                          placeholder={isConstruction ? 'Chọn Tuyến / Vị trí thi công...' : 'Chọn Tuyến nhận – giao...'}
                           disabled={isViewMode}
                           allowCustomInput={false}
                           heightClass="h-9"

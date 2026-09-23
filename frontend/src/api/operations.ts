@@ -23,7 +23,8 @@ export const operationsApi = {
   async dispatchOrders(params: Record<string, unknown> = {}) { return payload<PaginatedResponse<DispatchOrderRecord>>(await apiClient.get('/dispatch-orders', { params })); },
   async getDispatch(id: number | string) { return payload<DispatchOrderRecord>(await apiClient.get(`/dispatch-orders/${id}`)); },
   async createDispatch(data: Record<string, unknown>) { return payload<DispatchOrderRecord>(await apiClient.post('/dispatch-orders', data)); },
-  async assignDispatch(id: number | string, data: { vehicleId: number; driverId: number; implementId?: number; departureTime: string; plannedEndTime: string }) { return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/assign`, data)); },
+  async assignDispatch(id: number | string, data: { vehicleId: number; driverId: number; implementId?: number; implementIds?: number[]; departureTime: string; plannedEndTime: string }) { return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/assign`, data)); },
+  async cancelDispatch(id: number | string, reason?: string) { return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/cancel`, { reason })); },
   async rescheduleDispatch(id: number | string, data: { newDepartureTime: string; newPlannedEndTime: string; reason?: string }) {
     return payload<{ order: DispatchOrderRecord; resetAssignment: boolean; conflicts: string[] }>(await apiClient.post(`/dispatch-orders/${id}/reschedule`, data));
   },

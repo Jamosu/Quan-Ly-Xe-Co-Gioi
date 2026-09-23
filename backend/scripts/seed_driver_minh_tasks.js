@@ -98,6 +98,90 @@ async function main() {
     },
   });
 
+  // 3. Transport Order: Vận chuyển chuối (Đã hoàn thành - Lịch sử)
+  const past2Days = new Date(today);
+  past2Days.setDate(past2Days.getDate() - 2);
+  const startPast2 = new Date(past2Days);
+  startPast2.setHours(7, 30, 0, 0);
+  const endPast2 = new Date(past2Days);
+  endPast2.setHours(10, 45, 0, 0);
+
+  await prisma.transportOrder.upsert({
+    where: { code: 'VD-20260911-001' },
+    update: {
+      driverId: user.id,
+      vehicleId: vehicle?.id || null,
+      status: TransportStatus.DELIVERED,
+      departureTime: startPast2,
+      departedAt: startPast2,
+      plannedEndTime: endPast2,
+      deliveredAt: endPast2,
+      cargoType: 'Vận chuyển 15 tấn chuối xuất khẩu về Xưởng đóng gói',
+      tonnage: 15.0,
+      origin: 'Nông trường 1 • Lô Chuối C03',
+      destination: 'Xưởng đóng gói KLH Koun Mom',
+      notes: 'Đã hoàn thành bàn giao 15 tấn chuối tươi. Nghiệm thu 100%.',
+    },
+    create: {
+      code: 'VD-20260911-001',
+      unit: user.unit,
+      cargoType: 'Vận chuyển 15 tấn chuối xuất khẩu về Xưởng đóng gói',
+      tonnage: 15.0,
+      origin: 'Nông trường 1 • Lô Chuối C03',
+      destination: 'Xưởng đóng gói KLH Koun Mom',
+      departureTime: startPast2,
+      departedAt: startPast2,
+      plannedEndTime: endPast2,
+      deliveredAt: endPast2,
+      status: TransportStatus.DELIVERED,
+      driverId: user.id,
+      vehicleId: vehicle?.id || null,
+      notes: 'Đã hoàn thành bàn giao 15 tấn chuối tươi. Nghiệm thu 100%.',
+    },
+  });
+
+  // 4. Dispatch Order: Cày đất Lô B02 (Đã hoàn thành - Lịch sử)
+  const past3Days = new Date(today);
+  past3Days.setDate(past3Days.getDate() - 3);
+  const startPast3 = new Date(past3Days);
+  startPast3.setHours(6, 30, 0, 0);
+  const endPast3 = new Date(past3Days);
+  endPast3.setHours(11, 15, 0, 0);
+
+  await prisma.dispatchOrder.upsert({
+    where: { code: 'LDX-20260910-002' },
+    update: {
+      driverId: user.id,
+      vehicleId: vehicle?.id || null,
+      status: DispatchStatus.COMPLETED,
+      actualStartTime: startPast3,
+      returnTime: endPast3,
+      purpose: 'Cày lật đất chuẩn bị gieo trồng Lô B02',
+      origin: 'Bãi đỗ cơ giới KLH Koun Mom',
+      destination: 'Nông trường 1 • Lô B02',
+      departureTime: startPast3,
+      plannedEndTime: endPast3,
+      notes: '[Diện tích: 10.0 ha, hoàn thành 10.0 ha (100%)]',
+    },
+    create: {
+      code: 'LDX-20260910-002',
+      unit: user.unit,
+      purpose: 'Cày lật đất chuẩn bị gieo trồng Lô B02',
+      origin: 'Bãi đỗ cơ giới KLH Koun Mom',
+      destination: 'Nông trường 1 • Lô B02',
+      departureTime: startPast3,
+      plannedEndTime: endPast3,
+      actualStartTime: startPast3,
+      returnTime: endPast3,
+      status: DispatchStatus.COMPLETED,
+      driverId: user.id,
+      requesterId: user.id,
+      vehicleId: vehicle?.id || null,
+      notes: '[Diện tích: 10.0 ha, hoàn thành 10.0 ha (100%)]',
+      sourceType: 'MANUAL',
+    },
+  });
+
   console.log('Successfully seeded tasks for minh.nv!');
 }
 

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAppStore, HeaderAlert } from '../store/useAppStore';
 import { apiClient } from '../api/client';
+import { ALERT_CATEGORY_LABELS, compareOperationalAlerts, navigateToAlert } from '../utils/alertNavigation';
 
 import { KlhHeaderFilter } from '../components/filters/KlhHeaderFilter';
 
@@ -108,19 +109,17 @@ export const Topbar: React.FC = () => {
     };
   }, [fetchAlerts]);
 
-  const unreadAlerts = systemAlerts.filter((alert) => !alert.isRead);
+  const unreadAlerts = systemAlerts.filter((alert) => !alert.isRead).sort(compareOperationalAlerts);
+  const visibleAlerts = unreadAlerts.slice(0, 8);
+  const alertGroups = [
+    { key: 'SOS', label: 'Cứu hộ SOS', className: 'bg-rose-50 text-rose-800', items: visibleAlerts.filter((alert) => alert.category === 'SOS') },
+    { key: 'CRITICAL', label: 'Khẩn cấp', className: 'bg-red-50 text-red-700', items: visibleAlerts.filter((alert) => alert.category !== 'SOS' && alert.severity === 'CRITICAL') },
+    { key: 'WARNING', label: 'Cảnh báo', className: 'bg-amber-50 text-amber-800', items: visibleAlerts.filter((alert) => alert.category !== 'SOS' && alert.severity === 'WARNING') },
+    { key: 'INFO', label: 'Thông tin', className: 'bg-sky-50 text-sky-800', items: visibleAlerts.filter((alert) => alert.category !== 'SOS' && alert.severity === 'INFO') },
+  ].filter((group) => group.items.length > 0);
   const openAlert = async (alert: (typeof systemAlerts)[number]) => {
-    if (!alert.isRead) {
-      try {
-        const response = await apiClient.patch(`/alerts/${alert.id}/read`);
-        const payload = response.data?.data || response.data;
-        markAlertRead(alert.id, payload?.readAt);
-      } catch {
-        return;
-      }
-    }
     setShowNotifications(false);
-    navigate(`/canh-bao/chua-xu-ly?alertId=${alert.id}`);
+    await navigateToAlert(alert, navigate, markAlertRead);
   };
 
   const handleLogout = () => {
@@ -132,9 +131,11 @@ export const Topbar: React.FC = () => {
   const getRoleBadge = (role?: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
-        return { label: 'Quản trị viên', color: 'bg-purple-100 text-purple-800' };
-      case 'FARM_MANAGER':
+        return { label: 'Admin', color: 'bg-purple-100 text-purple-800' };
       case 'DISPATCHER':
+        return { label: 'Người quản lý', color: 'bg-blue-100 text-blue-800' };
+      case 'FARM_MANAGER':
+        return { label: 'NS quản lý cơ giới', color: 'bg-emerald-100 text-emerald-800' };
       case 'WORKSHOP_MANAGER':
       case 'FUEL_STOREKEEPER':
         return { label: 'Nhân sự quản lý', color: 'bg-emerald-100 text-emerald-800' };
@@ -354,41 +355,50 @@ export const Topbar: React.FC = () => {
                     <p className="text-xs font-semibold text-slate-500">Không có cảnh báo tồn đọng</p>
                     <p className="text-[11px] text-slate-400">Hệ thống đang hoạt động an toàn</p>
                   </div>
-                ) : (
-                  unreadAlerts.slice(0, 8).map((alert, idx) => {
-                    const isCrit = alert.severity === 'CRITICAL';
-                    const isWarn = alert.severity === 'WARNING';
-                    return (
-                      <div
-                        key={String(alert.id) || idx}
-                        className="px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => void openAlert(alert)}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black border ${
-                            isCrit ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : isWarn ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                          }`}>
-                            {isCrit ? '!' : isWarn ? '⚠' : 'ℹ'}
+                ) : alertGroups.map((group) => (
+                  <section key={group.key}>
+                    <div className={`sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 text-[10px] font-extrabold uppercase tracking-wide ${group.className}`}>
+                      <span>{group.label}</span>
+                      <span>{group.items.length}</span>
+                    </div>
+                    {group.items.map((alert) => {
+                      const isCrit = alert.severity === 'CRITICAL';
+                      const isWarn = alert.severity === 'WARNING';
+                      return (
+                        <button
+                          type="button"
+                          key={String(alert.id)}
+                          className="block w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                          onClick={() => void openAlert(alert)}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black border ${
+                              alert.category === 'SOS' ? 'bg-rose-600 text-white border-rose-700'
+                              : isCrit ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : isWarn ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}>
+                              {alert.category === 'SOS' ? 'SOS' : isCrit ? '!' : isWarn ? '⚠' : 'i'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="mb-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                                {ALERT_CATEGORY_LABELS[alert.category || ''] || 'Khác'}
+                              </span>
+                              <p className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">{alert.title}</p>
+                              {(alert.vehicle?.plate || alert.location) && (
+                                <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                  {alert.vehicle?.plate && <span className="font-mono font-semibold text-slate-700">{alert.vehicle.plate}</span>}
+                                  {alert.location && <><MapPin className="w-2.5 h-2.5 text-slate-400" /><span className="truncate">{alert.location}</span></>}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 shrink-0 font-medium">{alertDisplayDate(alert)}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">{alert.title}</p>
-                            {alert.vehicle?.plate && (
-                              <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                                <span className="font-mono font-semibold text-slate-700">{alert.vehicle.plate}</span>
-                                {alert.location && <><span className="text-slate-300">·</span><MapPin className="w-2.5 h-2.5 text-slate-400" /><span className="truncate">{alert.location}</span></>}
-                              </p>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-400 shrink-0 font-medium">
-                            {alertDisplayDate(alert)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                        </button>
+                      );
+                    })}
+                  </section>
+                ))}
               </div>
 
               {/* Footer */}

@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+﻿import * as XLSX from 'xlsx';
 import { PrismaClient, ImplementCategory, Unit, ImplementStatus, TechnicalCondition } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -31,11 +31,11 @@ function mapCategory(name: string, subType: string = ''): ImplementCategory {
 
 function mapUnit(unitStr: string = ''): Unit {
   const u = unitStr.toUpperCase();
-  if (u.includes('DP') || u.includes('DAUN PENH')) return Unit.NT1;
-  if (u.includes('LP') || u.includes('LUMPHAT')) return Unit.NT2;
-  if (u.includes('BÒ') || u.includes('BÒ') || u.includes('XB1') || u.includes('AD')) return Unit.XN_BO;
-  if (u.includes('BTSC') || u.includes('CƠ KHÍ') || u.includes('CO KHI')) return Unit.TT_BTSC;
-  if (u.includes('BAN CƠ GIỚI') || u.includes('GNVC') || u.includes('HÀNH CHÍNH') || u.includes('ĐIỆN NƯỚC') || u.includes('THAGRICONS')) return Unit.BAN_CO_GIOI;
+  if (u.includes('DP') || u.includes('DAUN PENH')) return Unit.KOUN_MOM;
+  if (u.includes('LP') || u.includes('LUMPHAT')) return Unit.KOUN_MOM;
+  if (u.includes('BÒ') || u.includes('BÒ') || u.includes('XB1') || u.includes('AD')) return Unit.KOUN_MOM;
+  if (u.includes('BTSC') || u.includes('CƠ KHÍ') || u.includes('CO KHI')) return Unit.KOUN_MOM;
+  if (u.includes('BAN CƠ GIỚI') || u.includes('GNVC') || u.includes('HÀNH CHÍNH') || u.includes('ĐIỆN NƯỚC') || u.includes('THAGRICONS')) return Unit.KOUN_MOM;
   return Unit.TOAN_KLH;
 }
 

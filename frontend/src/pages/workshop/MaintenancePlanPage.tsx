@@ -37,9 +37,11 @@ export const MaintenancePlanPage: React.FC = () => {
   const [selected, setSelected] = useState<MaintenancePlanItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const payload = unwrap(await apiClient.get('/maintenance/upcoming-schedule'));
       const occurrences = (payload.occurrences || []).map((item: any): MaintenancePlanItem => {
@@ -67,6 +69,9 @@ export const MaintenancePlanPage: React.FC = () => {
         legacy: true,
       }));
       setItems([...occurrences, ...legacy]);
+    } catch (requestError: any) {
+      setItems([]);
+      setError(requestError.response?.data?.message || 'Không tải được kế hoạch bảo trì. Vui lòng thử lại.');
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -114,6 +119,7 @@ export const MaintenancePlanPage: React.FC = () => {
       <StatCard label="Vàng · 80–99,99%" value={items.filter((x) => x.alertTier === 'AMBER').length} subValue="Chuẩn bị vật tư" icon={<AlertTriangle className="h-5 w-5" />} iconBgColor="bg-amber-50" iconColor="text-amber-600" />
       <StatCard label="Đỏ · từ 100%" value={items.filter((x) => x.alertTier === 'RED').length} subValue={`${items.filter((x) => x.explanationRequired).length} kỳ vượt 110%`} icon={<AlertTriangle className="h-5 w-5" />} iconBgColor="bg-rose-50" iconColor="text-rose-600" />
     </KPIGrid>
+    {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div>}
     <DataTable title="Các kỳ BDC2" subtitle="Sau mốc lớn nhất, bộ chu kỳ lặp lại nhưng đồng hồ tổng không reset" columns={columns} data={sorted} isLoading={loading} onRowClick={setSelected} />
     {selected && <Modal isOpen onClose={() => setSelected(null)} title={`Kỳ BDC2 · ${selected.vehicleCode}`} subtitle={`${selected.milestone} · ${selected.progressPercent.toFixed(1)}%`} size="md">
       <div className="space-y-4 text-xs">

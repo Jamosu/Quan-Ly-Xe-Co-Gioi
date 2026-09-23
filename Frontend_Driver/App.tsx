@@ -49,6 +49,8 @@ function TasksStack() {
 }
 
 function MainTabs() {
+  const { unreadAlertsCount } = useAppStore();
+
   return (
     <Tabs.Navigator
       screenOptions={({ route }) => ({
@@ -103,7 +105,7 @@ function MainTabs() {
         component={AlertsScreen}
         options={{
           title: 'Cảnh báo',
-          tabBarBadge: 3,
+          tabBarBadge: unreadAlertsCount > 0 ? unreadAlertsCount : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.danger,
             fontSize: 10,
@@ -153,6 +155,7 @@ export default function App() {
         setReconnectSyncing(true);
 
         syncNow()
+          .catch(() => {})
           .finally(() => {
             refreshLocal();
             setReconnectSyncing(false);
@@ -170,7 +173,7 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     registerBackgroundSync().catch(() => undefined);
-    syncNow().finally(refreshLocal);
+    syncNow().catch(() => {}).finally(refreshLocal);
 
     // Mobile heartbeat to keep presence live
     const sendMobileHeartbeat = () => {
@@ -182,7 +185,7 @@ export default function App() {
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
         sendMobileHeartbeat();
-        syncNow().finally(refreshLocal);
+        syncNow().catch(() => {}).finally(refreshLocal);
       }
     });
 

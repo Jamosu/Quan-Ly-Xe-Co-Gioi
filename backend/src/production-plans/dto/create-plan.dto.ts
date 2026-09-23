@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+﻿import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PlanStatus, PlanType, ProductionStage, Unit } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsArray, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
@@ -24,7 +24,7 @@ export class CreatePlanDto {
   @IsEnum(ProductionStage)
   stage: ProductionStage;
 
-  @ApiProperty({ enum: Unit, default: Unit.NT1 })
+  @ApiProperty({ enum: Unit, default: Unit.KOUN_MOM })
   @IsEnum(Unit)
   unit: Unit;
 

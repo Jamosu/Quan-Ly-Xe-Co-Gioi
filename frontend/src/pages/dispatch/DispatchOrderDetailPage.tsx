@@ -23,6 +23,7 @@ import {
   CalendarClock,
   PhoneCall,
   ShieldAlert,
+  XCircle,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { operationsApi } from '../../api/operations';
@@ -75,6 +76,8 @@ export const DispatchOrderDetailPage: React.FC = () => {
     notes: '',
   });
 
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [actionSaving, setActionSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
@@ -100,7 +103,7 @@ export const DispatchOrderDetailPage: React.FC = () => {
             orderCategory: 'VAN_CHUYEN',
             categoryLabel: 'Vận chuyển',
             sourceType: 'TRANSPORT_ORDER' as any,
-            unit: item.unit || 'BAN_CO_GIOI',
+            unit: item.unit || 'KOUN_MOM',
             purpose: item.cargoType || 'Vận chuyển hàng hóa nội bộ',
             origin: item.origin || 'Kho Trung Tâm',
             destination: item.destination || 'Điểm giao hàng',
@@ -182,7 +185,7 @@ export const DispatchOrderDetailPage: React.FC = () => {
                 orderCategory: 'VAN_CHUYEN',
                 categoryLabel: 'Vận chuyển',
                 sourceType: 'TRANSPORT_ORDER' as any,
-                unit: tItem.unit || 'BAN_CO_GIOI',
+                unit: tItem.unit || 'KOUN_MOM',
                 purpose: tItem.cargoType || 'Vận chuyển hàng hóa nội bộ',
                 origin: tItem.origin || 'Kho Trung Tâm',
                 destination: tItem.destination || 'Điểm giao hàng',
@@ -429,6 +432,43 @@ export const DispatchOrderDetailPage: React.FC = () => {
     }
   };
 
+  // Xử lý hủy lệnh điều xe
+  const handleOpenCancel = () => {
+    setCancelReason('');
+    setActionError('');
+    setCancelOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!order) return;
+    const trimmedReason = cancelReason.trim();
+    if (!trimmedReason) {
+      setActionError('Vui lòng nhập hoặc chọn nguyên nhân hủy lệnh điều xe.');
+      return;
+    }
+    setActionSaving(true);
+    setActionError('');
+    try {
+      const res = await operationsApi.cancelDispatch(order.id, trimmedReason);
+      const updated = (res ?? order) as any;
+      updateOrderView({
+        status: 'CANCELLED',
+        rejectionReason: trimmedReason,
+        cancelledAt: new Date().toISOString(),
+        ...updated,
+      });
+      useAppStore.getState().setHeaderAlert({
+        type: 'success',
+        message: `Đã hủy lệnh điều xe ${order.code} thành công! Nguyên nhân: ${trimmedReason}`,
+      });
+      setCancelOpen(false);
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || err?.message || 'Hủy lệnh thất bại. Vui lòng thử lại.');
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
   // Badge hiển thị danh mục lệnh
   const renderCategoryBadge = (cat?: ExtendedDispatchOrder['orderCategory']) => {
     switch (cat) {
@@ -511,6 +551,7 @@ export const DispatchOrderDetailPage: React.FC = () => {
   const durationHours = order.departureTime && order.plannedEndTime
     ? Math.max(0.5, (new Date(order.plannedEndTime).getTime() - new Date(order.departureTime).getTime()) / 3_600_000)
     : 8;
+  const createdBy = order.createdBy || order.requester;
 
   return (
     <div className="space-y-6 pb-20">
@@ -551,15 +592,6 @@ export const DispatchOrderDetailPage: React.FC = () => {
 
         {/* CÁC NÚT THAO TÁC NGHIỆP VỤ CHÍNH */}
         <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Printer className="h-4 w-4 text-slate-700" />}
-            onClick={() => setPrintPreviewOpen(true)}
-            className="bg-slate-50 hover:bg-slate-100 font-bold"
-          >
-            In lệnh điều xe
-          </Button>
 
           {['PENDING_APPROVAL', 'APPROVED', 'ASSIGNED', 'CHO_DUYET', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN', 'DRAFT'].includes(order.status) && (
             <Button
@@ -571,6 +603,25 @@ export const DispatchOrderDetailPage: React.FC = () => {
             >
               Dời lịch lệnh
             </Button>
+          )}
+
+          {['PENDING_APPROVAL', 'APPROVED', 'ASSIGNED', 'CHO_DUYET', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN', 'DRAFT'].includes(order.status) && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<XCircle className="h-4 w-4 text-rose-600" />}
+              onClick={handleOpenCancel}
+              className="text-rose-700 border-rose-300 bg-rose-50/70 hover:bg-rose-100 font-bold shadow-xs"
+            >
+              Hủy lệnh
+            </Button>
+          )}
+
+          {order.status === 'CANCELLED' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+              <XCircle className="h-4 w-4 text-rose-600" />
+              <span>Lệnh đã hủy</span>
+            </span>
           )}
 
           {['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DA_NHAN', 'DANG_THI_CONG'].includes(order.status) && (
@@ -592,6 +643,43 @@ export const DispatchOrderDetailPage: React.FC = () => {
             onClick={() => void fetchOrder()}
             title="Tải lại dữ liệu mới nhất"
           />
+        </div>
+      </div>
+
+      {/* THÔNG BÁO LỆNH ĐÃ BỊ HỦY */}
+      {order.status === 'CANCELLED' && (
+        <div className="rounded-2xl border border-red-200 bg-red-50/90 p-4 text-red-900 shadow-xs flex items-start gap-3.5">
+          <div className="rounded-xl bg-red-100 p-2 text-red-600 shrink-0">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="font-bold text-sm text-red-900">Lệnh điều xe này đã được hủy (CANCELLED)</h4>
+            <p className="text-xs text-red-700 leading-relaxed">
+              Lệnh điều phối đã dừng thực thi và tự động giải phóng phương tiện/thợ lái về trạng thái Chờ phân công.
+              {(order as any).rejectionReason ? <span className="block mt-1 font-medium text-red-800">Lý do hủy: {(order as any).rejectionReason}</span> : null}
+              {(order as any).cancelledAt ? <span className="block text-[11px] text-red-600 mt-0.5">Thời điểm hủy: {formatDateTime((order as any).cancelledAt)}</span> : null}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Người tạo lệnh</div>
+          <div className="font-bold text-slate-900">{createdBy?.fullName || 'Chưa xác định'}</div>
+          <div className="mt-1 text-xs text-slate-500">{createdBy?.code || '—'} · {order.createdAt ? formatDateTime(order.createdAt) : 'Chưa có thời gian tạo'}</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Xe thực hiện</div>
+          <div className="font-bold text-slate-900">{order.vehicle?.code || 'Chưa phân công xe'}</div>
+          <div className="mt-1 text-xs text-slate-600">Quản lý xe: <b className="text-slate-800">{order.vehicle?.manager?.fullName || 'Chưa phân công'}</b></div>
+          {order.vehicle?.managementUnit && <div className="mt-1 text-xs text-slate-500">{order.vehicle.managementUnit.name}</div>}
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Tài xế thực hiện</div>
+          <div className="font-bold text-slate-900">{order.driver?.fullName || 'Chưa phân công tài xế'}</div>
+          <div className="mt-1 text-xs text-slate-600">Quản lý tài xế: <b className="text-slate-800">{order.driver?.manager?.fullName || 'Chưa phân công'}</b></div>
+          {order.driver?.managementUnit && <div className="mt-1 text-xs text-slate-500">{order.driver.managementUnit.name}</div>}
         </div>
       </div>
 
@@ -804,8 +892,9 @@ export const DispatchOrderDetailPage: React.FC = () => {
           initialDurationHours={durationHours}
           unit={order.unit}
           complexCode={(order as any).complexCode || (order as any).productionOrder?.plan?.complexCode || 'KOUN_MOM'}
+          managementUnitId={(order as any).operationalWorkOrder?.managementUnitId}
           onVehicleScheduleChange={handleVehicleScheduleChange}
-          onApprove={async (vehicle, driver, schedule, implement) => {
+          onApprove={async (vehicle, driver, schedule, implement, team) => {
             try {
               const payload = {
                 vehicleId: vehicle.id,
@@ -818,7 +907,10 @@ export const DispatchOrderDetailPage: React.FC = () => {
                 const realId = order.id > 200_000 ? order.id - 200_000 : order.id;
                 await operationsApi.assignTransport(realId, payload);
               } else {
-                await operationsApi.assignDispatch(order.id, payload);
+                const implementIds = (team?.[0]?.implements ?? [])
+                  .map((item) => item.id)
+                  .filter((id): id is number => typeof id === 'number' && id < 90_000);
+                await operationsApi.assignDispatch(order.id, { ...payload, implementIds });
               }
 
               const vRate = vehicle.fuelQuotaRate ?? getVehicleFuelQuotaRate(vehicle as any, order.orderCategory);
@@ -997,6 +1089,97 @@ export const DispatchOrderDetailPage: React.FC = () => {
               {actionSaving ? 'Đang lưu...' : 'Xác nhận Nghiệm thu'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ===================== MODAL: HỦY LỆNH ĐIỀU XE ===================== */}
+      <Modal
+        isOpen={cancelOpen}
+        onClose={() => { setCancelOpen(false); setActionError(''); }}
+        title={`Xác nhận hủy lệnh điều xe: ${order.code}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={actionSaving}>
+              Đóng
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => void handleConfirmCancel()}
+              disabled={actionSaving}
+            >
+              {actionSaving ? 'Đang xử lý...' : 'Xác nhận hủy lệnh'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-rose-900 leading-relaxed">
+            <div className="font-bold flex items-center gap-1.5 mb-1 text-rose-800">
+              <AlertTriangle className="h-4 w-4 text-rose-600" />
+              <span>Cảnh báo chuyển trạng thái lệnh</span>
+            </div>
+            Thao tác này sẽ chuyển lệnh điều xe <b>{order.code}</b> thành <b>LỆNH ĐÃ HỦY</b> và tự động giải phóng phương tiện / thợ lái về trạng thái Chờ phân công. Lịch sử và nguyên nhân hủy sẽ được lưu vết đầy đủ trong hệ thống.
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-slate-600">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Mục đích / Công việc:</span>
+              <span className="font-bold text-slate-800 text-right">{order.purpose}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Phương tiện điều động:</span>
+              <span className="font-bold text-slate-800">{order.vehicle?.code || 'Chưa gán xe'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Thợ lái / Tài xế:</span>
+              <span className="font-bold text-slate-800">{order.driver?.fullName || 'Chưa gán tài xế'}</span>
+            </div>
+          </div>
+
+          <div>
+            <span className="mb-1.5 block font-bold text-slate-800">
+              Nguyên nhân hủy lệnh <span className="text-rose-600">*</span>
+            </span>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {[
+                'Thời tiết không thuận lợi (mưa lớn / ngập úng)',
+                'Kế hoạch sản xuất nông trường thay đổi',
+                'Phương tiện / thiết bị phát sinh sự cố kỹ thuật',
+                'Thợ lái xin nghỉ đột xuất / thiếu nhân sự',
+                'Lệnh tạo thử nghiệm / trùng lặp',
+              ].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => setCancelReason(suggestion)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                    cancelReason === suggestion
+                      ? 'bg-rose-100 border-rose-400 text-rose-800 font-bold'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+            <textarea
+              rows={3}
+              value={cancelReason}
+              onChange={(e) => {
+                setCancelReason(e.target.value);
+                if (actionError) setActionError('');
+              }}
+              placeholder="Nhập hoặc chọn nguyên nhân hủy lệnh điều xe..."
+              className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+            />
+          </div>
+
+          {actionError && (
+            <div className="rounded-xl bg-red-100 border border-red-300 p-2.5 text-red-800 font-medium">
+              {actionError}
+            </div>
+          )}
         </div>
       </Modal>
 

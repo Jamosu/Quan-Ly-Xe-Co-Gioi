@@ -20,6 +20,12 @@ export enum WorkOrderPreparationAction {
 }
 
 export class PrepareWorkOrderDto {
+  @ApiProperty({ description: 'ID xí nghiệp/khu vực quản lý' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  managementUnitId: number;
+
   @ApiProperty({ enum: WorkOrderCategory })
   @IsEnum(WorkOrderCategory)
   category: WorkOrderCategory;
@@ -46,6 +52,9 @@ export class PrepareWorkOrderDto {
   @ApiProperty() @IsString() @IsNotEmpty() jobDescription: string;
   @ApiProperty({ type: String, format: 'date-time' }) @Type(() => Date) @IsDate() plannedStartAt: Date;
   @ApiProperty({ type: String, format: 'date-time' }) @Type(() => Date) @IsDate() plannedEndAt: Date;
+  @ApiPropertyOptional({ type: String, format: 'date-time' }) @IsOptional() @Type(() => Date) @IsDate() expectedCompletedAt?: Date;
+  @ApiPropertyOptional({ default: 480 }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) workDurationMinutes?: number;
+  @ApiPropertyOptional({ default: 0 }) @IsOptional() @Type(() => Number) @IsInt() @Min(0) breakDurationMinutes?: number;
   @ApiProperty() @IsString() @IsNotEmpty() shift: string;
   @ApiPropertyOptional({ enum: WorkPriority, default: WorkPriority.NORMAL }) @IsOptional() @IsEnum(WorkPriority) priority?: WorkPriority;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) targetQuantity?: number;

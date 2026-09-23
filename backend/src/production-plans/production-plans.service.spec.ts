@@ -1,4 +1,4 @@
-import { ProductionPlansService } from './production-plans.service';
+﻿import { ProductionPlansService } from './production-plans.service';
 import { DispatchStatus, PlanType, Unit } from '@prisma/client';
 
 describe('ProductionPlansService plan-to-order expansion', () => {
@@ -27,7 +27,7 @@ describe('ProductionPlansService plan-to-order expansion', () => {
     const created: Array<{ data: { generationKey: string } }> = [];
     const tx: any = {
       productionPlan: { findUnique: jest.fn().mockResolvedValue({
-        id: 7, unit: Unit.NT1, planType: PlanType.AGRICULTURE,
+        id: 7, unit: Unit.KOUN_MOM, planType: PlanType.AGRICULTURE,
         lotPlot: 'A01', enterpriseName: 'NT1', farmName: 'Farm',
         startDate: new Date('2026-09-07T00:00:00.000Z'), endDate: new Date('2026-09-13T00:00:00.000Z'),
         items: [{ id: 11, jobName: 'Cày đất', jobCode: 'CD', plotName: 'A01', location: null,
@@ -54,7 +54,7 @@ describe('ProductionPlansService plan-to-order expansion', () => {
   it('cancels obsolete not-started orders but retains started orders with a warning', async () => {
     const tx: any = {
       productionPlan: { findUnique: jest.fn().mockResolvedValue({
-        id: 8, unit: Unit.NT1, planType: PlanType.CONSTRUCTION, lotPlot: 'CT',
+        id: 8, unit: Unit.KOUN_MOM, planType: PlanType.CONSTRUCTION, lotPlot: 'CT',
         startDate: new Date(), endDate: new Date(), items: [],
         productionOrders: [{ dispatchOrders: [
           { id: 1, code: 'WAITING', generationKey: 'old-1', status: DispatchStatus.PENDING_APPROVAL, operationalWorkOrder: null, vehicleId: null, driverId: null },

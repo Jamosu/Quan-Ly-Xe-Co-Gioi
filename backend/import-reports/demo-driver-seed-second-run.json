@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-09-21T08:04:00.666Z",
+  "dryRun": true,
+  "targetDriversPerTeam": 5,
+  "teamsWithAssets": 24,
+  "driversToCreate": 0,
+  "additions": [
+    {
+      "teamCode": "CG-KM-BAN-CG-CK-SXCN",
+      "teamName": "BAN CG-CK & SXCN",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-BAN-DIEN-NUOC",
+      "teamName": "Ban điện nước",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-BUOI-AD",
+      "teamName": "Bưởi AD",
+      "existingDrivers": 6,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-CGLD-DP",
+      "teamName": "CGLĐ DP",
+      "existingDrivers": 10,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-CGLD-LP",
+      "teamName": "CGLĐ LP",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-CGTC-AD",
+      "teamName": "CGTC AD",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-CGTC-DP",
+      "teamName": "CGTC DP",
+      "existingDrivers": 10,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-CGTC-LP",
+      "teamName": "CGTC LP",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-HANH-CHINH-KLH",
+      "teamName": "Hành chính KLH",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-NM-NHUA-XOP-DP",
+      "teamName": "NM NHỰA -XỐP DP",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-PHONG-GNVC",
+      "teamName": "Phòng GNVC",
+      "existingDrivers": 7,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-THADICONS-A-I",
+      "teamName": "Thadicons A&I",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-THAGRICONS",
+      "teamName": "Thagricons",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-TONG-KHO",
+      "teamName": "Tổng kho",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-TRAM-TRON-BE-TONG",
+      "teamName": "Trạm trộn bê tông",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XN-BO-AD",
+      "teamName": "XN Bò AD",
+      "existingDrivers": 7,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XN-CHUOI-DP1",
+      "teamName": "XN Chuối DP1",
+      "existingDrivers": 10,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XN-CHUOI-DP2",
+      "teamName": "XN Chuối DP2",
+      "existingDrivers": 10,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XN-CHUOI-DP3",
+      "teamName": "XN Chuối DP3",
+      "existingDrivers": 10,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XN-CHUOI-LP1",
+      "teamName": "XN Chuối LP1",
+      "existingDrivers": 7,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XN-CHUOI-LP3",
+      "teamName": "XN Chuối LP3",
+      "existingDrivers": 7,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XOAI-AD",
+      "teamName": "Xoài AD",
+      "existingDrivers": 5,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XOAI-DP",
+      "teamName": "Xoài DP",
+      "existingDrivers": 6,
+      "created": 0
+    },
+    {
+      "teamCode": "CG-KM-XUONG-CO-KHI-DP",
+      "teamName": "Xưởng Cơ khí DP",
+      "existingDrivers": 5,
+      "created": 0
+    }
+  ]
+}

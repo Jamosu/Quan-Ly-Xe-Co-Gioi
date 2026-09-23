@@ -3,7 +3,7 @@ import { Role, Unit } from '@prisma/client';
 import { IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateUserDto {
-  @ApiPropertyOptional({ example: '123456' })
+  @ApiPropertyOptional({ example: 'Thaco@1234$' })
   @IsOptional()
   @IsString()
   @MinLength(6)

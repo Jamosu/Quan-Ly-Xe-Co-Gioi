@@ -16,7 +16,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Role, Unit } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -26,6 +25,7 @@ import { DetachImplementDto } from './dto/detach-implement.dto';
 import { ImplementFilterDto } from './dto/implement-filter.dto';
 import { UpdateImplementDto } from './dto/update-implement.dto';
 import { ImplementsService } from './implements.service';
+import { OperationalActor } from '../common/utils/operational-access';
 
 @ApiTags('Agricultural Implements - Quản Lý 142 Nông Cụ Phụ Trợ')
 @ApiBearerAuth()
@@ -42,7 +42,7 @@ export class ImplementsController {
   }
 
   @Post('import')
-  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Import thiết bị từ file Excel — tự động map NHOM_TB → usageMode (Nông cụ/Công trình/Vận hành)' })
@@ -55,32 +55,34 @@ export class ImplementsController {
     return this.implementsService.importFromWorkbook(file.buffer, unit);
   }
 
-  @Public()
   @Get()
   @ApiOperation({ summary: 'Danh mục 694 nông cụ & thiết bị đính kèm (Lọc theo chủng loại, trạng thái, độ mòn)' })
-  async findAll(@Query() filter: ImplementFilterDto) {
-    return this.implementsService.findAll(filter);
+  async findAll(@Query() filter: ImplementFilterDto, @CurrentUser() actor: OperationalActor) {
+    return this.implementsService.findAll(filter, actor);
   }
 
-  @Public()
   @Get('statistics')
   @ApiOperation({ summary: 'Thống kê tổng quan nông cụ (Đang gắn, Tồn kho, Cần mài/thay chảo)' })
-  async getStatistics() {
-    return this.implementsService.getStatistics();
+  async getStatistics(@Query() filter: ImplementFilterDto, @CurrentUser() actor: OperationalActor) {
+    return this.implementsService.getStatistics(filter, actor);
   }
 
-  @Public()
+  @Get('filter-options')
+  @ApiOperation({ summary: 'Danh mục bộ lọc chuẩn cho thiết bị và nông cụ' })
+  async getFilterOptions(@Query() filter: ImplementFilterDto, @CurrentUser() actor: OperationalActor) {
+    return this.implementsService.getFilterOptions(filter, actor);
+  }
+
   @Get(':id/compatible-vehicles')
   @ApiOperation({ summary: 'Danh sách xe đúng chủng loại có thể nhận thiết bị' })
-  async compatibleVehicles(@Param('id', ParseIntPipe) id: number, @Query('unit') unit?: Unit) {
-    return this.implementsService.compatibleVehicles(id, unit);
+  async compatibleVehicles(@Param('id', ParseIntPipe) id: number, @Query('unit') unit: Unit | undefined, @CurrentUser() actor: OperationalActor) {
+    return this.implementsService.compatibleVehicles(id, unit, actor);
   }
 
-  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Xem chi tiết nông cụ và lịch sử tháo/lắp vào máy kéo' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.implementsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) {
+    return this.implementsService.findOne(id, actor);
   }
 
   @Patch(':id')
@@ -89,28 +91,31 @@ export class ImplementsController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateImplementDto,
+    @CurrentUser() actor: OperationalActor,
   ) {
-    return this.implementsService.update(id, dto);
+    return this.implementsService.update(id, dto, actor);
   }
 
   @Post(':id/attach')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   @ApiOperation({ summary: 'Gắn nông cụ vào máy kéo (Ghi nhận độ mòn startWearMm)' })
   async attachToVehicle(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AttachImplementDto,
-    @CurrentUser('id') actorId: number,
+    @CurrentUser() actor: OperationalActor,
   ) {
-    return this.implementsService.attachToVehicle(id, dto, actorId);
+    return this.implementsService.attachToVehicle(id, dto, actor);
   }
 
   @Post(':id/detach')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   @ApiOperation({ summary: 'Tháo nông cụ về kho (Ghi nhận độ mòn endWearMm & đánh giá hao mòn)' })
   async detachFromVehicle(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: DetachImplementDto,
-    @CurrentUser('id') actorId: number,
+    @CurrentUser() actor: OperationalActor,
   ) {
-    return this.implementsService.detachFromVehicle(id, dto, actorId);
+    return this.implementsService.detachFromVehicle(id, dto, actor);
   }
 
   @Delete(':id')

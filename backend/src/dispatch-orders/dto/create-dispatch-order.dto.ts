@@ -1,15 +1,20 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+﻿import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DispatchSourceType, Unit, VehicleOperationalDomain } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateDispatchOrderDto {
+  @ApiProperty({ example: 1, description: 'ID xí nghiệp/khu vực quản lý của lệnh' })
+  @Type(() => Number)
+  @IsInt()
+  managementUnitId: number;
+
   @ApiProperty({ example: 'LC-2026-0512', description: 'Mã lệnh điều xe' })
   @IsNotEmpty()
   @IsString()
   code: string;
 
-  @ApiProperty({ enum: Unit, default: Unit.NT1 })
+  @ApiProperty({ enum: Unit, default: Unit.KOUN_MOM })
   @IsEnum(Unit)
   unit: Unit;
 

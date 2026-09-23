@@ -5,10 +5,12 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { Role, Unit } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { MobileLoginDto, MobileRefreshDto } from './dto/mobile-session.dto';
 
 @Injectable()
 export class AuthService {
@@ -74,7 +76,7 @@ export class AuthService {
         fullName: 'Lê Văn Hùng',
         phone: '0912345678',
         role: Role.FARM_MANAGER,
-        unit: Unit.NT1,
+        unit: Unit.KOUN_MOM,
         avatarUrl: null,
       },
       'tx.kounmom': {
@@ -138,9 +140,9 @@ export class AuthService {
       console.warn('⚠️ [AuthService] Database error, falling back to local auth store:', dbError?.message || dbError);
     }
 
-    if (!user) {
+    if (!user && process.env.ALLOW_DEMO_AUTH === 'true') {
       const fallback = fallbackAccounts[targetUsername] || fallbackAccounts[dto.username.trim()];
-      if (fallback && (dto.password === '123' || dto.password === '123456' || dto.password === 'admin')) {
+      if (fallback && (dto.password === 'Thaco@1234$' || dto.password === '123456' || dto.password === '123' || dto.password === 'admin')) {
         user = {
           ...fallback,
           isActive: true,
@@ -160,18 +162,14 @@ export class AuthService {
     }
 
     if (user.passwordHash) {
-      const isMatch =
-        (await bcrypt.compare(dto.password, user.passwordHash)) ||
-        (dto.password === '123' && (await bcrypt.compare('123456', user.passwordHash))) ||
-        (dto.password === '123456') ||
-        (user.username === 'admin' && dto.password === 'admin');
+      const isMatch = await bcrypt.compare(dto.password, user.passwordHash);
       if (!isMatch) {
         console.warn(`⚠️ [AuthService] Đăng nhập thất bại: Sai mật khẩu cho tài khoản "${user.username}".`);
         throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
     } else {
       // Fallback user password check
-      if (dto.password !== '123' && dto.password !== '123456' && dto.password !== 'admin') {
+      if (dto.password !== 'Thaco@1234$' && dto.password !== '123456' && dto.password !== '123' && dto.password !== 'admin') {
         console.warn(`⚠️ [AuthService] Đăng nhập fallback thất bại cho tài khoản "${user.username}".`);
         throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
@@ -202,8 +200,6 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken: accessToken,
-      refreshExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       tokenType: 'Bearer',
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       user: {
@@ -241,6 +237,101 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
     }
+  }
+
+  async mobileLogin(dto: MobileLoginDto) {
+    const username = dto.username.trim();
+    const user = await this.prisma.user.findFirst({
+      where: { OR: [{ username }, { phone: username }] },
+    });
+    if (!user || !user.isActive || user.role !== Role.DRIVER || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+      throw new UnauthorizedException('Tai khoan tai xe hoac mat khau khong chinh xac.');
+    }
+    return this.issueMobileSession(user, dto.deviceId);
+  }
+
+  async refreshMobileSession(dto: MobileRefreshDto) {
+    const session = await this.prisma.mobileSession.findUnique({
+      where: { refreshTokenHash: this.hashToken(dto.refreshToken) },
+      include: { driver: true },
+    });
+    if (
+      !session ||
+      session.deviceId !== dto.deviceId ||
+      session.revokedAt ||
+      session.expiresAt <= new Date() ||
+      !session.driver.isActive ||
+      session.driver.role !== Role.DRIVER
+    ) {
+      throw new UnauthorizedException('Phien dang nhap di dong da het han hoac khong hop le.');
+    }
+
+    const refreshToken = this.createRefreshToken();
+    const refreshExpiresAt = this.mobileRefreshExpiry();
+    await this.prisma.mobileSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: this.hashToken(refreshToken),
+        expiresAt: refreshExpiresAt,
+        lastUsedAt: new Date(),
+      },
+    });
+    return this.mobileSessionPayload(session.driver, refreshToken, refreshExpiresAt);
+  }
+
+  private async issueMobileSession(user: { id: number; [key: string]: any }, deviceId: string) {
+    const refreshToken = this.createRefreshToken();
+    const refreshExpiresAt = this.mobileRefreshExpiry();
+    await this.prisma.mobileSession.create({
+      data: {
+        driverId: user.id,
+        deviceId,
+        refreshTokenHash: this.hashToken(refreshToken),
+        expiresAt: refreshExpiresAt,
+      },
+    });
+    return this.mobileSessionPayload(user, refreshToken, refreshExpiresAt);
+  }
+
+  private mobileSessionPayload(user: any, refreshToken: string, refreshExpiresAt: Date) {
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      unit: user.unit,
+    });
+    return {
+      accessToken,
+      refreshToken,
+      refreshExpiresAt: refreshExpiresAt.toISOString(),
+      tokenType: 'Bearer',
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      user: {
+        id: user.id,
+        code: user.code,
+        username: user.username,
+        fullName: user.fullName,
+        phone: user.phone,
+        role: user.role,
+        unit: user.unit,
+        avatarUrl: user.avatarUrl,
+        currentShiftStatus: user.currentShiftStatus,
+        assignedVehicleId: user.assignedVehicleId,
+      },
+    };
+  }
+
+  private createRefreshToken() {
+    return randomBytes(48).toString('base64url');
+  }
+
+  private hashToken(value: string) {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  private mobileRefreshExpiry() {
+    const days = Math.max(1, Number(process.env.MOBILE_REFRESH_TOKEN_DAYS || 30));
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   }
 
   async getProfile(userId: number) {

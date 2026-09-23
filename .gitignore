@@ -3,8 +3,21 @@
 # ==========================================
 
 # --- Excluded non-code / documentation / database folders ---
-database/
-docs/
+# database/
+!database/production_data_dump.sql
+!database/python_scripts/
+# Keep the shared AI project memory under source control while leaving ad-hoc
+# generated documentation ignored by default.
+docs/*
+!docs/README.md
+!docs/architecture/
+!docs/architecture/*.md
+!docs/business/
+!docs/business/*.md
+!docs/development/
+!docs/development/*.md
+!docs/decisions/
+!docs/decisions/*.md
 legacy_mockup/
 Logs/
 logs/
@@ -20,6 +33,10 @@ generate_image_only_pdf.js
 *.xls
 *.csv
 *.sql
+!database/production_data_dump.sql
+!backend/prisma/production_data_dump.sql
+!backend/prisma/migrations/20260916110000_sos_rescue_dispatch/migration.sql
+!backend/prisma/migrations/**/migration.sql
 *.sqlite
 *.sqlite-journal
 *.apk
@@ -35,6 +52,8 @@ package-lock.json.bak
 dist/
 build/
 out/
+graphify-out/*
+!graphify-out/.gitkeep
 .next/
 *.tsbuildinfo
 vite.config.ts.timestamp-*

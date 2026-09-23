@@ -14,6 +14,7 @@ import { TableRowActions } from '../../components/common/TableRowActions';
 
 import { catalogsApi } from '../../api/catalogsApi';
 import { useAppStore } from '../../store/useAppStore';
+import { useManagementFilterCatalog } from '../../hooks/useManagementFilterCatalog';
 import { VehicleProfile } from '../../types';
 import { parseOperationalImport } from '../../utils/operationalExcelTemplates';
 import { parseEquipmentTab } from '../../utils/equipmentNavigation';
@@ -50,6 +51,8 @@ import {
   Sprout,
   Droplets,
   ExternalLink,
+  HelpCircle,
+  Users,
 } from 'lucide-react';
 import { EditEquipmentModal } from '../../components/fleet/EditEquipmentModal';
 
@@ -72,6 +75,8 @@ export interface ImplementItem {
   name: string;
   category: 'DAN_CAY' | 'DAN_BUA' | 'DAN_XOI' | 'DAN_RAI_PHAN' | 'RO_MOOC' | 'DAN_PHUN_THUOC';
   unit: string;
+  assignedUnitCode?: string | null;
+  managementUnitId?: number | null;
   currentVehicleId?: number | null;
   currentVehicle?: AttachedVehicle | null;
   status: 'ATTACHED' | 'IN_DEPOT' | 'MAINTENANCE';
@@ -80,6 +85,7 @@ export interface ImplementItem {
   managerName?: string | null;
   gatheringLocation?: string | null;
   managerPhone?: string | null;
+  managementUnit?: { id?: number; name?: string; managerAssignments?: Array<{ manager: { id: number; fullName: string; phone?: string | null } }> } | null;
   attachedAt?: string | null;
   usageMode?: 'ATTACHABLE' | 'STANDALONE' | 'UNCLASSIFIED';
   sourceGroup?: string | null;
@@ -87,6 +93,56 @@ export interface ImplementItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export type EquipmentDomain = 'ALL' | 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN';
+
+export const getEquipmentDomain = (item: ImplementItem): 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' => {
+  const text = `${item.sourceGroup || ''} ${item.name || ''} ${item.category || ''} ${item.standardPurpose || ''}`.normalize('NFC').toLowerCase();
+  if (
+    text.includes('gàu') ||
+    text.includes('gàu') ||
+    text.includes('búa') ||
+    text.includes('búa') ||
+    text.includes('đầm') ||
+    text.includes('đầm') ||
+    text.includes('cong_trinh') ||
+    text.includes('công trình')
+  ) {
+    return 'CONG_TRINH';
+  }
+  if (
+    text.includes('móc') ||
+    text.includes('moóc') ||
+    text.includes('smrm') ||
+    text.includes('kéo chuối') ||
+    text.includes('kéo chuối') ||
+    text.includes('xe máy') ||
+    text.includes('xe máy') ||
+    text.includes('van_chuyen') ||
+    text.includes('vận chuyển')
+  ) {
+    return 'VAN_CHUYEN';
+  }
+  return 'NONG_NGHIEP';
+};
+
+export const DOMAIN_META: Record<'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN', { label: string; badge: string; iconLabel: string }> = {
+  NONG_NGHIEP: {
+    label: 'Nông nghiệp',
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    iconLabel: 'Dàn cày, bừa, xới, rải phân, phun thuốc',
+  },
+  CONG_TRINH: {
+    label: 'Công trình',
+    badge: 'bg-amber-50 text-amber-800 border-amber-200',
+    iconLabel: 'Gàu định hình, búa đục, đầm taluy',
+  },
+  VAN_CHUYEN: {
+    label: 'Vận chuyển',
+    badge: 'bg-purple-50 text-purple-700 border-purple-200',
+    iconLabel: 'Rơ-moóc tải/ben, SMRM, máy kéo chuối',
+  },
+};
 
 type TabType = 'all' | 'in_depot' | 'attached' | 'maintenance' | 'repair';
 type TableViewMode = 'excel_23' | 'compact';
@@ -167,7 +223,12 @@ const statusMeta = (item: ImplementItem) => {
   };
 };
 
-export const EquipmentPage: React.FC = () => {
+interface EquipmentPageProps {
+  assetScope?: 'ALL' | 'VEHICLE_RELATED' | 'OTHER';
+}
+
+export const EquipmentPage: React.FC<EquipmentPageProps> = ({ assetScope = 'ALL' }) => {
+  const isOtherAssets = assetScope === 'OTHER';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
@@ -264,6 +325,7 @@ export const EquipmentPage: React.FC = () => {
     return () => window.removeEventListener('thaco_klh_changed', handleKlhChanged);
   }, []);
   const [selectedRegion, setSelectedRegion] = useState(ALL);
+  const [selectedDomain, setSelectedDomain] = useState<EquipmentDomain>('ALL');
   const [selectedManufacturer, setSelectedManufacturer] = useState(ALL);
   const [selectedModel, setSelectedModel] = useState(ALL);
   const [selectedOrigin, setSelectedOrigin] = useState(ALL);
@@ -271,7 +333,11 @@ export const EquipmentPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState(ALL);
   const [selectedCondition, setSelectedCondition] = useState(ALL);
   const [selectedAlertTier, setSelectedAlertTier] = useState(ALL);
+  const [selectedManager, setSelectedManager] = useState(ALL);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const { units: managementFilterUnits, managers: managementFilterManagers } = useManagementFilterCatalog(
+    selectedComplex !== ALL ? selectedComplex : undefined,
+  );
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -285,13 +351,21 @@ export const EquipmentPage: React.FC = () => {
     maintenance: 0,
   });
   const [gpsAttached, setGpsAttached] = useState(0);
+  const [implementFilterOptions, setImplementFilterOptions] = useState<{
+    units: string[];
+    locations: string[];
+    categories: Array<{ code: string; count: number }>;
+    managers: Array<{ id: number; name: string; phone?: string | null; implementCount: number }>;
+  }>({ units: [], locations: [], categories: [], managers: [] });
 
   const loadData = async () => {
     setLoading(true);
+    const unit = selectedComplex !== ALL ? selectedComplex : undefined;
+    const scopeParam = assetScope === 'ALL' ? undefined : assetScope;
 
     // 1. Fetch statistics IMMEDIATELY (< 20ms)
     apiService
-      .getImplementStatistics()
+      .getImplementStatistics({ unit, assetScope: scopeParam, managerUserId: selectedManager !== ALL ? Number(selectedManager) : undefined })
       .then((statsData) => {
         if (statsData) {
           setStats({
@@ -305,13 +379,18 @@ export const EquipmentPage: React.FC = () => {
       .catch(() => null);
 
     apiService
-      .getVehicleStatistics({ isAssignable: true })
+      .getVehicleStatistics({ isAssignable: true, complexCode: unit })
       .then((vehicleStats) => setGpsAttached(vehicleStats?.gpsAttached || 0))
       .catch(() => setGpsAttached(0));
 
+    apiService
+      .getImplementFilterOptions({ unit, assetScope: scopeParam, managerUserId: selectedManager !== ALL ? Number(selectedManager) : undefined })
+      .then(setImplementFilterOptions)
+      .catch(() => setImplementFilterOptions({ units: [], locations: [], categories: [], managers: [] }));
+
     // 2. Fetch implements list
     try {
-      const allData = await apiService.getAllImplements();
+      const allData = await apiService.getAllImplements({ unit, assetScope: scopeParam, managerUserId: selectedManager !== ALL ? Number(selectedManager) : undefined });
       if (allData && Array.isArray(allData.items)) {
         setEquipmentList(allData.items);
         if (allData.items.length === 0) {
@@ -339,7 +418,7 @@ export const EquipmentPage: React.FC = () => {
     };
     window.addEventListener('thaco_refresh_current_page', handlePageRefresh);
     return () => window.removeEventListener('thaco_refresh_current_page', handlePageRefresh);
-  }, []);
+  }, [selectedComplex, selectedManager, assetScope]);
 
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -369,7 +448,7 @@ export const EquipmentPage: React.FC = () => {
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [selectedComplex, selectedManager]);
 
   // Helper trích xuất thông tin
   const getProp = (text: string | null | undefined, prefix: string): string => {
@@ -378,44 +457,58 @@ export const EquipmentPage: React.FC = () => {
     return match ? match[1].normalize('NFC').trim() : '';
   };
 
-  const getItemManager = (item: ImplementItem) => (item.managerName?.normalize('NFC').trim()) || getProp(item.standardPurpose, 'Quản lý') || 'Ban Cơ Giới';
+  const getItemManager = (item: ImplementItem) => item.managementUnit?.managerAssignments?.[0]?.manager?.fullName
+    || (item.managerName?.normalize('NFC').trim())
+    || getProp(item.standardPurpose, 'Quản lý')
+    || 'Ban Cơ Giới';
+  const getItemManagerId = (item: ImplementItem) => item.managementUnit?.managerAssignments?.[0]?.manager?.id;
   const getItemLocation = (item: ImplementItem) => (item.gatheringLocation?.normalize('NFC').trim()) || getProp(item.standardPurpose, 'Nơi tập kết') || 'Bãi xe Trung tâm';
-  const getItemPhone = (item: ImplementItem) => (item.managerPhone?.normalize('NFC').trim()) || getProp(item.standardPurpose, 'Zalo/SĐT') || '';
-  const getItemUnit = (item: ImplementItem) => getProp(item.standardPurpose, 'Đơn vị') || item.unit?.normalize('NFC').trim() || '';
+  const getItemPhone = (item: ImplementItem) => item.managementUnit?.managerAssignments?.[0]?.manager?.phone
+    || (item.managerPhone?.normalize('NFC').trim())
+    || getProp(item.standardPurpose, 'Zalo/SĐT')
+    || '';
+  const getItemUnit = (item: ImplementItem) =>
+    item.managementUnit?.name?.normalize('NFC').trim()
+    || item.assignedUnitCode?.normalize('NFC').trim()
+    || item.currentVehicle?.assignedUnitCode?.normalize('NFC').trim()
+    || getProp(item.standardPurpose, 'Đơn vị')?.normalize('NFC').trim()
+    || '';
   const getItemBrand = (item: ImplementItem) => getProp(item.standardPurpose, 'Hãng') || '—';
   const getItemModel = (item: ImplementItem) => getProp(item.standardPurpose, 'Model') || '—';
   const getItemPurchaseCondition = (item: ImplementItem) => getProp(item.standardPurpose, 'Tình trạng mua') || 'ĐQSD';
   const getItemYear = (item: ImplementItem) => getProp(item.standardPurpose, 'Năm SX') || '—';
   const getItemNotes = (item: ImplementItem) => getProp(item.standardPurpose, 'Ghi chú') || '—';
 
-  // Xác định Khu liên hợp & Khu vực địa lý thực tế
-  const getItemComplex = (item: ImplementItem): string => {
-    const code = (item.code || '').normalize('NFC').toUpperCase();
-    const u = (getItemUnit(item) || item.unit || '').normalize('NFC').toUpperCase();
-    const purp = (item.standardPurpose || '').normalize('NFC').toUpperCase();
-    const loc = (item.gatheringLocation || '').normalize('NFC').toUpperCase();
-
-    if (code.startsWith('SN-') || u.includes('SNOUL') || purp.includes('SNOUL') || loc.includes('SNOUL')) {
-      return 'SNOUL';
+  // Helper so khớp đơn vị sử dụng và nơi tập kết chính xác, hỗ trợ cả Unicode composed/decomposed & casing
+  const isItemInUnit = (item: ImplementItem, targetUnit: string): boolean => {
+    if (targetUnit === '__UNASSIGNED__') {
+      const u = getItemUnit(item);
+      return !u || u === '—' || u.includes('Chưa');
     }
-    if (
-      code.startsWith('NL-') ||
-      u.includes('NAM_LAO') ||
-      u.includes('ATTAPEU') ||
-      u.includes('LÀO') ||
-      u.includes('LAO') ||
-      purp.includes('ATTAPEU') ||
-      purp.includes('NAM LÀO') ||
-      loc.includes('ATTAPEU') ||
-      loc.includes('NAM LÀO')
-    ) {
-      return 'NAM_LAO';
-    }
-    return 'KOUN_MOM';
+    const targetUnitId = Number(targetUnit);
+    if (Number.isInteger(targetUnitId) && targetUnitId > 0) return item.managementUnitId === targetUnitId || item.managementUnit?.id === targetUnitId;
+    const u = getItemUnit(item).normalize('NFC').toLowerCase();
+    const selU = targetUnit.normalize('NFC').toLowerCase();
+    const purpose = (item.standardPurpose || '').normalize('NFC').toLowerCase();
+    return u === selU || (!!u && (u.includes(selU) || selU.includes(u))) || (!!purpose && purpose.includes(selU));
   };
 
+  const isItemInLocation = (item: ImplementItem, targetLoc: string): boolean => {
+    if (targetLoc === '__UNASSIGNED__') {
+      const loc = getItemLocation(item);
+      return !loc || loc === '—' || loc.includes('Chưa');
+    }
+    const loc = getItemLocation(item).normalize('NFC').toLowerCase();
+    const selLoc = targetLoc.normalize('NFC').toLowerCase();
+    const purpose = (item.standardPurpose || '').normalize('NFC').toLowerCase();
+    return loc === selLoc || (!!loc && (loc.includes(selLoc) || selLoc.includes(loc))) || (!!purpose && purpose.includes(selLoc));
+  };
+
+  // Xác định Khu liên hợp & Khu vực địa lý thực tế
+  const getItemComplex = (item: ImplementItem): string => item.unit?.normalize('NFC').trim() || '';
+
   const getItemRegion = (item: ImplementItem): string => {
-    const text = (((item.standardPurpose || '') + ' ' + (item.gatheringLocation || '') + ' ' + (item.unit || '') + ' ' + (item.managerName || ''))).normalize('NFC').toUpperCase();
+    const text = (((item.standardPurpose || '') + ' ' + (item.gatheringLocation || '') + ' ' + (getItemUnit(item) || '') + ' ' + (item.unit || '') + ' ' + (item.managerName || ''))).normalize('NFC').toUpperCase();
     if (text.includes('DP')) return 'DP';
     if (text.includes('LP')) return 'LP';
     if (text.includes('AD')) return 'AD';
@@ -437,6 +530,11 @@ export const EquipmentPage: React.FC = () => {
     const maintenance = list.filter((it) => it.technicalCondition === 'WORN_OUT' || (it.status === 'MAINTENANCE' && it.technicalCondition !== 'NEED_REPAIR')).length;
     const repair = list.filter((it) => it.technicalCondition === 'NEED_REPAIR').length;
     const gpsCount = list.filter((it) => it.currentVehicleId !== null && it.currentVehicleId !== undefined).length;
+    const unassignedUnit = list.filter((it) => isItemInUnit(it, '__UNASSIGNED__')).length;
+
+    const nongNghiep = list.filter((it) => getEquipmentDomain(it) === 'NONG_NGHIEP').length;
+    const congTrinh = list.filter((it) => getEquipmentDomain(it) === 'CONG_TRINH').length;
+    const vanChuyen = list.filter((it) => getEquipmentDomain(it) === 'VAN_CHUYEN').length;
 
     const danCay = list.filter((it) => it.category === 'DAN_CAY').length;
     const danBuaXoi = list.filter((it) => it.category === 'DAN_BUA' || it.category === 'DAN_XOI').length;
@@ -451,6 +549,10 @@ export const EquipmentPage: React.FC = () => {
       maintenance,
       repair,
       gpsCount,
+      unassignedUnit,
+      nongNghiep,
+      congTrinh,
+      vanChuyen,
       danCay,
       danBuaXoi,
       danRaiPhan,
@@ -459,23 +561,14 @@ export const EquipmentPage: React.FC = () => {
     };
   }, [klhEquipment]);
 
-  // Dynamic Filter Options trích xuất từ dữ liệu thực tế của Khu liên hợp
-  const unitOptions = useMemo(() => {
-    const s = new Set<string>();
-    klhEquipment.forEach((it) => {
-      const u = getItemUnit(it);
-      if (u) s.add(u);
-    });
-    return Array.from(s).sort();
-  }, [klhEquipment]);
-
   const categoryOptions = useMemo(() => {
+    if (implementFilterOptions.categories.length) return implementFilterOptions.categories.map((item) => item.code);
     const s = new Set<string>();
     klhEquipment.forEach((it) => {
       if (it.category) s.add(it.category);
     });
     return Array.from(s).sort();
-  }, [klhEquipment]);
+  }, [klhEquipment, implementFilterOptions.categories]);
 
   const brandOptions = useMemo(() => {
     const s = new Set<string>();
@@ -515,79 +608,234 @@ export const EquipmentPage: React.FC = () => {
 
   // SelectOptions cho SearchableSelect (Đồng bộ nhãn chuẩn với Hồ sơ xe)
   const unitSelectOptions = useMemo<SelectOption[]>(() => {
-    return unitOptions.map((u) => ({ value: u, label: u }));
-  }, [unitOptions]);
+    const list: SelectOption[] = [];
+    const unassignedCount = klhEquipment.filter((it) => isItemInUnit(it, '__UNASSIGNED__')).length;
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân bổ đơn vị (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} bộ`,
+      });
+    }
+    managementFilterUnits.forEach((unit) => {
+      const count = klhEquipment.filter((it) => isItemInUnit(it, String(unit.id))).length;
+      list.push({
+        value: String(unit.id),
+        label: unit.name,
+        subLabel: `${count.toLocaleString('vi-VN')} bộ`,
+      });
+    });
+    return list;
+  }, [managementFilterUnits, klhEquipment]);
 
   const locationOptions = useMemo(() => {
+    if (implementFilterOptions.locations.length) return implementFilterOptions.locations;
     const s = new Set<string>();
     klhEquipment.forEach((it) => {
       const l = getItemLocation(it);
       if (l && l !== '—') s.add(l);
     });
     return Array.from(s).sort();
-  }, [klhEquipment]);
+  }, [klhEquipment, implementFilterOptions.locations]);
 
   const locationSelectOptions = useMemo<SelectOption[]>(() => {
-    return locationOptions.map((l) => ({ value: l, label: l }));
-  }, [locationOptions]);
-
-  const categorySelectOptions = useMemo<SelectOption[]>(() => {
-    return categoryOptions.map((c) => ({
-      value: c,
-      label: CATEGORY_NAMES[c]?.label || c,
-    }));
-  }, [categoryOptions]);
+    const list: SelectOption[] = [];
+    const unassignedCount = klhEquipment.filter((it) => isItemInLocation(it, '__UNASSIGNED__')).length;
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có nơi tập kết (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} bộ`,
+      });
+    }
+    locationOptions.forEach((l) => {
+      const count = klhEquipment.filter((it) => isItemInLocation(it, l)).length;
+      list.push({
+        value: l,
+        label: l,
+        subLabel: `${count.toLocaleString('vi-VN')} bộ`,
+      });
+    });
+    return list;
+  }, [locationOptions, klhEquipment]);
 
   const categoryCounts = useMemo(() => {
+    if (implementFilterOptions.categories.length) {
+      return Object.fromEntries(implementFilterOptions.categories.map((item) => [item.code, item.count]));
+    }
     const counts: Record<string, number> = {};
     klhEquipment.forEach((it) => {
       if (it.category) counts[it.category] = (counts[it.category] || 0) + 1;
     });
     return counts;
-  }, [klhEquipment]);
+  }, [klhEquipment, implementFilterOptions.categories]);
+
+  const categorySelectOptions = useMemo<SelectOption[]>(() => {
+    return categoryOptions.map((c) => ({
+      value: c,
+      label: CATEGORY_NAMES[c]?.label || c,
+      subLabel: `${categoryCounts[c] || 0} bộ`,
+    }));
+  }, [categoryOptions, categoryCounts]);
 
   const complexSelectOptions = useMemo<SelectOption[]>(() => [
-    { value: 'KOUN_MOM', label: 'Khu liên hợp Koun Mom' },
-    { value: 'SNOUL', label: 'Khu liên hợp Snoul' },
-    { value: 'NAM_LAO', label: 'Khu liên hợp Nam Lào' },
-  ], []);
+    { value: 'KOUN_MOM', label: 'Khu liên hợp Koun Mom', subLabel: `${dynamicStats.total} bộ` },
+    { value: 'SNOUL', label: 'Khu liên hợp Snoul', subLabel: '0 bộ' },
+    { value: 'NAM_LAO', label: 'Khu liên hợp Nam Lào', subLabel: '0 bộ' },
+  ], [dynamicStats.total]);
 
-  const regionSelectOptions = useMemo<SelectOption[]>(() => [
-    { value: 'DP', label: 'DP' },
-    { value: 'LP', label: 'LP' },
-    { value: 'AD', label: 'AD' },
-    { value: 'KLH', label: 'KLH' },
-  ], []);
+  const regionSelectOptions = useMemo<SelectOption[]>(() => {
+    const counts: Record<string, number> = {};
+    klhEquipment.forEach((it) => {
+      const r = getItemRegion(it);
+      counts[r] = (counts[r] || 0) + 1;
+    });
+    return [
+      { value: 'DP', label: 'Khu vực Daun Penh (DP)', subLabel: `${counts['DP'] || 0} bộ` },
+      { value: 'LP', label: 'Khu vực Lumphat (LP)', subLabel: `${counts['LP'] || 0} bộ` },
+      { value: 'AD', label: 'Khu vực Andong Meas (AD)', subLabel: `${counts['AD'] || 0} bộ` },
+      { value: 'KLH', label: 'Văn phòng KLH Koun Mom', subLabel: `${counts['KLH'] || 0} bộ` },
+    ];
+  }, [klhEquipment]);
 
   const manufacturerSelectOptions = useMemo<SelectOption[]>(() => {
-    return brandOptions.map((b) => ({ value: b, label: b }));
-  }, [brandOptions]);
+    const counts = new Map<string, number>();
+    let unassignedCount = 0;
+    klhEquipment.forEach((it) => {
+      const b = getItemBrand(it);
+      if (b && b !== '—') counts.set(b, (counts.get(b) || 0) + 1);
+      else unassignedCount += 1;
+    });
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có thông tin hãng (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} bộ`,
+      });
+    }
+    brandOptions.forEach((b) => {
+      list.push({
+        value: b,
+        label: b,
+        subLabel: `${(counts.get(b) || 0).toLocaleString('vi-VN')} bộ`,
+      });
+    });
+    return list;
+  }, [brandOptions, klhEquipment]);
 
   const modelSelectOptions = useMemo<SelectOption[]>(() => {
-    return modelOptions.map((m) => ({ value: m, label: m }));
-  }, [modelOptions]);
+    const counts = new Map<string, number>();
+    let unassignedCount = 0;
+    klhEquipment.forEach((it) => {
+      const m = getItemModel(it);
+      if (m && m !== '—') counts.set(m, (counts.get(m) || 0) + 1);
+      else unassignedCount += 1;
+    });
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có thông tin model (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} bộ`,
+      });
+    }
+    modelOptions.forEach((m) => {
+      list.push({
+        value: m,
+        label: m,
+        subLabel: `${(counts.get(m) || 0).toLocaleString('vi-VN')} bộ`,
+      });
+    });
+    return list;
+  }, [modelOptions, klhEquipment]);
 
   const originSelectOptions = useMemo<SelectOption[]>(() => {
-    return originOptions.map((o) => ({ value: o, label: o }));
-  }, [originOptions]);
+    const counts = new Map<string, number>();
+    let unassignedCount = 0;
+    klhEquipment.forEach((it) => {
+      const o = getProp(it.standardPurpose, 'Xuất xứ');
+      if (o && o !== '—') counts.set(o, (counts.get(o) || 0) + 1);
+      else unassignedCount += 1;
+    });
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa rõ xuất xứ (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} bộ`,
+      });
+    }
+    originOptions.forEach((o) => {
+      list.push({
+        value: o,
+        label: o,
+        subLabel: `${(counts.get(o) || 0).toLocaleString('vi-VN')} bộ`,
+      });
+    });
+    return list;
+  }, [originOptions, klhEquipment]);
 
   const yearSelectOptions = useMemo<SelectOption[]>(() => {
-    return yearOptions.map((y) => ({ value: y, label: `Năm ${y}` }));
-  }, [yearOptions]);
+    const counts = new Map<string, number>();
+    let unassignedCount = 0;
+    klhEquipment.forEach((it) => {
+      const y = getItemYear(it);
+      if (y && y !== '—') counts.set(y, (counts.get(y) || 0) + 1);
+      else unassignedCount += 1;
+    });
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa rõ năm sản xuất (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} bộ`,
+      });
+    }
+    yearOptions.forEach((y) => {
+      list.push({
+        value: y,
+        label: `Năm ${y}`,
+        subLabel: `${(counts.get(y) || 0).toLocaleString('vi-VN')} bộ`,
+      });
+    });
+    return list;
+  }, [yearOptions, klhEquipment]);
 
   const statusSelectOptions = useMemo<SelectOption[]>(() => [
-    { value: 'active', label: 'Bình thường (Sẵn sàng)' },
-    { value: 'maintenance', label: 'Đang bảo dưỡng (Hao mòn)' },
-    { value: 'repair', label: 'Đang sửa chữa (Hư hỏng)' },
-    { value: 'ATTACHED', label: 'Đang gắn trên xe' },
-    { value: 'IN_DEPOT', label: 'Lưu tại bãi' },
-  ], []);
+    { value: 'active', label: 'Bình thường (Sẵn sàng)', subLabel: `${dynamicStats.inDepot} bộ` },
+    { value: 'ATTACHED', label: 'Đang gắn trên xe', subLabel: `${dynamicStats.attached} bộ` },
+    { value: 'maintenance', label: 'Đang bảo dưỡng (Hao mòn)', subLabel: `${dynamicStats.maintenance} bộ` },
+    { value: 'repair', label: 'Đang sửa chữa (Hư hỏng)', subLabel: `${dynamicStats.repair} bộ` },
+    { value: 'IN_DEPOT', label: 'Lưu tại bãi tập kết', subLabel: `${dynamicStats.inDepot} bộ` },
+  ], [dynamicStats]);
 
   const alertTierSelectOptions = useMemo<SelectOption[]>(() => [
-    { value: 'RED', label: 'Cảnh báo Đỏ (≤20h / Hư hỏng)' },
-    { value: 'AMBER', label: 'Cảnh báo Vàng (≤50h / Mòn chảo)' },
-    { value: 'GREEN', label: 'Bình thường (Xanh)' },
-  ], []);
+    { value: 'RED', label: 'Cảnh báo Đỏ (≤20h / Hư hỏng)', subLabel: `${dynamicStats.repair} bộ` },
+    { value: 'AMBER', label: 'Cảnh báo Vàng (≤50h / Mòn chảo)', subLabel: `${dynamicStats.maintenance} bộ` },
+    { value: 'GREEN', label: 'Bình thường (Xanh)', subLabel: `${dynamicStats.attached + dynamicStats.inDepot} bộ` },
+  ], [dynamicStats]);
+
+  const managerSelectOptions = useMemo<SelectOption[]>(() => {
+    const list: SelectOption[] = [];
+    const unassignedCount = klhEquipment.filter((it) => !getItemManagerId(it)).length;
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân nhân sự quản lý (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} thiết bị`,
+      });
+    }
+    const contextualCounts = new Map(implementFilterOptions.managers.map((manager) => [manager.id, manager.implementCount]));
+    managementFilterManagers.forEach((manager) => {
+      list.push({
+        value: String(manager.id),
+        label: manager.name,
+        subLabel: [manager.phone, `${(contextualCounts.get(manager.id) ?? 0).toLocaleString('vi-VN')} thiết bị`].filter(Boolean).join(' · '),
+      });
+    });
+    return list;
+  }, [managementFilterManagers, implementFilterOptions.managers, klhEquipment]);
 
   // Đếm số lượng bộ lọc đang active
   const activeFilterCount = [
@@ -607,6 +855,7 @@ export const EquipmentPage: React.FC = () => {
     selectedStatus !== ALL ? selectedStatus : '',
     selectedCondition !== ALL ? selectedCondition : '',
     selectedAlertTier !== ALL ? selectedAlertTier : '',
+    selectedManager !== ALL ? selectedManager : '',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
@@ -626,6 +875,7 @@ export const EquipmentPage: React.FC = () => {
     setSelectedStatus(ALL);
     setSelectedCondition(ALL);
     setSelectedAlertTier(ALL);
+    setSelectedManager(ALL);
     setPage(1);
   };
 
@@ -647,18 +897,25 @@ export const EquipmentPage: React.FC = () => {
 
       // 4. Unit Filter (Đơn vị sử dụng)
       if (selectedUnit !== ALL) {
-        const u = getItemUnit(item).normalize('NFC').toLowerCase();
-        const selU = selectedUnit.normalize('NFC').toLowerCase();
-        const purpose = (item.standardPurpose || '').normalize('NFC').toLowerCase();
-        if (u !== selU && !purpose.includes(selU)) return false;
+        if (!isItemInUnit(item, selectedUnit)) return false;
       }
 
       // 4.1. Location Filter (Đơn vị / Nơi tập kết)
       if (selectedLocation !== ALL) {
-        const loc = getItemLocation(item).normalize('NFC').toLowerCase();
-        const selLoc = selectedLocation.normalize('NFC').toLowerCase();
-        const purpose = (item.standardPurpose || '').normalize('NFC').toLowerCase();
-        if (loc !== selLoc && !purpose.includes(selLoc)) return false;
+        if (!isItemInLocation(item, selectedLocation)) return false;
+      }
+
+      if (selectedManager !== ALL) {
+        if (selectedManager === '__UNASSIGNED__') {
+          if (getItemManagerId(item)) return false;
+        } else if (getItemManagerId(item) !== Number(selectedManager)) {
+          return false;
+        }
+      }
+
+      // 4.5. Domain Filter (Lĩnh vực: Nông nghiệp, Công trình, Vận chuyển)
+      if (selectedDomain !== 'ALL') {
+        if (getEquipmentDomain(item) !== selectedDomain) return false;
       }
 
       // 5. Category Filter (Chủng loại)
@@ -672,26 +929,46 @@ export const EquipmentPage: React.FC = () => {
 
       // 6. Manufacturer Filter (Hãng / Nhãn hiệu)
       if (selectedManufacturer !== ALL) {
-        const b = getItemBrand(item);
-        if (b !== selectedManufacturer) return false;
+        if (selectedManufacturer === '__UNASSIGNED__') {
+          const b = getItemBrand(item);
+          if (b && b !== '—') return false;
+        } else {
+          const b = getItemBrand(item);
+          if (b !== selectedManufacturer) return false;
+        }
       }
 
       // 7. Model Filter
       if (selectedModel !== ALL) {
-        const m = getItemModel(item);
-        if (m !== selectedModel) return false;
+        if (selectedModel === '__UNASSIGNED__') {
+          const m = getItemModel(item);
+          if (m && m !== '—') return false;
+        } else {
+          const m = getItemModel(item);
+          if (m !== selectedModel) return false;
+        }
       }
 
       // 8. Origin Filter (Xuất xứ)
       if (selectedOrigin !== ALL) {
-        const o = getProp(item.standardPurpose, 'Xuất xứ');
-        if (o !== selectedOrigin) return false;
+        if (selectedOrigin === '__UNASSIGNED__') {
+          const o = getProp(item.standardPurpose, 'Xuất xứ');
+          if (o && o !== '—') return false;
+        } else {
+          const o = getProp(item.standardPurpose, 'Xuất xứ');
+          if (o !== selectedOrigin) return false;
+        }
       }
 
       // 9. Year Filter (Năm sản xuất)
       if (selectedYear !== ALL) {
-        const y = getItemYear(item);
-        if (y !== selectedYear) return false;
+        if (selectedYear === '__UNASSIGNED__') {
+          const y = getItemYear(item);
+          if (y && y !== '—') return false;
+        } else {
+          const y = getItemYear(item);
+          if (y !== selectedYear) return false;
+        }
       }
 
       // 10. Status Filter (Trạng thái hệ thống)
@@ -769,10 +1046,12 @@ export const EquipmentPage: React.FC = () => {
     selectedStatus,
     selectedCondition,
     selectedAlertTier,
+    selectedManager,
     searchCode,
     searchName,
     searchLocation,
     searchTerm,
+    selectedDomain,
     vehicleIdFilter,
   ]);
 
@@ -908,19 +1187,26 @@ export const EquipmentPage: React.FC = () => {
       key: 'name',
       title: 'TÊN THIẾT BỊ & CHỦNG LOẠI',
       sortable: true,
-      render: (item) => (
-        <div className="max-w-[280px] whitespace-normal">
-          <div className="text-xs font-bold text-slate-900 leading-tight">
-            {item.name}
+      render: (item) => {
+        const domain = getEquipmentDomain(item);
+        const domainMeta = DOMAIN_META[domain];
+        return (
+          <div className="max-w-[280px] whitespace-normal">
+            <div className="text-xs font-bold text-slate-900 leading-tight">
+              {item.name}
+            </div>
+            <div className="text-[10px] font-semibold text-slate-500 mt-0.5 flex flex-wrap items-center gap-1">
+              <span className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold border ${domainMeta.badge}`}>
+                {domainMeta.label}
+              </span>
+              <span className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold border ${CATEGORY_NAMES[item.category]?.badge}`}>
+                {CATEGORY_NAMES[item.category]?.label || item.category}
+              </span>
+              {getItemBrand(item) !== '—' && <span>{getItemBrand(item)}</span>}
+            </div>
           </div>
-          <div className="text-[10px] font-semibold text-slate-500 mt-0.5 flex items-center gap-1.5">
-            <span className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold border ${CATEGORY_NAMES[item.category]?.badge}`}>
-              {CATEGORY_NAMES[item.category]?.label || item.category}
-            </span>
-            {getItemBrand(item) !== '—' && <span>{getItemBrand(item)}</span>}
-          </div>
-        </div>
-      ),
+        );
+      },
       filterElement: (
         <select
           value={selectedCategory}
@@ -980,15 +1266,19 @@ export const EquipmentPage: React.FC = () => {
       sortable: true,
       width: '210px',
       render: (item) => {
-        const unitName = getItemUnit(item);
+        const unit = getItemUnit(item);
+        const isUnassigned = !unit || unit === '—' || unit.includes('Chưa');
+        const unitDisplay = isUnassigned ? 'Chưa phân bổ' : unit;
         const locationName = getItemLocation(item);
         const manager = getItemManager(item);
         const phone = getItemPhone(item);
         return (
           <div>
-            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-800">
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold border ${
+              isUnassigned ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-800 border-slate-200'
+            }`}>
               <Building2 className="h-3 w-3 text-slate-500" />
-              {unitName}
+              {unitDisplay}
             </span>
             {locationName && (
               <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-emerald-800">
@@ -1026,7 +1316,7 @@ export const EquipmentPage: React.FC = () => {
           className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-[11px] text-slate-800 outline-none focus:border-emerald-600"
         >
           <option value={ALL}>Tất cả đơn vị</option>
-          {unitOptions.length > 0 && (
+          {unitSelectOptions.length > 0 && (
             <optgroup label="🏢 Đơn vị sử dụng">
               {unitSelectOptions.map((u) => (
                 <option key={`unit-${u.value}`} value={u.value}>
@@ -1380,7 +1670,7 @@ export const EquipmentPage: React.FC = () => {
 
 
       {/* ═══ ROW 1: TRẠNG THÁI VẬN HÀNH & GIÁM SÁT (6 THẺ ĐỒNG BỘ) ═══ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isOtherAssets ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-3`}>
         {/* Row 1 - Card 1: Tất cả thiết bị & Nông cụ */}
         <button
           type="button"
@@ -1397,7 +1687,7 @@ export const EquipmentPage: React.FC = () => {
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-blue-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Tổng quy mô nông cụ</span>
+            <span className="text-xs font-bold text-slate-500">{isOtherAssets ? 'Tổng tài sản khác' : 'Tổng thiết bị phụ trợ'}</span>
             <div className="rounded-xl p-2 bg-blue-50 text-blue-600 border border-blue-200">
               <Layers className="w-5 h-5" />
             </div>
@@ -1437,10 +1727,11 @@ export const EquipmentPage: React.FC = () => {
             {loading ? '...' : dynamicStats.inDepot.toLocaleString('vi-VN')}
           </div>
           <div className="mt-1 text-[11px] font-semibold text-emerald-700 truncate">
-            Sẵn sàng gắn vào xe làm đất
+            {isOtherAssets ? 'Sẵn sàng sử dụng độc lập' : 'Sẵn sàng gắn vào xe làm đất'}
           </div>
         </button>
 
+        {!isOtherAssets && <>
         {/* Row 1 - Card 3: Đang gắn trên xe */}
         <button
           type="button"
@@ -1467,6 +1758,7 @@ export const EquipmentPage: React.FC = () => {
             Đang theo xe làm việc ngoài đồng
           </div>
         </button>
+        </>}
 
         {/* Row 1 - Card 4: Đang bảo dưỡng */}
         <button
@@ -1522,30 +1814,93 @@ export const EquipmentPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Row 1 - Card 6: Đã gắn GPS / Giám sát */}
+        {!isOtherAssets && <>
+        {/* Row 1 - Card 6: Thiếu đơn vị sử dụng */}
         <button
           type="button"
-          onClick={() => navigate('/doi-xe/gps-cam-bien')}
+          onClick={() => navigate('/doi-xe/phan-xe')}
           className="relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
         >
-          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-sky-500" />
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Đã gắn GPS / Giám sát</span>
-            <div className="rounded-xl p-2 bg-sky-50 text-sky-600">
-              <RadioTower className="w-5 h-5" />
+            <span className="text-xs font-bold text-amber-700">Thiếu đơn vị sử dụng</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <HelpCircle className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-black text-sky-700">
-            {loading ? '...' : gpsAttached.toLocaleString('vi-VN')}
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {loading ? '...' : `${dynamicStats.unassignedUnit.toLocaleString('vi-VN')}/${dynamicStats.total.toLocaleString('vi-VN')} (${dynamicStats.total > 0 ? ((dynamicStats.unassignedUnit / dynamicStats.total) * 100).toFixed(1) : '0'}%)`}
           </div>
-          <div className="mt-1 text-[11px] font-semibold text-sky-700 truncate">
-            Truyền tọa độ & cảm biến
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Thiết bị chờ phân bổ →
           </div>
         </button>
+        </>}
       </div>
 
-      {/* ═══ ROW 2 — PHÂN LOẠI NÔNG CỤ & THIẾT BỊ ĐÍNH KÈM (5 NHÓM - TỔNG 1.006 BỘ) ═══ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* ═══ LĨNH VỰC PHỤ TRỢ ĐA NGÀNH: NÔNG NGHIỆP • CÔNG TRÌNH • VẬN CHUYỂN ═══ */}
+      {!isOtherAssets && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Lĩnh vực phụ trợ:</span>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => { setSelectedDomain('ALL'); setPage(1); }}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedDomain === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Tất cả ({dynamicStats.total.toLocaleString('vi-VN')})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedDomain(selectedDomain === 'NONG_NGHIEP' ? 'ALL' : 'NONG_NGHIEP'); setPage(1); }}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedDomain === 'NONG_NGHIEP'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <Sprout className="w-3.5 h-3.5" />
+                Nông nghiệp ({dynamicStats.nongNghiep.toLocaleString('vi-VN')})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedDomain(selectedDomain === 'CONG_TRINH' ? 'ALL' : 'CONG_TRINH'); setPage(1); }}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedDomain === 'CONG_TRINH'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                Công trình ({dynamicStats.congTrinh.toLocaleString('vi-VN')})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedDomain(selectedDomain === 'VAN_CHUYEN' ? 'ALL' : 'VAN_CHUYEN'); setPage(1); }}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedDomain === 'VAN_CHUYEN'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                }`}
+              >
+                <Tractor className="w-3.5 h-3.5" />
+                Vận chuyển ({dynamicStats.vanChuyen.toLocaleString('vi-VN')})
+              </button>
+            </div>
+          </div>
+          <div className="text-[11px] font-semibold text-slate-500">
+            Quản lý toàn bộ 1.026 thiết bị phụ trợ (Nông cụ, Gàu máy đào, Rơ-moóc...)
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ROW 2 — PHÂN LOẠI NÔNG CỤ & THIẾT BỊ ĐÍNH KÈM (5 NHÓM - TỔNG 1.026 BỘ) ═══ */}
+      {!isOtherAssets && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Card 1: Dàn cày nông nghiệp */}
         <button
           type="button"
@@ -1685,7 +2040,7 @@ export const EquipmentPage: React.FC = () => {
             Vận chuyển nông sản & vật tư
           </div>
         </button>
-      </div>
+      </div>}
 
       {/* 4. THANH TÌM KIẾM & CHỨC NĂNG VẬN HÀNH */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
@@ -1693,7 +2048,7 @@ export const EquipmentPage: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <span className="font-heading text-sm font-extrabold text-slate-800 uppercase tracking-wide">
-              Danh mục Thiết bị & Nông cụ
+              {isOtherAssets ? 'Quản lý tài sản khác' : 'Thiết bị phụ trợ xe cơ giới'}
             </span>
             <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
               {dynamicStats.total.toLocaleString('vi-VN')} bộ thiết bị
@@ -1824,8 +2179,8 @@ export const EquipmentPage: React.FC = () => {
                 value={selectedUnit}
                 onChange={(val) => { setSelectedUnit(val); setPage(1); }}
                 options={unitSelectOptions}
-                placeholder={`Tất cả đơn vị (${unitOptions.length})`}
-                emptyOptionLabel={`Tất cả đơn vị (${unitOptions.length})`}
+                placeholder={`Tất cả đơn vị (${managementFilterUnits.length})`}
+                emptyOptionLabel={`Tất cả đơn vị (${managementFilterUnits.length})`}
                 heightClass="h-9"
                 icon={<Building2 className="h-4 w-4" />}
               />
@@ -1971,6 +2326,20 @@ export const EquipmentPage: React.FC = () => {
                 placeholder="Tất cả cảnh báo"
                 emptyOptionLabel="Tất cả cảnh báo"
                 heightClass="h-9"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                Nhân sự quản lý
+              </label>
+              <SearchableSelect
+                value={selectedManager}
+                onChange={(val) => { setSelectedManager(val); setPage(1); }}
+                options={managerSelectOptions}
+                placeholder={`Tất cả nhân sự (${managementFilterManagers.length})`}
+                emptyOptionLabel="Tất cả nhân sự quản lý"
+                heightClass="h-9"
+                icon={<Users className="h-4 w-4" />}
               />
             </div>
           </div>

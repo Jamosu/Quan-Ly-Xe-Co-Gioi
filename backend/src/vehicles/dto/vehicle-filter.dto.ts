@@ -5,6 +5,20 @@ import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class VehicleFilterDto extends PaginationDto {
+  @ApiPropertyOptional({ description: 'ID xí nghiệp/khu vực quản lý chính thức' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  managementUnitId?: number;
+
+  @ApiPropertyOptional({ description: 'ID nhân sự quản lý cơ giới đang được phân công (-1 để lọc xe chưa phân quản lý)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(-1)
+  managerUserId?: number;
+
   @ApiPropertyOptional({ example: 'KOUN_MOM', description: 'Mã khu liên hợp' })
   @IsOptional()
   @IsString()
@@ -83,18 +97,18 @@ export class VehicleFilterDto extends PaginationDto {
   @IsString()
   origin?: string;
 
-  @ApiPropertyOptional({ example: 2024, description: 'Năm sản xuất' })
+  @ApiPropertyOptional({ example: 2024, description: 'Năm sản xuất (-1 để lọc xe chưa rõ năm sản xuất)' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1900)
+  @Min(-1)
   @Max(2100)
   manufactureYear?: number;
 
-  @ApiPropertyOptional({ enum: VehicleStatus, description: 'Trạng thái hoạt động' })
+  @ApiPropertyOptional({ description: 'Trạng thái hoạt động' })
   @IsOptional()
-  @IsEnum(VehicleStatus)
-  status?: VehicleStatus;
+  @IsString()
+  status?: string;
 
   @ApiPropertyOptional({ enum: MaintenanceAlertTier, description: 'Cảnh báo 250h (Xanh/Vàng/Đỏ)' })
   @IsOptional()
@@ -108,13 +122,31 @@ export class VehicleFilterDto extends PaginationDto {
 
   @ApiPropertyOptional({ description: 'Chỉ lấy chủng loại được phép dùng làm xe chủ lực' })
   @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
-  @IsBoolean()
+  @Transform(({ obj, key }) => {
+    const raw = obj ? obj[key] : undefined;
+    if (raw === 'true' || raw === true || raw === 1 || raw === '1') return true;
+    if (raw === 'false' || raw === false || raw === 0 || raw === '0') return false;
+    return undefined;
+  })
   isAssignable?: boolean;
 
   @ApiPropertyOptional({ description: 'true: đã gắn GPS; false: chưa gắn GPS' })
   @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
-  @IsBoolean()
+  @Transform(({ obj, key }) => {
+    const raw = obj ? obj[key] : undefined;
+    if (raw === 'true' || raw === true || raw === 1 || raw === '1') return true;
+    if (raw === 'false' || raw === false || raw === 0 || raw === '0') return false;
+    return undefined;
+  })
   hasGps?: boolean;
+
+  @ApiPropertyOptional({ description: 'true: đã có tài xế/quản lý; false: chưa phân tài xế/quản lý' })
+  @IsOptional()
+  @Transform(({ obj, key }) => {
+    const raw = obj ? obj[key] : undefined;
+    if (raw === 'true' || raw === true || raw === 1 || raw === '1') return true;
+    if (raw === 'false' || raw === false || raw === 0 || raw === '0') return false;
+    return undefined;
+  })
+  hasDriver?: boolean;
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { StatCard } from '../../components/data-display/StatCard';
@@ -20,6 +21,8 @@ import {
   Sparkles,
   Info,
   SlidersHorizontal,
+  Users,
+  KeyRound,
 } from 'lucide-react';
 
 export type PermissionLevel =
@@ -246,6 +249,50 @@ export const RolesMatrixPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {/* 1. THANH ĐIỀU HƯỚNG PHÂN HỆ PHÂN QUYỀN */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/phan-quyen/nhan-vien"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+          >
+            <Users className="h-4 w-4 text-slate-500" />
+            <span>Hồ sơ Nhân sự & Vai trò</span>
+          </Link>
+
+          <Link
+            to="/phan-quyen/nguoi-dung"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+          >
+            <KeyRound className="h-4 w-4 text-slate-500" />
+            <span>Người dùng & Tài khoản</span>
+          </Link>
+
+          <Link
+            to="/phan-quyen/vai-tro"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-white shadow-xs"
+          >
+            <Shield className="h-4 w-4" />
+            <span>Vai trò & Ma trận quyền</span>
+          </Link>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-3 pr-2 text-xs text-slate-500 font-medium">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-purple-500" />
+            Quản trị viên (Admin)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            Cán bộ quản lý
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Tài xế (Chỉ App)
+          </span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

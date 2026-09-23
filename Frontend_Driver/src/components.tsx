@@ -138,11 +138,22 @@ const STATUS_LABEL: Record<string, string> = {
   VEHICLE_RECEIVED: 'Đã nhận xe',
   WORKING: 'Đang thực hiện',
   IN_TRANSIT: 'Đang vận chuyển',
+  ON_BREAK: 'Đang nghỉ giữa ca',
   PAUSED: 'Tạm dừng',
+  READY_TO_CONTINUE: 'Đã kết thúc ngày - có thể tiếp tục',
+  SUBMITTED_FOR_ACCEPTANCE: 'Chờ quản lý nghiệm thu',
   COMPLETED: 'Hoàn thành',
   DELIVERED: 'Đã giao hàng',
   CANCELLED: 'Đã hủy',
   RETURNING_TO_DEPOT: 'Đang về bãi',
+  BREAK_STARTED: 'Bắt đầu nghỉ giữa ca',
+  BREAK_ENDED: 'Kết thúc nghỉ giữa ca',
+  WORK_PAUSED: 'Tạm dừng công việc',
+  WORK_RESUMED: 'Tiếp tục công việc',
+  WORK_SESSION_ENDED: 'Kết thúc ngày làm việc',
+  ORDER_COMPLETION_REQUESTED: 'Đã báo hoàn thành công việc',
+  DAILY_REPORT_DRAFT_SAVED: 'Đã lưu nháp báo cáo cuối ngày',
+  DAILY_REPORT_SUBMITTED: 'Đã gửi báo cáo cuối ngày',
 };
 
 export function statusLabel(value: string) {
@@ -175,26 +186,64 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
   const isCompleted = ['COMPLETED', 'DELIVERED', 'ACCEPTED', 'CLOSED'].includes(order.local_status);
   const isAssigned = order.local_status === 'ASSIGNED';
 
-  // Parse work volume/area from raw_json or defaults
-  let areaText = '8,5 ha';
-  let progressText = '5,2 / 8,5 ha';
-  let progressPercent = 61;
+  // Parse work volume/area from raw_json or defaults based on order type
+  const isTransport = order.order_type === 'TRANSPORT';
+  let metricIcon: keyof typeof Ionicons.glyphMap = isTransport ? 'cube-outline' : 'speedometer-outline';
+  let metricText = '';
+  let progressText = '';
+  let progressPercent = 0;
 
   try {
     const raw = JSON.parse(order.raw_json || '{}');
-    if (raw.areaHa) {
-      areaText = `${raw.areaHa} ha`;
-      const doneHa = Number(raw.completedAreaHa || (raw.areaHa * 0.6).toFixed(1));
-      progressText = `${doneHa} / ${raw.areaHa} ha`;
-      progressPercent = Math.min(100, Math.round((doneHa / raw.areaHa) * 100));
+    if (isTransport) {
+      metricIcon = 'cube-outline';
+      const tonnage = Number(raw.tonnage || 0);
+      const doneTonnage = Number(raw.completedTonnage || 0);
+      if (tonnage > 0) {
+        metricText = `${tonnage} tấn`;
+        if (doneTonnage > 0) {
+          progressText = `${doneTonnage} / ${tonnage} tấn`;
+          progressPercent = Math.min(100, Math.round((doneTonnage / tonnage) * 100));
+        } else {
+          progressText = statusLabel(order.local_status);
+          progressPercent = isCompleted ? 100 : isWorking ? 60 : isAssigned ? 0 : 30;
+        }
+      } else {
+        metricText = raw.cargoType ? 'Vận tải' : '';
+        progressText = statusLabel(order.local_status);
+        progressPercent = isCompleted ? 100 : isWorking ? 60 : isAssigned ? 0 : 30;
+      }
+    } else {
+      // Cơ giới / Tác nghiệp nông trường
+      metricIcon = 'speedometer-outline';
+      let areaHa = raw.areaHa ? Number(raw.areaHa) : null;
+      let completedAreaHa = raw.completedAreaHa ? Number(raw.completedAreaHa) : null;
+
+      if (!areaHa && raw.notes) {
+        const matchArea = String(raw.notes).match(/Diện tích:\s*([\d.]+)\s*ha/i);
+        if (matchArea) areaHa = parseFloat(matchArea[1]);
+        const matchDone = String(raw.notes).match(/hoàn thành\s*([\d.]+)\s*ha/i);
+        if (matchDone) completedAreaHa = parseFloat(matchDone[1]);
+      }
+
+      if (areaHa && areaHa > 0) {
+        metricText = `${areaHa} ha`;
+        const doneHa = completedAreaHa !== null ? completedAreaHa : (isCompleted ? areaHa : isWorking ? Number((areaHa * 0.5).toFixed(1)) : 0);
+        progressText = `${doneHa} / ${areaHa} ha`;
+        progressPercent = Math.min(100, Math.round((Number(doneHa) / areaHa) * 100));
+      } else {
+        metricText = raw.purpose ? 'Cơ giới' : '';
+        progressText = statusLabel(order.local_status);
+        progressPercent = isCompleted ? 100 : isWorking ? 60 : isAssigned ? 0 : 30;
+      }
     }
   } catch {
-    // fallback
+    progressText = statusLabel(order.local_status);
+    progressPercent = isCompleted ? 100 : 0;
   }
 
   if (isCompleted) {
     progressPercent = 100;
-    progressText = `${areaText} (100%)`;
   }
 
   // CTA button label
@@ -260,7 +309,7 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
         <View style={styles.metaRow}>
           <Ionicons name="location" size={17} color={colors.brand} />
           <Text style={styles.metaRowText} numberOfLines={1}>
-            {order.destination || order.origin || 'Nông trường Ia Puch • Lô A12'}
+            {order.destination || order.origin || 'Chưa cập nhật địa điểm'}
           </Text>
         </View>
 
@@ -275,13 +324,15 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
           <View style={styles.detailItem}>
             <Ionicons name="car-outline" size={16} color={colors.muted} />
             <Text style={styles.detailText} numberOfLines={1}>
-              {order.vehicle_code || order.vehicle_plate || 'MK-023 • John Deere'}
+              {order.vehicle_code || order.vehicle_plate || 'Chưa gán xe'}
             </Text>
           </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="speedometer-outline" size={16} color={colors.muted} />
-            <Text style={styles.detailText}>{areaText}</Text>
-          </View>
+          {metricText ? (
+            <View style={styles.detailItem}>
+              <Ionicons name={metricIcon} size={16} color={colors.muted} />
+              <Text style={styles.detailText}>{metricText}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -289,7 +340,9 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
       <View style={styles.progressSection}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressLabel}>Tiến độ</Text>
-          <Text style={styles.progressValue}>{progressText}</Text>
+          <Text style={styles.progressValue}>
+            {progressText} {progressPercent > 0 && progressPercent <= 100 && !progressText.includes('%') ? `(${progressPercent}%)` : ''}
+          </Text>
         </View>
         <View style={styles.progressBarBg}>
           <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
@@ -314,6 +367,129 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
           color={isCompleted ? colors.ink : '#FFFFFF'}
         />
       </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+export function HistoryCard({ order, onPress }: { order: LocalOrder; onPress: () => void }) {
+  const isCancelled = order.local_status === 'CANCELLED';
+  const isDelivered = order.local_status === 'DELIVERED';
+
+  // Parse volume / area
+  let volumeText = '';
+  try {
+    const raw = JSON.parse(order.raw_json || '{}');
+    if (raw.tonnage) {
+      volumeText = `${raw.tonnage} tấn`;
+    } else if (raw.areaHa) {
+      volumeText = `${raw.areaHa} ha`;
+    }
+  } catch {}
+
+  const vehicleDisplay = order.vehicle_code
+    ? `${order.vehicle_code} • ${order.vehicle_name || 'Xe vận hành'}`
+    : 'MK-023 • John Deere 6120';
+  const plateDisplay = order.vehicle_plate || 'CHT-MĐA-001';
+
+  // Dates & Times
+  const dateStr = formatDate(order.actual_start || order.planned_start, true, true);
+  const startTime = formatDate(order.actual_start || order.planned_start);
+  const endTime = formatDate(order.actual_end || order.planned_end);
+  const timeRange = `${startTime} – ${endTime}`;
+
+  return (
+    <TouchableOpacity
+      style={styles.historyCard}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      {/* Top row: Code + Status Badge + Sync Pill */}
+      <View style={styles.cardTop}>
+        <View style={styles.codeRow}>
+          <Text style={styles.code}>{order.code}</Text>
+          <View
+            style={[
+              styles.statusBadge,
+              isCancelled
+                ? { backgroundColor: '#F1F5F9' }
+                : isDelivered
+                ? { backgroundColor: '#E0F2FE' }
+                : { backgroundColor: colors.brandLight },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                isCancelled
+                  ? { color: '#64748B' }
+                  : isDelivered
+                  ? { color: '#0369A1' }
+                  : { color: colors.brandDark },
+              ]}
+            >
+              {statusLabel(order.local_status).toUpperCase()}
+            </Text>
+          </View>
+        </View>
+        <SyncPill status={order.sync_status} />
+      </View>
+
+      {/* Task / Cargo Title */}
+      <Text style={styles.title}>{order.title}</Text>
+
+      {/* Structured Details Box */}
+      <View style={styles.historyInfoBox}>
+        {/* Ngày giờ vận chuyển */}
+        <View style={styles.historyInfoRow}>
+          <Ionicons name="calendar-outline" size={16} color={colors.brand} />
+          <Text style={styles.historyInfoLabel}>Ngày thực hiện:</Text>
+          <Text style={styles.historyInfoValue}>{dateStr}</Text>
+        </View>
+
+        <View style={styles.historyInfoRow}>
+          <Ionicons name="time-outline" size={16} color={colors.brand} />
+          <Text style={styles.historyInfoLabel}>Khung giờ:</Text>
+          <Text style={styles.historyInfoValue}>{timeRange}</Text>
+        </View>
+
+        {/* Nhận xe nào */}
+        <View style={styles.historyInfoRow}>
+          <Ionicons name="car-outline" size={16} color={colors.brand} />
+          <Text style={styles.historyInfoLabel}>Xe nhận:</Text>
+          <Text style={styles.historyInfoValue} numberOfLines={1}>
+            {vehicleDisplay} ({plateDisplay})
+          </Text>
+        </View>
+
+        {/* Lộ trình */}
+        <View style={styles.historyInfoRow}>
+          <Ionicons name="location-outline" size={16} color={colors.brand} />
+          <Text style={styles.historyInfoLabel}>Lộ trình:</Text>
+          <Text style={styles.historyInfoValue} numberOfLines={1}>
+            {order.origin || 'Kho Tổng Vật Tư'} → {order.destination || 'Nông trường'}
+          </Text>
+        </View>
+
+        {/* Khối lượng */}
+        {volumeText ? (
+          <View style={styles.historyInfoRow}>
+            <Ionicons name="speedometer-outline" size={16} color={colors.brand} />
+            <Text style={styles.historyInfoLabel}>Khối lượng:</Text>
+            <Text style={[styles.historyInfoValue, { color: colors.brandDark, fontWeight: '800' }]}>
+              {volumeText} (100%)
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Bottom Button: View Trip Details (Secondary / Neutral, NOT an action button) */}
+      <View style={styles.historyFooterBtn}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="document-text-outline" size={16} color={colors.brandDark} />
+          <Text style={styles.historyFooterText}>Xem chi tiết chuyến đi & nhật ký</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -930,6 +1106,57 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+
+  // History Card Styles
+  historyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 16,
+    marginBottom: 14,
+    ...shadow,
+  },
+  historyInfoBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginTop: 12,
+    gap: 8,
+  },
+  historyInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyInfoLabel: {
+    fontSize: 13,
+    color: colors.muted,
+    fontWeight: '600',
+    width: 105,
+  },
+  historyInfoValue: {
+    fontSize: 13,
+    color: colors.ink,
+    fontWeight: '700',
+    flex: 1,
+  },
+  historyFooterBtn: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyFooterText: {
+    fontSize: 13,
+    color: colors.brandDark,
+    fontWeight: '700',
   },
 
   // Floating SOS Button

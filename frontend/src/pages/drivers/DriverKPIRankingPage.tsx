@@ -250,6 +250,11 @@ export const DriverKPIRankingPage: React.FC = () => {
           title={`Vinh Danh: ${selectedDriver.driverName}`}
           subtitle={`${selectedDriver.awardTitle} | Điểm KPI: ${selectedDriver.kpiScore}`}
           size="md"
+          footer={
+            <Button variant="outline" size="sm" onClick={() => setSelectedDriver(null)}>
+              Đóng
+            </Button>
+          }
         >
           <div className="space-y-3.5 text-xs text-slate-700">
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
@@ -257,11 +262,6 @@ export const DriverKPIRankingPage: React.FC = () => {
               <div className="flex justify-between"><span>Phương tiện phụ trách:</span> <strong className="text-primary">{selectedDriver.vehicleControlled}</strong></div>
               <div className="flex justify-between"><span>Sản lượng:</span> <b>{selectedDriver.productionYield}</b></div>
               <div className="flex justify-between"><span>Chỉ số tiết kiệm dầu:</span> <b className="text-emerald-700">{selectedDriver.fuelSaving}</b></div>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button variant="primary" size="sm" onClick={() => setSelectedDriver(null)}>
-                Đóng
-              </Button>
             </div>
           </div>
         </Modal>
@@ -274,15 +274,17 @@ export const DriverKPIRankingPage: React.FC = () => {
         title="Quyết Định Khen Thưởng Thi Đua Tháng"
         subtitle="Chi trả thưởng hiệu quả và vinh danh Chiến sĩ thi đua cơ giới"
         size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setShowRewardModal(false)}>Hủy</Button>
+            <Button variant="primary" size="sm" onClick={() => setShowRewardModal(false)}>Xác Nhận Trao Thưởng</Button>
+          </>
+        }
       >
         <div className="space-y-3 text-xs">
           <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-emerald-900 space-y-1">
             <div className="font-bold">Tổng quỹ thưởng tháng 08/2026: 32.400.000 đ</div>
             <p className="text-[11px]">Đã duyệt danh sách cho 10 cá nhân xuất sắc nhất toàn đoàn.</p>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setShowRewardModal(false)}>Hủy</Button>
-            <Button variant="primary" size="sm" onClick={() => setShowRewardModal(false)}>Xác Nhận Trao Thưởng</Button>
           </div>
         </div>
       </Modal>

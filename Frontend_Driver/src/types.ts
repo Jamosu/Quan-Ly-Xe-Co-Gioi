@@ -4,7 +4,9 @@ export type MobileEventType =
   | 'ORDER_ACCEPTED' | 'VEHICLE_RECEIVED' | 'JOB_STARTED' | 'JOB_PAUSED'
   | 'JOB_RESUMED' | 'PROGRESS_UPDATED' | 'INCIDENT_REPORTED' | 'PHOTO_ADDED'
   | 'ACCEPTANCE_SUBMITTED' | 'JOB_COMPLETED' | 'SCHEDULE_CHANGE_REQUESTED'
-  | 'TRANSFER_REQUESTED' | 'SOS_CREATED';
+  | 'TRANSFER_REQUESTED' | 'SOS_CREATED' | 'BREAK_STARTED' | 'BREAK_ENDED'
+  | 'WORK_PAUSED' | 'WORK_RESUMED' | 'WORK_SESSION_ENDED' | 'ORDER_COMPLETION_REQUESTED'
+  | 'DAILY_REPORT_DRAFT_SAVED' | 'DAILY_REPORT_SUBMITTED';
 
 export interface DriverSession { accessToken: string; refreshToken: string; refreshExpiresAt: string; user: Driver; }
 export interface Driver {

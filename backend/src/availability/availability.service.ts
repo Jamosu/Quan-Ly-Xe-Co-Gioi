@@ -20,10 +20,12 @@ import {
 } from '@prisma/client';
 import { OperationalActor, scopedUnit } from '../common/utils/operational-access';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertManagementUnitAccess, resourceManagementUnitIds } from '../common/utils/management-scope';
 import { AvailabilitySearchDto } from './dto/availability-search.dto';
 import { ProximityRecommendationDto } from './dto/proximity-recommendation.dto';
 import { BusyInterval, calculateFreeSlots, mergeBusyIntervals, overlaps, withBuffer } from './availability-engine';
 import { CreateDriverUnavailabilityDto, CreateVehicleUnavailabilityDto } from './dto/unavailability.dto';
+import { isLiquidatedAssignedUnit, operationalVehicleWhere } from '../common/utils/vehicle-lifecycle';
 
 const ACTIVE_ASSIGNMENTS = [WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED];
 const INACTIVE_WORK_ORDERS = [WorkOrderStatus.CANCELLED, WorkOrderStatus.REJECTED, WorkOrderStatus.CLOSED];
@@ -93,11 +95,12 @@ export class AvailabilityService {
     const finishingLimit = new Date(now.getTime() + finishingWindowMinutes * 60_000);
     const gpsFreshMinutes = Number(process.env.GPS_FRESH_MINUTES ?? 15);
     const complexCode = targetOrder.complexCode || 'KOUN_MOM';
-    const vehicleWhere: Record<string, unknown> = { complexCode };
+    const vehicleWhere: Record<string, unknown> = { complexCode, ...operationalVehicleWhere };
     const recommendationDomain: Partial<Record<WorkOrderCategory, VehicleOperationalDomain>> = {
       [WorkOrderCategory.AGRICULTURE]: VehicleOperationalDomain.AGRICULTURE,
       [WorkOrderCategory.CONSTRUCTION]: VehicleOperationalDomain.CONSTRUCTION,
       [WorkOrderCategory.TRANSPORT]: VehicleOperationalDomain.TRANSPORT,
+      [WorkOrderCategory.RESCUE]: VehicleOperationalDomain.SUPPORT,
     };
     if (recommendationDomain[targetOrder.category]) {
       vehicleWhere.vehicleType = { is: { operationalDomain: recommendationDomain[targetOrder.category] } };
@@ -289,21 +292,28 @@ export class AvailabilityService {
 
   async search(dto: AvailabilitySearchDto, actor: OperationalActor) {
     this.validateWindow(dto.startAt, dto.endAt);
+    if (dto.managementUnitId) await assertManagementUnitAccess(this.prisma, actor, dto.managementUnitId);
+    const managementUnitIds = dto.managementUnitId
+      ? await resourceManagementUnitIds(this.prisma, dto.managementUnitId)
+      : [];
     const unit = scopedUnit(actor, dto.unit);
-    const policyUnit = unit ?? (actor.unit === Unit.TOAN_KLH ? Unit.BAN_CO_GIOI : actor.unit);
+    const policyUnit = unit ?? (actor.unit === Unit.TOAN_KLH ? Unit.KOUN_MOM : actor.unit);
     const policy = await this.prisma.schedulingPolicy.findUnique({ where: { unit: policyUnit } });
     const vehicleBuffer = policy?.vehicleBufferMinutes ?? 0;
     const driverBuffer = policy?.driverBufferMinutes ?? 0;
 
     const vehicleWhere: Record<string, unknown> = {};
+    if (dto.managementUnitId) vehicleWhere.managementUnitId = { in: managementUnitIds };
     if (dto.vehicleIds?.length) {
       vehicleWhere.id = { in: dto.vehicleIds };
     } else {
+      Object.assign(vehicleWhere, operationalVehicleWhere);
       if (dto.category) {
         const domain: Record<WorkOrderCategory, VehicleOperationalDomain> = {
           [WorkOrderCategory.AGRICULTURE]: VehicleOperationalDomain.AGRICULTURE,
           [WorkOrderCategory.CONSTRUCTION]: VehicleOperationalDomain.CONSTRUCTION,
           [WorkOrderCategory.TRANSPORT]: VehicleOperationalDomain.TRANSPORT,
+          [WorkOrderCategory.RESCUE]: VehicleOperationalDomain.SUPPORT,
         };
         vehicleWhere.vehicleType = {
           is: {
@@ -313,13 +323,46 @@ export class AvailabilityService {
           },
         };
       }
-      const complexCode = dto.complexCode || 'KOUN_MOM';
-      vehicleWhere.complexCode = complexCode;
+      const targetUnit = unit || (dto.complexCode ? (dto.complexCode as Unit) : undefined);
+      if (targetUnit && targetUnit !== Unit.TOAN_KLH) {
+        vehicleWhere.unit = targetUnit;
+        vehicleWhere.complexCode = targetUnit;
+      } else {
+        const complexCode = dto.complexCode || 'KOUN_MOM';
+        vehicleWhere.complexCode = complexCode;
+      }
     }
 
+    const targetUnit = unit || (dto.complexCode ? (dto.complexCode as Unit) : undefined);
     const driverWhere: Record<string, unknown> = { role: Role.DRIVER, isActive: true };
+    if (dto.managementUnitId) {
+      driverWhere.driverProfile = { is: { managementAssignments: { some: {
+        AND: [
+          { OR: [
+            { managementUnitId: { in: managementUnitIds } },
+            { teamUnitId: { in: managementUnitIds } },
+          ] },
+          { effectiveFrom: { lte: new Date() } },
+          { OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] },
+        ],
+      } } } };
+    }
     if (dto.driverIds?.length) {
       driverWhere.id = { in: dto.driverIds };
+    } else {
+      if (targetUnit && targetUnit !== Unit.TOAN_KLH) {
+        driverWhere.unit = targetUnit;
+      } else if (dto.complexCode) {
+        const complexPrefixMap: Record<string, string> = {
+          KOUN_MOM: 'TX-KM-',
+          SNOUL: 'TX-SN-',
+          NAM_LAO: 'TX-NL-',
+        };
+        const prefix = complexPrefixMap[dto.complexCode];
+        if (prefix) {
+          driverWhere.code = { startsWith: prefix };
+        }
+      }
     }
 
     const [vehicles, drivers] = await Promise.all([
@@ -577,6 +620,9 @@ export class AvailabilityService {
     if ([VehicleStatus.TAM_DUNG, VehicleStatus.BAO_DUONG, VehicleStatus.SUA_CHUA].includes(vehicle.status)) {
       reasons.unshift({ code: `VEHICLE_STATUS_${vehicle.status}`, severity: 'BLOCK', message: `Trạng thái xe ${vehicle.status} không cho phép phân công.` });
     }
+    if (isLiquidatedAssignedUnit(vehicle.assignedUnitCode)) {
+      reasons.unshift({ code: 'VEHICLE_LIQUIDATED', severity: 'BLOCK', message: 'Xe đã loại biên/thanh lý không cho phép phân công.' });
+    }
     const availabilityStatus = this.status(reasons);
     return {
       id: vehicle.id,
@@ -611,7 +657,7 @@ export class AvailabilityService {
     const intervals: BusyInterval[] = [];
     for (const item of assignments) intervals.push(this.interval('WORK_ORDER', item.startAt, item.endAt ?? item.workOrder.plannedEndAt, dto.endAt, { relatedId: item.workOrderId, relatedCode: this.workOrderCode(item.workOrder) }));
     for (const item of executions) intervals.push(this.interval('ACTIVE_EXECUTION', item.startedAt, item.endedAt, dto.endAt, { relatedId: item.workOrderId, reasonCode: 'ACTIVE_TRIP' }));
-    for (const item of leave) intervals.push(this.interval(item.type, item.startAt, item.endAt, dto.endAt, { relatedId: item.id, reasonCode: `DRIVER_${item.type}` }));
+    for (const item of leave) intervals.push(this.interval(item.type, item.startAt, item.endAt, dto.endAt, { relatedId: item.id, reasonCode: `DRIVER_${item.type}`, description: item.reason ?? undefined }));
     for (const item of legacyDispatch) intervals.push(this.interval('LEGACY_DISPATCH', item.departureTime!, item.plannedEndTime!, dto.endAt, { relatedId: item.id, relatedCode: item.code }));
     for (const item of legacyTransport) intervals.push(this.interval('LEGACY_TRANSPORT', item.departureTime!, item.plannedEndTime!, dto.endAt, { relatedId: item.id, relatedCode: item.code }));
     for (const item of feedTrips) intervals.push(this.interval('LEGACY_INTERNAL_FEED', item.slaWindowStart, item.slaWindowEnd, dto.endAt, { relatedId: item.id, relatedCode: item.code }));
@@ -625,23 +671,39 @@ export class AvailabilityService {
     const healthExpiry = profile?.healthCheckExpiryDate ?? driver.healthCheckExpiryDate;
     const licenseClass = profile?.licenseClass ?? driver.licenseClass;
     const resignedDate = profile?.resignedDate ?? driver.resignedDate;
+    const normalizeLicense = (value: unknown) => String(value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '');
+    const supplementalLicenses = Array.isArray(profile?.licensesJson)
+      ? profile.licensesJson.filter((item: any) => !item?.expiryDate || new Date(item.expiryDate) >= dto.endAt)
+      : [];
+    const licenseLabels = [licenseClass, ...supplementalLicenses.map((item: any) => item?.category)].filter(Boolean);
+    const licenseTokens = licenseLabels.map(normalizeLicense);
+    const hasLicense = (required: string) => licenseTokens.some((token) => token.includes(normalizeLicense(required)));
+    const licenseSummary = licenseLabels.join(', ') || 'chưa khai báo';
     if (!driver.isActive || employmentStatus !== DriverEmploymentStatus.DANG_LAM_VIEC || (resignedDate && resignedDate <= dto.startAt)) {
       reasons.unshift({ code: 'DRIVER_RESIGNED', severity: 'BLOCK', message: 'Tài xế đã nghỉ việc hoặc tài khoản không còn hoạt động.' });
     }
-    if (shiftStatus && shiftStatus !== DriverShiftStatus.SAN_SANG) reasons.unshift({ code: 'DRIVER_SHIFT_UNAVAILABLE', severity: 'BLOCK', message: 'Tài xế không ở trạng thái sẵn sàng làm việc.' });
+    if (shiftStatus && shiftStatus !== DriverShiftStatus.SAN_SANG) {
+      reasons.unshift({
+        code: 'DRIVER_SHIFT_UNAVAILABLE',
+        severity: 'BLOCK',
+        message: shiftStatus === DriverShiftStatus.NGHI_PHEP_CA
+          ? 'Tài xế đang ở trạng thái nghỉ phép/nghỉ ca.'
+          : 'Tài xế đang vận hành xe hoặc thực hiện công việc khác.',
+      });
+    }
     if (licenseExpiry && licenseExpiry < dto.endAt) reasons.unshift({ code: 'LICENSE_EXPIRED', severity: 'BLOCK', message: 'GPLX hết hạn trước khi công việc kết thúc.' });
     if (healthExpiry && healthExpiry < dto.endAt) reasons.unshift({ code: 'HEALTH_CHECK_EXPIRED', severity: 'BLOCK', message: 'Khám sức khỏe hết hạn trước khi công việc kết thúc.' });
     if (dto.category === WorkOrderCategory.AGRICULTURE) {
-      const lic = String(licenseClass || '').toUpperCase();
-      const notes = String(driver.notes || '').toLowerCase();
-      const hasB = lic.includes('B2') || lic.includes('B1') || lic === 'HANG_B' || lic.includes('NONG_NGHIEP');
-      const isC = lic.includes('HANG_C') || lic.includes('HANG_CE');
-      const hasAddB = notes.includes('b2') || notes.includes('hạng b') || notes.includes('máy cày') || notes.includes('máy kéo');
-      if (!hasB && (!isC || !hasAddB)) {
-        reasons.unshift({ code: 'LICENSE_CLASS_MISMATCH', severity: 'BLOCK', message: 'Tài xế không có GPLX Hạng B để lái máy nông nghiệp.' });
+      const hasAgricultureLicense = hasLicense('HANG_B2') || hasLicense('HANG_B1') || hasLicense('NONG_NGHIEP');
+      if (!hasAgricultureLicense) {
+        reasons.unshift({ code: 'LICENSE_CLASS_MISMATCH', severity: 'BLOCK', message: `GPLX hiện có (${licenseSummary}) chưa có Hạng B1/B2 phù hợp máy nông nghiệp.` });
       }
-    } else if (selectedVehicles.length === 1 && selectedVehicles[0].vehicleType?.requiredLicenseClass && selectedVehicles[0].vehicleType.requiredLicenseClass !== licenseClass) {
-      reasons.unshift({ code: 'LICENSE_CLASS_MISMATCH', severity: 'BLOCK', message: `GPLX ${licenseClass ?? 'chưa có'} không phù hợp loại xe.` });
+    } else if (selectedVehicles.length === 1 && selectedVehicles[0].vehicleType?.requiredLicenseClass && !hasLicense(selectedVehicles[0].vehicleType.requiredLicenseClass)) {
+      reasons.unshift({ code: 'LICENSE_CLASS_MISMATCH', severity: 'BLOCK', message: `GPLX hiện có (${licenseSummary}) không đáp ứng ${selectedVehicles[0].vehicleType.requiredLicenseClass} của xe đã chọn.` });
     }
     const availabilityStatus = this.status(reasons);
     return {
@@ -668,8 +730,16 @@ export class AvailabilityService {
   }
 
   private driverIntervalMessage(interval: BusyInterval) {
-    if (['LEAVE', 'SHIFT_REST', 'MEDICAL', 'EMERGENCY'].includes(interval.type)) return 'Tài xế có lịch nghỉ hoặc không sẵn sàng.';
+    const detail = interval.description ? ` Lý do: ${interval.description}` : '';
+    if (interval.type === 'LEAVE') return `Tài xế đang nghỉ phép trong khung giờ này.${detail}`;
+    if (interval.type === 'SHIFT_REST') return `Tài xế đang nghỉ ca trong khung giờ này.${detail}`;
+    if (interval.type === 'MEDICAL') return `Tài xế có lịch nghỉ bệnh/khám sức khỏe trong khung giờ này.${detail}`;
+    if (interval.type === 'EMERGENCY') return `Tài xế nghỉ đột xuất trong khung giờ này.${detail}`;
     if (interval.type === 'ACTIVE_EXECUTION') return 'Tài xế đang thực hiện một chuyến chưa kết thúc.';
-    return 'Tài xế đã bận trong khoảng thời gian yêu cầu.';
+    if (interval.type === 'WORK_ORDER') return `Tài xế đã được phân công cho lệnh ${interval.relatedCode ?? interval.relatedId ?? 'khác'} trong khung giờ này.`;
+    if (interval.type === 'LEGACY_DISPATCH') return `Tài xế đang bận lệnh điều xe ${interval.relatedCode ?? interval.relatedId ?? ''}.`.trim();
+    if (interval.type === 'LEGACY_TRANSPORT') return `Tài xế đang bận lệnh vận chuyển ${interval.relatedCode ?? interval.relatedId ?? ''}.`.trim();
+    if (interval.type === 'LEGACY_INTERNAL_FEED') return `Tài xế đang bận chuyến nguyên liệu ${interval.relatedCode ?? interval.relatedId ?? ''}.`.trim();
+    return 'Tài xế đang bận một công việc khác trong khoảng thời gian yêu cầu.';
   }
 }

@@ -212,37 +212,6 @@ const TECHNICAL_QUOTAS_DATA = [
   },
 ];
 
-// 10. CG MANAGERS (27 Quản lý cơ giới & đơn vị)
-const CG_MANAGERS_DATA = [
-  { id: 'CGM-01', code: 'CGM_DP1', name: 'Thái Cao Lưu', parentCode: 'KOUN_MOM', parentName: 'XN Chuối DP1', phone: '0387783316', address: 'Lô 21 DP1', status: 'HOAT_DONG' },
-  { id: 'CGM-02', code: 'CGM_DP2', name: 'Huỳnh Quang Viên', parentCode: 'KOUN_MOM', parentName: 'XN Chuối DP2', phone: '0977623379', address: 'Lô 15.6 DP2', status: 'HOAT_DONG' },
-  { id: 'CGM-03', code: 'CGM_DP3', name: 'Thạch Ngọc Vững', parentCode: 'KOUN_MOM', parentName: 'XN Chuối DP3', phone: '0975905267', address: 'Lô 28 DP3', status: 'HOAT_DONG' },
-  { id: 'CGM-04', code: 'CGM_DP4', name: 'Cơ giới DP4', parentCode: 'KOUN_MOM', parentName: 'XN Chuối DP4', phone: '0825456565', address: 'Lô 85 DP4', status: 'HOAT_DONG' },
-  { id: 'CGM-05', code: 'CGM_LP1', name: 'Nguyễn Ngọc Nhân', parentCode: 'KOUN_MOM', parentName: 'XN Chuối LP1', phone: '0979578112', address: 'Lô 7 LP1', status: 'HOAT_DONG' },
-  { id: 'CGM-06', code: 'CGM_LP2', name: 'Cơ giới LP2', parentCode: 'KOUN_MOM', parentName: 'XN Chuối LP2', phone: '0979578112', address: 'Lô 7 LP1', status: 'HOAT_DONG' },
-  { id: 'CGM-07', code: 'CGM_LP3', name: 'Lê Cao Nghị', parentCode: 'KOUN_MOM', parentName: 'XN Chuối LP3', phone: '0977423100', address: 'Lô 2 LP3', status: 'HOAT_DONG' },
-  { id: 'CGM-08', code: 'CGM_AD_BO', name: 'Trần Văn Nam', parentCode: 'KOUN_MOM', parentName: 'XN Bò AD', phone: '0971993540', address: 'Lô 28 XN Bò', status: 'HOAT_DONG' },
-  { id: 'CGM-09', code: 'CGM_CGLD_BO', name: 'T.Q.Đ Ngọc Hải', parentCode: 'KOUN_MOM', parentName: 'CGLĐ XN Bò', phone: '0344302386', address: 'Lô 28, 65 XN Bò', status: 'HOAT_DONG' },
-  { id: 'CGM-10', code: 'CGM_CGLD_DP', name: 'Nguyễn Tấn Triều', parentCode: 'KOUN_MOM', parentName: 'CGLĐ DP', phone: '05974160290', address: 'Lô 85 DP4', status: 'HOAT_DONG' },
-  { id: 'CGM-11', code: 'CGM_CGLD_LP', name: 'Nguyễn Tấn Triều', parentCode: 'KOUN_MOM', parentName: 'CGLĐ LP', phone: '05974160290', address: 'LP3.5-LP3', status: 'HOAT_DONG' },
-  { id: 'CGM-12', code: 'CGM_CGTC_DP', name: 'Phạm Ngọc Hải', parentCode: 'KOUN_MOM', parentName: 'CGTC DP', phone: '0825456565', address: 'Lô 85 DP4', status: 'HOAT_DONG' },
-  { id: 'CGM-13', code: 'CGM_CGTC_LP', name: 'Đỗ Đức Nghĩa', parentCode: 'KOUN_MOM', parentName: 'CGTC LP', phone: '0971462780', address: 'NOCN L.4-LP3', status: 'HOAT_DONG' },
-  { id: 'CGM-14', code: 'CGM_CGTC_AD', name: 'Vũ Trung Kiên', parentCode: 'KOUN_MOM', parentName: 'CGTC AD', phone: '0981761677', address: 'Lô 73 ADM', status: 'HOAT_DONG' },
-  { id: 'CGM-15', code: 'CGM_TRAM_TRON', name: 'Phạm Nhật Thịnh', parentCode: 'KOUN_MOM', parentName: 'Trạm trộn bê tông', phone: '0935178908', address: 'Trạm trộn DP', status: 'HOAT_DONG' },
-  { id: 'CGM-16', code: 'CGM_HC_KLH', name: 'Lê Trần Hoàng Minh', parentCode: 'KOUN_MOM', parentName: 'Hành chính KLH', phone: '0965509539', address: 'Văn Phòng 94', status: 'HOAT_DONG' },
-  { id: 'CGM-17', code: 'CGM_XOAI_AD', name: 'Huỳnh Đông Giang', parentCode: 'KOUN_MOM', parentName: 'Xoài AD', phone: '0972283372', address: 'Lô 132 XN AD', status: 'HOAT_DONG' },
-  { id: 'CGM-18', code: 'CGM_XOAI_DP', name: 'Hà Văn Nghĩa', parentCode: 'KOUN_MOM', parentName: 'Xoài DP', phone: '0813564564', address: 'Lô 136 XN Xoài', status: 'HOAT_DONG' },
-  { id: 'CGM-19', code: 'CGM_BUOI_AD', name: 'Huỳnh Đông Giang', parentCode: 'KOUN_MOM', parentName: 'Bưởi AD', phone: '0972283372', address: 'Lô 132 XN AD', status: 'HOAT_DONG' },
-  { id: 'CGM-20', code: 'CGM_DIEN_NUOC', name: 'Trần Đình Phúc', parentCode: 'KOUN_MOM', parentName: 'Ban điện nước', phone: '0924518278', address: 'Kho điện nước', status: 'HOAT_DONG' },
-  { id: 'CGM-21', code: 'CGM_XUONG_CK', name: 'Xưởng BTSC DP', parentCode: 'KOUN_MOM', parentName: 'Xưởng Cơ khí DP', phone: '0825456565', address: 'Xưởng cơ khí DP', status: 'HOAT_DONG' },
-  { id: 'CGM-22', code: 'CGM_GNVC', name: 'Lâm Quốc Cường', parentCode: 'KOUN_MOM', parentName: 'Phòng GNVC', phone: '0384653979', address: 'Tổng kho KLH', status: 'HOAT_DONG' },
-  { id: 'CGM-23', code: 'CGM_THADICONS', name: 'Cơ giới Thadicons', parentCode: 'KOUN_MOM', parentName: 'Thadicons A&I', phone: '0825456565', address: 'VP Thadicons', status: 'HOAT_DONG' },
-  { id: 'CGM-24', code: 'CGM_THAGRICONS', name: 'Cơ giới Thagricons', parentCode: 'KOUN_MOM', parentName: 'Thagricons', phone: '0825456565', address: 'VP Thagricons', status: 'HOAT_DONG' },
-  { id: 'CGM-25', code: 'CGM_TONG_KHO', name: 'Võ Thanh Hiếu', parentCode: 'KOUN_MOM', parentName: 'Tổng kho', phone: '0884281479', address: 'Tổng kho KLH', status: 'HOAT_DONG' },
-  { id: 'CGM-26', code: 'CGM_NM_NHUA', name: 'Nguyễn Xuân Liêm', parentCode: 'KOUN_MOM', parentName: 'NM NHỰA -XỐP DP', phone: '0762578457', address: 'NM Nhựa', status: 'HOAT_DONG' },
-  { id: 'CGM-27', code: 'CGM_BAN_CG', name: 'Ban Cơ Giới KLH', parentCode: 'KOUN_MOM', parentName: 'BAN CG-CK & SXCN', phone: '0825456565', address: 'VP Ban Cơ Giới', status: 'HOAT_DONG' },
-];
-
 // 11. MASTER JOBS (40 Hạng mục công việc cơ giới kèm định mức ca máy & nhiên liệu)
 const MASTER_JOBS_RAW = [
   // 1. NÔNG NGHIỆP
@@ -569,40 +538,6 @@ async function main() {
     });
   }
   console.log(`✅ Đã upsert ${TECHNICAL_QUOTAS_DATA.length} định mức kỹ thuật.`);
-
-  // 10. CG MANAGERS
-  console.log('\n10. Đang upsert Quản lý cơ giới (CG_MANAGER)...');
-  for (const cgm of CG_MANAGERS_DATA) {
-    await prisma.catalogItem.upsert({
-      where: { id: cgm.id },
-      update: {
-        code: cgm.code,
-        name: cgm.name,
-        type: CatalogType.CG_MANAGER,
-        parentCode: cgm.parentCode,
-        parentName: cgm.parentName,
-        phone: cgm.phone,
-        address: cgm.address,
-        status: cgm.status,
-        updatedUser: 'system_seed',
-        updatedDate: '2026-03-14',
-      },
-      create: {
-        id: cgm.id,
-        code: cgm.code,
-        name: cgm.name,
-        type: CatalogType.CG_MANAGER,
-        parentCode: cgm.parentCode,
-        parentName: cgm.parentName,
-        phone: cgm.phone,
-        address: cgm.address,
-        status: cgm.status,
-        createdUser: 'system_seed',
-        createdDate: '2026-03-14',
-      },
-    });
-  }
-  console.log(`✅ Đã upsert ${CG_MANAGERS_DATA.length} cán bộ quản lý cơ giới.`);
 
   // 11. MASTER JOBS
   console.log('\n11. Đang upsert Hạng mục công việc & định mức (JOB_ITEM)...');

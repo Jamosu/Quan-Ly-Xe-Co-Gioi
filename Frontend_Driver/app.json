@@ -58,10 +58,11 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
-      "apiBaseUrl": "http://10.23.3.8:3001/api"
+      "apiBaseUrl": "http://10.23.2.228:3001/api"
     }
   }
 }

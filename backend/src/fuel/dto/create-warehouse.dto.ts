@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+﻿import { ApiProperty } from '@nestjs/swagger';
 import { Unit, WarehouseType } from '@prisma/client';
 import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
@@ -22,7 +22,7 @@ export class CreateWarehouseDto {
   @IsNumber()
   currentStockLiters: number;
 
-  @ApiProperty({ enum: Unit, default: Unit.BAN_CO_GIOI })
+  @ApiProperty({ enum: Unit, default: Unit.KOUN_MOM })
   @IsEnum(Unit)
   unit: Unit;
 }

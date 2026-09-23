@@ -304,11 +304,10 @@ export function inferRegionCode(assignedUnit?: unknown, owner?: unknown): string
 
 export function inferUnit(value?: unknown): Unit {
   const text = foldText(value);
-  if (/XN BO|XI NGHIEP BO|XNB/.test(text)) return 'XN_BO';
-  if (/BTSC|BAO TRI|SUA CHUA/.test(text)) return 'TT_BTSC';
-  if (/NT ?1|NONG TRUONG ?1/.test(text)) return 'NT1';
-  if (/NT ?2|NONG TRUONG ?2/.test(text)) return 'NT2';
-  return 'BAN_CO_GIOI';
+  if (/SNOUL|SN/i.test(text)) return 'SNOUL';
+  if (/LAO|NAM LAO|NL/i.test(text)) return 'NAM_LAO';
+  if (/TOAN KLH/i.test(text)) return 'TOAN_KLH';
+  return 'KOUN_MOM';
 }
 
 export function inferVehicleStatus(condition?: unknown): VehicleStatus {
@@ -316,6 +315,6 @@ export function inferVehicleStatus(condition?: unknown): VehicleStatus {
   if (/HU HONG|HONG|CHO SUA|SUA CHUA/.test(text)) return 'SUA_CHUA';
   if (/KHONG CON|NGUNG|THANH LY|TAM DUNG/.test(text)) return 'TAM_DUNG';
   if (/BAO DUONG/.test(text)) return 'BAO_DUONG';
-  if (/BINH THUONG|DANG HD|HOAT DONG|MOI/.test(text)) return 'HOAT_DONG';
+  // Xe bình thường/mới không có lệnh chạy thì ở trạng thái sẵn sàng nhận lệnh
   return 'CHO_PHAN_CONG';
 }

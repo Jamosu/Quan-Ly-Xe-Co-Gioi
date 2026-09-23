@@ -27,6 +27,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { OperationalLocationsModule } from './operational-locations/operational-locations.module';
 import { DriverManagementModule } from './driver-management/driver-management.module';
 import { WorkshopModule } from './workshop/workshop.module';
+import { OperationalRealtimeModule } from './operational-realtime/operational-realtime.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { WorkshopModule } from './workshop/workshop.module';
     OperationalLocationsModule,
     DriverManagementModule,
     WorkshopModule,
+    OperationalRealtimeModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

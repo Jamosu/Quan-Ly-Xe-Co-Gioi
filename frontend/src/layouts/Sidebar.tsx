@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Navigation,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { unifiedSchedulingEnabled } from '../config/features';
+import { WORKSHOP_ROUTES } from '../config/workshopRoutes';
 
 interface NavSubItem {
   label: string;
@@ -42,7 +43,8 @@ interface NavGroup {
 }
 
 export const Sidebar: React.FC = () => {
-  const { isSidebarCollapsed, toggleSidebar, activeEmergencyCount } = useAppStore();
+  const { isSidebarCollapsed, toggleSidebar, activeEmergencyCount, currentUser } = useAppStore();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const NAV_MODULES: NavGroup[] = [
@@ -112,7 +114,8 @@ export const Sidebar: React.FC = () => {
       title: 'Quản lý đội xe',
       children: [
         { label: 'Xe cơ giới', path: '/doi-xe/ho-so-xe' },
-        { label: 'Thiết bị & nông cụ', path: '/doi-xe/thiet-bi' },
+        { label: 'Thiết bị phụ trợ xe', path: '/doi-xe/thiet-bi' },
+        { label: 'Máy phụ trợ & Khác', path: '/doi-xe/tai-san-khac' },
         { label: 'Phân bổ xe đơn vị', path: '/doi-xe/phan-xe' },
         { label: 'Thiết bị GPS & Cảm biến', path: '/doi-xe/gps-cam-bien' },
         { label: 'Lịch sử biến động xe', path: '/doi-xe/lich-su' },
@@ -135,10 +138,10 @@ export const Sidebar: React.FC = () => {
       icon: <Wrench className="w-4 h-4" />,
       title: 'Xưởng BTSC',
       children: [
-        { label: 'Kế hoạch bảo trì ', path: '/xuong-btsc/ke-hoach' },
-        { label: 'Xe & thiết bị hư hỏng', path: '/xuong-btsc/tai-san-hu-hong' },
-        { label: 'Công việc xưởng (Yêu cầu & Tiến độ)', path: '/xuong-btsc/yeu-cau' },
-        { label: 'Đăng kiểm & Bảo hiểm', path: '/xuong-btsc/dang-kiem' },
+        { label: 'Kế hoạch bảo trì ', path: WORKSHOP_ROUTES.maintenancePlan },
+        { label: 'Xe & thiết bị hư hỏng', path: WORKSHOP_ROUTES.damagedAssets },
+        { label: 'Công việc xưởng (Yêu cầu & Tiến độ)', path: WORKSHOP_ROUTES.requests },
+        { label: 'Đăng kiểm & Bảo hiểm', path: WORKSHOP_ROUTES.inspection },
       ],
     },
     {
@@ -184,16 +187,16 @@ export const Sidebar: React.FC = () => {
         { label: 'Danh mục quản lý dự án', path: '/danh-muc/quan-ly-du-an' },
         { label: 'Danh mục hồ sơ tài xế', path: '/danh-muc/danh-muc-ho-so' },
         { label: 'Danh mục xe và thiết bị', path: '/danh-muc/loai-xe' },
+        { label: 'Quản lý cơ giới & Khu vực', path: '/danh-muc/quan-ly-co-gioi' },
         {
           label: 'Loại công việc & Lệnh',
           path: '/danh-muc/loai-cong-viec/nong-nghiep',
           children: [
             { label: 'Cơ giới Nông nghiệp', path: '/danh-muc/loai-cong-viec/nong-nghiep' },
-            { label: 'Máy Công trình', path: '/danh-muc/loai-cong-viec/cong-trinh' },
-            { label: 'Vận chuyển nội bộ', path: '/danh-muc/loai-cong-viec/van-chuyen' },
+            { label: 'Máy & Thi công Công trình', path: '/danh-muc/loai-cong-viec/cong-trinh' },
+            { label: 'Vận chuyển & Tuyến đường', path: '/danh-muc/loai-cong-viec/van-chuyen' },
           ],
         },
-
         { label: 'Vật tư & Phụ tùng BTSC', path: '/danh-muc/vat-tu-phu-tung' },
         { label: 'Định mức kỹ thuật', path: '/danh-muc/dinh-muc-ky-thuat' },
       ],
@@ -211,6 +214,9 @@ export const Sidebar: React.FC = () => {
       ],
     },
   ];
+  const visibleModules = NAV_MODULES.filter((module) =>
+    module.id !== 'permissions' || currentUser?.role === 'SUPER_ADMIN' || currentUser?.username === 'admin'
+  );
 
   // Accordion state - auto collapses when navigating to dashboard
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -218,7 +224,7 @@ export const Sidebar: React.FC = () => {
       return {};
     }
     const initial: Record<string, boolean> = {};
-    NAV_MODULES.forEach((mod) => {
+    visibleModules.forEach((mod) => {
       const isChildActive = mod.children?.some(
         (c) =>
           location.pathname === c.path ||
@@ -230,10 +236,10 @@ export const Sidebar: React.FC = () => {
     return initial;
   });
 
-  // Sub-accordion state for items with sub-children (Loại công việc & Lệnh, Lô thửa & Tuyến đường...)
+  // Sub-accordion state for items with sub-children.
   const [openSubGroups, setOpenSubGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
-    NAV_MODULES.forEach((mod) => {
+    visibleModules.forEach((mod) => {
       mod.children?.forEach((child) => {
         if (child.children && child.children.length > 0) {
           const isSubActive = child.children.some(
@@ -254,7 +260,7 @@ export const Sidebar: React.FC = () => {
       setOpenGroups({});
       setOpenSubGroups({});
     } else {
-      const activeGroup = NAV_MODULES.find((mod) =>
+      const activeGroup = visibleModules.find((mod) =>
         mod.children?.some(
           (c) =>
             location.pathname === c.path ||
@@ -333,7 +339,7 @@ export const Sidebar: React.FC = () => {
 
       {/* Navigation Links Scrollable Area */}
       <nav className="flex-1 overflow-y-auto sidebar-scrollbar px-2 py-3 space-y-1">
-        {NAV_MODULES.map((group) => {
+        {visibleModules.map((group) => {
           // Direct Link (e.g. Dashboard)
           if (!group.children || group.children.length === 0) {
             const isDirectActive = location.pathname === (group.path || '/dashboard');
@@ -378,25 +384,41 @@ export const Sidebar: React.FC = () => {
 
           return (
             <div key={group.id} className="mb-0.5">
-              <button
-                onClick={() => {
-                  if (isSidebarCollapsed) toggleSidebar();
-                  toggleGroup(group.id);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${hasActiveChild
+              <div
+                className={`w-full flex items-center justify-between rounded-xl text-xs font-semibold transition-all ${hasActiveChild
                   ? 'bg-[#154E2C] text-[#B8D83D] font-bold shadow-sm'
                   : 'text-slate-300 hover:bg-white/5 hover:text-white'
                   }`}
               >
-                <div className="flex items-center gap-2.5 truncate">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (group.id === 'alerts') {
+                      navigate('/canh-bao/chua-xu-ly');
+                      setOpenGroups({ alerts: true });
+                      return;
+                    }
+                    if (isSidebarCollapsed) toggleSidebar();
+                    toggleGroup(group.id);
+                  }}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left"
+                >
                   <span className={`${hasActiveChild ? 'text-[#B8D83D]' : 'text-slate-400'}`}>
                     {group.icon}
                   </span>
                   {!isSidebarCollapsed && <span className="truncate">{group.title}</span>}
-                </div>
+                </button>
 
                 {!isSidebarCollapsed && (
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleGroup(group.id);
+                    }}
+                    aria-label={`Mở menu ${group.title}`}
+                    className="flex items-center gap-1.5 shrink-0 px-3 py-2.5"
+                  >
                     {group.badge !== undefined && (
                       <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${group.badgeColor || 'bg-slate-700 text-white'}`}>
                         {group.badge}
@@ -404,11 +426,11 @@ export const Sidebar: React.FC = () => {
                     )}
                     <ChevronDown
                       className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isGroupOpen ? 'rotate-180 text-white' : ''
-                        }`}
+                      }`}
                     />
-                  </div>
+                  </button>
                 )}
-              </button>
+              </div>
 
               {/* Sub-items */}
               {!isSidebarCollapsed && isGroupOpen && (
@@ -448,7 +470,9 @@ export const Sidebar: React.FC = () => {
                           {isSubGroupOpen && (
                             <div className="pl-3.5 ml-2 border-l border-white/15 space-y-0.5 py-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
                               {child.children.map((sub) => {
-                                const isSubActive = location.pathname === sub.path;
+                                const isSubActive =
+                                  location.pathname === sub.path ||
+                                  `${location.pathname}${location.search}` === sub.path;
                                 return (
                                   <NavLink
                                     key={sub.path}
@@ -468,7 +492,9 @@ export const Sidebar: React.FC = () => {
                       );
                     }
 
-                    const isChildActive = location.pathname === child.path;
+                    const isChildActive =
+                      location.pathname === child.path ||
+                      (child.path === '/doi-xe/tai-san-khac' && location.pathname.startsWith('/doi-xe/tai-san-khac'));
                     return (
                       <NavLink
                         key={child.path}

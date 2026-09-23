@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import {
   calculateLicenseStats,
   filterLicensesByStatus,
+  getDateComplianceStatus,
   matchDriverToUnit,
   type ComplianceStatus,
   type LicenseRecord,
@@ -11,7 +12,7 @@ const createMockRecord = (id: number, complianceStatus: ComplianceStatus): Licen
   id,
   code: `TX-${String(id).padStart(3, '0')}`,
   fullName: `Tài xế ${id}`,
-  unit: 'NT1',
+  unit: 'KOUN_MOM',
   employmentStatus: 'ACTIVE',
   isActive: true,
   complianceStatus,
@@ -134,7 +135,7 @@ describe('LicenseExpiryPage stats and filtering', () => {
       id: 1,
       code: 'TX-001',
       fullName: 'Nguyễn Văn Minh',
-      unit: 'NT1',
+      unit: 'KOUN_MOM',
       employmentStatus: 'ACTIVE',
       isActive: true,
       complianceStatus: 'VALID',
@@ -168,7 +169,7 @@ describe('LicenseExpiryPage stats and filtering', () => {
       id: 2,
       code: 'TX-002',
       fullName: 'Trần Văn Nam',
-      unit: 'BAN_CO_GIOI',
+      unit: 'KOUN_MOM',
       employmentStatus: 'ACTIVE',
       isActive: true,
       complianceStatus: 'VALID',
@@ -194,5 +195,25 @@ describe('LicenseExpiryPage stats and filtering', () => {
     expect(matchDriverToUnit(driverUnclassified, '101')).toBe(false);
     expect(matchDriverToUnit(driverUnclassified, 'XN Bò AD')).toBe(false);
     expect(matchDriverToUnit(driverSample1, 'Trạm trộn bê tông')).toBe(false);
+  });
+
+  it('determines individual date compliance status accurately', () => {
+    expect(getDateComplianceStatus(null)).toBe('MISSING');
+    expect(getDateComplianceStatus('')).toBe('MISSING');
+
+    const now = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+    const pastDate = new Date(now.getTime() - 5 * 86_400_000);
+    expect(getDateComplianceStatus(fmt(pastDate))).toBe('EXPIRED');
+
+    const exp15 = new Date(now.getTime() + 15 * 86_400_000);
+    expect(getDateComplianceStatus(fmt(exp15))).toBe('EXPIRING_30');
+
+    const exp45 = new Date(now.getTime() + 45 * 86_400_000);
+    expect(getDateComplianceStatus(fmt(exp45))).toBe('EXPIRING_60');
+
+    const exp120 = new Date(now.getTime() + 120 * 86_400_000);
+    expect(getDateComplianceStatus(fmt(exp120))).toBe('VALID');
   });
 });

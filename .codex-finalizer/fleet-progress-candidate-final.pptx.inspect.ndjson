@@ -1,0 +1,503 @@
+{"kind":"deck","id":"pr/977akv","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"","type":"master"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"DEFAULT"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout2.xml","name":"Title and Content","placeholders":[{"name":"title","type":"title"}]}
+{"kind":"slide","id":"sl/y90nupkv","slide":1,"title":"GIỚI THIỆU PHẦN MỀM VÀ BÁO CÁO TIẾN ĐỘ","textShapes":5}
+{"kind":"textbox","id":"sh/hofulsf2","slide":1,"text":"GIỚI THIỆU PHẦN MỀM VÀ BÁO CÁO TIẾN ĐỘ","textPreview":"GIỚI THIỆU PHẦN MỀM VÀ BÁO CÁO TIẾN ĐỘ","textChars":38,"textLines":1,"bbox":[150,202,980,52]}
+{"kind":"textbox","id":"sh/ul4vaxgb","slide":1,"text":"HỆ THỐNG QUẢN LÝ XE CƠ GIỚI & PTVC","textPreview":"HỆ THỐNG QUẢN LÝ XE CƠ GIỚI & PTVC","textChars":34,"textLines":1,"bbox":[125,270,1030,70]}
+{"kind":"textbox","id":"sh/vmdcj2xw","slide":1,"text":"Phạm vi chức năng, trải nghiệm người dùng, tiến độ mã nguồn và các bất cập hiện tại","textPreview":"Phạm vi chức năng, trải nghiệm người dùng, tiến độ mã nguồn và các bất cập hiện tại","textChars":83,"textLines":1,"bbox":[150,350,980,48]}
+{"kind":"textbox","id":"sh/4r6dg7et","slide":1,"text":"Phạm vi rà soát: web React, API NestJS, Prisma/MySQL và ứng dụng tài xế","textPreview":"Phạm vi rà soát: web React, API NestJS, Prisma/MySQL và ứng dụng tài xế","textChars":71,"textLines":1,"bbox":[180,420,920,34]}
+{"kind":"textbox","id":"sh/5sfepcfe","slide":1,"text":"PHÒNG VẬN HÀNH SỐ\nKLH Koun Mom, Ratanakiri, Cambodia | 21.09.2026","textPreview":"PHÒNG VẬN HÀNH SỐ | KLH Koun Mom, Ratanakiri, Cambodia | 21.09.2026","textChars":65,"textLines":2,"bbox":[250,592,780,58]}
+{"kind":"image","id":"im/jqxw72dk","slide":1,"name":"Image 0","bbox":[-8.82,0,1279.97,720]}
+{"kind":"notes","id":"nt/y90nupkv","slide":1,"text":"Nguồn: repository D:/ThacoAgri_Code/Mockup, rà soát tại working tree ngày 21/09/2026. Nội dung giới thiệu dựa trên code, schema và tài liệu nghiệp vụ. File mẫu chỉ được dùng làm chuẩn nhận diện và bố cục."}
+{"kind":"slide","id":"sl/hwbqtkby","slide":2,"title":"NỘI DUNG BÁO CÁO","textShapes":21}
+{"kind":"textbox","id":"sh/svedkvup","slide":2,"name":"slide-title","text":"NỘI DUNG BÁO CÁO","textPreview":"NỘI DUNG BÁO CÁO","textChars":16,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/fypcfqdg","slide":2,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[48,104,72,38]}
+{"kind":"textbox","id":"sh/exgvmlcv","slide":2,"text":"Phần mềm phục vụ ai và giải quyết công việc gì","textPreview":"Phần mềm phục vụ ai và giải quyết công việc gì","textChars":46,"textLines":1,"bbox":[130,104,1048,38]}
+{"kind":"textbox","id":"sh/107uh0v6","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[48,159,72,38]}
+{"kind":"textbox","id":"sh/gzydovul","slide":2,"text":"Các nhóm chức năng và module A–K","textPreview":"Các nhóm chức năng và module A–K","textChars":32,"textLines":1,"bbox":[130,159,1048,38]}
+{"kind":"textbox","id":"sh/v2lc36dw","slide":2,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[48,214,72,38]}
+{"kind":"textbox","id":"sh/a1cba1wb","slide":2,"text":"Quy trình tạo lệnh và chuyển lệnh đến tài xế","textPreview":"Quy trình tạo lệnh và chuyển lệnh đến tài xế","textChars":44,"textLines":1,"bbox":[130,214,1048,38]}
+{"kind":"textbox","id":"sh/0vq1o36x","slide":2,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[48,269,72,38]}
+{"kind":"textbox","id":"sh/1wzix87i","slide":2,"text":"Sơ đồ quy trình cho từng nghiệp vụ chính","textPreview":"Sơ đồ quy trình cho từng nghiệp vụ chính","textChars":40,"textLines":1,"bbox":[130,269,1048,38]}
+{"kind":"textbox","id":"sh/et8zmto7","slide":2,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[48,324,72,38]}
+{"kind":"textbox","id":"sh/zuh0vypc","slide":2,"text":"Dữ liệu, kiến trúc và kênh sử dụng","textPreview":"Dữ liệu, kiến trúc và kênh sử dụng","textChars":34,"textLines":1,"bbox":[130,324,1048,38]}
+{"kind":"textbox","id":"sh/c76hk361","slide":2,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[48,379,72,38]}
+{"kind":"textbox","id":"sh/d8zit87m","slide":2,"text":"Tiến độ phát triển hiện tại","textPreview":"Tiến độ phát triển hiện tại","textChars":27,"textLines":1,"bbox":[130,379,1048,38]}
+{"kind":"textbox","id":"sh/q5ozitov","slide":2,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[48,434,72,38]}
+{"kind":"textbox","id":"sh/r6x0rypg","slide":2,"text":"Kết quả kiểm thử và build","textPreview":"Kết quả kiểm thử và build","textChars":25,"textLines":1,"bbox":[130,434,1048,38]}
+{"kind":"textbox","id":"sh/w3a1wn65","slide":2,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[48,489,72,38]}
+{"kind":"textbox","id":"sh/xoji5s7q","slide":2,"text":"Bất cập, khó khăn và rủi ro","textPreview":"Bất cập, khó khăn và rủi ro","textChars":27,"textLines":1,"bbox":[130,489,1048,38]}
+{"kind":"textbox","id":"sh/5kfipszu","slide":2,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[48,544,72,38]}
+{"kind":"textbox","id":"sh/kj6hgny9","slide":2,"text":"Lộ trình hoàn thiện đề xuất","textPreview":"Lộ trình hoàn thiện đề xuất","textChars":27,"textLines":1,"bbox":[130,544,1048,38]}
+{"kind":"textbox","id":"sh/jix0niho","slide":2,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/ihozedgj","slide":2,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"image","id":"im/2l4b6hsf","slide":2,"name":"Image 0","bbox":[0,0,1279.97,720]}
+{"kind":"notes","id":"nt/hwbqtkby","slide":2,"text":"Cấu trúc báo cáo cân bằng hai mục tiêu: giới thiệu phần mềm đang có những gì và mô tả tiến độ, bất cập, khó khăn hiện tại."}
+{"kind":"slide","id":"sl/ofy9wn61","slide":3,"title":"PHẦN MỀM PHỤC VỤ VẬN HÀNH GÌ","textShapes":9}
+{"kind":"textbox","id":"sh/by1svqlc","slide":3,"name":"slide-title","text":"PHẦN MỀM PHỤC VỤ VẬN HÀNH GÌ","textPreview":"PHẦN MỀM PHỤC VỤ VẬN HÀNH GÌ","textChars":28,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/cza94vmx","slide":3,"text":"Mục tiêu","textPreview":"Mục tiêu","textChars":8,"textLines":1,"bbox":[82,112,250,36]}
+{"kind":"textbox","id":"sh/d0jax03i","slide":3,"text":"Quản lý tập trung xe cơ giới, thiết bị nông nghiệp và tình trạng sẵn sàng\nKết nối kế hoạch sản xuất với điều xe, thực hiện công việc và nghiệm thu\nTheo dõi GPS, nhiên liệu, bảo dưỡng, sửa chữa và hiệu quả lái xe","textPreview":"Quản lý tập trung xe cơ giới, thiết bị nông nghiệp và tình trạng sẵn sàng | Kết nối kế hoạch sản xuất với điều xe, thực hiện công việc và...","textChars":211,"textLines":3,"bbox":[76,155,520,230]}
+{"kind":"textbox","id":"sh/298ryl4v","slide":3,"text":"Người sử dụng","textPreview":"Người sử dụng","textChars":13,"textLines":1,"bbox":[676,112,300,36]}
+{"kind":"textbox","id":"sh/3ah8rqlg","slide":3,"text":"Ban Xe cơ giới và cán bộ điều hành tại đơn vị\nQuản lý nông trường, nhân sự xưởng BTSC và kho nhiên liệu\nLái xe qua ứng dụng mobile, quản trị hệ thống và lãnh đạo theo dõi báo cáo","textPreview":"Ban Xe cơ giới và cán bộ điều hành tại đơn vị | Quản lý nông trường, nhân sự xưởng BTSC và kho nhiên liệu | Lái xe qua ứng dụng mobile, q...","textChars":178,"textLines":3,"bbox":[670,155,530,230]}
+{"kind":"shape","id":"sh/obq90bml","slide":3,"bbox":[88,418,1104,2]}
+{"kind":"textbox","id":"sh/pcjqtg36","slide":3,"text":"Giá trị dự kiến khi dữ liệu và quy trình được khép kín","textPreview":"Giá trị dự kiến khi dữ liệu và quy trình được khép kín","textChars":54,"textLines":1,"bbox":[82,445,620,36]}
+{"kind":"textbox","id":"sh/m5cra54z","slide":3,"text":"Một nguồn dữ liệu vận hành để biết xe nào sẵn sàng, công việc nào đang chậm, chi phí phát sinh ở đâu và ai chịu trách nhiệm xử lý.","textPreview":"Một nguồn dữ liệu vận hành để biết xe nào sẵn sàng, công việc nào đang chậm, chi phí phát sinh ở đâu và ai chịu trách nhiệm xử lý.","textChars":130,"textLines":1,"bbox":[82,492,1108,112]}
+{"kind":"textbox","id":"sh/n6ls3alk","slide":3,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/n2l4fq98","slide":3,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/ofy9wn61","slide":3,"text":"Nguồn: AI_PROJECT_CONTEXT.md; docs/BRD_extracted.txt; .agents/context/project-overview.md; backend/prisma/schema.prisma. Giá trị nêu trên là mục tiêu vận hành, không phải cam kết đã đạt production."}
+{"kind":"slide","id":"sl/jyx0ra1s","slide":4,"title":"ĐỐI TƯỢNG SỬ DỤNG VÀ KIẾN TRÚC","textShapes":7}
+{"kind":"textbox","id":"sh/e9sj2tsv","slide":4,"name":"slide-title","text":"ĐỐI TƯỢNG SỬ DỤNG VÀ KIẾN TRÚC","textPreview":"ĐỐI TƯỢNG SỬ DỤNG VÀ KIẾN TRÚC","textChars":30,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/1cj2d8b6","slide":4,"text":"Vai trò và công việc chính","textPreview":"Vai trò và công việc chính","textChars":26,"textLines":1,"bbox":[55,105,360,32]}
+{"kind":"textbox","id":"sh/rm1k7yt4","slide":4,"text":"Kiến trúc triển khai","textPreview":"Kiến trúc triển khai","textChars":20,"textLines":1,"bbox":[55,505,280,32]}
+{"kind":"textbox","id":"sh/ql8jytsj","slide":4,"text":"Web React/Vite, API NestJS, Prisma/MySQL và ứng dụng tài xế Expo/React Native","textPreview":"Web React/Vite, API NestJS, Prisma/MySQL và ứng dụng tài xế Expo/React Native","textChars":77,"textLines":1,"bbox":[55,548,1170,58]}
+{"kind":"textbox","id":"sh/doj29oba","slide":4,"text":"JWT và role guard đã có. Kiểm soát dữ liệu theo đơn vị cần tiếp tục chuẩn hóa ở từng service.","textPreview":"JWT và role guard đã có. Kiểm soát dữ liệu theo đơn vị cần tiếp tục chuẩn hóa ở từng service.","textChars":93,"textLines":1,"bbox":[60,620,1160,36]}
+{"kind":"textbox","id":"sh/sna103ap","slide":4,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/3ihk3et8","slide":4,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/tsnut0v2","slide":4,"name":"","rows":6,"cols":2,"preview":"NHÓM NGƯỜI DÙNG | CÔNG VIỆC TRÊN HỆ THỐNG","bbox":[50,145,1180,330]}
+{"kind":"notes","id":"nt/jyx0ra1s","slide":4,"text":"Nguồn: AI_PROJECT_CONTEXT.md; docs/business/ROLE_PERMISSION.md; docs/architecture/SYSTEM_OVERVIEW.md; backend/src/app.module.ts; frontend/src/App.tsx; Frontend_Driver/package.json."}
+{"kind":"slide","id":"sl/i107q5of","slide":5,"title":"CÁC NGHIỆP VỤ CHÍNH NGOÀI ĐIỀU XE","textShapes":3}
+{"kind":"textbox","id":"sh/qd0bahob","slide":5,"name":"slide-title","text":"CÁC NGHIỆP VỤ CHÍNH NGOÀI ĐIỀU XE","textPreview":"CÁC NGHIỆP VỤ CHÍNH NGOÀI ĐIỀU XE","textChars":33,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/cf2tcr61","slide":5,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/z2tcnm5s","slide":5,"text":"5","textPreview":"5","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/07ml8nah","slide":5,"name":"","rows":9,"cols":3,"preview":"NGHIỆP VỤ | THAO TÁC CỤ THỂ TRÊN HỆ THỐNG | MODULE","bbox":[40,100,1200,548]}
+{"kind":"notes","id":"nt/i107q5of","slide":5,"text":"Nguồn: .agents/context/module-map.md; docs/architecture/MODULE_MAP.md; backend/src các domain production-plans, transport, vehicles, implements, maintenance, repairs, fuel, mobile-driver, alerts, driver-kpi, catalogs và dashboard; backend/prisma/schema.prisma. Các nghiệp vụ có mức độ hoàn thiện khác nhau."}
+{"kind":"slide","id":"sl/x8f69ofe","slide":6,"title":"BẢN ĐỒ MODULE A–K VÀ MỨC ĐỘ TRIỂN KHAI","textShapes":3}
+{"kind":"textbox","id":"sh/lkrqp4ra","slide":6,"name":"slide-title","text":"BẢN ĐỒ MODULE A–K VÀ MỨC ĐỘ TRIỂN KHAI","textPreview":"BẢN ĐỒ MODULE A–K VÀ MỨC ĐỘ TRIỂN KHAI","textChars":38,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/zi98nu94","slide":6,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/87ipkzal","slide":6,"text":"6","textPreview":"6","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/ri14rud0","slide":6,"name":"","rows":12,"cols":4,"preview":"M | PHÂN HỆ | BẰNG CHỨNG ĐÃ CÓ | NHẬN ĐỊNH HIỆN TẠI","bbox":[36,100,1208,552]}
+{"kind":"notes","id":"nt/x8f69ofe","slide":6,"text":"Nguồn: .agents/context/module-map.md; docs/architecture/MODULE_MAP.md; backend/src/app.module.ts; frontend/src/App.tsx; kiểm tra trực tiếp pages/services/schema."}
+{"kind":"slide","id":"sl/gnmp4jqx","slide":7,"title":"QUY TRÌNH TẠO LỆNH VÀ CHUYỂN ĐẾN TÀI XẾ","textShapes":3}
+{"kind":"textbox","id":"sh/batcbq94","slide":7,"name":"slide-title","text":"QUY TRÌNH TẠO LỆNH VÀ CHUYỂN ĐẾN TÀI XẾ","textPreview":"QUY TRÌNH TẠO LỆNH VÀ CHUYỂN ĐẾN TÀI XẾ","textChars":39,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/dcbud0ra","slide":7,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/ydkbm5sv","slide":7,"text":"7","textPreview":"7","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/9gbqtcv2","slide":7,"name":"","rows":6,"cols":4,"preview":"BƯỚC | NGƯỜI / HỆ THỐNG | XỬ LÝ CỤ THỂ | KẾT QUẢ","bbox":[30,94,1220,390]}
+{"kind":"notes","id":"nt/gnmp4jqx","slide":7,"text":"Nguồn: frontend/src/components/dispatch/DispatchOrderForm.tsx; frontend/src/api/scheduling.ts; backend/src/work-orders/work-orders.controller.ts; backend/src/work-orders/work-orders.service.ts; backend/src/mobile-driver/mobile-sync.controller.ts; backend/src/mobile-driver/mobile-sync.service.ts; Frontend_Driver/src/syncEngine.ts; Frontend_Driver/src/screens/TaskDetailScreen.tsx. VERIFIED: pull/sync và ORDER_ACCEPTED. GAP: chưa tìm thấy thư viện hoặc service push notification hệ điều hành, và mobile UI chưa có nút cannot-accept riêng."}
+{"kind":"slide","id":"sl/fu1gfa1s","slide":8,"title":"DỮ LIỆU VÀ TÍCH HỢP","textShapes":7}
+{"kind":"textbox","id":"sh/elkf2pg7","slide":8,"name":"slide-title","text":"DỮ LIỆU VÀ TÍCH HỢP","textPreview":"DỮ LIỆU VÀ TÍCH HỢP","textChars":19,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/g72x4zyd","slide":8,"text":"Điểm tích cực","textPreview":"Điểm tích cực","textChars":13,"textLines":1,"bbox":[60,565,220,30]}
+{"kind":"textbox","id":"sh/ri9g7uhw","slide":8,"text":"Schema đã mô hình hóa quan hệ vận hành và có migration/backfill gần đây.","textPreview":"Schema đã mô hình hóa quan hệ vận hành và có migration/backfill gần đây.","textChars":72,"textLines":1,"bbox":[260,565,920,34]}
+{"kind":"textbox","id":"sh/6h0fypgb","slide":8,"text":"Rủi ro","textPreview":"Rủi ro","textChars":6,"textLines":1,"bbox":[60,610,220,30]}
+{"kind":"textbox","id":"sh/tkby9kzm","slide":8,"text":"Mapping đầy đủ giữa workbook nhiều sheet và dữ liệu chuẩn vẫn chưa được xác nhận.","textPreview":"Mapping đầy đủ giữa workbook nhiều sheet và dữ liệu chuẩn vẫn chưa được xác nhận.","textChars":81,"textLines":1,"bbox":[260,610,920,34]}
+{"kind":"textbox","id":"sh/sjix0zy1","slide":8,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/je9g3ahk","slide":8,"text":"8","textPreview":"8","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/s3edcji5","slide":8,"name":"","rows":6,"cols":3,"preview":"LỚP | HIỆN TRẠNG | ĐIỂM CẦN KIỂM SOÁT","bbox":[55,120,1170,410]}
+{"kind":"notes","id":"nt/fu1gfa1s","slide":8,"text":"Nguồn: backend/prisma/schema.prisma; backend/prisma/migrations; backend/scripts/import-*; .agents/context/database-overview.md; workbook MMTB là dữ liệu tham chiếu, không phải schema."}
+{"kind":"slide","id":"sl/udsvah03","slide":9,"title":"TRẢI NGHIỆM WEB CHO KHỐI ĐIỀU HÀNH","textShapes":16}
+{"kind":"textbox","id":"sh/eponml43","slide":9,"name":"slide-title","text":"TRẢI NGHIỆM WEB CHO KHỐI ĐIỀU HÀNH","textPreview":"TRẢI NGHIỆM WEB CHO KHỐI ĐIỀU HÀNH","textChars":34,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/1cfmhgne","slide":9,"text":"70","textPreview":"70","textChars":2,"textLines":1,"bbox":[74,132,210,76]}
+{"kind":"textbox","id":"sh/0b65obm9","slide":9,"text":"trang chức năng","textPreview":"trang chức năng","textChars":15,"textLines":1,"bbox":[74,208,210,40]}
+{"kind":"textbox","id":"sh/nex4jq5k","slide":9,"text":"104","textPreview":"104","textChars":3,"textLines":1,"bbox":[326,132,210,76]}
+{"kind":"textbox","id":"sh/mdonql4z","slide":9,"text":"đường dẫn web","textPreview":"đường dẫn web","textChars":13,"textLines":1,"bbox":[326,208,210,40]}
+{"kind":"textbox","id":"sh/9gzml0nq","slide":9,"text":"49","textPreview":"49","textChars":2,"textLines":1,"bbox":[578,132,210,76]}
+{"kind":"textbox","id":"sh/ofq5svm5","slide":9,"text":"trang có dấu hiệu\nkết nối API*","textPreview":"trang có dấu hiệu | kết nối API*","textChars":30,"textLines":2,"bbox":[578,208,210,54]}
+{"kind":"textbox","id":"sh/bih4na5w","slide":9,"text":"24","textPreview":"24","textChars":2,"textLines":1,"bbox":[830,132,210,76]}
+{"kind":"textbox","id":"sh/ah8nu54b","slide":9,"text":"trang vừa dùng API\nvừa có mock/fallback*","textPreview":"trang vừa dùng API | vừa có mock/fallback*","textChars":40,"textLines":2,"bbox":[830,208,210,54]}
+{"kind":"textbox","id":"sh/oza1gfyh","slide":9,"text":"Trải nghiệm giao diện đã được xây dựng","textPreview":"Trải nghiệm giao diện đã được xây dựng","textChars":38,"textLines":1,"bbox":[70,322,470,34]}
+{"kind":"textbox","id":"sh/p0ji9kf2","slide":9,"text":"Xem dashboard, bản đồ, danh sách xe và trạng thái vận hành\nLập kế hoạch, điều xe, quản lý lệnh và theo dõi tiến độ\nQuản lý BTSC, nhiên liệu, lái xe, danh mục và phân quyền","textPreview":"Xem dashboard, bản đồ, danh sách xe và trạng thái vận hành | Lập kế hoạch, điều xe, quản lý lệnh và theo dõi tiến độ | Quản lý BTSC, nhiê...","textChars":171,"textLines":3,"bbox":[65,360,530,205]}
+{"kind":"textbox","id":"sh/2xsjepgb","slide":9,"text":"Phần cần hoàn thiện","textPreview":"Phần cần hoàn thiện","textChars":19,"textLines":1,"bbox":[670,322,320,34]}
+{"kind":"textbox","id":"sh/3y107axw","slide":9,"text":"Loại mock và fallback khỏi các luồng vận hành quan trọng\nNối dữ liệu thật cho sáu trang báo cáo đang khởi tạo rỗng\nChuẩn hóa lỗi API, tách bundle và kiểm chứng dữ liệu đầu cuối","textPreview":"Loại mock và fallback khỏi các luồng vận hành quan trọng | Nối dữ liệu thật cho sáu trang báo cáo đang khởi tạo rỗng | Chuẩn hóa lỗi API,...","textChars":176,"textLines":3,"bbox":[665,360,530,205]}
+{"kind":"textbox","id":"sh/cnu1kzyd","slide":9,"text":"* Chỉ báo từ quét source code; cần audit từng trang trước khi công bố tỷ lệ hoàn tất.","textPreview":"* Chỉ báo từ quét source code; cần audit từng trang trước khi công bố tỷ lệ hoàn tất.","textChars":85,"textLines":1,"bbox":[80,610,1100,34]}
+{"kind":"textbox","id":"sh/do3id4fy","slide":9,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/qlcjipgn","slide":9,"text":"9","textPreview":"9","textChars":1,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/udsvah03","slide":9,"text":"Nguồn: frontend/src/App.tsx; frontend/src/pages; frontend/src/api; quét source code theo dấu hiệu apiClient/apiService và mock/fallback/localStorage. Sáu trang báo cáo trong frontend/src/pages/reports khởi tạo list rỗng và không gọi API trực tiếp."}
+{"kind":"slide","id":"sl/m90b6t0r","slide":10,"title":"TÀI XẾ NHẬN LỆNH VÀ THỰC HIỆN TRÊN MOBILE","textShapes":9}
+{"kind":"textbox","id":"sh/q9sn69kb","slide":10,"name":"slide-title","text":"TÀI XẾ NHẬN LỆNH VÀ THỰC HIỆN TRÊN MOBILE","textPreview":"TÀI XẾ NHẬN LỆNH VÀ THỰC HIỆN TRÊN MOBILE","textChars":41,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/xc3mho32","slide":10,"text":"Luồng thao tác đã có","textPreview":"Luồng thao tác đã có","textChars":20,"textLines":1,"bbox":[65,118,440,36]}
+{"kind":"textbox","id":"sh/cbu58j2h","slide":10,"text":"Đồng bộ lệnh được giao về SQLite và hiển thị theo Hôm nay/Tuần\nMở chi tiết để xem thời gian, địa điểm, xe và nội dung công việc\nNhận nhiệm vụ, xác nhận nhận xe, nhập ODO/giờ máy và bắt đầu\nTạm dừng, nghỉ, tiếp tục, cập nhật tiến độ và chụp ảnh minh chứng\nKết thúc ngày, gửi báo cáo hoặc đề nghị nghiệm thu toàn bộ công việc","textPreview":"Đồng bộ lệnh được giao về SQLite và hiển thị theo Hôm nay/Tuần | Mở chi tiết để xem thời gian, địa điểm, xe và nội dung công việc | Nhận ...","textChars":323,"textLines":5,"bbox":[60,165,570,330]}
+{"kind":"textbox","id":"sh/zelojyl8","slide":10,"text":"Đồng bộ và ngoại lệ","textPreview":"Đồng bộ và ngoại lệ","textChars":19,"textLines":1,"bbox":[680,118,440,36]}
+{"kind":"textbox","id":"sh/ydcnatkn","slide":10,"text":"Sự kiện được xếp hàng offline và đẩy lên /mobile/sync/push khi có mạng\nẢnh được tải riêng, sự kiện SOS và báo hỏng có độ ưu tiên cao hơn\nCó xin điều chỉnh lịch, yêu cầu chuyển việc, báo sự cố và SOS\nBackend kiểm tra version/quyền sở hữu lệnh và giữ dữ liệu khi xung đột\nChưa xác minh push notification nền và nút từ chối lệnh trên mobile","textPreview":"Sự kiện được xếp hàng offline và đẩy lên /mobile/sync/push khi có mạng | Ảnh được tải riêng, sự kiện SOS và báo hỏng có độ ưu tiên cao hơ...","textChars":337,"textLines":5,"bbox":[675,165,535,330]}
+{"kind":"textbox","id":"sh/l036l83y","slide":10,"text":"Điểm cần kiểm chứng tại pilot","textPreview":"Điểm cần kiểm chứng tại pilot","textChars":29,"textLines":1,"bbox":[65,520,340,34]}
+{"kind":"textbox","id":"sh/kzu5c32t","slide":10,"text":"Thời gian lệnh xuất hiện sau khi phát, hành vi khi mất mạng dài, xung đột đồng bộ, nhận lệnh trễ, tải ảnh và phân lại lệnh khi tài xế không thể nhận.","textPreview":"Thời gian lệnh xuất hiện sau khi phát, hành vi khi mất mạng dài, xung đột đồng bộ, nhận lệnh trễ, tải ảnh và phân lại lệnh khi tài xế khô...","textChars":149,"textLines":1,"bbox":[65,562,1140,66]}
+{"kind":"textbox","id":"sh/725onyl4","slide":10,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/m1cnetkj","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/m90b6t0r","slide":10,"text":"Nguồn: Frontend_Driver/src/syncEngine.ts; Frontend_Driver/src/database.ts; Frontend_Driver/src/screens/TaskDetailScreen.tsx; backend/src/mobile-driver/mobile-sync.service.ts; backend/src/work-orders/work-orders.service.ts. Main backend là API mặc định của app. Repository vẫn có Backend_Driver độc lập nên cần kiểm soát nguy cơ phân kỳ."}
+{"kind":"slide","id":"sl/xpq5ow","slide":11,"title":"LUỒNG NGHIỆP VỤ VẬN HÀNH TỔNG THỂ","textShapes":16}
+{"kind":"textbox","id":"sh/2ts7i5kn","slide":11,"name":"slide-title","text":"LUỒNG NGHIỆP VỤ VẬN HÀNH TỔNG THỂ","textPreview":"LUỒNG NGHIỆP VỤ VẬN HÀNH TỔNG THỂ","textChars":33,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/pw36dk3y","slide":11,"text":"KẾ HOẠCH VÀ ĐIỀU PHỐI","textPreview":"KẾ HOẠCH VÀ ĐIỀU PHỐI","textChars":21,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/4vupkf2t","slide":11,"text":"HỆ THỐNG VÀ DỮ LIỆU","textPreview":"HỆ THỐNG VÀ DỮ LIỆU","textChars":19,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/rylofal4","slide":11,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/qxc7m5kj","slide":11,"text":"TÀI XẾ VÀ HIỆN TRƯỜNG","textPreview":"TÀI XẾ VÀ HIỆN TRƯỜNG","textChars":21,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/dk36hk3a","slide":11,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/czupof2p","slide":11,"text":"Lập kế hoạch hoặc tạo lệnh trực tiếp","textPreview":"Lập kế hoạch hoặc tạo lệnh trực tiếp","textChars":36,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/72ho3ql0","slide":11,"text":"Kiểm tra phạm vi, lịch và nguồn lực","textPreview":"Kiểm tra phạm vi, lịch và nguồn lực","textChars":35,"textLines":1,"bbox":[488,158,304,72]}
+{"kind":"textbox","id":"sh/618nalkf","slide":11,"text":"Duyệt và phát hành lệnh","textPreview":"Duyệt và phát hành lệnh","textChars":23,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/ofq5knid","slide":11,"text":"Ghi WorkOrder, phân công, sự kiện và audit","textPreview":"Ghi WorkOrder, phân công, sự kiện và audit","textChars":42,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/pgjmdsjy","slide":11,"text":"Đồng bộ lệnh và xác nhận nhận việc","textPreview":"Đồng bộ lệnh và xác nhận nhận việc","textChars":34,"textLines":1,"bbox":[892,278,304,72]}
+{"kind":"textbox","id":"sh/2d8nix07","slide":11,"text":"Thực hiện, cập nhật tiến độ, ODO và minh chứng","textPreview":"Thực hiện, cập nhật tiến độ, ODO và minh chứng","textChars":46,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/3eh4b21s","slide":11,"text":"NGHIỆM THU ĐẠT?","textPreview":"NGHIỆM THU ĐẠT?","textChars":15,"textLines":1,"bbox":[488,398,304,86]}
+{"kind":"textbox","id":"sh/cja5o7i9","slide":11,"text":"Dashboard, KPI, cảnh báo và báo cáo","textPreview":"Dashboard, KPI, cảnh báo và báo cáo","textChars":35,"textLines":1,"bbox":[84,518,304,72]}
+{"kind":"shape","id":"sh/xkjmhczu","slide":11,"bbox":[388,194,100,0]}
+{"kind":"shape","id":"sh/qhsnmx0j","slide":11,"bbox":[388,194,100,120]}
+{"kind":"shape","id":"sh/bi14f214","slide":11,"bbox":[388,314,100,0]}
+{"kind":"shape","id":"sh/sn65c3i5","slide":11,"bbox":[792,314,100,334]}
+{"kind":"shape","id":"sh/tozm58jq","slide":11,"bbox":[1044,350,0,48]}
+{"kind":"shape","id":"sh/987ut07i","slide":11,"bbox":[792,434,100,214]}
+{"kind":"shape","id":"sh/87ytkf6x","slide":11,"bbox":[388,441,100,207]}
+{"kind":"textbox","id":"sh/765crapc","slide":11,"text":"Đạt","textPreview":"Đạt","textChars":3,"textLines":1,"bbox":[388,520,70,22]}
+{"kind":"textbox","id":"sh/m5wbi5or","slide":11,"text":"Mỗi chuyển trạng thái chính phải để lại người thực hiện, thời điểm, lý do và dữ liệu liên quan.","textPreview":"Mỗi chuyển trạng thái chính phải để lại người thực hiện, thời điểm, lý do và dữ liệu liên quan.","textChars":95,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/hw7uxk7e","slide":11,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/wvytof6t","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/xpq5ow","slide":11,"text":"Nguồn: docs/business/DISPATCH_ORDER_FLOW.md; ACCEPTANCE_FLOW.md; backend/prisma/schema.prisma; backend/src/work-orders; backend/src/mobile-driver."}
+{"kind":"slide","id":"sl/6r551n","slide":12,"title":"KẾ HOẠCH SẢN XUẤT ĐẾN LỆNH THỰC HIỆN","textShapes":17}
+{"kind":"textbox","id":"sh/lwnu90nm","slide":12,"name":"slide-title","text":"KẾ HOẠCH SẢN XUẤT ĐẾN LỆNH THỰC HIỆN","textPreview":"KẾ HOẠCH SẢN XUẤT ĐẾN LỆNH THỰC HIỆN","textChars":36,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/y9cve54b","slide":12,"text":"NÔNG TRƯỜNG","textPreview":"NÔNG TRƯỜNG","textChars":11,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/zalc7q5g","slide":12,"text":"HỆ THỐNG","textPreview":"HỆ THỐNG","textChars":8,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/c7udcvm5","slide":12,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/d83u50nq","slide":12,"text":"ĐIỀU PHỐI","textPreview":"ĐIỀU PHỐI","textChars":9,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/q5cval4z","slide":12,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/b6lc3q5k","slide":12,"text":"Tạo kế hoạch, hạng mục, lô và khối lượng","textPreview":"Tạo kế hoạch, hạng mục, lô và khối lượng","textChars":40,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/o3ut8bmt","slide":12,"text":"Trình duyệt kế hoạch","textPreview":"Trình duyệt kế hoạch","textChars":20,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/p43u1gne","slide":12,"text":"DUYỆT KẾ HOẠCH?","textPreview":"DUYỆT KẾ HOẠCH?","textChars":15,"textLines":1,"bbox":[488,278,304,86]}
+{"kind":"textbox","id":"sh/5wn2l8nu","slide":12,"text":"Tạo ProductionOrder và generationKey","textPreview":"Tạo ProductionOrder và generationKey","textChars":36,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/4ve1s3m9","slide":12,"text":"Sinh lệnh điều xe hoặc vận chuyển","textPreview":"Sinh lệnh điều xe hoặc vận chuyển","textChars":33,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/julkji5o","slide":12,"text":"Cập nhật tiến độ lô và sản lượng","textPreview":"Cập nhật tiến độ lô và sản lượng","textChars":32,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"textbox","id":"sh/itcjqd43","slide":12,"text":"CẦN ĐIỀU CHỈNH?\nCó: ghi lý do, trình lại","textPreview":"CẦN ĐIỀU CHỈNH? | Có: ghi lý do, trình lại","textChars":40,"textLines":2,"bbox":[488,518,304,86]}
+{"kind":"textbox","id":"sh/hs32h8ny","slide":12,"text":"Hoàn thành hoặc quyết toán kế hoạch","textPreview":"Hoàn thành hoặc quyết toán kế hoạch","textChars":35,"textLines":1,"bbox":[84,518,304,72]}
+{"kind":"shape","id":"sh/wru1o3md","slide":12,"bbox":[236,230,0,48]}
+{"kind":"shape","id":"sh/vqlkfy5s","slide":12,"bbox":[388,314,100,334]}
+{"kind":"shape","id":"sh/upcjmt47","slide":12,"bbox":[640,364,0,34]}
+{"kind":"textbox","id":"sh/9o32donm","slide":12,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[724,374,70,22]}
+{"kind":"shape","id":"sh/8nu1kjm1","slide":12,"bbox":[792,434,100,214]}
+{"kind":"shape","id":"sh/kjytgny9","slide":12,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/lk7apszu","slide":12,"bbox":[792,554,100,94]}
+{"kind":"shape","id":"sh/yhgbedg3","slide":12,"bbox":[388,554,100,7]}
+{"kind":"textbox","id":"sh/zipsniho","slide":12,"text":"Không","textPreview":"Không","textChars":5,"textLines":1,"bbox":[396,546,70,22]}
+{"kind":"textbox","id":"sh/cfytcnyd","slide":12,"text":"Điều chỉnh kế hoạch có thể hủy các lệnh sinh tự động chưa bắt đầu và ghi audit thay đổi.","textPreview":"Điều chỉnh kế hoạch có thể hủy các lệnh sinh tự động chưa bắt đầu và ghi audit thay đổi.","textChars":88,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/xg7alszi","slide":12,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/atwbad07","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/6r551n","slide":12,"text":"Nguồn: backend/src/production-plans/production-plans.controller.ts; production-plans.service.ts; schema.prisma PlanStatus, PlotStatus."}
+{"kind":"slide","id":"sl/5m4opw","slide":13,"title":"TẠO LỆNH VÀ CHUYỂN LỆNH ĐẾN TÀI XẾ","textShapes":16}
+{"kind":"textbox","id":"sh/8r2p0rul","slide":13,"name":"slide-title","text":"TẠO LỆNH VÀ CHUYỂN LỆNH ĐẾN TÀI XẾ","textPreview":"TẠO LỆNH VÀ CHUYỂN LỆNH ĐẾN TÀI XẾ","textChars":34,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/7qt8rmt0","slide":13,"text":"ĐIỀU PHỐI","textPreview":"ĐIỀU PHỐI","textChars":9,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/6pk7yhcf","slide":13,"text":"BACKEND","textPreview":"BACKEND","textChars":7,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/l4bqpcbu","slide":13,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/k3ipw7up","slide":13,"text":"ỨNG DỤNG TÀI XẾ","textPreview":"ỨNG DỤNG TÀI XẾ","textChars":15,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/j298n2d4","slide":13,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/y107uhcj","slide":13,"text":"1. Chọn đội, công việc, vị trí, ca và thời gian","textPreview":"1. Chọn đội, công việc, vị trí, ca và thời gian","textChars":47,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/5kvq1gbe","slide":13,"text":"2. GET preparation-context trả xe, tài xế, nông cụ và lý do khóa","textPreview":"2. GET preparation-context trả xe, tài xế, nông cụ và lý do khóa","textChars":64,"textLines":1,"bbox":[488,158,304,72]}
+{"kind":"textbox","id":"sh/4zm98but","slide":13,"text":"3. Chọn một xe, tài xế cố định hoặc lệnh mở","textPreview":"3. Chọn một xe, tài xế cố định hoặc lệnh mở","textChars":43,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/alknmh43","slide":13,"text":"4. NGUỒN LỰC HỢP LỆ?\nKhông: chọn lại","textPreview":"4. NGUỒN LỰC HỢP LỆ? | Không: chọn lại","textChars":36,"textLines":2,"bbox":[488,278,304,86]}
+{"kind":"textbox","id":"sh/bmtovm5o","slide":13,"text":"5. ISSUE ghi DispatchOrder, WorkOrder, assignment, event và audit","textPreview":"5. ISSUE ghi DispatchOrder, WorkOrder, assignment, event và audit","textChars":65,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/cnm5ormt","slide":13,"text":"6. Đồng bộ lệnh về SQLite và hiển thị trên ứng dụng","textPreview":"6. Đồng bộ lệnh về SQLite và hiển thị trên ứng dụng","textChars":51,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/x8v6xwne","slide":13,"text":"7. Nhận nhiệm vụ, gửi ORDER_ACCEPTED khi có mạng","textPreview":"7. Nhận nhiệm vụ, gửi ORDER_ACCEPTED khi có mạng","textChars":48,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"textbox","id":"sh/2hknih4r","slide":13,"text":"Ngoại lệ: phân lại khi tài xế không thể nhận","textPreview":"Ngoại lệ: phân lại khi tài xế không thể nhận","textChars":44,"textLines":1,"bbox":[84,518,304,72]}
+{"kind":"shape","id":"sh/nitorm5c","slide":13,"bbox":[388,194,100,0]}
+{"kind":"shape","id":"sh/oj25krmx","slide":13,"bbox":[388,194,100,454]}
+{"kind":"shape","id":"sh/pkb6twni","slide":13,"bbox":[388,314,100,7]}
+{"kind":"shape","id":"sh/md4nu14b","slide":13,"bbox":[640,364,0,34]}
+{"kind":"textbox","id":"sh/7exo365g","slide":13,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[720,380,70,22]}
+{"kind":"shape","id":"sh/jipkvyl8","slide":13,"bbox":[792,434,100,0]}
+{"kind":"shape","id":"sh/ixg3mdkn","slide":13,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/5k72x83y","slide":13,"bbox":[388,554,504,0]}
+{"kind":"textbox","id":"sh/4jylo32d","slide":13,"text":"Hiện trạng code: lệnh đến ứng dụng qua đồng bộ pull. Chưa thấy cơ chế push notification của hệ điều hành.","textPreview":"Hiện trạng code: lệnh đến ứng dụng qua đồng bộ pull. Chưa thấy cơ chế push notification của hệ điều hành.","textChars":105,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/rmpkzil4","slide":13,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/6lg3qdkj","slide":13,"text":"13","textPreview":"13","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/5m4opw","slide":13,"text":"Nguồn: DispatchOrderForm.tsx; scheduling.ts; work-orders.service.ts; mobile-sync.service.ts; Frontend_Driver/src/syncEngine.ts."}
+{"kind":"slide","id":"sl/de8mdc","slide":14,"title":"TÀI XẾ THỰC HIỆN VÀ NGHIỆM THU CÔNG VIỆC","textShapes":17}
+{"kind":"textbox","id":"sh/hkz6p0fi","slide":14,"name":"slide-title","text":"TÀI XẾ THỰC HIỆN VÀ NGHIỆM THU CÔNG VIỆC","textPreview":"TÀI XẾ THỰC HIỆN VÀ NGHIỆM THU CÔNG VIỆC","textChars":40,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/uh8ne5wr","slide":14,"text":"TÀI XẾ","textPreview":"TÀI XẾ","textChars":6,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/vihonqxc","slide":14,"text":"HỆ THỐNG","textPreview":"HỆ THỐNG","textChars":8,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/8fq5cve1","slide":14,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/tgz6l0f6","slide":14,"text":"NGƯỜI NGHIỆM THU","textPreview":"NGƯỜI NGHIỆM THU","textChars":16,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/6donalwv","slide":14,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/7exojqxg","slide":14,"text":"1. Nhận lệnh và bắt đầu phiên làm việc","textPreview":"1. Nhận lệnh và bắt đầu phiên làm việc","textChars":38,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/cbapofe5","slide":14,"text":"2. Nhập ODO hoặc giờ máy, cập nhật tiến độ và ảnh","textPreview":"2. Nhập ODO hoặc giờ máy, cập nhật tiến độ và ảnh","textChars":49,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/dcj6xkvq","slide":14,"text":"3. Lưu WorkSession, progress, break và event","textPreview":"3. Lưu WorkSession, progress, break và event","textChars":44,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/5kni9kva","slide":14,"text":"4. Kết thúc và gửi đề nghị nghiệm thu","textPreview":"4. Kết thúc và gửi đề nghị nghiệm thu","textChars":37,"textLines":1,"bbox":[84,398,304,72]}
+{"kind":"textbox","id":"sh/4ju1gfup","slide":14,"text":"5. Tạo WorkAcceptance PENDING","textPreview":"5. Tạo WorkAcceptance PENDING","textChars":29,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/jil07ad4","slide":14,"text":"6. KẾT QUẢ ĐẠT?","textPreview":"6. KẾT QUẢ ĐẠT?","textChars":15,"textLines":1,"bbox":[892,398,304,86]}
+{"kind":"textbox","id":"sh/ihcje5cj","slide":14,"text":"7A. APPROVED, ACCEPTED, sau đó CLOSED","textPreview":"7A. APPROVED, ACCEPTED, sau đó CLOSED","textChars":37,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"textbox","id":"sh/hg3i50vy","slide":14,"text":"7B. REWORK_REQUIRED, trả lại IN_PROGRESS","textPreview":"7B. REWORK_REQUIRED, trả lại IN_PROGRESS","textChars":40,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"shape","id":"sh/wfu1cvut","slide":14,"bbox":[236,230,0,48]}
+{"kind":"shape","id":"sh/vel03qd8","slide":14,"bbox":[388,314,100,0]}
+{"kind":"shape","id":"sh/udcja5cn","slide":14,"bbox":[388,314,100,334]}
+{"kind":"shape","id":"sh/1c72h4bi","slide":14,"bbox":[388,434,100,0]}
+{"kind":"shape","id":"sh/0be1ozux","slide":14,"bbox":[792,434,100,7]}
+{"kind":"shape","id":"sh/0v6lk329","slide":14,"bbox":[1044,484,0,34]}
+{"kind":"textbox","id":"sh/lgfmd8je","slide":14,"text":"Đạt","textPreview":"Đạt","textChars":3,"textLines":1,"bbox":[1110,500,70,22]}
+{"kind":"shape","id":"sh/yt43itk3","slide":14,"bbox":[792,441,100,113]}
+{"kind":"textbox","id":"sh/zud4by1o","slide":14,"text":"Làm lại","textPreview":"Làm lại","textChars":7,"textLines":1,"bbox":[808,477,70,22]}
+{"kind":"textbox","id":"sh/crmlg32x","slide":14,"text":"Nghiệm thu phải giữ người duyệt, thời điểm, minh chứng và lý do yêu cầu làm lại.","textPreview":"Nghiệm thu phải giữ người duyệt, thời điểm, minh chứng và lý do yêu cầu làm lại.","textChars":80,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/dsvm9oji","slide":14,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/qp43etkr","slide":14,"text":"14","textPreview":"14","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/de8mdc","slide":14,"text":"Nguồn: docs/business/ACCEPTANCE_FLOW.md; backend/src/work-orders; schema.prisma WorkAcceptanceStatus, WorkSessionStatus."}
+{"kind":"slide","id":"sl/6vfgyv","slide":15,"title":"VẬN CHUYỂN HÀNG HÓA VÀ GIAO NHẬN","textShapes":15}
+{"kind":"textbox","id":"sh/uxc7e54r","slide":15,"name":"slide-title","text":"VẬN CHUYỂN HÀNG HÓA VÀ GIAO NHẬN","textPreview":"VẬN CHUYỂN HÀNG HÓA VÀ GIAO NHẬN","textChars":32,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/hk3q9kni","slide":15,"text":"ĐIỀU PHỐI","textPreview":"ĐIỀU PHỐI","textChars":9,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/gjupgfmx","slide":15,"text":"TÀI XẾ","textPreview":"TÀI XẾ","textChars":6,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/3ml8bu58","slide":15,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/2lc7ip43","slide":15,"text":"HỆ THỐNG VÀ NƠI NHẬN","textPreview":"HỆ THỐNG VÀ NƠI NHẬN","textChars":20,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/ponqd4ne","slide":15,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/4nupkzmt","slide":15,"text":"1. Tạo vận đơn và ít nhất một dòng hàng","textPreview":"1. Tạo vận đơn và ít nhất một dòng hàng","textChars":39,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/rq58fu5k","slide":15,"text":"2. Trình duyệt, phê duyệt và phân xe, tài xế","textPreview":"2. Trình duyệt, phê duyệt và phân xe, tài xế","textChars":44,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/qpwrmp4z","slide":15,"text":"3. Nhận lệnh, đến điểm lấy và bốc hàng","textPreview":"3. Nhận lệnh, đến điểm lấy và bốc hàng","textChars":38,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/wruhovm9","slide":15,"text":"4. Rời điểm lấy, đang vận chuyển, gửi telemetry","textPreview":"4. Rời điểm lấy, đang vận chuyển, gửi telemetry","textChars":47,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/xs3yx0nu","slide":15,"text":"5. LỆCH TUYẾN HOẶC QUÁ TỐC?\nCó: tạo cảnh báo","textPreview":"5. LỆCH TUYẾN HOẶC QUÁ TỐC? | Có: tạo cảnh báo","textChars":44,"textLines":2,"bbox":[892,398,304,86]}
+{"kind":"textbox","id":"sh/apczml43","slide":15,"text":"6. Đến điểm giao, dỡ hàng và xác nhận đã giao","textPreview":"6. Đến điểm giao, dỡ hàng và xác nhận đã giao","textChars":45,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"textbox","id":"sh/vqlgvq5o","slide":15,"text":"7. Nơi nhận xác nhận, hoàn tất và giải phóng nguồn lực","textPreview":"7. Nơi nhận xác nhận, hoàn tất và giải phóng nguồn lực","textChars":54,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"shape","id":"sh/kvehsvml","slide":15,"bbox":[236,230,0,48]}
+{"kind":"shape","id":"sh/5wni10nq","slide":15,"bbox":[388,314,100,0]}
+{"kind":"shape","id":"sh/itczq54f","slide":15,"bbox":[640,350,0,48]}
+{"kind":"shape","id":"sh/ju50za50","slide":15,"bbox":[792,434,100,7]}
+{"kind":"shape","id":"sh/sjehwfmh","slide":15,"bbox":[792,441,100,113]}
+{"kind":"textbox","id":"sh/tkni5kn2","slide":15,"text":"Tiếp tục","textPreview":"Tiếp tục","textChars":8,"textLines":1,"bbox":[810,513,70,22]}
+{"kind":"shape","id":"sh/1g3ypkv6","slide":15,"bbox":[792,554,100,0]}
+{"kind":"textbox","id":"sh/gfahgfel","slide":15,"text":"Trạng thái chính: DRAFT, APPROVED, ASSIGNED, DRIVER_ACCEPTED, AT_PICKUP, IN_TRANSIT, DELIVERED, ACCEPTED, COMPLETED.","textPreview":"Trạng thái chính: DRAFT, APPROVED, ASSIGNED, DRIVER_ACCEPTED, AT_PICKUP, IN_TRANSIT, DELIVERED, ACCEPTED, COMPLETED.","textChars":116,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/fe1gnax0","slide":15,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/edsze5wf","slide":15,"text":"15","textPreview":"15","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/6vfgyv","slide":15,"text":"Nguồn: backend/src/transport/transport.controller.ts; transport.service.ts; schema.prisma TransportStatus; internal-feed module."}
+{"kind":"slide","id":"sl/k5uk33","slide":16,"title":"QUẢN LÝ ĐỘI XE, TÀI XẾ VÀ NÔNG CỤ","textShapes":16}
+{"kind":"textbox","id":"sh/c7qdwnid","slide":16,"name":"slide-title","text":"QUẢN LÝ ĐỘI XE, TÀI XẾ VÀ NÔNG CỤ","textPreview":"QUẢN LÝ ĐỘI XE, TÀI XẾ VÀ NÔNG CỤ","textChars":33,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/r6xw3ihs","slide":16,"text":"QUẢN TRỊ DANH MỤC","textPreview":"QUẢN TRỊ DANH MỤC","textChars":17,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/q5ovux0n","slide":16,"text":"QUẢN LÝ ĐỘI XE","textPreview":"QUẢN LÝ ĐỘI XE","textChars":14,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/1wze9cza","slide":16,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/0bqx07ip","slide":16,"text":"ĐIỀU PHỐI VẬN HÀNH","textPreview":"ĐIỀU PHỐI VẬN HÀNH","textChars":18,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/zahw72h4","slide":16,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/e98vyx0j","slide":16,"text":"1. Khai báo loại xe, xe, nông cụ và thông số kỹ thuật","textPreview":"1. Khai báo loại xe, xe, nông cụ và thông số kỹ thuật","textChars":53,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/90jedcz6","slide":16,"text":"2. Gán xe và nông cụ vào đơn vị quản lý cơ giới","textPreview":"2. Gán xe và nông cụ vào đơn vị quản lý cơ giới","textChars":47,"textLines":1,"bbox":[488,158,304,72]}
+{"kind":"textbox","id":"sh/ozax47il","slide":16,"text":"3. Phân tài xế chính hoặc phụ, lưu thời gian hiệu lực","textPreview":"3. Phân tài xế chính hoặc phụ, lưu thời gian hiệu lực","textChars":53,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/up0ryx8v","slide":16,"text":"4. NÔNG CỤ TƯƠNG THÍCH VÀ TỐT?\nKhông: không cho gắn","textPreview":"4. NÔNG CỤ TƯƠNG THÍCH VÀ TỐT? | Không: không cho gắn","textChars":51,"textLines":2,"bbox":[488,398,304,86]}
+{"kind":"textbox","id":"sh/vq98r29g","slide":16,"text":"5. Gắn nông cụ vào xe, tạo attachment log","textPreview":"5. Gắn nông cụ vào xe, tạo attachment log","textChars":41,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"textbox","id":"sh/wr2907q1","slide":16,"text":"6. Đưa nguồn lực vào preparation-context","textPreview":"6. Đưa nguồn lực vào preparation-context","textChars":40,"textLines":1,"bbox":[892,278,304,72]}
+{"kind":"textbox","id":"sh/hsbatcrm","slide":16,"text":"7. Điều xe theo trạng thái và lịch rảnh","textPreview":"7. Điều xe theo trạng thái và lịch rảnh","textChars":39,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/itkr2h87","slide":16,"text":"8. Tháo nông cụ hoặc kết thúc phân công, giữ lịch sử","textPreview":"8. Tháo nông cụ hoặc kết thúc phân công, giữ lịch sử","textChars":52,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"shape","id":"sh/jutsvm9s","slide":16,"bbox":[388,194,100,0]}
+{"kind":"shape","id":"sh/4v294rqd","slide":16,"bbox":[640,230,0,48]}
+{"kind":"shape","id":"sh/5wbaxwri","slide":16,"bbox":[640,350,0,48]}
+{"kind":"shape","id":"sh/yxgrqd8n","slide":16,"bbox":[640,484,0,34]}
+{"kind":"textbox","id":"sh/zyp8ji98","slide":16,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[720,501,70,22]}
+{"kind":"shape","id":"sh/325orep0","slide":16,"bbox":[792,314,100,0]}
+{"kind":"shape","id":"sh/21wnitof","slide":16,"bbox":[1044,350,0,48]}
+{"kind":"shape","id":"sh/p4n6to76","slide":16,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/o3e5kj6l","slide":16,"bbox":[792,554,100,0]}
+{"kind":"textbox","id":"sh/fylonep4","slide":16,"text":"Xe thanh lý lưu TAM_DUNG, không có đơn vị quản lý và không xuất hiện như nguồn lực điều xe.","textPreview":"Xe thanh lý lưu TAM_DUNG, không có đơn vị quản lý và không xuất hiện như nguồn lực điều xe.","textChars":91,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/excne9oj","slide":16,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/10n6po7a","slide":16,"text":"16","textPreview":"16","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/k5uk33","slide":16,"text":"Nguồn: docs/business/VEHICLE_FLOW.md; vehicles.service.ts; implements.service.ts; vehicle-driver-assignments.service.ts."}
+{"kind":"slide","id":"sl/xvb4gc","slide":17,"title":"BẢO DƯỠNG ĐỊNH KỲ VÀ SỬA CHỮA","textShapes":15}
+{"kind":"textbox","id":"sh/wz2pkv2l","slide":17,"name":"slide-title","text":"BẢO DƯỠNG ĐỊNH KỲ VÀ SỬA CHỮA","textPreview":"BẢO DƯỠNG ĐỊNH KỲ VÀ SỬA CHỮA","textChars":29,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/vytobal0","slide":17,"text":"TÀI XẾ VÀ TELEMETRY","textPreview":"TÀI XẾ VÀ TELEMETRY","textChars":19,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/uxk7i5kf","slide":17,"text":"XƯỞNG BTSC","textPreview":"XƯỞNG BTSC","textChars":10,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/54b6hkj2","slide":17,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/432pof2h","slide":17,"text":"HỆ THỐNG","textPreview":"HỆ THỐNG","textChars":8,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/j2tofa1c","slide":17,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/i1k7m5kr","slide":17,"text":"1. Nộp checklist BDC1 và cập nhật ODO hoặc giờ máy","textPreview":"1. Nộp checklist BDC1 và cập nhật ODO hoặc giờ máy","textChars":50,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/l8r65g3y","slide":17,"text":"2. Tính mốc bảo dưỡng, phân tầng Xanh, Vàng, Đỏ","textPreview":"2. Tính mốc bảo dưỡng, phân tầng Xanh, Vàng, Đỏ","textChars":47,"textLines":1,"bbox":[892,158,304,72]}
+{"kind":"textbox","id":"sh/k7i5cb2d","slide":17,"text":"3. Tạo phiếu BDC2 hoặc tiếp nhận phiếu sửa chữa","textPreview":"3. Tạo phiếu BDC2 hoặc tiếp nhận phiếu sửa chữa","textChars":47,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/atora1kn","slide":17,"text":"4. Đánh giá, lập kế hoạch, thực hiện và cập nhật chi phí","textPreview":"4. Đánh giá, lập kế hoạch, thực hiện và cập nhật chi phí","textChars":56,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/vex8j6l8","slide":17,"text":"5. THIẾU PHỤ TÙNG?\nCó: WAITING_PARTS","textPreview":"5. THIẾU PHỤ TÙNG? | Có: WAITING_PARTS","textChars":36,"textLines":2,"bbox":[892,398,304,86]}
+{"kind":"textbox","id":"sh/wfq9cb2t","slide":17,"text":"6. Sẵn sàng nghiệm thu, bàn giao và hoàn tất","textPreview":"6. Sẵn sàng nghiệm thu, bàn giao và hoàn tất","textChars":44,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"textbox","id":"sh/xgzqlg3e","slide":17,"text":"7. Đóng mốc và cập nhật trạng thái xe. Đủ điều kiện thì CHO_PHAN_CONG","textPreview":"7. Đóng mốc và cập nhật trạng thái xe. Đủ điều kiện thì CHO_PHAN_CONG","textChars":69,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"shape","id":"sh/ih8re1kj","slide":17,"bbox":[388,194,504,0]}
+{"kind":"shape","id":"sh/jih8n6l4","slide":17,"bbox":[792,194,100,120]}
+{"kind":"shape","id":"sh/kjq9gb2p","slide":17,"bbox":[640,350,0,48]}
+{"kind":"shape","id":"sh/5kzqpg3a","slide":17,"bbox":[792,434,100,7]}
+{"kind":"shape","id":"sh/6l8rilkv","slide":17,"bbox":[792,441,100,113]}
+{"kind":"textbox","id":"sh/7mh8rq1g","slide":17,"text":"Đủ phụ tùng","textPreview":"Đủ phụ tùng","textChars":11,"textLines":1,"bbox":[790,516,100,22]}
+{"kind":"shape","id":"sh/3q18fqh8","slide":17,"bbox":[792,554,100,0]}
+{"kind":"textbox","id":"sh/2ps76l03","slide":17,"text":"Khi bảo dưỡng phát hiện hư hỏng, hệ thống có thể tạo tiếp phiếu sửa chữa và giữ xe ở trạng thái không sẵn sàng.","textPreview":"Khi bảo dưỡng phát hiện hư hỏng, hệ thống có thể tạo tiếp phiếu sửa chữa và giữ xe ở trạng thái không sẵn sàng.","textChars":111,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/pcjqh0ze","slide":17,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/4rap8vit","slide":17,"text":"17","textPreview":"17","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/xvb4gc","slide":17,"text":"Nguồn: maintenance.controller.ts; maintenance.service.ts; repairs.controller.ts; workshop workflow; schema.prisma WorkshopRequestStatus."}
+{"kind":"slide","id":"sl/8dc4b4","slide":18,"title":"CẤP PHÁT VÀ ĐỐI SOÁT NHIÊN LIỆU","textShapes":15}
+{"kind":"textbox","id":"sh/1sj21cfu","slide":18,"name":"slide-title","text":"CẤP PHÁT VÀ ĐỐI SOÁT NHIÊN LIỆU","textPreview":"CẤP PHÁT VÀ ĐỐI SOÁT NHIÊN LIỆU","textChars":31,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/eps3qhw3","slide":18,"text":"XE VÀ LỆNH","textPreview":"XE VÀ LỆNH","textChars":10,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/zq1kzmxo","slide":18,"text":"THỦ KHO NHIÊN LIỆU","textPreview":"THỦ KHO NHIÊN LIỆU","textChars":18,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/ovalwre5","slide":18,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/9w3m5wfq","slide":18,"text":"HỆ THỐNG VÀ BÁO CÁO","textPreview":"HỆ THỐNG VÀ BÁO CÁO","textChars":19,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/mts3uhwf","slide":18,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/nu1k3mx0","slide":18,"text":"1. Xác định xe, công việc và định mức áp dụng","textPreview":"1. Xác định xe, công việc và định mức áp dụng","textChars":45,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/4zqlk7e1","slide":18,"text":"2. Chọn kho hoặc bồn, quét mã và nhập số lít thực cấp","textPreview":"2. Chọn kho hoặc bồn, quét mã và nhập số lít thực cấp","textChars":53,"textLines":1,"bbox":[488,158,304,72]}
+{"kind":"textbox","id":"sh/50z2tsfm","slide":18,"text":"3. TỒN KHO ĐỦ?\nKhông: dừng cấp","textPreview":"3. TỒN KHO ĐỦ? | Không: dừng cấp","textChars":30,"textLines":2,"bbox":[892,278,304,86]}
+{"kind":"textbox","id":"sh/x8vmtozi","slide":18,"text":"4. Ghi phiếu cấp phát và trừ tồn kho trong transaction","textPreview":"4. Ghi phiếu cấp phát và trừ tồn kho trong transaction","textChars":54,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/w7m50jyx","slide":18,"text":"5. VƯỢT ĐỊNH MỨC TRÊN 5%?\nCó: tạo cảnh báo","textPreview":"5. VƯỢT ĐỊNH MỨC TRÊN 5%? | Có: tạo cảnh báo","textChars":42,"textLines":2,"bbox":[892,518,304,86]}
+{"kind":"textbox","id":"sh/b6d4rehc","slide":18,"text":"6. Đối soát actual, quota, variance và người cấp","textPreview":"6. Đối soát actual, quota, variance và người cấp","textChars":48,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"textbox","id":"sh/al4ny9gr","slide":18,"text":"7. Báo cáo tiêu hao, tồn kho và cảnh báo vượt mức","textPreview":"7. Báo cáo tiêu hao, tồn kho và cảnh báo vượt mức","textChars":49,"textLines":1,"bbox":[84,518,304,72]}
+{"kind":"shape","id":"sh/lcf6xoze","slide":18,"bbox":[388,194,100,0]}
+{"kind":"shape","id":"sh/kb654jyt","slide":18,"bbox":[792,194,100,454]}
+{"kind":"shape","id":"sh/jadovyho","slide":18,"bbox":[1044,364,0,34]}
+{"kind":"textbox","id":"sh/y94n2tg3","slide":18,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[1110,379,70,22]}
+{"kind":"shape","id":"sh/tgf618fq","slide":18,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/8f6583y5","slide":18,"bbox":[792,554,100,7]}
+{"kind":"shape","id":"sh/svyhkbad","slide":18,"bbox":[388,554,100,0]}
+{"kind":"textbox","id":"sh/dw7ytgry","slide":18,"text":"Ngưỡng vượt 5% là hành vi đang được cài trong FuelService, cần xác nhận lại trước khi áp dụng chính thức.","textPreview":"Ngưỡng vượt 5% là hành vi đang được cài trong FuelService, cần xác nhận lại trước khi áp dụng chính thức.","textChars":105,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/qtgzi1sn","slide":18,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/rupgr69s","slide":18,"text":"18","textPreview":"18","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/8dc4b4","slide":18,"text":"Nguồn: backend/src/fuel/fuel.controller.ts; fuel.service.ts; schema.prisma FuelDispenseTicket, FuelWarehouse."}
+{"kind":"slide","id":"sl/a3qmqt","slide":19,"title":"GPS, CẢNH BÁO VẬN HÀNH VÀ SOS","textShapes":17}
+{"kind":"textbox","id":"sh/vypc7mp4","slide":19,"name":"slide-title","text":"GPS, CẢNH BÁO VẬN HÀNH VÀ SOS","textPreview":"GPS, CẢNH BÁO VẬN HÀNH VÀ SOS","textChars":29,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/wjit07qp","slide":19,"text":"XE VÀ TÀI XẾ","textPreview":"XE VÀ TÀI XẾ","textChars":12,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/xkru9c7a","slide":19,"text":"BỘ MÁY CẢNH BÁO","textPreview":"BỘ MÁY CẢNH BÁO","textChars":15,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/il0b2h8v","slide":19,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/jm9cbmp0","slide":19,"text":"QUẢN LÝ VÀ XƯỞNG","textPreview":"QUẢN LÝ VÀ XƯỞNG","textChars":16,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/knit4rql","slide":19,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/5orudw76","slide":19,"text":"Gửi vị trí, tốc độ, tuyến và thời điểm GPS","textPreview":"Gửi vị trí, tốc độ, tuyến và thời điểm GPS","textChars":42,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/6p0b618r","slide":19,"text":"CÓ VI PHẠM HOẶC MẤT DỮ LIỆU?","textPreview":"CÓ VI PHẠM HOẶC MẤT DỮ LIỆU?","textChars":28,"textLines":1,"bbox":[488,158,304,86]}
+{"kind":"textbox","id":"sh/7qtcf6pc","slide":19,"text":"Tạo cảnh báo quá tốc độ, lệch tuyến hoặc xe chạy không lệnh","textPreview":"Tạo cảnh báo quá tốc độ, lệch tuyến hoặc xe chạy không lệnh","textChars":59,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/nu1on2lw","slide":19,"text":"Tài xế bấm SOS, gửi GPS, mô tả và ảnh","textPreview":"Tài xế bấm SOS, gửi GPS, mô tả và ảnh","textChars":37,"textLines":1,"bbox":[84,398,304,72]}
+{"kind":"textbox","id":"sh/mts7exkb","slide":19,"text":"Transaction tạo SOS alert và yêu cầu sửa chữa","textPreview":"Transaction tạo SOS alert và yêu cầu sửa chữa","textChars":45,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/9wj6pc32","slide":19,"text":"Tiếp nhận, chuyển IN_PROGRESS và điều phối xử lý","textPreview":"Tiếp nhận, chuyển IN_PROGRESS và điều phối xử lý","textChars":48,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/ovapg72h","slide":19,"text":"SỰ CỐ ĐÃ XỬ LÝ?","textPreview":"SỰ CỐ ĐÃ XỬ LÝ?","textChars":15,"textLines":1,"bbox":[892,518,304,86]}
+{"kind":"textbox","id":"sh/f6hojilk","slide":19,"text":"RESOLVED, bỏ dedupe key và lưu lịch sử","textPreview":"RESOLVED, bỏ dedupe key và lưu lịch sử","textChars":38,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"shape","id":"sh/e587adkf","slide":19,"bbox":[388,194,100,454]}
+{"kind":"shape","id":"sh/1sj6ls3q","slide":19,"bbox":[640,244,0,34]}
+{"kind":"textbox","id":"sh/07qpcn25","slide":19,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[720,255,70,22]}
+{"kind":"shape","id":"sh/j2l8vml4","slide":19,"bbox":[388,434,100,214]}
+{"kind":"shape","id":"sh/y1c7mhkj","slide":19,"bbox":[792,314,100,120]}
+{"kind":"shape","id":"sh/uxwrel4r","slide":19,"bbox":[792,434,100,0]}
+{"kind":"shape","id":"sh/vi5snq5c","slide":19,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/gjy9gvmx","slide":19,"bbox":[792,554,100,7]}
+{"kind":"textbox","id":"sh/hk7ap0n2","slide":19,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[809,557,70,22]}
+{"kind":"textbox","id":"sh/ilgril4n","slide":19,"text":"Chu kỳ gửi GPS 30 giây chưa được xác nhận thống nhất. Không trình bày đây là quy tắc production đã chốt.","textPreview":"Chu kỳ gửi GPS 30 giây chưa được xác nhận thống nhất. Không trình bày đây là quy tắc production đã chốt.","textChars":104,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/3mpsrq58","slide":19,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/4ny9kvmt","slide":19,"text":"19","textPreview":"19","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/a3qmqt","slide":19,"text":"Nguồn: alerts.service.ts; vehicles.service.ts; mobile-driver.service.ts; .agents/context/business-rules.md."}
+{"kind":"slide","id":"sl/izkpa4","slide":20,"title":"QUẢN LÝ TÀI XẾ VÀ TÍNH KPI","textShapes":16}
+{"kind":"textbox","id":"sh/p4rixs3y","slide":20,"name":"slide-title","text":"QUẢN LÝ TÀI XẾ VÀ TÍNH KPI","textPreview":"QUẢN LÝ TÀI XẾ VÀ TÍNH KPI","textChars":26,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/210z2dk7","slide":20,"text":"QUẢN LÝ NHÂN SỰ","textPreview":"QUẢN LÝ NHÂN SỰ","textChars":15,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/3290vils","slide":20,"text":"VẬN HÀNH","textPreview":"VẬN HÀNH","textChars":8,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/cr21872p","slide":20,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/dsbi1c3u","slide":20,"text":"KPI VÀ TÀI XẾ","textPreview":"KPI VÀ TÀI XẾ","textChars":13,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/q50j6xkj","slide":20,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/rqt0z2l4","slide":20,"text":"Tạo tài khoản DRIVER và hồ sơ giấy phép, sức khỏe","textPreview":"Tạo tài khoản DRIVER và hồ sơ giấy phép, sức khỏe","textChars":49,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/0v21c72l","slide":20,"text":"Gán đơn vị, ca và xe chính hoặc phụ","textPreview":"Gán đơn vị, ca và xe chính hoặc phụ","textChars":35,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/1wbi5c36","slide":20,"text":"Ghi sự kiện ASSIGNED, ACCEPTED, tiến độ và hoàn thành","textPreview":"Ghi sự kiện ASSIGNED, ACCEPTED, tiến độ và hoàn thành","textChars":53,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/58vad4fi","slide":20,"text":"Ghi CANNOT_ACCEPT, REASSIGNED và kết quả nghiệm thu","textPreview":"Ghi CANNOT_ACCEPT, REASSIGNED và kết quả nghiệm thu","textChars":51,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/47mtkzex","slide":20,"text":"Tổng hợp số chuyến, km, giờ máy và tiết kiệm dầu","textPreview":"Tổng hợp số chuyến, km, giờ máy và tiết kiệm dầu","textChars":48,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/j6dsbuxs","slide":20,"text":"ĐỦ DỮ LIỆU KỲ KPI?","textPreview":"ĐỦ DỮ LIỆU KỲ KPI?","textChars":18,"textLines":1,"bbox":[892,518,304,86]}
+{"kind":"textbox","id":"sh/i54bipw7","slide":20,"text":"Tính điểm, xếp hạng và thưởng theo code hiện tại","textPreview":"Tính điểm, xếp hạng và thưởng theo code hiện tại","textChars":48,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"textbox","id":"sh/twfahofu","slide":20,"text":"Tài xế xem KPI cá nhân, quản lý xem leaderboard","textPreview":"Tài xế xem KPI cá nhân, quản lý xem leaderboard","textChars":47,"textLines":1,"bbox":[84,518,304,72]}
+{"kind":"shape","id":"sh/sv6toje9","slide":20,"bbox":[236,230,0,48]}
+{"kind":"shape","id":"sh/rudsfexo","slide":20,"bbox":[388,314,100,334]}
+{"kind":"shape","id":"sh/6t4bm9w3","slide":20,"bbox":[640,350,0,48]}
+{"kind":"shape","id":"sh/90ba5kfa","slide":20,"bbox":[792,434,100,0]}
+{"kind":"shape","id":"sh/8z29cfy5","slide":20,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/kvq18jax","slide":20,"bbox":[792,554,100,7]}
+{"kind":"textbox","id":"sh/lwz2hori","slide":20,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[809,557,70,22]}
+{"kind":"shape","id":"sh/ytoj69sr","slide":20,"bbox":[388,554,100,0]}
+{"kind":"textbox","id":"sh/zuxkfe9c","slide":20,"text":"Code đang chia bốn nhóm 25 điểm. Công thức quy đổi và ngưỡng thưởng chính thức vẫn cần chủ nghiệp vụ xác nhận.","textPreview":"Code đang chia bốn nhóm 25 điểm. Công thức quy đổi và ngưỡng thưởng chính thức vẫn cần chủ nghiệp vụ xác nhận.","textChars":110,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/8zq1cja9","slide":20,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/9kz2loru","slide":20,"text":"20","textPreview":"20","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/izkpa4","slide":20,"text":"Nguồn: DRIVER_FLOW.md; driver-kpi.controller.ts; driver-kpi.service.ts; schema.prisma DriverKpiEventType."}
+{"kind":"slide","id":"sl/gogd4h","slide":21,"title":"DANH MỤC DÙNG CHUNG VÀ PHÂN QUYỀN","textShapes":16}
+{"kind":"textbox","id":"sh/lofmhgbe","slide":21,"name":"slide-title","text":"DANH MỤC DÙNG CHUNG VÀ PHÂN QUYỀN","textPreview":"DANH MỤC DÙNG CHUNG VÀ PHÂN QUYỀN","textChars":33,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/yl4nm1cn","slide":21,"text":"QUẢN TRỊ HỆ THỐNG","textPreview":"QUẢN TRỊ HỆ THỐNG","textChars":17,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/zmd4f6d8","slide":21,"text":"XÁC THỰC VÀ PHẠM VI","textPreview":"XÁC THỰC VÀ PHẠM VI","textChars":19,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/cjm5kbux","slide":21,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/dkvmdgvi","slide":21,"text":"CÁC PHÂN HỆ NGHIỆP VỤ","textPreview":"CÁC PHÂN HỆ NGHIỆP VỤ","textChars":21,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/qh4ni1cr","slide":21,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/bid4b6dc","slide":21,"text":"Khai báo công ty, đơn vị, đội, loại xe, công việc, lô và tuyến","textPreview":"Khai báo công ty, đơn vị, đội, loại xe, công việc, lô và tuyến","textChars":62,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/wfq5wvu1","slide":21,"text":"Import preview, kiểm tra lỗi và commit danh mục","textPreview":"Import preview, kiểm tra lỗi và commit danh mục","textChars":47,"textLines":1,"bbox":[84,278,304,72]}
+{"kind":"textbox","id":"sh/hgz6p0bm","slide":21,"text":"Tạo người dùng, vai trò và phân công đơn vị quản lý","textPreview":"Tạo người dùng, vai trò và phân công đơn vị quản lý","textChars":51,"textLines":1,"bbox":[84,398,304,72]}
+{"kind":"textbox","id":"sh/14bi5gju","slide":21,"text":"Đăng nhập JWT và kiểm tra RolesGuard","textPreview":"Đăng nhập JWT và kiểm tra RolesGuard","textChars":36,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/g32hwbi9","slide":21,"text":"ĐƯỢC PHÉP TRUY CẬP PHẠM VI?","textPreview":"ĐƯỢC PHÉP TRUY CẬP PHẠM VI?","textChars":27,"textLines":1,"bbox":[488,398,304,86]}
+{"kind":"textbox","id":"sh/f2t03614","slide":21,"text":"Lọc dữ liệu và nguồn lực theo management unit","textPreview":"Lọc dữ liệu và nguồn lực theo management unit","textChars":45,"textLines":1,"bbox":[892,398,304,72]}
+{"kind":"textbox","id":"sh/e1kzu10j","slide":21,"text":"Các module dùng cùng mã và quan hệ tham chiếu","textPreview":"Các module dùng cùng mã và quan hệ tham chiếu","textChars":45,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"textbox","id":"sh/t0bi1wjy","slide":21,"text":"Audit thao tác thay đổi dữ liệu quan trọng","textPreview":"Audit thao tác thay đổi dữ liệu quan trọng","textChars":42,"textLines":1,"bbox":[488,518,304,72]}
+{"kind":"shape","id":"sh/sz2hsrid","slide":21,"bbox":[236,230,0,48]}
+{"kind":"shape","id":"sh/ret0zm1s","slide":21,"bbox":[236,350,0,48]}
+{"kind":"shape","id":"sh/6d0zqh07","slide":21,"bbox":[388,314,100,334]}
+{"kind":"shape","id":"sh/xwvid0z2","slide":21,"bbox":[388,434,100,214]}
+{"kind":"shape","id":"sh/cvm14vih","slide":21,"bbox":[640,350,0,48]}
+{"kind":"shape","id":"sh/wretwju5","slide":21,"bbox":[792,434,100,7]}
+{"kind":"textbox","id":"sh/hsnapobq","slide":21,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[818,433,70,22]}
+{"kind":"shape","id":"sh/upwbutcz","slide":21,"bbox":[1044,470,0,48]}
+{"kind":"shape","id":"sh/vq5snytk","slide":21,"bbox":[792,554,100,0]}
+{"kind":"textbox","id":"sh/8netsjut","slide":21,"text":"Khoảng trống hiện tại: quyền theo role đã có nhưng cách ly dữ liệu theo đơn vị chưa đồng nhất ở mọi service.","textPreview":"Khoảng trống hiện tại: quyền theo role đã có nhưng cách ly dữ liệu theo đơn vị chưa đồng nhất ở mọi service.","textChars":108,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/9onalobe","slide":21,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/mlcbq9c3","slide":21,"text":"21","textPreview":"21","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/gogd4h","slide":21,"text":"Nguồn: ROLE_PERMISSION.md; catalogs modules; auth and RolesGuard; common/utils/management-scope; .agents/context/business-rules.md."}
+{"kind":"slide","id":"sl/z6dl3o","slide":22,"title":"DASHBOARD, BÁO CÁO VÀ XỬ LÝ NGOẠI LỆ","textShapes":17}
+{"kind":"textbox","id":"sh/kna50nq5","slide":22,"name":"slide-title","text":"DASHBOARD, BÁO CÁO VÀ XỬ LÝ NGOẠI LỆ","textPreview":"DASHBOARD, BÁO CÁO VÀ XỬ LÝ NGOẠI LỆ","textChars":36,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/jm1o7i90","slide":22,"text":"DỮ LIỆU NGHIỆP VỤ","textPreview":"DỮ LIỆU NGHIỆP VỤ","textChars":17,"textLines":1,"bbox":[34,94,404,42]}
+{"kind":"textbox","id":"sh/ylsnyd8f","slide":22,"text":"TỔNG HỢP VÀ CHỈ SỐ","textPreview":"TỔNG HỢP VÀ CHỈ SỐ","textChars":18,"textLines":1,"bbox":[438,94,404,42]}
+{"kind":"shape","id":"sh/x0j658ru","slide":22,"bbox":[438,136,1.5,500]}
+{"kind":"textbox","id":"sh/wza5w3q9","slide":22,"text":"NGƯỜI ĐIỀU HÀNH","textPreview":"NGƯỜI ĐIỀU HÀNH","textChars":15,"textLines":1,"bbox":[842,94,404,42]}
+{"kind":"shape","id":"sh/by1o3y9o","slide":22,"bbox":[842,136,1.5,500]}
+{"kind":"textbox","id":"sh/axsnuts3","slide":22,"text":"Lệnh, GPS, nhiên liệu, BTSC, KPI và cảnh báo phát sinh","textPreview":"Lệnh, GPS, nhiên liệu, BTSC, KPI và cảnh báo phát sinh","textChars":54,"textLines":1,"bbox":[84,158,304,72]}
+{"kind":"textbox","id":"sh/hwn6hsry","slide":22,"text":"API tổng hợp theo thời gian, đơn vị và trạng thái","textPreview":"API tổng hợp theo thời gian, đơn vị và trạng thái","textChars":49,"textLines":1,"bbox":[488,158,304,72]}
+{"kind":"textbox","id":"sh/gvup87qd","slide":22,"text":"Tạo overview, live fleet, manager view và statistics","textPreview":"Tạo overview, live fleet, manager view và statistics","textChars":52,"textLines":1,"bbox":[488,278,304,72]}
+{"kind":"textbox","id":"sh/a943itsv","slide":22,"text":"Theo dõi đội xe, tiến độ, tiêu hao, sự cố và năng suất","textPreview":"Theo dõi đội xe, tiến độ, tiêu hao, sự cố và năng suất","textChars":54,"textLines":1,"bbox":[892,278,304,72]}
+{"kind":"textbox","id":"sh/badkbe9g","slide":22,"text":"CÓ CHỈ SỐ BẤT THƯỜNG?","textPreview":"CÓ CHỈ SỐ BẤT THƯỜNG?","textChars":21,"textLines":1,"bbox":[892,398,304,86]}
+{"kind":"textbox","id":"sh/cbmlkja1","slide":22,"text":"Mở chi tiết lệnh, xe, cảnh báo hoặc phiếu xưởng","textPreview":"Mở chi tiết lệnh, xe, cảnh báo hoặc phiếu xưởng","textChars":47,"textLines":1,"bbox":[488,398,304,72]}
+{"kind":"textbox","id":"sh/xcf2dorm","slide":22,"text":"Bổ sung dữ liệu, xử lý ngoại lệ và cập nhật trạng thái","textPreview":"Bổ sung dữ liệu, xử lý ngoại lệ và cập nhật trạng thái","textChars":54,"textLines":1,"bbox":[84,518,304,72]}
+{"kind":"textbox","id":"sh/254je9sz","slide":22,"text":"Xuất báo cáo và theo dõi kết quả xử lý","textPreview":"Xuất báo cáo và theo dõi kết quả xử lý","textChars":38,"textLines":1,"bbox":[892,518,304,72]}
+{"kind":"shape","id":"sh/n6dk7etk","slide":22,"bbox":[388,194,100,454]}
+{"kind":"shape","id":"sh/o7mlgjap","slide":22,"bbox":[640,230,0,48]}
+{"kind":"shape","id":"sh/p8v29ora","slide":22,"bbox":[792,314,100,0]}
+{"kind":"shape","id":"sh/m1o3qds3","slide":22,"bbox":[1044,350,0,48]}
+{"kind":"shape","id":"sh/72xkjy9o","slide":22,"bbox":[792,434,100,7]}
+{"kind":"textbox","id":"sh/jap8v6lo","slide":22,"text":"Có","textPreview":"Có","textChars":2,"textLines":1,"bbox":[809,437,70,22]}
+{"kind":"shape","id":"sh/i9grm143","slide":22,"bbox":[388,434,100,214]}
+{"kind":"shape","id":"sh/5w7qxg3u","slide":22,"bbox":[388,554,504,94]}
+{"kind":"shape","id":"sh/kby9obm9","slide":22,"bbox":[1044,484,0,34]}
+{"kind":"textbox","id":"sh/7yp8z6l0","slide":22,"text":"Không","textPreview":"Không","textChars":5,"textLines":1,"bbox":[1111,509,70,22]}
+{"kind":"textbox","id":"sh/6xgrql4f","slide":22,"text":"Một số màn hình frontend vẫn có dữ liệu demo hoặc fallback. Chỉ số cần đối chiếu API trước khi dùng làm báo cáo chính thức.","textPreview":"Một số màn hình frontend vẫn có dữ liệu demo hoặc fallback. Chỉ số cần đối chiếu API trước khi dùng làm báo cáo chính thức.","textChars":123,"textLines":1,"bbox":[74,642,1132,28]}
+{"kind":"textbox","id":"sh/t0rq1g36","slide":22,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/szy9sbml","slide":22,"text":"22","textPreview":"22","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/z6dl3o","slide":22,"text":"Nguồn: dashboard.controller.ts; dashboard.service.ts; alerts.service.ts; frontend pages and API mappings; .agents/context/module-map.md."}
+{"kind":"slide","id":"sl/jetc3ut0","slide":23,"title":"TIẾN ĐỘ PHÁT TRIỂN HIỆN TẠI","textShapes":12}
+{"kind":"textbox","id":"sh/a90z21on","slide":23,"name":"slide-title","text":"TIẾN ĐỘ PHÁT TRIỂN HIỆN TẠI","textPreview":"TIẾN ĐỘ PHÁT TRIỂN HIỆN TẠI","textChars":27,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/xcryxg7y","slide":23,"text":"104","textPreview":"104","textChars":3,"textLines":1,"bbox":[76,105,240,68]}
+{"kind":"textbox","id":"sh/wbih4b6d","slide":23,"text":"đường dẫn web","textPreview":"đường dẫn web","textChars":13,"textLines":1,"bbox":[76,170,240,34]}
+{"kind":"textbox","id":"sh/n69grmpw","slide":23,"text":"27","textPreview":"27","textChars":2,"textLines":1,"bbox":[368,105,240,68]}
+{"kind":"textbox","id":"sh/250zy18b","slide":23,"text":"backend controllers","textPreview":"backend controllers","textChars":19,"textLines":1,"bbox":[368,170,240,34]}
+{"kind":"textbox","id":"sh/98rytw72","slide":23,"text":"66","textPreview":"66","textChars":2,"textLines":1,"bbox":[660,105,240,68]}
+{"kind":"textbox","id":"sh/o7ih0r6h","slide":23,"text":"Prisma models","textPreview":"Prisma models","textChars":13,"textLines":1,"bbox":[660,170,240,34]}
+{"kind":"textbox","id":"sh/72t03qp0","slide":23,"text":"170","textPreview":"170","textChars":3,"textLines":1,"bbox":[952,105,240,68]}
+{"kind":"textbox","id":"sh/61kzalof","slide":23,"text":"tests đạt","textPreview":"tests đạt","textChars":9,"textLines":1,"bbox":[952,170,240,34]}
+{"kind":"textbox","id":"sh/9gza9sze","slide":23,"text":"Không dùng phần trăm hoàn thành vì repository chưa có tiêu chí nghiệm thu chung cho từng module.","textPreview":"Không dùng phần trăm hoàn thành vì repository chưa có tiêu chí nghiệm thu chung cho từng module.","textChars":96,"textLines":1,"bbox":[75,615,1130,36]}
+{"kind":"textbox","id":"sh/mdobedg3","slide":23,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/nehs7iho","slide":23,"text":"23","textPreview":"23","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/rexkf2d4","slide":23,"name":"","rows":6,"cols":3,"preview":"LỚP | BẰNG CHỨNG ĐÃ CÓ | NHẬN ĐỊNH TIẾN ĐỘ","bbox":[52,230,1176,360]}
+{"kind":"notes","id":"nt/jetc3ut0","slide":23,"text":"Nguồn: đếm trực tiếp frontend/src/App.tsx, frontend/src/pages, backend/src, backend/prisma/schema.prisma và kết quả test. Các số liệu thể hiện độ rộng codebase, không phải phần trăm hoàn thành nghiệp vụ."}
+{"kind":"slide","id":"sl/8f2psfyx","slide":24,"title":"KẾT QUẢ KIỂM THỬ VÀ BUILD","textShapes":4}
+{"kind":"textbox","id":"sh/2xw7upwj","slide":24,"name":"slide-title","text":"KẾT QUẢ KIỂM THỬ VÀ BUILD","textPreview":"KẾT QUẢ KIỂM THỬ VÀ BUILD","textChars":25,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/lkzmhwvm","slide":24,"text":"Mã nguồn biên dịch được khi tách bước generate Prisma. Quy trình build tổng cần xử lý khóa tiến trình và chuẩn hóa CI.","textPreview":"Mã nguồn biên dịch được khi tách bước generate Prisma. Quy trình build tổng cần xử lý khóa tiến trình và chuẩn hóa CI.","textChars":118,"textLines":1,"bbox":[70,625,1140,42]}
+{"kind":"textbox","id":"sh/yh8nmhcv","slide":24,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/zih4fmdg","slide":24,"text":"24","textPreview":"24","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/rqpg3e1g","slide":24,"name":"","rows":10,"cols":3,"preview":"HẠNG MỤC | KẾT QUẢ | GHI CHÚ","bbox":[58,105,1164,505]}
+{"kind":"image","id":"im/cj2lwnqt","slide":24,"name":"Image 0","bbox":[0,0,1279.97,720]}
+{"kind":"notes","id":"nt/8f2psfyx","slide":24,"text":"Lệnh chạy ngày 21/09/2026: npm test; backend nest build; frontend npm run build; Frontend_Driver npm run typecheck và npm test; Backend_Driver npm run build; prisma validate. Root build dừng tại EPERM rename query_engine-windows.dll.node do file đang bị tiến trình khác giữ."}
+{"kind":"slide","id":"sl/hgzapcr6","slide":25,"title":"BẤT CẬP VÀ RỦI RO ƯU TIÊN","textShapes":4}
+{"kind":"textbox","id":"sh/dsr6t8bu","slide":25,"name":"slide-title","text":"BẤT CẬP VÀ RỦI RO ƯU TIÊN","textPreview":"BẤT CẬP VÀ RỦI RO ƯU TIÊN","textChars":25,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/bq9orito","slide":25,"text":"* Dấu hiệu từ quét source, chưa phải tỷ lệ hoàn tất chính thức.","textPreview":"* Dấu hiệu từ quét source, chưa phải tỷ lệ hoàn tất chính thức.","textChars":63,"textLines":1,"bbox":[65,650,1100,24]}
+{"kind":"textbox","id":"sh/o3i5w3ad","slide":25,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/p4r6p8by","slide":25,"text":"25","textPreview":"25","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/bidcvitk","slide":25,"name":"","rows":8,"cols":4,"preview":"RỦI RO | BẰNG CHỨNG | TÁC ĐỘNG | ƯU TIÊN","bbox":[34,102,1212,540]}
+{"kind":"notes","id":"nt/hgzapcr6","slide":25,"text":"Nguồn: scan source hiện tại và các tài liệu business-rule evidence. P0/P1/P2 là khuyến nghị ưu tiên của báo cáo, không phải trạng thái nghiệp vụ đã được phê duyệt."}
+{"kind":"slide","id":"sl/6lsnupw7","slide":26,"title":"KHÓ KHĂN HIỆN TẠI","textShapes":12}
+{"kind":"textbox","id":"sh/a9gvid8v","slide":26,"name":"slide-title","text":"KHÓ KHĂN HIỆN TẠI","textPreview":"KHÓ KHĂN HIỆN TẠI","textChars":17,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/xc7eds76","slide":26,"text":"NGHIỆP VỤ","textPreview":"NGHIỆP VỤ","textChars":9,"textLines":1,"bbox":[62,115,240,46]}
+{"kind":"shape","id":"sh/wbydknq1","slide":26,"bbox":[305,127,3,74]}
+{"kind":"textbox","id":"sh/jepwf2pc","slide":26,"text":"Chưa chốt công thức KPI, năng suất xe, ngưỡng GPS/sai tuyến, ưu tiên xe và loại minh chứng khi đổi kế hoạch.","textPreview":"Chưa chốt công thức KPI, năng suất xe, ngưỡng GPS/sai tuyến, ưu tiên xe và loại minh chứng khi đổi kế hoạch.","textChars":108,"textLines":1,"bbox":[335,115,855,90]}
+{"kind":"textbox","id":"sh/idgvmx8r","slide":26,"text":"DỮ LIỆU","textPreview":"DỮ LIỆU","textChars":7,"textLines":1,"bbox":[62,245,240,46]}
+{"kind":"shape","id":"sh/5grehs7i","slide":26,"bbox":[305,257,3,74]}
+{"kind":"textbox","id":"sh/kfidonqx","slide":26,"text":"Workbook MMTB nhiều sheet, mã cũ không đồng nhất, cần mapping được duyệt và backfill có thể kiểm tra/rollback.","textPreview":"Workbook MMTB nhiều sheet, mã cũ không đồng nhất, cần mapping được duyệt và backfill có thể kiểm tra/rollback.","textChars":110,"textLines":1,"bbox":[335,245,855,90]}
+{"kind":"textbox","id":"sh/zi5c3y98","slide":26,"text":"KỸ THUẬT","textPreview":"KỸ THUẬT","textChars":8,"textLines":1,"bbox":[62,375,240,46]}
+{"kind":"shape","id":"sh/ehwvat8n","slide":26,"bbox":[305,387,3,74]}
+{"kind":"textbox","id":"sh/c3e1gjyd","slide":26,"text":"Frontend vẫn phụ thuộc fallback. Báo cáo thiếu endpoint/mapper. Hai backend mobile có nguy cơ phân kỳ và bundle web còn lớn.","textPreview":"Frontend vẫn phụ thuộc fallback. Báo cáo thiếu endpoint/mapper. Hai backend mobile có nguy cơ phân kỳ và bundle web còn lớn.","textChars":124,"textLines":1,"bbox":[335,375,855,90]}
+{"kind":"textbox","id":"sh/x4ni9ofy","slide":26,"text":"TRIỂN KHAI","textPreview":"TRIỂN KHAI","textChars":10,"textLines":1,"bbox":[62,505,240,46]}
+{"kind":"shape","id":"sh/a1wze9g7","slide":26,"bbox":[305,517,3,74]}
+{"kind":"textbox","id":"sh/b2507exs","slide":26,"text":"Nhiều thay đổi chưa gom baseline, chưa có CI tự động, môi trường Windows đang khóa Prisma engine khi build tổng.","textPreview":"Nhiều thay đổi chưa gom baseline, chưa có CI tự động, môi trường Windows đang khóa Prisma engine khi build tổng.","textChars":112,"textLines":1,"bbox":[335,505,855,90]}
+{"kind":"textbox","id":"sh/kre1k3y9","slide":26,"text":"Các khó khăn trên cần được xử lý theo thứ tự rủi ro. Việc bổ sung thêm màn hình trước khi khóa dữ liệu và quyền truy cập sẽ làm tăng chi phí sửa lại.","textPreview":"Các khó khăn trên cần được xử lý theo thứ tự rủi ro. Việc bổ sung thêm màn hình trước khi khóa dữ liệu và quyền truy cập sẽ làm tăng chi ...","textChars":149,"textLines":1,"bbox":[72,615,1130,52]}
+{"kind":"textbox","id":"sh/ls7idofu","slide":26,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/y5wjitgj","slide":26,"text":"26","textPreview":"26","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"notes","id":"nt/6lsnupw7","slide":26,"text":"Nguồn: .agents/context/business-rules.md; CURRENT_SYSTEM_ANALYSIS.md; build/test output; package versions; repository status."}
+{"kind":"slide","id":"sl/vaxsvy10","slide":27,"title":"LỘ TRÌNH HOÀN THIỆN ĐỀ XUẤT","textShapes":4}
+{"kind":"textbox","id":"sh/hkfexkja","slide":27,"name":"slide-title","text":"LỘ TRÌNH HOÀN THIỆN ĐỀ XUẤT","textPreview":"LỘ TRÌNH HOÀN THIỆN ĐỀ XUẤT","textChars":27,"textLines":1,"bbox":[270,15,965,62]}
+{"kind":"textbox","id":"sh/jmxwzu1g","slide":27,"text":"Thời lượng là ước lượng phục vụ lập kế hoạch. Cần điều chỉnh sau khi chốt phạm vi pilot và nguồn lực thực tế.","textPreview":"Thời lượng là ước lượng phục vụ lập kế hoạch. Cần điều chỉnh sau khi chốt phạm vi pilot và nguồn lực thực tế.","textChars":109,"textLines":1,"bbox":[78,620,1120,45]}
+{"kind":"textbox","id":"sh/4n6d8z21","slide":27,"text":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textPreview":"Giới thiệu phần mềm và tiến độ phát triển | THACO AGRI Fleet | 21/09/2026","textChars":73,"textLines":1,"bbox":[28,686,780,20]}
+{"kind":"textbox","id":"sh/5ofe14j6","slide":27,"text":"27","textPreview":"27","textChars":2,"textLines":1,"bbox":[1224,686,24,20]}
+{"kind":"table","id":"tb/x03upsje","slide":27,"name":"","rows":6,"cols":3,"preview":"GIAI ĐOẠN | MỤC TIÊU | ĐẦU RA CHÍNH","bbox":[48,105,1184,500]}
+{"kind":"image","id":"im/7yt83adg","slide":27,"name":"Image 0","bbox":[0,0,1279.97,741.46]}
+{"kind":"notes","id":"nt/vaxsvy10","slide":27,"text":"Đây là khuyến nghị triển khai dựa trên mức độ rủi ro quan sát được. Thời lượng chưa phải cam kết tiến độ chính thức."}
+{"kind":"slide","id":"sl/gny5sjyp","slide":28,"title":"TRÂN TRỌNG CẢM ƠN","textShapes":4}
+{"kind":"textbox","id":"sh/3qdg7qpo","slide":28,"text":"TRÂN TRỌNG CẢM ƠN","textPreview":"TRÂN TRỌNG CẢM ƠN","textChars":17,"textLines":1,"bbox":[250,260,780,80]}
+{"kind":"textbox","id":"sh/fm1gzq5o","slide":28,"text":"Ba quyết định cần chốt tiếp theo","textPreview":"Ba quyết định cần chốt tiếp theo","textChars":32,"textLines":1,"bbox":[320,382,640,38]}
+{"kind":"textbox","id":"sh/e1sf65o3","slide":28,"text":"1. Phạm vi và đơn vị pilot   2. Quy tắc nghiệp vụ còn UNKNOWN   3. Tiêu chí nghiệm thu production","textPreview":"1. Phạm vi và đơn vị pilot   2. Quy tắc nghiệp vụ còn UNKNOWN   3. Tiêu chí nghiệm thu production","textChars":97,"textLines":1,"bbox":[115,435,1050,55]}
+{"kind":"textbox","id":"sh/1ojy10ne","slide":28,"text":"PHÒNG VẬN HÀNH SỐ\nKLH Koun Mom, Ratanakiri, Cambodia | 21.09.2026","textPreview":"PHÒNG VẬN HÀNH SỐ | KLH Koun Mom, Ratanakiri, Cambodia | 21.09.2026","textChars":65,"textLines":2,"bbox":[250,590,780,56]}
+{"kind":"image","id":"im/3u5kvqx8","slide":28,"name":"Image 0","bbox":[-8.82,0,1279.97,720]}
+{"kind":"notes","id":"nt/gny5sjyp","slide":28,"text":"Kết thúc báo cáo. Đề nghị dùng deck này làm tài liệu chốt scope pilot và danh sách quyết định nghiệp vụ."}

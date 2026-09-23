@@ -93,6 +93,11 @@ export interface TransportRouteItem {
   cargoType: string; // Chuối tươi xuất khẩu
   speedLimitKmH: number; // 35 km/h
   recommendedVehicles: string; // Xe đầu kéo + Rơ-moóc cont / Xe tải thùng 8T
+  routeFlowType?: 'ONE_WAY' | 'TWO_WAY';
+  returnOrigin?: string;
+  returnDestination?: string;
+  returnCargoName?: string;
+  returnTonnage?: number;
   status: 'active' | 'maintenance';
   statusLabel: string;
   notes?: string;

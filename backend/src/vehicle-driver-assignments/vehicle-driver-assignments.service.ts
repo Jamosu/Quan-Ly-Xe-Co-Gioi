@@ -28,16 +28,44 @@ export class VehicleDriverAssignmentsService {
       assertOperationalAccess(actor, vehicle.unit);
       await this.ensureProfile(tx, driver);
       if (dto.type === VehicleDriverAssignmentType.PRIMARY) {
-        const overlaps = await tx.vehicleDriverAssignment.findFirst({
+        const vehiclePrimary = await tx.vehicleDriverAssignment.findFirst({
           where: {
+            vehicleId: dto.vehicleId,
             type: VehicleDriverAssignmentType.PRIMARY,
             status: { in: [VehicleDriverAssignmentStatus.SCHEDULED, VehicleDriverAssignmentStatus.ACTIVE] },
-            OR: [{ vehicleId: dto.vehicleId }, { driverId: dto.driverId }],
             effectiveFrom: { lt: dto.effectiveTo ?? new Date('9999-12-31T23:59:59.999Z') },
             AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gt: dto.effectiveFrom } }] }],
           },
         });
-        if (overlaps) throw new ConflictException({ code: 'PRIMARY_ASSIGNMENT_CONFLICT', conflictingAssignmentId: overlaps.id });
+        if (vehiclePrimary) {
+          throw new ConflictException({ code: 'VEHICLE_PRIMARY_CONFLICT', message: 'Xe này đã có tài xế phụ trách chính.', conflictingAssignmentId: vehiclePrimary.id });
+        }
+
+        const driverPrimaryCount = await tx.vehicleDriverAssignment.count({
+          where: {
+            driverId: dto.driverId,
+            type: VehicleDriverAssignmentType.PRIMARY,
+            status: { in: [VehicleDriverAssignmentStatus.SCHEDULED, VehicleDriverAssignmentStatus.ACTIVE] },
+            effectiveFrom: { lt: dto.effectiveTo ?? new Date('9999-12-31T23:59:59.999Z') },
+            AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gt: dto.effectiveFrom } }] }],
+          },
+        });
+        if (driverPrimaryCount >= 2) {
+          throw new ConflictException({ code: 'DRIVER_PRIMARY_MAX_REACHED', message: 'Mỗi tài xế chỉ được phụ trách chính tối đa 2 xe.' });
+        }
+      } else if (dto.type === VehicleDriverAssignmentType.SECONDARY) {
+        const driverSecondaryCount = await tx.vehicleDriverAssignment.count({
+          where: {
+            driverId: dto.driverId,
+            type: VehicleDriverAssignmentType.SECONDARY,
+            status: { in: [VehicleDriverAssignmentStatus.SCHEDULED, VehicleDriverAssignmentStatus.ACTIVE] },
+            effectiveFrom: { lt: dto.effectiveTo ?? new Date('9999-12-31T23:59:59.999Z') },
+            AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gt: dto.effectiveFrom } }] }],
+          },
+        });
+        if (driverSecondaryCount >= 2) {
+          throw new ConflictException({ code: 'DRIVER_SECONDARY_MAX_REACHED', message: 'Mỗi tài xế chỉ được phụ trách phụ tối đa 2 xe.' });
+        }
       }
       const now = new Date();
       const status = dto.effectiveFrom > now ? VehicleDriverAssignmentStatus.SCHEDULED : VehicleDriverAssignmentStatus.ACTIVE;

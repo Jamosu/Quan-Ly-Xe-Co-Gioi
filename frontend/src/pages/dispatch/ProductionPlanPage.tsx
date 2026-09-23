@@ -585,6 +585,16 @@ export const ProductionPlanPage: React.FC = () => {
   const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const currentIsoWeek = useMemo(() => getWeekNumber(new Date()), []);
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear() || 2026);
+  const availableYears = useMemo(() => {
+    const curY = new Date().getFullYear();
+    const startY = Math.min(2023, selectedYear, curY - 5);
+    const endY = Math.max(curY + 2, selectedYear);
+    const list: number[] = [];
+    for (let y = startY; y <= endY; y++) {
+      list.push(y);
+    }
+    return list;
+  }, [selectedYear]);
   const [fromWeekVal, setFromWeekVal] = useState<string>('ALL');
   const [toWeekVal, setToWeekVal] = useState<string>('ALL');
   const [weekFilterMode, setWeekFilterMode] = useState<'ALL' | 'PREV_5' | 'CURRENT' | 'NEXT_5' | 'RANGE'>('ALL');
@@ -615,9 +625,17 @@ export const ProductionPlanPage: React.FC = () => {
   const [addingTaskToPlan, setAddingTaskToPlan] = useState<WeeklyPlanItem | null>(null);
 
   // Form State cho việc tạo / sửa kế hoạch tuần (Chọn Năm + Chọn Tuần + Phân cấp đơn vị)
-  const [formYear, setFormYear] = useState<number>(2026);
-  const [formWeekNo, setFormWeekNo] = useState<number>(36);
-  const formWeeks = useMemo(() => getWeeksOfYear(formYear), [formYear]);
+  const currentActualYear = new Date().getFullYear();
+  const currentActualWeek = getWeekNumber(new Date());
+  const [formYear, setFormYear] = useState<number>(currentActualYear);
+  const [formWeekNo, setFormWeekNo] = useState<number>(() => (currentActualWeek <= 52 ? currentActualWeek : 1));
+  const formWeeks = useMemo(() => {
+    const weeks = getWeeksOfYear(formYear);
+    if (formYear === currentActualYear) {
+      return weeks.filter((w) => w.weekNumber >= currentActualWeek);
+    }
+    return weeks;
+  }, [formYear, currentActualYear, currentActualWeek]);
 
   const [planForm, setPlanForm] = useState({
     code: '',
@@ -1495,10 +1513,11 @@ export const ProductionPlanPage: React.FC = () => {
                   setWeekFilterMode('ALL');
                 }}
               >
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-                <option value={2027}>2027</option>
-                <option value={2028}>2028</option>
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -2185,8 +2204,14 @@ export const ProductionPlanPage: React.FC = () => {
                   onChange={(e) => {
                     const y = Number(e.target.value);
                     setFormYear(y);
+                    const curW = getWeekNumber(new Date());
+                    let nextW = formWeekNo;
+                    if (y === currentActualYear && nextW < curW) {
+                      nextW = curW;
+                      setFormWeekNo(nextW);
+                    }
                     const weeks = getWeeksOfYear(y);
-                    const targetW = weeks.find((w) => w.weekNumber === formWeekNo) || weeks[0];
+                    const targetW = weeks.find((w) => w.weekNumber === nextW) || weeks[0];
                     setPlanForm((prev) => ({
                       ...prev,
                       weekMondayDate: targetW.startDateKey,
@@ -2195,10 +2220,8 @@ export const ProductionPlanPage: React.FC = () => {
                   }}
                   className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs font-extrabold text-slate-900 focus:border-primary focus:outline-none"
                 >
-                  <option value={2025}>2025</option>
-                  <option value={2026}>2026</option>
-                  <option value={2027}>2027</option>
-                  <option value={2028}>2028</option>
+                  <option value={currentActualYear}>{currentActualYear}</option>
+                  <option value={currentActualYear + 1}>{currentActualYear + 1}</option>
                 </select>
               </div>
 

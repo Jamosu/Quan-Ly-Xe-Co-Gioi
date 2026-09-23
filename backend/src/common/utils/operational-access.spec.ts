@@ -5,22 +5,22 @@ import { assertOperationalAccess, hasGlobalOperationalAccess, scopedUnit } from 
 describe('operational access', () => {
   it('never treats a missing actor as global access', () => {
     expect(hasGlobalOperationalAccess(undefined)).toBe(false);
-    expect(() => scopedUnit(undefined, Unit.NT1)).toThrow();
-    expect(() => assertOperationalAccess(undefined, Unit.NT1)).toThrow();
+    expect(() => scopedUnit(undefined, Unit.KOUN_MOM)).toThrow();
+    expect(() => assertOperationalAccess(undefined, Unit.KOUN_MOM)).toThrow();
   });
-  it('allows Ban Cơ giới dispatcher to view all units', () => {
-    const actor = { id: 1, role: Role.DISPATCHER, unit: Unit.BAN_CO_GIOI };
+  it('gives the general-manager dispatcher global operational access', () => {
+    const actor = { id: 1, role: Role.DISPATCHER, unit: Unit.TOAN_KLH };
     expect(hasGlobalOperationalAccess(actor)).toBe(true);
-    expect(scopedUnit(actor, Unit.NT2)).toBe(Unit.NT2);
+    expect(scopedUnit(actor, Unit.KOUN_MOM)).toBe(Unit.KOUN_MOM);
   });
   it('forces farm manager to their own unit', () => {
-    const actor = { id: 2, role: Role.FARM_MANAGER, unit: Unit.NT1 };
-    expect(scopedUnit(actor)).toBe(Unit.NT1);
-    expect(() => scopedUnit(actor, Unit.NT2)).toThrow(ForbiddenException);
+    const actor = { id: 2, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM };
+    expect(scopedUnit(actor)).toBe(Unit.KOUN_MOM);
+    expect(() => scopedUnit(actor, Unit.SNOUL)).toThrow(ForbiddenException);
   });
   it('lets a driver access only their assigned order', () => {
-    const actor = { id: 7, role: Role.DRIVER, unit: Unit.NT1 };
-    expect(() => assertOperationalAccess(actor, Unit.NT2, 7)).not.toThrow();
-    expect(() => assertOperationalAccess(actor, Unit.NT1, 8)).toThrow(ForbiddenException);
+    const actor = { id: 7, role: Role.DRIVER, unit: Unit.KOUN_MOM };
+    expect(() => assertOperationalAccess(actor, Unit.KOUN_MOM, 7)).not.toThrow();
+    expect(() => assertOperationalAccess(actor, Unit.KOUN_MOM, 8)).toThrow(ForbiddenException);
   });
 });

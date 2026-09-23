@@ -64,7 +64,7 @@ export type JobCatalogTab =
   | 'routes'      // 5. Tuyến đường vận chuyển nội bộ (theo KLH - Vận chuyển)
   | 'sites'       // 5. Khu vực thi công (theo KLH - Ban Xây dựng quản lý)
   | 'plots'       // 5. Lô / Thửa canh tác Nông nghiệp (theo KLH - Xí nghiệp - Nông trường)
-  | 'teams';      // 6. Đội cơ giới (Nông nghiệp hoặc Ban Xây dựng)
+  | 'teams';      // Legacy renderer retained temporarily; no longer reachable from menu or URL.
 
 export interface JobItem {
   id: string;
@@ -80,6 +80,7 @@ export interface JobItem {
   quotaPerShift: string;
   fuelQuota: number;
   fuelUnit: string;
+  routeFlowType?: 'ONE_WAY' | 'TWO_WAY';
   complexCode: string; // Thuộc KLH
   description?: string;
   status?: 'active' | 'inactive' | string;
@@ -134,6 +135,11 @@ export interface TransportRouteItem {
   distanceKm: number; // Cự ly km
   cargoType: string; // Loại phụ phẩm / hàng hóa
   speedLimitKmH: number; // Giới hạn tốc độ
+  routeFlowType: 'ONE_WAY' | 'TWO_WAY';
+  returnOrigin: string;
+  returnDestination: string;
+  returnCargoName: string;
+  returnTonnage: number;
   status: 'active' | 'inactive';
   notes?: string;
 }
@@ -153,9 +159,8 @@ const renderJobStatusBadge = (status?: string | boolean) => {
   const isInactive = status === 'inactive' || status === 'NGUNG_HOAT_DONG' || status === 'TAM_DUNG' || status === false;
   return (
     <span
-      className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-        isInactive ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-800'
-      }`}
+      className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isInactive ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-800'
+        }`}
     >
       {isInactive ? 'Ngưng hoạt động' : 'Còn hoạt động'}
     </span>
@@ -172,8 +177,8 @@ const mapStageToCatalogItem = (stage: StageItem): CatalogItem => ({
     stage.planType === 'NONG_NGHIEP'
       ? 'Cơ giới Nông nghiệp'
       : stage.planType === 'CONG_TRINH'
-      ? 'Máy Công trình'
-      : 'Vận chuyển nội bộ',
+        ? 'Máy Công trình'
+        : 'Vận chuyển nội bộ',
   description: stage.description,
   systemId: String(stage.sequence),
   status: stage.status === 'active' ? 'HOAT_DONG' : 'TAM_DUNG',
@@ -219,9 +224,30 @@ const mapCatalogItemToJob = (item: CatalogItem): JobItem => ({
   quotaPerShift: item.managerName || '',
   fuelQuota: item.areaHa || 0,
   fuelUnit: item.address || 'Lít/ha',
+  routeFlowType: item.routeFlowType,
   complexCode: item.phone || 'KOUN_MOM',
   description: item.description || '',
   status: item.status === 'TAM_DUNG' ? 'inactive' : 'active',
+});
+
+const mapJobToCatalogItem = (job: JobItem): CatalogItem => ({
+  id: job.id,
+  code: job.code,
+  name: job.name,
+  type: 'JOB_ITEM',
+  parentCode: job.planType,
+  parentName: job.stageName,
+  enterpriseName: job.stageCode,
+  farmName: job.implementGroup,
+  plotStatus: job.recommendedVehicle,
+  routeFlowType: job.routeFlowType,
+  systemId: job.defaultUnit,
+  managerName: job.quotaPerShift,
+  areaHa: job.fuelQuota,
+  address: job.fuelUnit,
+  phone: job.complexCode,
+  description: job.description,
+  status: job.status === 'inactive' ? 'TAM_DUNG' : 'HOAT_DONG',
 });
 
 const mapCatalogItemToOrderType = (item: CatalogItem): OrderTypeItem => ({
@@ -252,8 +278,30 @@ const mapCatalogItemToRoute = (item: CatalogItem): TransportRouteItem => ({
   distanceKm: parseFloat(item.description?.match(/Cự ly:\s*([\d.]+)/)?.[1] || '10') || 10,
   cargoType: item.description?.match(/Hàng:\s*([^|]+)/)?.[1]?.trim() || 'Hàng hóa nội bộ',
   speedLimitKmH: parseInt(item.description?.match(/Tốc độ GPS:\s*(\d+)/)?.[1] || '35', 10) || 35,
+  routeFlowType: item.routeFlowType || 'ONE_WAY',
+  returnOrigin: item.returnOrigin || '',
+  returnDestination: item.returnDestination || '',
+  returnCargoName: item.returnCargoName || '',
+  returnTonnage: item.returnTonnage || 0,
   status: item.status === 'HOAT_DONG' ? 'active' : 'inactive',
   notes: item.description || '',
+});
+
+const mapRouteToCatalogItem = (route: TransportRouteItem): CatalogItem => ({
+  id: route.id,
+  code: route.code,
+  name: route.name,
+  type: 'ROUTE',
+  parentCode: route.complexCode,
+  parentName: route.complexName,
+  address: `${route.origin} ➔ ${route.destination}`,
+  description: `Cự ly: ${route.distanceKm} | Hàng: ${route.cargoType} | Tốc độ GPS: ${route.speedLimitKmH}${route.notes ? ` | ${route.notes}` : ''}`,
+  routeFlowType: route.routeFlowType,
+  returnOrigin: route.returnOrigin || undefined,
+  returnDestination: route.returnDestination || undefined,
+  returnCargoName: route.returnCargoName || undefined,
+  returnTonnage: route.returnTonnage || undefined,
+  status: route.status === 'active' ? 'HOAT_DONG' : 'TAM_DUNG',
 });
 
 // DANH MỤC LỰA CHỌN GỢI Ý CHO CÁC FIELD KHÔNG THUỘC DIỆN TAB (LƯU KẾT QUẢ VÀO LOCALSTORAGE)
@@ -322,7 +370,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     if (selectedJobPlanType === 'CONG_TRINH' && ['routes', 'plots'].includes(initialTab)) {
       return 'jobs';
     }
-    if (selectedJobPlanType === 'VAN_CHUYEN' && ['sites', 'plots', 'teams'].includes(initialTab)) {
+    if (selectedJobPlanType === 'VAN_CHUYEN' && ['sites', 'plots'].includes(initialTab)) {
       return 'jobs';
     }
     return initialTab;
@@ -336,7 +384,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     } else if (selectedJobPlanType === 'CONG_TRINH' && ['routes', 'plots'].includes(activeTab)) {
       setActiveTab('jobs');
       setSearchParams({ tab: 'jobs' });
-    } else if (selectedJobPlanType === 'VAN_CHUYEN' && ['sites', 'plots', 'teams'].includes(activeTab)) {
+    } else if (selectedJobPlanType === 'VAN_CHUYEN' && ['sites', 'plots'].includes(activeTab)) {
       setActiveTab('jobs');
       setSearchParams({ tab: 'jobs' });
     }
@@ -364,7 +412,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     try {
       const saved = localStorage.getItem('thaco_job_items_v5');
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return [];
   });
 
@@ -386,7 +434,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     try {
       const saved = localStorage.getItem('thaco_job_implements_v5');
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return [];
   });
 
@@ -454,7 +502,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     try {
       const saved = localStorage.getItem('thaco_job_order_types_v5');
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return [];
   });
 
@@ -462,7 +510,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     try {
       const saved = localStorage.getItem('thaco_job_routes_v4');
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return [];
   });
 
@@ -500,7 +548,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     // Bắn sự kiện storage để các form kế hoạch khác cập nhật ngay lập tức
     try {
       window.dispatchEvent(new Event('storage'));
-    } catch {}
+    } catch { }
   }, [stages]);
 
   useEffect(() => {
@@ -528,12 +576,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
   // Đồng bộ searchParams URL với tab
   useEffect(() => {
     const tabParam = searchParams.get('tab') as JobCatalogTab;
-    if (tabParam && ['jobs', 'stages', 'implements', 'orderTypes', 'routes', 'sites', 'plots', 'teams'].includes(tabParam)) {
+    if (tabParam && ['jobs', 'stages', 'implements', 'orderTypes', 'routes', 'sites', 'plots'].includes(tabParam)) {
       if (selectedJobPlanType === 'NONG_NGHIEP' && ['routes', 'sites'].includes(tabParam)) {
         setActiveTab('jobs');
       } else if (selectedJobPlanType === 'CONG_TRINH' && ['routes', 'plots'].includes(tabParam)) {
         setActiveTab('jobs');
-      } else if (selectedJobPlanType === 'VAN_CHUYEN' && ['sites', 'plots', 'teams'].includes(tabParam)) {
+      } else if (selectedJobPlanType === 'VAN_CHUYEN' && ['sites', 'plots'].includes(tabParam)) {
         setActiveTab('jobs');
       } else {
         setActiveTab(tabParam);
@@ -592,6 +640,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
   const [formDefaultUnit, setFormDefaultUnit] = useState('ha');
   const [formFuelQuota, setFormFuelQuota] = useState<number>(12.0);
   const [formFuelUnit, setFormFuelUnit] = useState('Lít/ha');
+  const [formRouteFlowType, setFormRouteFlowType] = useState<'ONE_WAY' | 'TWO_WAY'>('ONE_WAY');
   const [formDescription, setFormDescription] = useState('');
 
   // PERSISTENT STATE FOR NON-TAB SELECT OPTIONS (LƯU VÀO LOCALSTORAGE)
@@ -752,8 +801,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       planType === 'CONG_TRINH'
         ? 'Không gắn nông cụ (Xe cơ giới thi công độc lập)'
         : planType === 'VAN_CHUYEN'
-        ? 'Rơ-moóc chuyên dụng chở chuối'
-        : 'Dàn cày 3 - 4 chảo'
+          ? 'Rơ-moóc chuyên dụng chở chuối'
+          : 'Dàn cày 3 - 4 chảo'
     );
 
     setEditingJob(null);
@@ -762,6 +811,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     setFormPlanType(planType);
     setFormStageCode(firstStage);
     setFormComplexCode(selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM');
+    setFormRouteFlowType('ONE_WAY');
     setFormDescription('');
 
     if (planType === 'NONG_NGHIEP') {
@@ -808,6 +858,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     setFormDefaultUnit(job.defaultUnit || (job.planType === 'NONG_NGHIEP' ? 'ha' : job.planType === 'CONG_TRINH' ? 'm³' : 'Tấn'));
     setFormFuelQuota(job.fuelQuota);
     setFormFuelUnit(job.fuelUnit);
+    setFormRouteFlowType(job.routeFlowType || 'ONE_WAY');
     setFormDescription(job.description || '');
     setShowJobModal(true);
   };
@@ -819,14 +870,15 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const validStages = stages.filter((s) => s.planType === newType && s.status === 'active');
     const firstStage = validStages[0]?.code || (newType === 'CONG_TRINH' ? 'DAO_DAP' : newType === 'VAN_CHUYEN' ? 'CHUYEN_CHUOI' : 'LAM_DAT');
     setFormStageCode(firstStage);
+    setFormRouteFlowType('ONE_WAY');
 
     const validImplements = implementsList.filter((i) => i.planType === newType && i.status === 'active');
     const firstImplement = validImplements[0]?.name || (
       newType === 'CONG_TRINH'
         ? 'Không gắn nông cụ (Xe cơ giới thi công độc lập)'
         : newType === 'VAN_CHUYEN'
-        ? 'Rơ-moóc chuyên dụng chở chuối'
-        : 'Dàn cày 3 - 4 chảo'
+          ? 'Rơ-moóc chuyên dụng chở chuối'
+          : 'Dàn cày 3 - 4 chảo'
     );
     setFormImplementGroup(firstImplement);
 
@@ -1053,8 +1105,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         selectedJobPlanType === 'NONG_NGHIEP'
           ? o.orderGroup === 'NONG_NGHIEP' || o.orderGroup === 'CUU_HO'
           : selectedJobPlanType === 'CONG_TRINH'
-          ? o.orderGroup === 'CONG_TRINH' || o.orderGroup === 'CUU_HO'
-          : o.orderGroup === 'VAN_TAI' || o.orderGroup === 'CUU_HO';
+            ? o.orderGroup === 'CONG_TRINH' || o.orderGroup === 'CUU_HO'
+            : o.orderGroup === 'VAN_TAI' || o.orderGroup === 'CUU_HO';
       const matchSearch =
         !q ||
         o.code.toLowerCase().includes(q) ||
@@ -1230,8 +1282,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const implementGroup = formHasImplement
       ? formImplementGroup.trim()
       : formPlanType === 'CONG_TRINH'
-      ? 'Không gắn nông cụ (Xe cơ giới thi công độc lập)'
-      : 'Không gắn nông cụ (Xe tự hành)';
+        ? 'Không gắn nông cụ (Xe cơ giới thi công độc lập)'
+        : 'Không gắn nông cụ (Xe tự hành)';
 
     // Tự động lưu các lựa chọn gõ mới vào danh mục options (không thuộc diện tab)
     if (formRecommendedVehicle && formRecommendedVehicle.trim()) {
@@ -1244,32 +1296,30 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       handleAddFuelUnit(formFuelUnit.trim());
     }
 
+    let savedJob: JobItem;
+    let nextJobs: JobItem[];
     if (editingJob) {
-      setJobs((prev) =>
-        prev.map((j) =>
-          j.id === editingJob.id
-            ? {
-                ...j,
-                code,
-                name,
-                planType: formPlanType,
-                stageCode: formStageCode,
-                stageName,
-                hasImplement: formHasImplement,
-                implementGroup,
-                recommendedVehicle: formRecommendedVehicle,
-                defaultUnit: formDefaultUnit,
-                quotaPerShift: formQuotaPerShift,
-                fuelQuota: Number(formFuelQuota),
-                fuelUnit: formFuelUnit,
-                complexCode: formComplexCode,
-                description: formDescription,
-              }
-            : j
-        )
-      );
+      savedJob = {
+        ...editingJob,
+        code,
+        name,
+        planType: formPlanType,
+        stageCode: formStageCode,
+        stageName,
+        hasImplement: formHasImplement,
+        implementGroup,
+        recommendedVehicle: formRecommendedVehicle,
+        defaultUnit: formDefaultUnit,
+        quotaPerShift: formQuotaPerShift,
+        fuelQuota: Number(formFuelQuota),
+        fuelUnit: formFuelUnit,
+        routeFlowType: formPlanType === 'VAN_CHUYEN' ? formRouteFlowType : undefined,
+        complexCode: formComplexCode,
+        description: formDescription,
+      };
+      nextJobs = jobs.map((job) => (job.id === editingJob.id ? savedJob : job));
     } else {
-      const newJob: JobItem = {
+      savedJob = {
         id: `JOB-${Date.now().toString().slice(-4)}`,
         code,
         name,
@@ -1283,11 +1333,22 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         quotaPerShift: formQuotaPerShift,
         fuelQuota: Number(formFuelQuota),
         fuelUnit: formFuelUnit,
+        routeFlowType: formPlanType === 'VAN_CHUYEN' ? formRouteFlowType : undefined,
         complexCode: formComplexCode,
         description: formDescription,
       };
-      setJobs((prev) => [...prev, newJob]);
+      nextJobs = [...jobs, savedJob];
     }
+
+    setJobs(nextJobs);
+    void catalogsApi
+      .saveCatalogItem(
+        mapJobToCatalogItem(savedJob),
+        'catalogs_job_items',
+        nextJobs.map(mapJobToCatalogItem)
+      )
+      .then(() => window.dispatchEvent(new Event('catalogs-job-items-updated')))
+      .catch(() => { });
 
     setShowJobModal(false);
     setEditingJob(null);
@@ -1316,14 +1377,14 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const stageItem: StageItem = editingStage
       ? { ...editingStage, code, name, planType, description, sequence }
       : {
-          id: `STG-${planType.slice(0, 2)}-${Date.now().toString().slice(-4)}`,
-          code,
-          name,
-          planType,
-          description,
-          sequence,
-          status: 'active',
-        };
+        id: `STG-${planType.slice(0, 2)}-${Date.now().toString().slice(-4)}`,
+        code,
+        name,
+        planType,
+        description,
+        sequence,
+        status: 'active',
+      };
 
     const currentCatalog = getStoredData<CatalogItem[]>('catalogs_job_types', []);
     const catalogItem = mapStageToCatalogItem(stageItem);
@@ -1355,15 +1416,15 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const impItem: ImplementGroupItem = editingImplement
       ? { ...editingImplement, code, name, planType, category, compatibleVehicles, description }
       : {
-          id: `IMP-${planType.slice(0, 2)}-${Date.now().toString().slice(-4)}`,
-          code,
-          name,
-          planType,
-          category,
-          compatibleVehicles,
-          description,
-          status: 'active',
-        };
+        id: `IMP-${planType.slice(0, 2)}-${Date.now().toString().slice(-4)}`,
+        code,
+        name,
+        planType,
+        category,
+        compatibleVehicles,
+        description,
+        status: 'active',
+      };
 
     const currentCatalog = getStoredData<CatalogItem[]>('catalogs_vehicle_categories', []);
     const catalogItem = mapImplementToCatalogItem(impItem);
@@ -1404,21 +1465,21 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         prev.map((o) =>
           o.id === editingOrderType.id
             ? {
-                ...o,
-                code,
-                name,
-                category,
-                orderGroup,
-                measuringMethod,
-                fuelQuotaType,
-                isEmergency,
-                requiresImplement,
-                requiresLotPlot,
-                requiresRoute,
-                targetScope,
-                description,
-                status,
-              }
+              ...o,
+              code,
+              name,
+              category,
+              orderGroup,
+              measuringMethod,
+              fuelQuotaType,
+              isEmergency,
+              requiresImplement,
+              requiresLotPlot,
+              requiresRoute,
+              targetScope,
+              description,
+              status,
+            }
             : o
         )
       );
@@ -1459,18 +1520,25 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     const distanceKm = Number(form.get('distanceKm') || 0);
     const cargoType = String(form.get('cargoType') || '').trim();
     const speedLimitKmH = Number(form.get('speedLimitKmH') || 35);
+    const routeFlowType = (form.get('routeFlowType') as 'ONE_WAY' | 'TWO_WAY') || 'ONE_WAY';
+    const returnOrigin = String(form.get('returnOrigin') || '').trim();
+    const returnDestination = String(form.get('returnDestination') || '').trim();
+    const returnCargoName = String(form.get('returnCargoName') || '').trim();
+    const returnTonnage = Number(form.get('returnTonnage') || 0);
     const notes = String(form.get('notes') || '').trim();
 
+    if (routeFlowType === 'TWO_WAY' && (!returnOrigin || !returnDestination || !returnCargoName || returnTonnage <= 0)) {
+      alert('Tuyến đối lưu phải có đủ điểm lấy/trả, mặt hàng và tải trọng chiều về.');
+      return;
+    }
+
+    let savedRoute: TransportRouteItem;
+    let nextRoutes: TransportRouteItem[];
     if (editingRoute) {
-      setRoutes((prev) =>
-        prev.map((r) =>
-          r.id === editingRoute.id
-            ? { ...r, code, name, complexCode, complexName, origin, destination, distanceKm, cargoType, speedLimitKmH, notes }
-            : r
-        )
-      );
+      savedRoute = { ...editingRoute, code, name, complexCode, complexName, origin, destination, distanceKm, cargoType, speedLimitKmH, routeFlowType, returnOrigin, returnDestination, returnCargoName, returnTonnage, notes };
+      nextRoutes = routes.map((route) => (route.id === editingRoute.id ? savedRoute : route));
     } else {
-      const newRoute: TransportRouteItem = {
+      savedRoute = {
         id: `RTE-${Date.now().toString().slice(-4)}`,
         code,
         name,
@@ -1481,11 +1549,22 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         distanceKm,
         cargoType,
         speedLimitKmH,
+        routeFlowType,
+        returnOrigin,
+        returnDestination,
+        returnCargoName,
+        returnTonnage,
         status: 'active',
         notes,
       };
-      setRoutes((prev) => [...prev, newRoute]);
+      nextRoutes = [...routes, savedRoute];
     }
+
+    setRoutes(nextRoutes);
+    void catalogsApi
+      .saveCatalogItem(mapRouteToCatalogItem(savedRoute), 'catalogs_routes', nextRoutes.map(mapRouteToCatalogItem))
+      .then(() => window.dispatchEvent(new Event('catalogs-routes-updated')))
+      .catch(() => { });
 
     setShowRouteModal(false);
     setEditingRoute(null);
@@ -1534,22 +1613,22 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         prev.map((s) =>
           s.id === editingSite.id
             ? {
-                ...s,
-                code,
-                name,
-                category,
-                categoryName: catNameMap[category] || category,
-                complexCode,
-                complexName,
-                unitOwner,
-                targetScope,
-                targetUnit,
-                recommendedMachines,
-                estimatedDays,
-                status,
-                statusLabel: statusMap[status] || status,
-                notes,
-              }
+              ...s,
+              code,
+              name,
+              category,
+              categoryName: catNameMap[category] || category,
+              complexCode,
+              complexName,
+              unitOwner,
+              targetScope,
+              targetUnit,
+              recommendedMachines,
+              estimatedDays,
+              status,
+              statusLabel: statusMap[status] || status,
+              notes,
+            }
             : s
         )
       );
@@ -1613,21 +1692,21 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         prev.map((t) =>
           t.id === editingTeam.id
             ? {
-                ...t,
-                code,
-                name,
-                complexCode,
-                complexName,
-                managingUnit,
-                leaderName,
-                leaderPhone,
-                machineCount,
-                personnelCount,
-                assignedAreas,
-                status,
-                statusLabel: statusMap[status] || status,
-                notes,
-              }
+              ...t,
+              code,
+              name,
+              complexCode,
+              complexName,
+              managingUnit,
+              leaderName,
+              leaderPhone,
+              machineCount,
+              personnelCount,
+              assignedAreas,
+              status,
+              statusLabel: statusMap[status] || status,
+              notes,
+            }
             : t
         )
       );
@@ -1690,21 +1769,21 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         prev.map((p) =>
           p.id === editingPlot.id
             ? {
-                ...p,
-                code,
-                name,
-                complexCode,
-                complexName,
-                enterpriseName,
-                farmName,
-                areaHa,
-                cropType,
-                irrigationSystem,
-                soilCondition,
-                status,
-                statusLabel: statusMap[status] || status,
-                notes,
-              }
+              ...p,
+              code,
+              name,
+              complexCode,
+              complexName,
+              enterpriseName,
+              farmName,
+              areaHa,
+              cropType,
+              irrigationSystem,
+              soilCondition,
+              status,
+              statusLabel: statusMap[status] || status,
+              notes,
+            }
             : p
         )
       );
@@ -1775,22 +1854,22 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         prev.map((t) =>
           t.id === editingAgriTeam.id
             ? {
-                ...t,
-                code,
-                name,
-                complexCode,
-                complexName,
-                enterpriseName,
-                farmName,
-                leaderName,
-                leaderPhone,
-                machineCount,
-                personnelCount,
-                assignedPlots,
-                status,
-                statusLabel: statusMap[status] || status,
-                notes,
-              }
+              ...t,
+              code,
+              name,
+              complexCode,
+              complexName,
+              enterpriseName,
+              farmName,
+              leaderName,
+              leaderPhone,
+              machineCount,
+              personnelCount,
+              assignedPlots,
+              status,
+              statusLabel: statusMap[status] || status,
+              notes,
+            }
             : t
         )
       );
@@ -1826,9 +1905,25 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     }
   };
 
+  const syncDeletedJobs = (ids: string[]) => {
+    const currentCatalog = jobs.map(mapJobToCatalogItem);
+    void (async () => {
+      let remainingCatalog = currentCatalog;
+      for (const id of ids) {
+        remainingCatalog = await catalogsApi.deleteCatalogItem(
+          id,
+          'catalogs_job_items',
+          remainingCatalog
+        );
+      }
+      window.dispatchEvent(new Event('catalogs-job-items-updated'));
+    })().catch(() => { });
+  };
+
   // Xóa các mục
   const handleDeleteJob = (id: string, name: string) => {
     if (window.confirm(`Xác nhận xóa quy trình công việc "${name}"?`)) {
+      syncDeletedJobs([id]);
       setJobs((prev) => prev.filter((j) => j.id !== id));
       setSelectedItems((prev) => prev.filter((i) => i !== id));
     }
@@ -1838,7 +1933,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     if (window.confirm(`Xác nhận xóa phân nhóm / giai đoạn "${name}"?`)) {
       setStages((prev) => prev.filter((s) => s.id !== id));
       const currentCatalog = getStoredData<CatalogItem[]>('catalogs_job_types', []);
-      catalogsApi.deleteCatalogItem(id, 'catalogs_job_types', currentCatalog).catch(() => {});
+      catalogsApi.deleteCatalogItem(id, 'catalogs_job_types', currentCatalog).catch(() => { });
     }
   };
 
@@ -1846,7 +1941,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     if (window.confirm(`Xác nhận xóa nhóm nông cụ/thiết bị "${name}"?`)) {
       setImplementsList((prev) => prev.filter((i) => i.id !== id));
       const currentCatalog = getStoredData<CatalogItem[]>('catalogs_vehicle_categories', []);
-      catalogsApi.deleteCatalogItem(id, 'catalogs_vehicle_categories', currentCatalog).catch(() => {});
+      catalogsApi.deleteCatalogItem(id, 'catalogs_vehicle_categories', currentCatalog).catch(() => { });
     }
   };
 
@@ -1859,6 +1954,10 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
 
   const handleDeleteRoute = (id: string, name: string) => {
     if (window.confirm(`Xác nhận xóa tuyến đường "${name}"?`)) {
+      void catalogsApi
+        .deleteCatalogItem(id, 'catalogs_routes', routes.map(mapRouteToCatalogItem))
+        .then(() => window.dispatchEvent(new Event('catalogs-routes-updated')))
+        .catch(() => { });
       setRoutes((prev) => prev.filter((r) => r.id !== id));
       setSelectedItems((prev) => prev.filter((i) => i !== id));
     }
@@ -1884,6 +1983,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedItems.length} mục đã chọn?`)) return;
 
     if (activeTab === 'jobs') {
+      syncDeletedJobs(selectedItems);
       setJobs((prev) => prev.filter((j) => !selectedItems.includes(j.id)));
     } else if (activeTab === 'stages') {
       setStages((prev) => prev.filter((s) => !selectedItems.includes(s.id)));
@@ -1966,7 +2066,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       rows = filteredOrderTypes.map((o, idx) => [idx + 1, o.code, o.name, o.category, o.targetScope, o.description || '']);
     } else if (activeTab === 'routes') {
       filename = `danh-muc-tuyen-duong-van-chuyen-${new Date().toISOString().slice(0, 10)}.csv`;
-      headers = ['STT', 'Mã tuyến', 'Tên tuyến đường', 'Khu liên hợp', 'Điểm đi', 'Điểm đến', 'Cự ly chuẩn (km)', 'Mặt hàng', 'Tốc độ GPS (km/h)'];
+      headers = ['STT', 'Mã tuyến', 'Tên tuyến đường', 'Khu liên hợp', 'Điểm đi', 'Điểm đến', 'Cự ly chuẩn (km)', 'Mặt hàng', 'Tốc độ GPS (km/h)', 'Loại tuyến', 'Điểm bốc về', 'Điểm trả về', 'Mặt hàng về', 'Tải trọng về (tấn)'];
       rows = filteredRoutes.map((r, idx) => [
         idx + 1,
         r.code,
@@ -1977,6 +2077,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
         r.distanceKm,
         r.cargoType,
         r.speedLimitKmH,
+        r.routeFlowType === 'TWO_WAY' ? 'Hai chiều' : 'Một chiều',
+        r.returnOrigin || '',
+        r.returnDestination || '',
+        r.returnCargoName || '',
+        r.returnTonnage || '',
       ]);
     } else if (activeTab === 'sites') {
       filename = `danh-muc-khu-vuc-thi-cong-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -2106,7 +2211,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredJobs.length > 0 && filteredJobs.every((r) => selectedItems.includes(r.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredJobs.map((r) => r.id));
@@ -2114,12 +2219,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2127,11 +2232,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'code',
-      title: 'Mã CV / Quy trình (Tăng dần)',
+      title: 'Mã CV',
       sortable: true,
-      width: '135px',
+      width: '80px',
       render: (item) => (
-        <span className="font-mono font-extrabold text-primary text-xs bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+        <span className="font-mono font-bold text-primary text-[11px] bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 whitespace-nowrap">
           {item.code}
         </span>
       ),
@@ -2141,62 +2246,53 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: 'Tên hạng mục công việc cơ giới',
       sortable: true,
       render: (item) => (
-        <div className="min-w-[240px] max-w-[360px]">
+        <div className="space-y-0.5 py-0.5">
           <strong className="text-slate-900 block text-xs font-bold leading-snug">{item.name}</strong>
           {item.description && (
-            <span className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed">{item.description}</span>
+            <span className="text-[11px] text-slate-500 block leading-relaxed">{item.description}</span>
           )}
         </div>
       ),
     },
     {
       key: 'stageName',
-      title: 'Giai đoạn / Phân nhóm',
+      title: 'Giai đoạn',
       sortable: true,
+      width: '85px',
       render: (item) => (
-        <span className="inline-flex items-center rounded-lg bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+        <span className="inline-flex items-center rounded-md bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[10.5px] font-bold text-blue-700 leading-tight">
           {item.stageName}
         </span>
       ),
     },
     {
-      key: 'implementGroup',
-      title: 'Nông cụ / Thiết bị phụ trợ',
+      key: 'vehicleAndImplement',
+      title: 'Cơ giới & Nông cụ',
+      width: '145px',
       render: (item) => (
-        <div>
+        <div className="space-y-0.5 text-xs">
+          <div className="font-semibold text-slate-800 leading-tight">{item.recommendedVehicle}</div>
           {item.hasImplement ? (
-            <span className="text-xs text-amber-800 font-semibold truncate block max-w-[190px]" title={item.implementGroup}>
+            <div className="text-[11px] text-amber-800 font-medium leading-tight">
               {item.implementGroup}
-            </span>
+            </div>
           ) : (
-            <span className="text-[11px] text-slate-400 font-medium">
-              Không gắn (Xe tự hành)
-            </span>
+            <div className="text-[10.5px] text-slate-400 italic">Xe tự hành</div>
           )}
         </div>
       ),
     },
     {
-      key: 'recommendedVehicle',
-      title: 'Đầu máy phù hợp',
+      key: 'quotas',
+      title: 'Định mức ca & dầu',
+      width: '120px',
       render: (item) => (
-        <span className="text-xs text-slate-700 font-medium truncate block max-w-[160px]" title={item.recommendedVehicle}>
-          {item.recommendedVehicle}
-        </span>
-      ),
-    },
-    {
-      key: 'quotaPerShift',
-      title: 'Định mức ca máy',
-      render: (item) => <span className="text-xs text-slate-800 font-bold">{item.quotaPerShift}</span>,
-    },
-    {
-      key: 'fuelQuota',
-      title: 'Định mức dầu khoán',
-      render: (item) => (
-        <div className="inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-          <strong className="text-emerald-700 font-extrabold text-xs">{item.fuelQuota}</strong>
-          <span className="text-[10px] text-emerald-600 font-medium">{item.fuelUnit}</span>
+        <div className="space-y-1 text-xs">
+          <div className="font-bold text-slate-800 leading-tight">{item.quotaPerShift}</div>
+          <div className="inline-flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap">
+            <strong className="text-emerald-700 font-bold text-[11px]">{item.fuelQuota}</strong>
+            <span className="text-[10px] text-emerald-600 font-medium">{item.fuelUnit}</span>
+          </div>
         </div>
       ),
     },
@@ -2204,14 +2300,14 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
-      width: '120px',
+      width: '115px',
       render: (item) => renderJobStatusBadge(item.status),
     },
     {
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2226,7 +2322,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => setSelectedJobDetail(item)}
@@ -2246,7 +2342,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredStages.length > 0 && filteredStages.every((r) => selectedItems.includes(r.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredStages.map((r) => r.id));
@@ -2254,12 +2350,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '36px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2267,42 +2363,44 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'sequence',
-      title: 'Thứ tự',
-      width: '80px',
+      title: 'STT',
+      width: '45px',
       align: 'center',
       render: (item) => (
-        <span className="h-6 w-6 rounded-full bg-blue-100 text-blue-800 font-bold text-xs inline-flex items-center justify-center">
+        <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-800 font-bold text-xs inline-flex items-center justify-center">
           {item.sequence}
         </span>
       ),
     },
     {
       key: 'code',
-      title: 'Mã giai đoạn / phân nhóm',
-      render: (item) => <span className="font-mono font-bold text-slate-700 text-xs bg-slate-100 px-2 py-0.5 rounded">{item.code}</span>,
+      title: 'Mã GĐ',
+      width: '80px',
+      render: (item) => <span className="font-mono font-bold text-slate-700 text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{item.code}</span>,
     },
     {
       key: 'name',
-      title: 'Tên giai đoạn / Hạng mục thi công',
-      render: (item) => <strong className="text-slate-900 text-xs">{item.name}</strong>,
+      title: 'Tên giai đoạn / Phân loại',
+      width: '160px',
+      render: (item) => <strong className="text-slate-900 text-xs block leading-snug">{item.name}</strong>,
     },
     {
       key: 'description',
       title: 'Quy trình công việc trọng tâm',
-      render: (item) => <span className="text-xs text-slate-600">{item.description}</span>,
+      render: (item) => <span className="text-xs text-slate-600 block leading-relaxed">{item.description}</span>,
     },
     {
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
-      width: '120px',
+      width: '115px',
       render: (item) => renderJobStatusBadge(item.status),
     },
     {
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2317,7 +2415,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -2343,7 +2441,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredImplements.length > 0 && filteredImplements.every((r) => selectedItems.includes(r.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredImplements.map((r) => r.id));
@@ -2351,12 +2449,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2364,37 +2462,39 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'code',
-      title: 'Mã thiết bị / nông cụ',
-      width: '150px',
-      render: (item) => <span className="font-mono font-bold text-amber-900 text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{item.code}</span>,
+      title: 'Mã NC',
+      width: '80px',
+      render: (item) => <span className="font-mono font-bold text-amber-900 text-xs bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 whitespace-nowrap">{item.code}</span>,
     },
     {
       key: 'name',
-      title: 'Tên nhóm nông cụ / Thiết bị phụ trợ',
-      render: (item) => <strong className="text-slate-900 text-xs">{item.name}</strong>,
+      title: 'Tên nhóm nông cụ / Thiết bị',
+      width: '160px',
+      render: (item) => <strong className="text-slate-900 text-xs block leading-snug">{item.name}</strong>,
     },
     {
       key: 'category',
       title: 'Phân nhóm công năng',
-      render: (item) => <span className="text-xs text-slate-700 font-semibold">{item.category}</span>,
+      width: '120px',
+      render: (item) => <span className="text-xs text-slate-700 font-semibold block leading-snug">{item.category}</span>,
     },
     {
       key: 'compatibleVehicles',
       title: 'Đầu máy / Xe phù hợp',
-      render: (item) => <span className="text-xs text-slate-600">{item.compatibleVehicles}</span>,
+      render: (item) => <span className="text-xs text-slate-600 block leading-relaxed">{item.compatibleVehicles}</span>,
     },
     {
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
-      width: '120px',
+      width: '115px',
       render: (item) => renderJobStatusBadge(item.status),
     },
     {
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2409,7 +2509,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -2435,7 +2535,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredOrderTypes.length > 0 && filteredOrderTypes.every((r) => selectedItems.includes(r.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredOrderTypes.map((r) => r.id));
@@ -2443,12 +2543,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2456,16 +2556,16 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'code',
-      title: 'Mã loại lệnh',
-      width: '140px',
+      title: 'Mã lệnh',
+      width: '80px',
       render: (item) => (
-        <div className="flex flex-col gap-1">
-          <span className="font-mono font-bold text-purple-700 text-xs bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-fit">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono font-bold text-purple-700 text-xs bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 w-fit whitespace-nowrap">
             {item.code}
           </span>
           {item.isEmergency && (
-            <span className="inline-flex items-center text-[10px] font-extrabold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-300 w-fit">
-              CỨU HỘ KHẨN
+            <span className="inline-flex items-center text-[10px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.2 rounded border border-rose-300 w-fit whitespace-nowrap">
+              CỨU HỘ
             </span>
           )}
         </div>
@@ -2474,27 +2574,28 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     {
       key: 'name',
       title: 'Tên loại lệnh điều động',
+      width: '160px',
       render: (item) => (
-        <div>
-          <strong className="text-slate-900 text-xs block">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 line-clamp-1">{item.description}</span>
+        <div className="space-y-0.5">
+          <strong className="text-slate-900 text-xs block leading-snug">{item.name}</strong>
+          <span className="text-[11px] text-slate-500 block leading-relaxed">{item.description}</span>
         </div>
       ),
     },
     {
       key: 'orderGroup',
       title: 'Nhóm lệnh cốt lõi',
-      width: '150px',
+      width: '110px',
       render: (item) => {
         switch (item.orderGroup) {
           case 'NONG_NGHIEP':
-            return <span className="inline-flex items-center text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">Xe Nông nghiệp</span>;
+            return <span className="inline-flex items-center text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 whitespace-nowrap">Xe Nông nghiệp</span>;
           case 'CONG_TRINH':
-            return <span className="inline-flex items-center text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">Xe Công trình</span>;
+            return <span className="inline-flex items-center text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 whitespace-nowrap">Xe Công trình</span>;
           case 'VAN_TAI':
-            return <span className="inline-flex items-center text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">Xe Vận tải</span>;
+            return <span className="inline-flex items-center text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 whitespace-nowrap">Xe Vận tải</span>;
           case 'CUU_HO':
-            return <span className="inline-flex items-center text-[11px] font-bold text-rose-800 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200">Xe Cứu hộ (SOS)</span>;
+            return <span className="inline-flex items-center text-[11px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 whitespace-nowrap">Cứu hộ (SOS)</span>;
           default:
             return <span className="text-xs text-slate-600">{item.category}</span>;
         }
@@ -2502,11 +2603,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'measuringMethod',
-      title: 'Nghiệm thu & Định mức dầu',
-      width: '180px',
+      title: 'Nghiệm thu & Định mức',
+      width: '130px',
       render: (item) => (
         <div className="space-y-0.5 text-xs">
-          <div className="font-semibold text-slate-800">{item.measuringMethod || 'Chưa định nghĩa'}</div>
+          <div className="font-semibold text-slate-800 leading-snug">{item.measuringMethod || 'Chưa định nghĩa'}</div>
           <div className="text-[11px] font-medium text-amber-700">Định mức: {item.fuelQuotaType || 'Tiêu chuẩn'}</div>
         </div>
       ),
@@ -2514,20 +2615,20 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     {
       key: 'targetScope',
       title: 'Đối tượng điều động',
-      render: (item) => <span className="text-xs text-slate-600">{item.targetScope}</span>,
+      render: (item) => <span className="text-xs text-slate-600 block leading-relaxed">{item.targetScope}</span>,
     },
     {
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
-      width: '120px',
+      width: '115px',
       render: (item) => renderJobStatusBadge(item.status),
     },
     {
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2542,7 +2643,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -2568,7 +2669,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredRoutes.length > 0 && filteredRoutes.every((r) => selectedItems.includes(r.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredRoutes.map((r) => r.id));
@@ -2576,12 +2677,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2591,69 +2692,73 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'code',
       title: 'Mã tuyến',
       sortable: true,
+      width: '80px',
       render: (item) => (
-        <span className="font-mono font-extrabold text-teal-700 text-xs bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+        <span className="font-mono font-extrabold text-teal-700 text-xs bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 whitespace-nowrap">
           {item.code}
         </span>
       ),
     },
     {
       key: 'name',
-      title: 'Tên tuyến đường vận chuyển nội bộ',
+      title: 'Tên tuyến đường vận chuyển',
       sortable: true,
+      width: '150px',
       render: (item) => (
-        <div>
-          <strong className="text-slate-900 block text-xs">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 block mt-0.5">{item.complexName}</span>
+        <div className="space-y-0.5">
+          <strong className="text-slate-900 block text-xs leading-snug">{item.name}</strong>
+          <span className="text-[11px] text-slate-500 block">{item.complexName}</span>
         </div>
       ),
     },
     {
       key: 'path',
-      title: 'Điểm xuất phát ➔ Điểm đến',
+      title: 'Lộ trình & Luồng hàng',
       render: (item) => (
-        <div className="text-xs text-slate-700">
-          <div className="font-medium">Đi: {item.origin}</div>
-          <div className="text-slate-500 text-[11px] mt-0.5">➔ Đến: {item.destination}</div>
+        <div className="text-xs space-y-0.5">
+          <div className="font-medium text-slate-800 leading-snug">
+            Đi: <span className="font-semibold">{item.origin}</span> ➔ Đến: <span className="font-semibold">{item.destination}</span>
+          </div>
+          {item.routeFlowType === 'TWO_WAY' ? (
+            <div className="text-[11px] text-blue-700 leading-snug">
+              <span className="font-bold bg-blue-50 px-1 py-0.2 rounded border border-blue-200 text-[10px] mr-1">Về</span>
+              {item.returnOrigin} ➔ {item.returnDestination} ({item.returnCargoName} • {item.returnTonnage} tấn)
+            </div>
+          ) : (
+            <div className="text-[11px] text-slate-400">Luồng: Một chiều</div>
+          )}
         </div>
       ),
     },
     {
-      key: 'distanceKm',
-      title: 'Cự ly chuẩn',
-      sortable: true,
+      key: 'metrics',
+      title: 'Cự ly & GPS',
+      width: '110px',
       render: (item) => (
-        <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-          {item.distanceKm} km
-        </span>
+        <div className="space-y-0.5 text-xs">
+          <div className="font-mono font-black text-slate-900 leading-snug">{item.distanceKm} km</div>
+          <div className="text-[10.5px] font-bold text-amber-800 leading-tight">GPS: ≤ {item.speedLimitKmH} km/h</div>
+        </div>
       ),
     },
     {
       key: 'cargoType',
-      title: 'Mặt hàng chuyên chở',
-      render: (item) => <span className="text-xs text-slate-800 font-semibold">{item.cargoType}</span>,
-    },
-    {
-      key: 'speedLimitKmH',
-      title: 'Giới hạn GPS',
-      render: (item) => (
-        <span className="inline-flex items-center rounded bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200">
-          Tối đa {item.speedLimitKmH} km/h
-        </span>
-      ),
+      title: 'Mặt hàng',
+      width: '105px',
+      render: (item) => <span className="text-xs text-slate-800 font-semibold block leading-snug">{item.cargoType}</span>,
     },
     {
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
-      width: '120px',
+      width: '115px',
       render: (item) => renderJobStatusBadge(item.status),
     },
     {
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2668,7 +2773,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -2694,7 +2799,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredSites.length > 0 && filteredSites.every((s) => selectedItems.includes(s.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredSites.map((s) => s.id));
@@ -2702,12 +2807,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2715,10 +2820,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'code',
-      title: 'Mã khu vực',
+      title: 'Mã KV',
       sortable: true,
+      width: '80px',
       render: (item) => (
-        <span className="font-mono font-extrabold text-rose-700 text-xs bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+        <span className="font-mono font-extrabold text-rose-700 text-xs bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 whitespace-nowrap">
           {item.code}
         </span>
       ),
@@ -2727,64 +2833,58 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'name',
       title: 'Tên khu vực thi công',
       sortable: true,
+      width: '160px',
       render: (item) => (
-        <div>
-          <strong className="text-slate-900 block text-xs">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 block mt-0.5 flex items-center gap-1">
-            <Building2 className="w-3 h-3 text-slate-400" />
+        <div className="space-y-0.5">
+          <strong className="text-slate-900 block text-xs leading-snug">{item.name}</strong>
+          <span className="text-[11px] text-slate-500 block">
             {item.complexName}
           </span>
         </div>
       ),
     },
     {
-      key: 'categoryName',
-      title: 'Phân loại hạng mục',
+      key: 'categoryAndScope',
+      title: 'Hạng mục & Quy mô',
+      width: '140px',
       render: (item) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-          {item.categoryName}
-        </span>
-      ),
-    },
-    {
-      key: 'unitOwner',
-      title: 'Đơn vị quản lý (Ban XD)',
-      render: (item) => (
-        <div className="text-xs font-semibold text-slate-700">
-          <span className="text-slate-900 block">{item.unitOwner}</span>
+        <div className="text-xs space-y-0.5">
+          <div className="font-semibold text-slate-800 leading-snug">{item.categoryName}</div>
+          <div className="text-[11px] font-bold text-slate-600">Quy mô: {item.targetScope}</div>
         </div>
       ),
     },
     {
-      key: 'targetScope',
-      title: 'Quy mô thiết kế',
+      key: 'unitOwner',
+      title: 'Đơn vị quản lý',
+      width: '120px',
       render: (item) => (
-        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-          {item.targetScope}
-        </span>
+        <div className="text-xs font-semibold text-slate-700">
+          <span className="text-slate-900 block leading-snug">{item.unitOwner}</span>
+        </div>
       ),
     },
     {
       key: 'recommendedMachines',
       title: 'Đầu máy khuyến nghị',
-      render: (item) => <span className="text-xs text-slate-700">{item.recommendedMachines}</span>,
+      render: (item) => <span className="text-xs text-slate-700 block leading-relaxed">{item.recommendedMachines}</span>,
     },
     {
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
+      width: '115px',
       render: (item) => {
         const isProg = item.status === 'in_progress';
         const isPrep = item.status === 'preparing';
         return (
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-              isProg
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold whitespace-nowrap ${isProg
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : isPrep
-                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : 'bg-blue-50 text-blue-700 border border-blue-200'
-            }`}
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}
           >
             {item.statusLabel || (isProg ? 'Đang thi công' : isPrep ? 'Chuẩn bị' : 'Hoàn thành')}
           </span>
@@ -2795,7 +2895,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2810,7 +2910,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -2836,7 +2936,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredTeams.length > 0 && filteredTeams.every((t) => selectedItems.includes(t.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredTeams.map((t) => t.id));
@@ -2844,12 +2944,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -2859,21 +2959,22 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'code',
       title: 'Mã đội',
       sortable: true,
+      width: '80px',
       render: (item) => (
-        <span className="font-mono font-extrabold text-orange-700 text-xs bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
+        <span className="font-mono font-extrabold text-orange-700 text-xs bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200 whitespace-nowrap">
           {item.code}
         </span>
       ),
     },
     {
       key: 'name',
-      title: 'Tên Đội thi công cơ giới',
+      title: 'Tên Đội thi công',
       sortable: true,
+      width: '150px',
       render: (item) => (
-        <div>
-          <strong className="text-slate-900 block text-xs">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 block mt-0.5 flex items-center gap-1">
-            <Building2 className="w-3 h-3 text-slate-400" />
+        <div className="space-y-0.5">
+          <strong className="text-slate-900 block text-xs leading-snug">{item.name}</strong>
+          <span className="text-[11px] text-slate-500 block">
             {item.complexName}
           </span>
         </div>
@@ -2881,38 +2982,41 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'managingUnit',
-      title: 'Đơn vị quản lý (Ban Xây dựng)',
+      title: 'Đơn vị quản lý',
+      width: '120px',
       render: (item) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+        <span className="text-xs font-semibold text-slate-800 block leading-snug">
           {item.managingUnit}
         </span>
       ),
     },
     {
       key: 'leader',
-      title: 'Đội trưởng / Liên hệ',
+      title: 'Đội trưởng / SĐT',
+      width: '110px',
       render: (item) => (
-        <div className="text-xs">
-          <div className="font-bold text-slate-800">{item.leaderName}</div>
-          <div className="text-slate-500 text-[11px]">{item.leaderPhone}</div>
+        <div className="text-xs space-y-0.5">
+          <div className="font-bold text-slate-800 leading-snug">{item.leaderName}</div>
+          <div className="text-slate-500 text-[11px] leading-snug">{item.leaderPhone}</div>
         </div>
       ),
     },
     {
       key: 'machineCount',
-      title: 'Quy mô đầu máy & Nhân sự',
+      title: 'Máy & Nhân lực',
+      width: '110px',
       render: (item) => (
-        <div className="text-xs text-slate-700">
-          <div className="font-semibold text-slate-900">{item.machineCount}</div>
-          <div className="text-[11px] text-slate-500">{item.personnelCount}</div>
+        <div className="text-xs text-slate-700 space-y-0.5">
+          <div className="font-semibold text-slate-900 leading-snug">{item.machineCount}</div>
+          <div className="text-[11px] text-slate-500 leading-snug">{item.personnelCount}</div>
         </div>
       ),
     },
     {
       key: 'assignedAreas',
-      title: 'Khu vực đang phụ trách',
+      title: 'Khu vực phụ trách',
       render: (item) => (
-        <span className="text-xs font-medium text-slate-800 block max-w-xs truncate" title={item.assignedAreas}>
+        <span className="text-xs font-medium text-slate-800 block leading-relaxed" title={item.assignedAreas}>
           {item.assignedAreas}
         </span>
       ),
@@ -2921,18 +3025,18 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
+      width: '115px',
       render: (item) => {
         const isActive = item.status === 'active';
         const isBusy = item.status === 'busy';
         return (
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-              isActive
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold whitespace-nowrap ${isActive
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : isBusy
-                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : 'bg-rose-50 text-rose-700 border border-rose-200'
-            }`}
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}
           >
             {item.statusLabel || (isActive ? 'Đang thi công' : isBusy ? 'Bận' : 'Bảo dưỡng')}
           </span>
@@ -2943,7 +3047,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -2958,7 +3062,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -2984,7 +3088,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredPlots.length > 0 && filteredPlots.every((p) => selectedItems.includes(p.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredPlots.map((p) => p.id));
@@ -2992,12 +3096,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -3005,10 +3109,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'code',
-      title: 'Mã Lô/Thửa',
+      title: 'Mã Lô',
       sortable: true,
+      width: '80px',
       render: (item) => (
-        <span className="font-mono font-extrabold text-emerald-800 text-xs bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+        <span className="font-mono font-extrabold text-emerald-800 text-xs bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap">
           {item.code}
         </span>
       ),
@@ -3017,11 +3122,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'name',
       title: 'Tên Lô / Thửa canh tác',
       sortable: true,
+      width: '150px',
       render: (item) => (
-        <div>
-          <strong className="text-slate-900 block text-xs">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 block mt-0.5 flex items-center gap-1">
-            <Building2 className="w-3 h-3 text-slate-400" />
+        <div className="space-y-0.5">
+          <strong className="text-slate-900 block text-xs leading-snug">{item.name}</strong>
+          <span className="text-[11px] text-slate-500 block">
             {item.complexName}
           </span>
         </div>
@@ -3029,32 +3134,35 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'hierarchy',
-      title: 'Phân cấp (Xí nghiệp ➔ Nông trường)',
+      title: 'Xí nghiệp ➔ Nông trường',
+      width: '130px',
       render: (item) => (
-        <div className="text-xs">
-          <div className="font-bold text-slate-800">{item.enterpriseName}</div>
-          <div className="text-emerald-700 text-[11px] font-semibold">➔ {item.farmName}</div>
+        <div className="text-xs space-y-0.5">
+          <div className="font-bold text-slate-800 leading-snug">{item.enterpriseName}</div>
+          <div className="text-emerald-700 text-[11px] font-semibold leading-snug">➔ {item.farmName}</div>
         </div>
       ),
     },
     {
       key: 'areaHa',
-      title: 'Diện tích (ha)',
+      title: 'Diện tích',
       align: 'center',
       sortable: true,
+      width: '75px',
       render: (item) => (
-        <span className="font-black text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded">
+        <span className="font-black text-slate-900 text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">
           {item.areaHa} ha
         </span>
       ),
     },
     {
       key: 'cropType',
-      title: 'Cây trồng / Mục đích',
+      title: 'Cây trồng & Hệ thống',
+      width: '130px',
       render: (item) => (
-        <div className="text-xs">
-          <span className="font-bold text-slate-800 block">{item.cropType}</span>
-          <span className="text-[11px] text-slate-500">{item.irrigationSystem}</span>
+        <div className="text-xs space-y-0.5">
+          <span className="font-bold text-slate-800 block leading-snug">{item.cropType}</span>
+          <span className="text-[11px] text-slate-500 block leading-snug">{item.irrigationSystem}</span>
         </div>
       ),
     },
@@ -3062,18 +3170,18 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
+      width: '115px',
       render: (item) => {
         const isActive = item.status === 'active';
         const isPrep = item.status === 'preparing';
         return (
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-              isActive
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold whitespace-nowrap ${isActive
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : isPrep
-                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : 'bg-blue-50 text-blue-700 border border-blue-200'
-            }`}
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}
           >
             {item.statusLabel || (isActive ? 'Đang canh tác' : isPrep ? 'Đang làm đất' : 'Tái canh')}
           </span>
@@ -3084,7 +3192,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '45px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -3099,7 +3207,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '80px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -3125,7 +3233,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       title: (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={filteredAgriTeams.length > 0 && filteredAgriTeams.every((t) => selectedItems.includes(t.id))}
           onChange={(e) => {
             if (e.target.checked) setSelectedItems(filteredAgriTeams.map((t) => t.id));
@@ -3133,12 +3241,12 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           }}
         />
       ),
-      width: '40px',
+      width: '32px',
       align: 'center',
       render: (item) => (
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
           checked={selectedItems.includes(item.id)}
           onChange={() => toggleSelectItem(item.id)}
         />
@@ -3148,8 +3256,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'code',
       title: 'Mã đội',
       sortable: true,
+      width: '80px',
       render: (item) => (
-        <span className="font-mono font-extrabold text-emerald-800 text-xs bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+        <span className="font-mono font-extrabold text-emerald-800 text-xs bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap">
           {item.code}
         </span>
       ),
@@ -3158,11 +3267,11 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'name',
       title: 'Tên Đội xe cơ giới',
       sortable: true,
+      width: '150px',
       render: (item) => (
-        <div>
-          <strong className="text-slate-900 block text-xs">{item.name}</strong>
-          <span className="text-[11px] text-slate-500 block mt-0.5 flex items-center gap-1">
-            <Building2 className="w-3 h-3 text-slate-400" />
+        <div className="space-y-0.5">
+          <strong className="text-slate-900 block text-xs leading-snug">{item.name}</strong>
+          <span className="text-[11px] text-slate-500 block">
             {item.complexName}
           </span>
         </div>
@@ -3170,31 +3279,34 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
     },
     {
       key: 'hierarchy',
-      title: 'Phân cấp (Xí nghiệp ➔ Nông trường)',
+      title: 'Xí nghiệp ➔ Nông trường',
+      width: '130px',
       render: (item) => (
-        <div className="text-xs">
-          <div className="font-bold text-slate-800">{item.enterpriseName}</div>
-          <div className="text-emerald-700 text-[11px] font-semibold">➔ {item.farmName}</div>
+        <div className="text-xs space-y-0.5">
+          <div className="font-bold text-slate-800 leading-snug">{item.enterpriseName}</div>
+          <div className="text-emerald-700 text-[11px] font-semibold leading-snug">➔ {item.farmName}</div>
         </div>
       ),
     },
     {
       key: 'leader',
       title: 'Đội trưởng / SĐT',
+      width: '110px',
       render: (item) => (
-        <div className="text-xs">
-          <div className="font-bold text-slate-800">{item.leaderName}</div>
-          <div className="text-slate-500 text-[11px]">{item.leaderPhone}</div>
+        <div className="text-xs space-y-0.5">
+          <div className="font-bold text-slate-800 leading-snug">{item.leaderName}</div>
+          <div className="text-slate-500 text-[11px] leading-snug">{item.leaderPhone}</div>
         </div>
       ),
     },
     {
       key: 'machineCount',
-      title: 'Cơ cấu máy & Nhân lực',
+      title: 'Máy & Nhân lực',
+      width: '110px',
       render: (item) => (
-        <div className="text-xs text-slate-700">
-          <div className="font-semibold text-slate-900">{item.machineCount}</div>
-          <div className="text-[11px] text-slate-500">{item.personnelCount}</div>
+        <div className="text-xs text-slate-700 space-y-0.5">
+          <div className="font-semibold text-slate-900 leading-snug">{item.machineCount}</div>
+          <div className="text-[11px] text-slate-500 leading-snug">{item.personnelCount}</div>
         </div>
       ),
     },
@@ -3202,7 +3314,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'assignedPlots',
       title: 'Lô / Vùng phụ trách',
       render: (item) => (
-        <span className="text-xs font-medium text-slate-800 block max-w-xs truncate" title={item.assignedPlots}>
+        <span className="text-xs font-medium text-slate-800 block leading-relaxed" title={item.assignedPlots}>
           {item.assignedPlots}
         </span>
       ),
@@ -3211,18 +3323,18 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'status',
       title: 'Trạng thái',
       align: 'center',
+      width: '115px',
       render: (item) => {
         const isActive = item.status === 'active';
         const isBusy = item.status === 'busy';
         return (
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-              isActive
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold whitespace-nowrap ${isActive
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : isBusy
-                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : 'bg-rose-50 text-rose-700 border border-rose-200'
-            }`}
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}
           >
             {item.statusLabel || (isActive ? 'Sẵn sàng' : isBusy ? 'Đang bận' : 'Bảo dưỡng')}
           </span>
@@ -3233,7 +3345,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'user',
       title: 'User',
       align: 'center',
-      width: '70px',
+      width: '50px',
       render: (item) => (
         <AuditUserPopover
           createdDate="14-03-2026"
@@ -3248,7 +3360,7 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '110px',
+      width: '85px',
       render: (item) => (
         <TableRowActions
           onView={() => {
@@ -3260,9 +3372,9 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
             setShowAgriTeamModal(true);
           }}
           onDelete={() => handleDeleteAgriTeam(item.id, item.name)}
-          viewTitle="Xem đội cơ giới"
-          editTitle="Sửa đội cơ giới"
-          deleteTitle="Xóa đội cơ giới"
+          viewTitle="Xem đội xe"
+          editTitle="Sửa đội xe"
+          deleteTitle="Xóa đội xe"
         />
       ),
     },
@@ -3312,14 +3424,6 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           tab: 'plots' as const,
           color: 'text-teal-700 bg-teal-50',
         },
-        {
-          label: '6. Đội Xe Cơ giới Nông nghiệp',
-          value: filteredAgriTeams.length,
-          sub: selectedKLH === 'ALL' ? 'Đội cơ giới Nông trường' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
-          icon: Tractor,
-          tab: 'teams' as const,
-          color: 'text-emerald-700 bg-emerald-50',
-        },
       ];
     }
 
@@ -3364,14 +3468,6 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
           icon: MapPin,
           tab: 'sites' as const,
           color: 'text-rose-700 bg-rose-50',
-        },
-        {
-          label: '6. Đội thi công cơ giới',
-          value: filteredTeams.length,
-          sub: selectedKLH === 'ALL' ? 'Đội thi công trực thuộc Ban Xây dựng' : complexOptions.find((k) => k.code === selectedKLH)?.name || '',
-          icon: HardHat,
-          tab: 'teams' as const,
-          color: 'text-orange-700 bg-orange-50',
         },
       ];
     }
@@ -3435,29 +3531,96 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
   ]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* 1. THANH CHUYỂN ĐỔI 3 PHÂN HỆ QUẢN LÝ (NÔNG NGHIỆP - CÔNG TRÌNH - VẬN CHUYỂN) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* NÔNG NGHIỆP */}
+          <button
+            type="button"
+            onClick={() => navigate('/danh-muc/loai-cong-viec/nong-nghiep')}
+            className={`group flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-150 select-none cursor-pointer ${selectedJobPlanType === 'NONG_NGHIEP'
+                ? 'bg-[#154E2C] text-white shadow-sm ring-2 ring-[#154E2C]/20'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
+              }`}
+          >
+            <div className={`rounded-lg p-1.5 shrink-0 ${selectedJobPlanType === 'NONG_NGHIEP' ? 'bg-white/20 text-[#B8D83D]' : 'bg-emerald-50 text-emerald-700'}`}>
+              <Tractor className="h-4 w-4" />
+            </div>
+            <div className="text-left">
+              <div className="leading-tight font-bold">Cơ giới Nông nghiệp</div>
+              <div className={`text-[10.5px] font-medium leading-tight mt-0.5 ${selectedJobPlanType === 'NONG_NGHIEP' ? 'text-white/85' : 'text-slate-500'}`}>
+                {jobs.filter((j) => j.planType === 'NONG_NGHIEP').length} công việc · {stages.filter((s) => s.planType === 'NONG_NGHIEP').length} giai đoạn · {plots.length} lô thửa
+              </div>
+            </div>
+          </button>
 
+          {/* CÔNG TRÌNH */}
+          <button
+            type="button"
+            onClick={() => navigate('/danh-muc/loai-cong-viec/cong-trinh')}
+            className={`group flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-150 select-none cursor-pointer ${selectedJobPlanType === 'CONG_TRINH'
+                ? 'bg-amber-700 text-white shadow-sm ring-2 ring-amber-700/20'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
+              }`}
+          >
+            <div className={`rounded-lg p-1.5 shrink-0 ${selectedJobPlanType === 'CONG_TRINH' ? 'bg-white/20 text-amber-200' : 'bg-amber-50 text-amber-700'}`}>
+              <HardHat className="h-4 w-4" />
+            </div>
+            <div className="text-left">
+              <div className="leading-tight font-bold">Máy & Thi công Công trình</div>
+              <div className={`text-[10.5px] font-medium leading-tight mt-0.5 ${selectedJobPlanType === 'CONG_TRINH' ? 'text-white/85' : 'text-slate-500'}`}>
+                {jobs.filter((j) => j.planType === 'CONG_TRINH').length} ca máy · {stages.filter((s) => s.planType === 'CONG_TRINH').length} phân loại · {sites.length} khu vực
+              </div>
+            </div>
+          </button>
+
+          {/* VẬN CHUYỂN */}
+          <button
+            type="button"
+            onClick={() => navigate('/danh-muc/loai-cong-viec/van-chuyen')}
+            className={`group flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-150 select-none cursor-pointer ${selectedJobPlanType === 'VAN_CHUYEN'
+                ? 'bg-blue-700 text-white shadow-sm ring-2 ring-blue-700/20'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
+              }`}
+          >
+            <div className={`rounded-lg p-1.5 shrink-0 ${selectedJobPlanType === 'VAN_CHUYEN' ? 'bg-white/20 text-sky-200' : 'bg-blue-50 text-blue-700'}`}>
+              <Truck className="h-4 w-4" />
+            </div>
+            <div className="text-left">
+              <div className="leading-tight font-bold">Vận chuyển & Tuyến đường</div>
+              <div className={`text-[10.5px] font-medium leading-tight mt-0.5 ${selectedJobPlanType === 'VAN_CHUYEN' ? 'text-white/85' : 'text-slate-500'}`}>
+                {jobs.filter((j) => j.planType === 'VAN_CHUYEN').length} quy trình · {routes.length} tuyến đường
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {/* Thông tin KLH hiện tại */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200/60 text-xs text-slate-600">
+          <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+          <span>KLH: <b className="text-slate-800 font-bold">{selectedKLH === 'ALL' ? 'Toàn bộ 3 KLH' : complexOptions.find((k) => k.code === selectedKLH)?.name || selectedKLH}</b></span>
+        </div>
+      </div>
 
       {/* 2. STATS CARDS - TABS DANH MỤC THÍCH ỨNG THEO LĨNH VỰC */}
       <div
-        className={`grid gap-3 ${
-          domainStatCards.length === 4
+        className={`grid gap-3 ${domainStatCards.length === 4
             ? 'grid-cols-2 sm:grid-cols-4'
             : domainStatCards.length === 5
-            ? 'grid-cols-2 sm:grid-cols-5'
-            : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
-        }`}
+              ? 'grid-cols-2 sm:grid-cols-5'
+              : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+          }`}
       >
         {domainStatCards.map((stat) => (
           <button
             key={stat.tab}
             type="button"
             onClick={() => handleTabChange(stat.tab)}
-            className={`rounded-2xl border p-3.5 text-left transition-all hover:shadow-md cursor-pointer ${
-              activeTab === stat.tab
+            className={`rounded-2xl border p-3.5 text-left transition-all hover:shadow-md cursor-pointer ${activeTab === stat.tab
                 ? 'border-primary bg-primary-50/40 ring-2 ring-primary/20 shadow-xs'
                 : 'border-slate-200 bg-white hover:bg-slate-50'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-[11.5px] font-bold text-slate-700 truncate">{stat.label}</span>
@@ -4354,8 +4517,8 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
                   formPlanType === 'NONG_NGHIEP'
                     ? 'VD: Bừa hoàn thiện tạo mặt phẳng rải phân'
                     : formPlanType === 'CONG_TRINH'
-                    ? 'VD: Đào rãnh thoát nước mương chính NT2'
-                    : 'VD: Chở chuối đóng gói từ xưởng đóng gói ra cảng xuất'
+                      ? 'VD: Đào rãnh thoát nước mương chính NT2'
+                      : 'VD: Chở chuối đóng gói từ xưởng đóng gói ra cảng xuất'
                 }
                 className="w-full rounded-xl border border-slate-200 p-2 font-bold text-xs bg-white focus:border-primary focus:outline-none h-9"
               />
@@ -4425,6 +4588,22 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
               />
             </div>
           </div>
+
+          {formPlanType === 'VAN_CHUYEN' && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+              <label className="font-bold text-slate-700 block mb-1">
+                Loại luồng của JOB_ITEM:
+              </label>
+              <select
+                value={formRouteFlowType}
+                onChange={(event) => setFormRouteFlowType(event.target.value as 'ONE_WAY' | 'TWO_WAY')}
+                className="w-full rounded-xl border border-blue-200 bg-white p-2 font-bold text-xs text-blue-900 focus:border-blue-600 focus:outline-none h-9"
+              >
+                <option value="ONE_WAY">Một chiều</option>
+                <option value="TWO_WAY">Đối lưu — có hàng chiều về</option>
+              </select>
+            </div>
+          )}
 
           {/* CHỌN NÔNG CỤ HOẶC THIẾT BỊ PHỤ TRỢ TƯƠNG THÍCH (SELECT TEXT TỪ DANH MỤC) */}
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
@@ -5022,6 +5201,39 @@ export const JobTypesPage: React.FC<JobTypesPageProps> = ({ defaultDomain }) => 
               placeholder="VD: Thân/lá chuối tươi làm thức ăn chăn nuôi..."
               className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none h-9"
             />
+          </div>
+
+          <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-3">
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Loại tuyến:</label>
+              <select
+                name="routeFlowType"
+                defaultValue={editingRoute?.routeFlowType || 'ONE_WAY'}
+                className="w-full rounded-xl border border-blue-200 bg-white p-2 text-xs font-bold text-blue-900 focus:border-blue-600 focus:outline-none h-9"
+              >
+                <option value="ONE_WAY">Một chiều</option>
+                <option value="TWO_WAY">Đối lưu — có hàng chiều về</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Điểm lấy hàng về:</label>
+                <input name="returnOrigin" defaultValue={editingRoute?.returnOrigin || ''} className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none h-9" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Điểm trả hàng về:</label>
+                <input name="returnDestination" defaultValue={editingRoute?.returnDestination || ''} className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none h-9" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Mặt hàng về:</label>
+                <input name="returnCargoName" defaultValue={editingRoute?.returnCargoName || ''} className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none h-9" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Tải trọng về (Tấn):</label>
+                <input name="returnTonnage" type="number" min="0" step="0.1" defaultValue={editingRoute?.returnTonnage || ''} className="w-full rounded-xl border border-slate-200 p-2 text-xs focus:border-primary focus:outline-none h-9" />
+              </div>
+            </div>
           </div>
 
           <div>

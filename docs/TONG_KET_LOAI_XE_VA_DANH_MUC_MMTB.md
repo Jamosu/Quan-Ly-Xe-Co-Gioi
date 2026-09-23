@@ -56,50 +56,6 @@ Toàn bộ 23 trường thông tin theo đúng yêu cầu đã được ánh x�
 
 ---
 
-## III. CHUẨN HÓA 21 CHỦNG LOẠI MMTB VÀ ĐỊNH MỨC THEO 4 NHÓM
-
-Hệ thống đã phân nhóm 3.082 thiết bị thành **4 nhóm vận hành lớn** và **21 chủng loại chuẩn hóa**:
-
-```
-                                  TỔNG QUY MÔ MMTB (3.082 Thiết bị)
-                                                 │
-      ┌──────────────────────┬───────────────────┴───────────────────┬──────────────────────┐
-      │                      │                                       │                      │
-🚜 MÁY CÔNG TRÌNH      🌾 MÁY NÔNG NGHIỆP                      🚛 XE VẬN TẢI & CÔNG VỤ  ⚙️ MÁY PHỤ TRỢ & KHÁC
-  (502 thiết bị)         (284 thiết bị)                          (437 thiết bị)           (1.859 thiết bị)
-  • Máy đào: 322         • Máy kéo: 277                          • Xe tải thùng: 361      • Máy phát cỏ: 721
-  • Máy ủi: 121          • Máy gặt đập: 7                        • Xe tải ben: 6          • Xe máy 2 bánh: 94
-  • Máy lu: 47                                                   • Xe bồn téc: 8          • Xe nâng: 41
-  • Máy san: 10                                                  • Xe container: 23       • Nông cụ cày bừa: 38
-  • Xúc lật: 10                                                  • Xe bán tải: 6          • Máy cưa: 30
-                                                                 • Xe công vụ: 17         • Máy phát điện: 12
-                                                                 • Chuyên dùng khác: 965  • Máy bơm nước: 14
-```
-
-### Bảng Chi tiết 21 Chủng loại & Định mức Kỹ thuật:
-
-| STT | Mã phân loại | Enum Hệ thống | Phân nhóm lớn | Tên chủng loại MMTB | Hãng & Model tiêu biểu | Định mức dầu chuẩn | Quy mô (CSDL) |
-|:---:|:---|:---|:---|:---|:---|:---:|:---:|
-| 1 | `LX-MAY-DAO` | `MAY_DAO` | Máy công trình | Máy đào bánh xích & bánh lốp | KOBELCO SK200-08, SUMITOMO SH210, PC40, DX140 | 13.0 - 17.0 L/h | **322 xe** |
-| 2 | `LX-MAY-UI` | `MAY_UI` | Máy công trình | Máy ủi san gạt mặt bằng | KOMATSU D31P, D60P, D65PX, CAT | 11.0 - 18.0 L/h | **121 xe** |
-| 3 | `LX-MAY-LU` | `MAY_LU` | Máy công trình | Máy lu rung & lu tĩnh thủy lợi | BOMAG BW211D-40, DYNAPAC, LIUGONG | 10.0 - 14.0 L/h | **47 xe** |
-| 4 | `LX-MAY-SAN` | `MAY_SAN` | Máy công trình | Máy san / ban nền đường nội bộ | KOMATSU GD605A-3, GD511A, CAT | 12.5 - 16.0 L/h | **10 xe** |
-| 5 | `LX-MAY-XUC-LAT` | `MAY_XUC_LAT` | Máy công trình | Máy xúc lật nông sản & vật liệu | KOMATSU WA200-5, WA320, ZL50GN | 10.0 - 15.0 L/h | **10 xe** |
-| 6 | `LX-MAY-KEO` | `MAY_KEO` | Máy nông nghiệp | Máy kéo nông nghiệp (Cày, bừa, xới) | JOHN DEERE 6140B, KUBOTA M7040, NEW HOLLAND | 18.5 L/ha (Cày) · 12.0 L/ha (Bừa) | **277 xe** |
-| 7 | `LX-MAY-GAT-DAP` | `MAY_GAT_DAP` | Máy nông nghiệp | Máy gặt đập liên hợp bắp sinh khối | KUBOTA DC-70G, DC-93, DC-60 | 15.0 L/ha | **7 xe** |
-| 8 | `LX-XE-TAI-THUNG`| `XE_TAI` | Xe vận tải | Xe ô tô tải thùng & mui bạt chở chuối | SINOTRUK Howo 4 chân 371HP, Hino 500 (8T) | 22.0 - 30.0 L/100km | **361 xe** |
-| 9 | `LX-XE-BEN` | `XE_BEN` | Xe vận tải | Xe tải ben tự đổ chở đất & phân | HYUNDAI HD270 15T, Howo 3 chân | 35.0 L/100km | **6 xe** |
-| 10 | `LX-XE-BON` | `XE_BON` | Xe vận tải | Xe téc / bồn nước & cấp dầu lưu động | HINO 500 15m3, DONGFENG 5m3 | 26.0 L/100km · 6.0 L/h | **8 xe** |
-| 11 | `LX-XE-CONTAINER`| `XE_CONTAINER` | Xe vận tải | Xe đầu kéo Container xuất khẩu | HOWO A7 420HP, INTERNATIONAL ProStar | 38.0 L/100km | **23 xe** |
-| 12 | `LX-XE-BAN-TAI` | `XE_BAN_TAI` | Xe vận tải | Xe bán tải tuần tra nông trường | FORD RANGER XLS, MAZDA BT-50 | 9.5 L/100km | **6 xe** |
-| 13 | `LX-XE-CONG-VU` | `XE_CONG_VU` | Xe vận tải | Xe ô tô công vụ & đưa đón CNV | TOYOTA INNOVA, FORTUNER, THACO COUNTY | 11.0 - 18.0 L/100km | **17 xe** |
-| 14 | `LX-XE-CHUYEN-DUNG` | `XE_CHUYEN_DUNG` | Xe vận tải | Phương tiện & thiết bị chuyên dùng khác| Xe hút bùn, xe ép rác, xe thang điện | 12.5 L/h | **965 xe** |
-| 15 | `LX-MAY-PHAT-CO` | `MAY_PHAT_CO` | Máy phụ trợ | Máy phát cỏ cầm tay nông trường | MARUYAMA CG411, ECHO SRM-420ES | 0.8 - 1.2 L/h | **721 cái** |
-| 16 | `LX-XE-MAY-2-BANH` | `XE_MAY_2_BANH` | Máy phụ trợ | Xe máy 2 bánh thu hoạch chuối | HONDA WAVE ALPHA 110cc | 2.0 L/100km | **94 xe** |
-| 17 | `LX-XE-NANG` | `XE_NANG` | Máy phụ trợ | Xe nâng hạ hàng hóa xưởng chuối | KOMATSU FD30, FD35, TOYOTA, HELI | 3.5 - 4.8 L/h | **41 xe** |
-| 18 | `LX-THIET-BI-NONG-CU` | `THIET_BI_NONG_CU` | Máy phụ trợ | Thiết bị & Nông cụ đính kèm máy kéo | Dàn cày 4 chảo, Dàn bừa 24 chảo, Rơ-moóc 6T | Theo máy kéo | **38 cái** |
-| 19 | `LX-MAY-CUA` | `MAY_CUA` | Máy phụ trợ | Máy cưa gỗ cầm tay cắt cành | STIHL MS381, MS250, HUSQVARNA 365 | 1.2 - 1.6 L/h | **30 cái** |
-| 20 | `LX-MAY-PHAT-DIEN` | `MAY_PHAT_DIEN` | Máy phụ trợ | Máy phát điện dự phòng trạm bơm | DENYO DCA-150ESK, CUMMINS 250kVA | 18.0 - 45.0 L/h | **12 máy** |
 | 21 | `LX-MAY-BOM` | `MAY_BOM` | Máy phụ trợ | Máy bơm nước chống ngập & cấp tưới | HYUNDAI ENGINE, Bơm dã chiến D200 | 4.5 - 8.0 L/h | **14 máy** |
 | **TỔNG CỘNG** | **21 Chủng loại** | **Toàn bộ** | **4 Nhóm lớn** | **Danh mục MMTB KLH Koun Mom** | **Thương hiệu hàng đầu** | **Quy chuẩn kỹ thuật** | **3.082 Thiết bị** |
 

@@ -1,4 +1,4 @@
-import { DispatchStatus, Unit, WorkAssignmentStatus, WorkOrderStatus } from '@prisma/client';
+﻿import { DispatchStatus, Unit, WorkAssignmentStatus, WorkOrderStatus } from '@prisma/client';
 import { DispatchOrdersService } from './dispatch-orders.service';
 
 const delayedOrder = (overrides: Record<string, unknown> = {}) => ({
@@ -9,7 +9,7 @@ const delayedOrder = (overrides: Record<string, unknown> = {}) => ({
   assignedById: 11,
   vehicleId: 20,
   driverId: 30,
-  unit: Unit.NT1,
+  unit: Unit.KOUN_MOM,
   destination: 'Lô A01',
   operationalWorkOrder: null,
   ...overrides,
@@ -33,7 +33,11 @@ describe('DispatchOrdersService 15/45-minute delay policy', () => {
 
     expect(result).toEqual({ updatedCount: 1, warningCount: 1, reopenedCount: 0 });
     expect(prisma.dispatchOrder.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      where: expect.objectContaining({ departureTime: { lte: new Date('2026-09-14T08:00:00.000Z') } }),
+      where: expect.objectContaining({
+        vehicleId: { not: null },
+        driverId: { not: null },
+        departureTime: { lte: new Date('2026-09-14T08:00:00.000Z') },
+      }),
     }));
     expect(tx.dispatchOrder.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { isDelayed: true } }));
     expect(alerts.emit).toHaveBeenCalledWith(expect.objectContaining({
@@ -83,7 +87,9 @@ describe('DispatchOrdersService 15/45-minute delay policy', () => {
     expect(tx.workDriverAssignment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: WorkAssignmentStatus.REASSIGNED }),
     }));
-    expect(tx.workVehicleAssignment.updateMany).not.toHaveBeenCalled();
+    expect(tx.workVehicleAssignment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: WorkAssignmentStatus.REASSIGNED }),
+    }));
     expect(tx.driverKpiEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ driverId: 30, type: 'REASSIGNED' }),
     }));

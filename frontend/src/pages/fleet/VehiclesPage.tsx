@@ -10,6 +10,8 @@ import { AuditUserPopover } from '../../components/common/AuditUserPopover';
 import { TableRowActions } from '../../components/common/TableRowActions';
 import { apiClient, apiService } from '../../api/client';
 import { catalogsApi } from '../../api/catalogsApi';
+import { driverManagementApi } from '../../api/driverManagementApi';
+import { useManagementFilterCatalog } from '../../hooks/useManagementFilterCatalog';
 import { getStoredData } from '../../utils/storage';
 import { mockRegions, CatalogItem } from '../../data/catalogData';
 import { useAppStore } from '../../store/useAppStore';
@@ -50,24 +52,28 @@ import {
   ShieldCheck,
   RotateCcw,
   UserCheck,
+  Users,
+  HelpCircle,
   Phone,
   Plus,
   Upload,
 } from 'lucide-react';
 
-type DetailTab = 'identity' | 'technical' | 'fuel' | 'assignment' | 'maintenance';
+type DetailTab = 'identity' | 'technical' | 'fuel' | 'assignment' | 'maintenance' | 'management';
 type TableViewMode = 'excel_23' | 'compact';
 
 const ALL = 'ALL';
 
 const STATUS_LABELS: Record<string, string> = {
-  HOAT_DONG: 'Còn hoạt động (Bình thường)',
-  TAM_DUNG: 'Ngưng hoạt động',
-  CHO_PHAN_CONG: 'Chờ phân công',
+  HOAT_DONG: 'Sẵn sàng vận hành (Bình thường)',
   BAO_DUONG: 'Đang bảo dưỡng',
   SUA_CHUA: 'Đang sửa chữa (Hư hỏng)',
+  TAM_DUNG: 'Tạm dừng',
+  LIQUIDATED: 'Đã loại biên / Thanh lý',
+  CHO_PHAN_CONG: 'Chờ phân công điều động',
 };
 
+// Ba nhóm xe cơ giới — không bao gồm THIET_BI_PHU_TRO (có trang /doi-xe/thiet-bi riêng)
 const GROUP_META = {
   MAY_CONG_TRINH: {
     label: 'Máy công trình',
@@ -90,14 +96,10 @@ const GROUP_META = {
     selectedClass: 'border-sky-400 bg-sky-50/80 ring-sky-200',
     barClass: 'bg-sky-500',
   },
-  THIET_BI_PHU_TRO: {
-    label: 'Phụ trợ & nông cụ',
-    icon: Boxes,
-    iconClass: 'bg-violet-50 text-violet-700 border-violet-200',
-    selectedClass: 'border-violet-400 bg-violet-50/80 ring-violet-200',
-    barClass: 'bg-violet-500',
-  },
 } as const;
+
+// Chỉ ba nhóm xe cơ giới; VehicleType.isAssignable=false → trang Tài sản khác
+const FLEET_ASSET_GROUPS = new Set(['MAY_CONG_TRINH', 'MAY_NONG_NGHIEP', 'XE_VAN_TAI_CONG_VU']);
 
 const EMPTY_FILTER_OPTIONS: VehicleFilterOptions = {
   complexes: [], regions: [], assignedUnits: [], assetGroups: [], vehicleTypes: [],
@@ -122,8 +124,11 @@ const formatQuota = (vehicle: VehicleProfile) => {
   return `${vehicle.fuelQuotaRate.toLocaleString('vi-VN')} ${unit}`.trim();
 };
 
-const statusMeta = (status: VehicleProfile['status'] | string) => {
-  const s = status as string;
+const statusMeta = (vehicle: VehicleProfile) => {
+  if (vehicle.isLiquidated) {
+    return { label: 'Đã loại biên / Thanh lý', variant: 'gray' as const, badgeClass: 'bg-slate-200 text-slate-800 border-slate-400' };
+  }
+  const s = vehicle.status as string;
   if (s === 'inactive' || s === 'TAM_DUNG' || s === 'NGUNG_HOAT_DONG') {
     return { label: 'Ngưng hoạt động', variant: 'gray' as const, badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' };
   }
@@ -151,7 +156,12 @@ const DetailField: React.FC<{
   </div>
 );
 
-export const VehiclesPage: React.FC = () => {
+interface VehiclesPageProps {
+  assetScope?: 'FLEET' | 'OTHER';
+}
+
+export const VehiclesPage: React.FC<VehiclesPageProps> = ({ assetScope = 'FLEET' }) => {
+  const isOtherAssets = assetScope === 'OTHER';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const categoryParam = searchParams.get('category');
@@ -174,6 +184,7 @@ export const VehiclesPage: React.FC = () => {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [filterOptions, setFilterOptions] = useState<VehicleFilterOptions>(EMPTY_FILTER_OPTIONS);
   const [fleetStats, setFleetStats] = useState<VehicleStatistics | null>(null);
+  const [otherAssetCounts, setOtherAssetCounts] = useState({ machines: 0, equipment: 0 });
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
 
@@ -225,8 +236,20 @@ export const VehiclesPage: React.FC = () => {
   const [selectedOrigin, setSelectedOrigin] = useState(ALL);
   const [selectedYear, setSelectedYear] = useState(ALL);
   const [selectedAlertTier, setSelectedAlertTier] = useState(ALL);
+  const [selectedManager, setSelectedManager] = useState(ALL);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterUnassignedDriver, setFilterUnassignedDriver] = useState(false);
+  const [filterHasGps, setFilterHasGps] = useState<'ALL' | 'YES' | 'NO'>('ALL');
+  const { units: managementFilterUnits, managers: managementFilterManagers } = useManagementFilterCatalog(
+    selectedComplex !== ALL ? selectedComplex : undefined,
+  );
+  const selectedManagementUnitId = selectedUnit !== ALL && selectedUnit !== '__UNASSIGNED__'
+    ? Number(selectedUnit)
+    : undefined;
+  const unitFilterParams = Number.isInteger(selectedManagementUnitId) && Number(selectedManagementUnitId) > 0
+    ? { managementUnitId: selectedManagementUnitId }
+    : selectedUnit !== ALL ? { assignedUnitCode: selectedUnit } : {};
 
   const loadVehicles = async () => {
     setLoading(true);
@@ -235,27 +258,35 @@ export const VehiclesPage: React.FC = () => {
       const response = await apiService.getVehiclesPage({
         page,
         limit: 20,
-        isAssignable: true,
         search: debouncedSearch || undefined,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
-        assignedUnitCode: selectedUnit !== ALL ? selectedUnit : undefined,
+        ...unitFilterParams,
         currentLocationName: selectedLocation !== ALL ? selectedLocation : undefined,
         assetGroup: selectedGroup !== ALL ? selectedGroup : undefined,
         vehicleTypeCode: selectedCategory !== ALL ? selectedCategory : undefined,
         manufacturer: selectedManufacturer !== ALL ? selectedManufacturer : undefined,
         modelName: selectedModel !== ALL ? selectedModel : undefined,
         origin: selectedOrigin !== ALL ? selectedOrigin : undefined,
-        manufactureYear: selectedYear !== ALL ? Number(selectedYear) : undefined,
+        manufactureYear: selectedYear === '__UNASSIGNED__' ? -1 : (selectedYear !== ALL ? Number(selectedYear) : undefined),
         status: selectedStatus !== ALL ? selectedStatus : undefined,
         alertTier: selectedAlertTier !== ALL ? selectedAlertTier : undefined,
+        managerUserId: selectedManager === '__UNASSIGNED__' ? -1 : (selectedManager !== ALL ? Number(selectedManager) : undefined),
+        isAssignable: !isOtherAssets,
+        hasDriver: (filterUnassignedDriver || selectedManager === '__UNASSIGNED__') ? false : undefined,
+        hasGps: filterHasGps === 'YES' ? true : filterHasGps === 'NO' ? false : undefined,
       });
       setVehicles(response.items);
       setPagination(response.pagination);
-      if (response.items.length === 0) {
+      if (response.items.length > 0) {
+        const currentAlert = useAppStore.getState().headerAlert;
+        if (currentAlert?.message?.includes('bộ lọc')) {
+          useAppStore.getState().setHeaderAlert(null);
+        }
+      } else {
         useAppStore.getState().setHeaderAlert({
           type: 'warning',
-          message: 'Không có xe máy nông nghiệp nào phù hợp bộ lọc hiện tại.',
+          message: isOtherAssets ? 'Không có tài sản khác nào phù hợp bộ lọc hiện tại.' : 'Không có xe cơ giới nào phù hợp bộ lọc hiện tại.',
         });
       }
     } catch (error) {
@@ -274,31 +305,50 @@ export const VehiclesPage: React.FC = () => {
   useEffect(() => {
     void apiService
       .getVehicleStatistics({
-        isAssignable: true,
         assetGroup: selectedGroup !== ALL ? selectedGroup : undefined,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
-        assignedUnitCode: selectedUnit !== ALL ? selectedUnit : undefined,
+        ...unitFilterParams,
+        managerUserId: selectedManager === '__UNASSIGNED__' ? -1 : (selectedManager !== ALL ? Number(selectedManager) : undefined),
+        isAssignable: !isOtherAssets,
       })
       .then(setFleetStats)
       .catch(() => setLoadMessage('Không tải được metadata bộ lọc từ database.'));
-  }, [selectedGroup, selectedComplex, selectedRegion, selectedUnit]);
+  }, [selectedGroup, selectedComplex, selectedRegion, selectedUnit, selectedManager, isOtherAssets]);
+
+  useEffect(() => {
+    if (isOtherAssets) return;
+    const complexCode = selectedComplex !== ALL ? selectedComplex : undefined;
+    void Promise.all([
+      apiService.getVehicleStatistics({ isAssignable: false, complexCode }),
+      apiService.getImplementStatistics({ assetScope: 'OTHER', unit: complexCode }),
+    ]).then(([machineStats, equipmentStats]) => {
+      setOtherAssetCounts({
+        machines: Number(machineStats?.totalVehicles || 0),
+        equipment: Number(equipmentStats?.totalImplements || 0),
+      });
+    }).catch(() => setOtherAssetCounts({ machines: 0, equipment: 0 }));
+  }, [isOtherAssets, selectedComplex]);
 
   useEffect(() => {
     void apiService
       .getVehicleFilterOptions({
-        isAssignable: true,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
-        assignedUnitCode: selectedUnit !== ALL ? selectedUnit : undefined,
+        ...unitFilterParams,
         currentLocationName: selectedLocation !== ALL ? selectedLocation : undefined,
         assetGroup: selectedGroup !== ALL ? selectedGroup : undefined,
         vehicleTypeCode: selectedCategory !== ALL ? selectedCategory : undefined,
         manufacturer: selectedManufacturer !== ALL ? selectedManufacturer : undefined,
         modelName: selectedModel !== ALL ? selectedModel : undefined,
         origin: selectedOrigin !== ALL ? selectedOrigin : undefined,
+        manufactureYear: selectedYear === '__UNASSIGNED__' ? -1 : (selectedYear !== ALL ? Number(selectedYear) : undefined),
         status: selectedStatus !== ALL ? selectedStatus : undefined,
         alertTier: selectedAlertTier !== ALL ? selectedAlertTier : undefined,
+        managerUserId: selectedManager === '__UNASSIGNED__' ? -1 : (selectedManager !== ALL ? Number(selectedManager) : undefined),
+        isAssignable: !isOtherAssets,
+        hasDriver: (filterUnassignedDriver || selectedManager === '__UNASSIGNED__') ? false : undefined,
+        hasGps: filterHasGps === 'YES' ? true : filterHasGps === 'NO' ? false : undefined,
       })
       .then(setFilterOptions)
       .catch(() => {});
@@ -314,6 +364,10 @@ export const VehiclesPage: React.FC = () => {
     selectedOrigin,
     selectedStatus,
     selectedAlertTier,
+    selectedManager,
+    filterUnassignedDriver,
+    filterHasGps,
+    isOtherAssets,
   ]);
 
   useEffect(() => {
@@ -339,6 +393,10 @@ export const VehiclesPage: React.FC = () => {
     selectedYear,
     selectedStatus,
     selectedAlertTier,
+    selectedManager,
+    filterUnassignedDriver,
+    filterHasGps,
+    isOtherAssets,
   ]);
 
   useEffect(() => {
@@ -358,6 +416,10 @@ export const VehiclesPage: React.FC = () => {
     selectedYear,
     selectedStatus,
     selectedAlertTier,
+    selectedManager,
+    filterUnassignedDriver,
+    filterHasGps,
+    isOtherAssets,
   ]);
 
   // Lắng nghe sự kiện làm mới từ nút trên Header
@@ -381,19 +443,34 @@ export const VehiclesPage: React.FC = () => {
     }
   }, [categoryParam, unitParam]);
 
-  const groupOptions = useMemo(() => filterOptions.assetGroups.map((key) => {
-    const meta = GROUP_META[key as keyof typeof GROUP_META] || GROUP_META.THIET_BI_PHU_TRO;
-    const typeCount = filterOptions.vehicleTypes.filter((item) => item.assetGroup === key).length;
-    return { key, ...meta, description: `${typeCount} chủng loại từ database` };
-  }), [filterOptions]);
+  const groupOptions = useMemo(() => {
+    const targetGroups = isOtherAssets
+      ? filterOptions.assetGroups
+      : Array.from(FLEET_ASSET_GROUPS);
+    return targetGroups.map((key) => {
+      const meta = GROUP_META[key as keyof typeof GROUP_META] || GROUP_META.MAY_CONG_TRINH;
+      const typeCount = filterOptions.vehicleTypes.filter((item) => item.assetGroup === key).length;
+      return { key, ...meta, description: `${typeCount} chủng loại từ database` };
+    });
+  }, [filterOptions, isOtherAssets]);
 
   const groupCounts = useMemo(() => {
+    const isFiltered =
+      selectedStatus !== ALL ||
+      filterUnassignedDriver ||
+      filterHasGps !== 'ALL' ||
+      selectedUnit === '__UNASSIGNED__';
+
+    if (!isFiltered && fleetStats?.assetGroupCounts) {
+      return fleetStats.assetGroupCounts;
+    }
+
     const counts: Record<string, number> = {};
     filterOptions.vehicleTypes.forEach((type) => {
       if (type.assetGroup) counts[type.assetGroup] = (counts[type.assetGroup] || 0) + type.vehicleCount;
     });
     return counts;
-  }, [filterOptions]);
+  }, [filterOptions, fleetStats, selectedStatus, filterUnassignedDriver, filterHasGps, selectedUnit]);
 
   const operationalStats = useMemo(() => {
     const total = Number(fleetStats?.totalVehicles ?? pagination.total);
@@ -401,6 +478,8 @@ export const VehiclesPage: React.FC = () => {
     const maintenance = Number(fleetStats?.maintenance || 0);
     const damaged = Number(fleetStats?.repair || 0);
     const gpsAttached = Number(fleetStats?.gpsAttached || 0);
+    const missing = Number(fleetStats?.unassignedUnit || 0);
+    const unassignedDriver = Number(fleetStats?.unassignedDriver || 0);
 
     return {
       total,
@@ -408,6 +487,11 @@ export const VehiclesPage: React.FC = () => {
       maintenance,
       damaged,
       gpsAttached,
+      missing,
+      unassignedDriver,
+      unassignedDriverRatio: `${unassignedDriver.toLocaleString('vi-VN')} xe`,
+      unassignedDriverPercent: total > 0 ? `${unassignedDriver}/${total} (${((unassignedDriver / total) * 100).toFixed(1)}%)` : '0/0 (0%)',
+      missingRatio: total > 0 ? `${missing}/${total} (${((missing / total) * 100).toFixed(1)}%)` : '0/0 (0%)',
       maintenanceRatio: total > 0 ? `${maintenance}/${total} (${((maintenance / total) * 100).toFixed(1)}%)` : '0/0 (0%)',
       damagedRatio: total > 0 ? `${damaged}/${total} (${((damaged / total) * 100).toFixed(1)}%)` : '0/0 (0%)',
     };
@@ -419,18 +503,43 @@ export const VehiclesPage: React.FC = () => {
     );
   }, [filterOptions, selectedGroup]);
 
-  const unitOptions = filterOptions.assignedUnits;
   const filteredVehicles = vehicles;
 
   // Memoized options for SearchableSelect controls
   const unitSelectOptions = useMemo<SelectOption[]>(() => {
-    return unitOptions.map((u) => ({ value: u, label: u }));
-  }, [unitOptions]);
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.assignedUnit ?? filterOptions.unitCounts?.['__UNASSIGNED__'];
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân bổ đơn vị (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    managementFilterUnits.forEach((unit) => {
+      const count = filterOptions.unitCounts?.[unit.name] ?? 0;
+      list.push({ value: String(unit.id), label: unit.name, subLabel: `${count.toLocaleString('vi-VN')} xe` });
+    });
+    return list;
+  }, [managementFilterUnits, filterOptions.unitCounts, filterOptions.unassignedCounts]);
 
   const locationOptions = useMemo(() => filterOptions.locations || [], [filterOptions.locations]);
   const locationSelectOptions = useMemo<SelectOption[]>(() => {
-    return locationOptions.map((loc) => ({ value: loc, label: loc }));
-  }, [locationOptions]);
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.currentLocation ?? filterOptions.locationCounts?.['__UNASSIGNED__'];
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có nơi tập kết (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    locationOptions.forEach((loc) => {
+      const count = filterOptions.locationCounts?.[loc];
+      list.push({ value: loc, label: loc, subLabel: count !== undefined ? `${count.toLocaleString('vi-VN')} xe` : undefined });
+    });
+    return list;
+  }, [locationOptions, filterOptions.locationCounts, filterOptions.unassignedCounts]);
 
   const categorySelectOptions = useMemo<SelectOption[]>(() => {
     return categoryOptions.map((c) => ({
@@ -441,10 +550,23 @@ export const VehiclesPage: React.FC = () => {
   }, [categoryOptions]);
 
   const complexSelectOptions = useMemo<SelectOption[]>(() => {
-    return filterOptions.complexes.map((c) => ({ value: c, label: c }));
-  }, [filterOptions.complexes]);
+    return filterOptions.complexes.map((c) => {
+      const count = filterOptions.complexCounts?.[c];
+      return { value: c, label: c, subLabel: count !== undefined ? `${count} xe` : undefined };
+    });
+  }, [filterOptions.complexes, filterOptions.complexCounts]);
 
   const regionSelectOptions = useMemo<SelectOption[]>(() => {
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.region ?? filterOptions.regionCounts?.['__UNASSIGNED__'];
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa xác định khu vực (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+
     const isMatchComplex = (pCode?: string, pName?: string) => {
       if (selectedComplex === ALL) return true;
       const comp = selectedComplex.toUpperCase();
@@ -465,14 +587,23 @@ export const VehiclesPage: React.FC = () => {
     const matching = dbRegions.filter((r) => isMatchComplex(r.parentCode, r.parentName));
 
     if (matching.length > 0) {
-      return matching.map((r) => ({
-        value: r.code,
-        label: r.name ? (r.name.includes(r.code) ? r.name : `${r.code} - ${r.name}`) : r.code,
-      }));
+      matching.forEach((r) => {
+        const count = filterOptions.regionCounts?.[r.code] ?? (r.name ? filterOptions.regionCounts?.[r.name] : undefined);
+        list.push({
+          value: r.code,
+          label: r.name ? (r.name.includes(r.code) ? r.name : `${r.code} - ${r.name}`) : r.code,
+          subLabel: count !== undefined ? `${count.toLocaleString('vi-VN')} xe` : undefined,
+        });
+      });
+      return list;
     }
 
-    return filterOptions.regions.map((r) => ({ value: r, label: r }));
-  }, [dbRegions, selectedComplex, filterOptions.regions]);
+    filterOptions.regions.forEach((r) => {
+      const count = filterOptions.regionCounts?.[r];
+      list.push({ value: r, label: r, subLabel: count !== undefined ? `${count.toLocaleString('vi-VN')} xe` : undefined });
+    });
+    return list;
+  }, [dbRegions, selectedComplex, filterOptions.regions, filterOptions.regionCounts, filterOptions.unassignedCounts]);
 
   const handleSelectComplex = (complex: string) => {
     setSelectedComplex(complex);
@@ -483,16 +614,35 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const manufacturerSelectOptions = useMemo<SelectOption[]>(() => {
-    return filterOptions.manufacturers.map((mf) => {
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.manufacturer;
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có thông tin hãng (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    filterOptions.manufacturers.forEach((mf) => {
       const isObj = typeof mf === 'object' && mf !== null;
       const name = isObj ? (mf as any).name : String(mf);
-      const count = isObj && typeof (mf as any).vehicleCount === 'number' ? `${(mf as any).vehicleCount} xe` : undefined;
-      return { value: name, label: name, subLabel: count };
+      const count = isObj && typeof (mf as any).vehicleCount === 'number' ? `${(mf as any).vehicleCount.toLocaleString('vi-VN')} xe` : undefined;
+      list.push({ value: name, label: name, subLabel: count });
     });
-  }, [filterOptions.manufacturers]);
+    return list;
+  }, [filterOptions.manufacturers, filterOptions.unassignedCounts]);
 
   const modelSelectOptions = useMemo<SelectOption[]>(() => {
-    return filterOptions.models
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.model;
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có thông tin model (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    filterOptions.models
       .filter((m) => {
         if (selectedManufacturer === ALL) return true;
         if (typeof m === 'object' && m !== null) {
@@ -504,42 +654,108 @@ export const VehiclesPage: React.FC = () => {
         }
         return true;
       })
-      .map((m) => {
+      .forEach((m) => {
         const isObj = typeof m === 'object' && m !== null;
         const name = isObj ? (m as any).name : String(m);
-        const count = isObj && typeof (m as any).vehicleCount === 'number' ? `${(m as any).vehicleCount} xe` : undefined;
-        return { value: name, label: name, subLabel: count };
+        const count = isObj && typeof (m as any).vehicleCount === 'number' ? `${(m as any).vehicleCount.toLocaleString('vi-VN')} xe` : undefined;
+        list.push({ value: name, label: name, subLabel: count });
       });
-  }, [filterOptions.models, filterOptions.manufacturers, selectedManufacturer]);
+    return list;
+  }, [filterOptions.models, filterOptions.manufacturers, selectedManufacturer, filterOptions.unassignedCounts]);
 
   const originSelectOptions = useMemo<SelectOption[]>(() => {
-    return filterOptions.origins.map((item) => {
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.origin;
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa rõ xuất xứ (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    filterOptions.origins.forEach((item) => {
       const isObj = typeof item === 'object' && item !== null;
       const name = isObj ? (item as any).name : String(item);
-      const count = isObj && typeof (item as any).vehicleCount === 'number' ? `${(item as any).vehicleCount} xe` : undefined;
-      return { value: name, label: name, subLabel: count };
+      const count = isObj && typeof (item as any).vehicleCount === 'number' ? `${(item as any).vehicleCount.toLocaleString('vi-VN')} xe` : undefined;
+      list.push({ value: name, label: name, subLabel: count });
     });
-  }, [filterOptions.origins]);
+    return list;
+  }, [filterOptions.origins, filterOptions.unassignedCounts]);
 
   const yearSelectOptions = useMemo<SelectOption[]>(() => {
-    return filterOptions.manufactureYears.map((item) => {
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.manufactureYear;
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa rõ năm sản xuất (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    filterOptions.manufactureYears.forEach((item) => {
       const isObj = typeof item === 'object' && item !== null;
       const year = isObj ? String((item as any).year) : String(item);
-      const count = isObj && typeof (item as any).vehicleCount === 'number' ? `${(item as any).vehicleCount} xe` : undefined;
-      return { value: year, label: `Năm ${year}`, subLabel: count };
+      const count = isObj && typeof (item as any).vehicleCount === 'number' ? `${(item as any).vehicleCount.toLocaleString('vi-VN')} xe` : undefined;
+      list.push({ value: year, label: `Năm ${year}`, subLabel: count });
     });
-  }, [filterOptions.manufactureYears]);
+    return list;
+  }, [filterOptions.manufactureYears, filterOptions.unassignedCounts]);
 
   const statusSelectOptions = useMemo<SelectOption[]>(() => {
-    return filterOptions.statuses.map((s) => ({ value: s, label: STATUS_LABELS[s] || s }));
-  }, [filterOptions.statuses]);
+    const activeCount = (fleetStats?.running ?? 0) + (fleetStats?.waitingDispatch ?? 0) + (fleetStats?.standby ?? 0);
+    const statusCounts: Record<string, number> = {
+      HOAT_DONG: activeCount,
+      SAN_SANG: activeCount,
+      BAO_DUONG: fleetStats?.maintenance ?? 0,
+      SUA_CHUA: fleetStats?.repair ?? 0,
+      CHO_PHAN_CONG: fleetStats?.waitingDispatch ?? 0,
+      TAM_DUNG: fleetStats?.standby ?? 0,
+      LIQUIDATED: fleetStats?.liquidated ?? 0,
+    };
+    const statuses = [...filterOptions.statuses.filter((status) => status !== 'LIQUIDATED'), 'LIQUIDATED'];
+    return statuses.map((s) => {
+      const count = fleetStats ? (statusCounts[s] ?? 0) : undefined;
+      return {
+        value: s,
+        label: STATUS_LABELS[s] || s,
+        subLabel: count !== undefined ? `${count.toLocaleString('vi-VN')} xe` : undefined,
+      };
+    });
+  }, [filterOptions.statuses, fleetStats]);
 
   const alertTierSelectOptions = useMemo<SelectOption[]>(() => {
+    const tierCounts: Record<string, number> = {
+      RED: fleetStats?.maintenanceAlerts?.red || 0,
+      AMBER: fleetStats?.maintenanceAlerts?.amber || 0,
+      NORMAL: fleetStats?.maintenanceAlerts?.green || 0,
+    };
     return filterOptions.alertTiers.map((t) => ({
       value: t,
       label: t === 'RED' ? 'Cảnh báo Đỏ (≤20h)' : t === 'AMBER' ? 'Cảnh báo Vàng (≤50h)' : 'Bình thường (Xanh)',
+      subLabel: fleetStats ? `${tierCounts[t] ?? 0} xe` : undefined,
     }));
-  }, [filterOptions.alertTiers]);
+  }, [filterOptions.alertTiers, fleetStats]);
+
+  const managerSelectOptions = useMemo<SelectOption[]>(() => {
+    const list: SelectOption[] = [];
+    const unassignedCount = filterOptions.unassignedCounts?.manager ?? fleetStats?.unassignedDriver;
+    if (unassignedCount !== undefined && unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân nhân sự quản lý (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} xe`,
+      });
+    }
+    const contextualCounts = new Map((filterOptions.managers || []).map((manager) => [manager.id, manager.vehicleCount]));
+    managementFilterManagers.forEach((manager) => {
+      list.push({
+        value: String(manager.id),
+        label: manager.name,
+        subLabel: [manager.phone, `${(contextualCounts.get(manager.id) ?? 0).toLocaleString('vi-VN')} xe`].filter(Boolean).join(' · '),
+      });
+    });
+    return list;
+  }, [managementFilterManagers, filterOptions.managers, filterOptions.unassignedCounts, fleetStats?.unassignedDriver]);
 
   const activeFilterCount = [
     searchTerm.trim() ? 'search' : '',
@@ -555,6 +771,8 @@ export const VehiclesPage: React.FC = () => {
     selectedOrigin !== ALL ? selectedOrigin : '',
     selectedYear !== ALL ? selectedYear : '',
     selectedAlertTier !== ALL ? selectedAlertTier : '',
+    selectedManager !== ALL ? selectedManager : '',
+    filterUnassignedDriver ? 'unassignedDriver' : '',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
@@ -570,17 +788,13 @@ export const VehiclesPage: React.FC = () => {
     setSelectedOrigin(ALL);
     setSelectedYear(ALL);
     setSelectedAlertTier(ALL);
+    setSelectedManager(ALL);
     setSearchTerm('');
+    setFilterUnassignedDriver(false);
     setPage(1);
   };
 
   const selectGroup = (group: string) => {
-    // Nhóm thiết bị phụ trợ & nông cụ không nằm trong danh sách xe chủ lực —
-    // điều hướng sang trang Thiết bị chuyên dụng.
-    if (group === 'THIET_BI_PHU_TRO') {
-      navigate('/doi-xe/thiet-bi');
-      return;
-    }
     setSelectedGroup((current) => (current === group ? ALL : group));
     setSelectedCategory(ALL);
   };
@@ -603,12 +817,20 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const handleDeleteVehicle = async (vehicle: VehicleProfile) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ xe ${vehicle.internalCode || vehicle.plateNumber}?`)) return;
+    if (vehicle.isLiquidated) return;
+    const reason = window.prompt(`Nhập lý do lưu trữ xe ${vehicle.internalCode || vehicle.plateNumber}:`);
+    if (reason === null) return;
+    if (reason.trim().length < 3) {
+      alert('Lý do lưu trữ phải có ít nhất 3 ký tự.');
+      return;
+    }
     try {
-      await apiService.deleteVehicle(vehicle.id);
-      setVehicles((prev) => prev.filter((v) => v.id !== vehicle.id));
+      const archived = await apiService.archiveVehicle(vehicle.id, reason.trim());
+      setVehicles((prev) => prev.map((v) => (v.id === vehicle.id ? archived : v)));
+      if (selectedVehicle?.id === vehicle.id) setSelectedVehicle(archived);
+      void apiService.getVehicleStatistics({ isAssignable: !isOtherAssets }).then(setFleetStats).catch(() => {});
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Không thể xóa phương tiện này');
+      alert(e?.response?.data?.message || 'Không thể lưu trữ phương tiện này');
     }
   };
 
@@ -619,18 +841,17 @@ export const VehiclesPage: React.FC = () => {
     if (selectedVehicle && selectedVehicle.id === updatedVehicle.id) {
       setSelectedVehicle({ ...selectedVehicle, ...updatedVehicle });
     }
-    void apiService.getVehicleStatistics({ isAssignable: true }).then(setFleetStats).catch(() => {});
+    void apiService.getVehicleStatistics({ isAssignable: !isOtherAssets }).then(setFleetStats).catch(() => {});
   };
 
   // Full 23-column Excel export
   const handleExportExcel = async () => {
     try {
       const exportVehicles = await apiService.getVehicles({
-        isAssignable: true,
         search: debouncedSearch || undefined,
         complexCode: selectedComplex !== ALL ? selectedComplex : undefined,
         regionCode: selectedRegion !== ALL ? selectedRegion : undefined,
-        assignedUnitCode: selectedUnit !== ALL ? selectedUnit : undefined,
+        ...unitFilterParams,
         assetGroup: selectedGroup !== ALL ? selectedGroup : undefined,
         vehicleTypeCode: selectedCategory !== ALL ? selectedCategory : undefined,
         manufacturer: selectedManufacturer !== ALL ? selectedManufacturer : undefined,
@@ -639,6 +860,8 @@ export const VehiclesPage: React.FC = () => {
         manufactureYear: selectedYear !== ALL ? Number(selectedYear) : undefined,
         status: selectedStatus !== ALL ? selectedStatus : undefined,
         alertTier: selectedAlertTier !== ALL ? selectedAlertTier : undefined,
+        isAssignable: !isOtherAssets,
+        managerUserId: selectedManager !== ALL ? Number(selectedManager) : undefined,
       });
       const XLSX = await import('xlsx');
       const exportData = exportVehicles.map((v, index) => ({
@@ -695,12 +918,22 @@ export const VehiclesPage: React.FC = () => {
     try {
       const rows = await parseOperationalImport(file, 'VEHICLE');
       if (rows.length === 0) throw new Error('File không có dòng dữ liệu mới (dòng ví dụ được tự động bỏ qua).');
+      const managementUnits = await driverManagementApi.getUnits({ status: 'ACTIVE' });
       let imported = 0;
       for (const row of rows) {
         if (!row.code || !row.name || !row.assetGroup || !row.category || !row.complexCode || !row.assignedUnitCode || !row.status) {
           throw new Error(`Dòng ${imported + 2} thiếu một hoặc nhiều trường bắt buộc (*).`);
         }
-        const payload: Record<string, unknown> = { ...row, unit: 'BAN_CO_GIOI' };
+        const normalizedCode = String(row.assignedUnitCode).trim().toLocaleLowerCase('vi');
+        const unitMatches = managementUnits.filter((item) => [item.code, item.name].some((value) => value.trim().toLocaleLowerCase('vi') === normalizedCode));
+        if (unitMatches.length === 0) throw new Error(`Dòng ${imported + 2}: đơn vị "${row.assignedUnitCode}" không tìm thấy trong danh mục đơn vị hoạt động.`);
+        const matchedUnit = unitMatches[0];
+        const payload: Record<string, unknown> = {
+          ...row,
+          managementUnitId: matchedUnit.id,
+          unit: matchedUnit.complexCode,
+          lastGpsUpdate: new Date().toISOString(),
+        };
         ['manufactureYear', 'fuelQuotaRate', 'fuelTankCapacity', 'totalMachineHours', 'odoKm'].forEach((key) => {
           if (payload[key] !== undefined && payload[key] !== '') payload[key] = Number(payload[key]);
           else delete payload[key];
@@ -731,6 +964,15 @@ export const VehiclesPage: React.FC = () => {
   const renderTechnicalConditionBadge = (v: VehicleProfile) => {
     const raw = v.rawStatus || v.status;
     const cond = (v.conditionStatus || '').toLowerCase();
+
+    if (v.isLiquidated) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-slate-400 bg-slate-200 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-800">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+          Đã loại biên / Thanh lý
+        </span>
+      );
+    }
 
     // 1. Trạng thái Đang hoạt động (Bình thường) - Ưu tiên chuẩn xác theo trạng thái vận hành hệ thống
     if (raw === 'HOAT_DONG' || raw === 'active') {
@@ -767,17 +1009,17 @@ export const VehiclesPage: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-700">
           <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-          Thanh lý
+          Tạm dừng
         </span>
       );
     }
 
-    // 5. Chờ phân công
+    // 5. Chờ phân công / Sẵn sàng vận hành
     if (raw === 'CHO_PHAN_CONG' || raw === 'idle') {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2.5 py-0.5 text-[10px] font-extrabold text-sky-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-          Chờ phân công
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Sẵn sàng vận hành (Bình thường)
         </span>
       );
     }
@@ -1036,7 +1278,8 @@ export const VehiclesPage: React.FC = () => {
           onDelete={() => handleDeleteVehicle(v)}
           viewTitle="Xem chi tiết lý lịch xe"
           editTitle="Chỉnh sửa thông tin hồ sơ xe"
-          deleteTitle="Xóa hồ sơ xe"
+          deleteTitle={v.isLiquidated ? 'Xe đã được lưu trữ' : 'Lưu trữ hồ sơ xe'}
+          disabledDelete={v.isLiquidated}
         />
       ),
       filterElement: (searchTerm || selectedUnit !== ALL || selectedCategory !== ALL || selectedStatus !== ALL || selectedYear !== ALL) ? (
@@ -1147,6 +1390,13 @@ export const VehiclesPage: React.FC = () => {
             <Building2 className="h-3 w-3 text-slate-500" />
             {v.teamUnit || v.assignedUnitCode || 'Chờ phân bổ'}
           </span>
+          {v.complexCode && (
+            <div className="mt-1">
+              <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                KLH: {v.complexCode}
+              </span>
+            </div>
+          )}
         </div>
       ),
     },
@@ -1155,17 +1405,28 @@ export const VehiclesPage: React.FC = () => {
       title: 'NHÂN SỰ QUẢN LÝ',
       sortable: true,
       width: '160px',
-      render: (v) => (
-        <div>
-          <span className="text-xs font-bold text-slate-900 block">{displayValue(v.managerName)}</span>
-          {v.managerPhone && (
-            <span className="text-[10px] text-slate-500 font-mono flex items-center gap-0.5 mt-0.5">
-              <Phone className="h-2.5 w-2.5 text-blue-500" />
-              {v.managerPhone}
+      render: (v) => {
+        const mgr = v.managerName || (v as any).driverName;
+        if (!mgr) {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+              Chưa phân tài xế/QL
             </span>
-          )}
-        </div>
-      ),
+          );
+        }
+        return (
+          <div>
+            <span className="text-xs font-bold text-slate-900 block">{mgr}</span>
+            {v.managerPhone && (
+              <span className="text-[10px] text-slate-500 font-mono flex items-center gap-0.5 mt-0.5">
+                <Phone className="h-2.5 w-2.5 text-blue-500" />
+                {v.managerPhone}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'currentLocationName',
@@ -1283,6 +1544,13 @@ export const VehiclesPage: React.FC = () => {
       render: (v) => <span className="text-xs text-slate-700 truncate">{displayValue(v.supplier)}</span>,
     },
     {
+      key: 'companyOwner',
+      title: 'PHÁP NHÂN SỞ HỮU',
+      sortable: true,
+      width: '180px',
+      render: (v) => <span className="text-xs font-semibold text-slate-800 truncate">{displayValue(v.companyOwner)}</span>,
+    },
+    {
       key: 'notes',
       title: 'GHI CHÚ',
       width: '160px',
@@ -1334,7 +1602,8 @@ export const VehiclesPage: React.FC = () => {
           onDelete={() => handleDeleteVehicle(v)}
           viewTitle="Xem chi tiết lý lịch xe"
           editTitle="Chỉnh sửa thông tin hồ sơ xe"
-          deleteTitle="Xóa hồ sơ xe"
+          deleteTitle={v.isLiquidated ? 'Xe đã được lưu trữ' : 'Lưu trữ hồ sơ xe'}
+          disabledDelete={v.isLiquidated}
         />
       ),
     },
@@ -1342,24 +1611,25 @@ export const VehiclesPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 5 TILES OPERATIONAL STATUS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* 7 TILES OPERATIONAL STATUS GRID */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
         {/* Row 1 - Card 1: Tổng quy mô MMTB */}
         <button
           type="button"
           onClick={() => {
             setSelectedStatus(ALL);
             setSelectedGroup(ALL);
+            setFilterUnassignedDriver(false);
           }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            selectedStatus === ALL && selectedGroup === ALL
+            selectedStatus === ALL && selectedGroup === ALL && !filterUnassignedDriver
               ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="absolute inset-x-0 bottom-0 h-1.5 bg-blue-500" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Tổng quy mô MMTB</span>
+            <span className="text-xs font-bold text-slate-500">{isOtherAssets ? 'Tổng tài sản dạng máy' : 'Tổng quy mô xe cơ giới'}</span>
             <div className="rounded-xl p-2 bg-blue-50 text-blue-600">
               <Database className="w-5 h-5" />
             </div>
@@ -1377,9 +1647,13 @@ export const VehiclesPage: React.FC = () => {
         {/* Row 1 - Card 2: Sẵn sàng vận hành */}
         <button
           type="button"
-          onClick={() => setSelectedStatus((curr) => (curr === 'HOAT_DONG' ? ALL : 'HOAT_DONG'))}
+          onClick={() => {
+            setFilterUnassignedDriver(false);
+            setPage(1);
+            setSelectedStatus((curr) => (curr === 'HOAT_DONG' ? ALL : 'HOAT_DONG'));
+          }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            selectedStatus === 'HOAT_DONG'
+            selectedStatus === 'HOAT_DONG' && !filterUnassignedDriver
               ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
@@ -1402,9 +1676,12 @@ export const VehiclesPage: React.FC = () => {
         {/* Row 1 - Card 3: Đang bảo dưỡng */}
         <button
           type="button"
-          onClick={() => setSelectedStatus((curr) => (curr === 'BAO_DUONG' ? ALL : 'BAO_DUONG'))}
+          onClick={() => {
+            setFilterUnassignedDriver(false);
+            setSelectedStatus((curr) => (curr === 'BAO_DUONG' ? ALL : 'BAO_DUONG'));
+          }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            selectedStatus === 'BAO_DUONG'
+            selectedStatus === 'BAO_DUONG' && !filterUnassignedDriver
               ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
@@ -1427,9 +1704,12 @@ export const VehiclesPage: React.FC = () => {
         {/* Row 1 - Card 4: Đang sửa chữa (Hư hỏng) */}
         <button
           type="button"
-          onClick={() => setSelectedStatus((curr) => (curr === 'SUA_CHUA' ? ALL : 'SUA_CHUA'))}
+          onClick={() => {
+            setFilterUnassignedDriver(false);
+            setSelectedStatus((curr) => (curr === 'SUA_CHUA' ? ALL : 'SUA_CHUA'));
+          }}
           className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
-            selectedStatus === 'SUA_CHUA'
+            selectedStatus === 'SUA_CHUA' && !filterUnassignedDriver
               ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/25 shadow-sm scale-[1.01]'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
@@ -1449,7 +1729,36 @@ export const VehiclesPage: React.FC = () => {
           </div>
         </button>
 
-        {/* Row 1 - Card 5: Đã gắn GPS / Giám sát */}
+        {/* Row 1 - Card 5: Chưa phân tài xế / quản lý */}
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedStatus(ALL);
+            setFilterUnassignedDriver((curr) => !curr);
+            setPage(1);
+          }}
+          className={`relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer ${
+            filterUnassignedDriver
+              ? 'border-indigo-500 bg-indigo-50/70 ring-2 ring-indigo-500/25 shadow-sm scale-[1.01]'
+              : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-indigo-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-indigo-700 truncate">Chưa phân tài xế/QL</span>
+            <div className="rounded-xl p-2 bg-indigo-50 text-indigo-600 shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-indigo-700">
+            {loading ? '...' : operationalStats.unassignedDriverRatio}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-indigo-600 truncate">
+            {selectedComplex !== ALL ? `KLH: ${selectedComplex}` : 'Lọc xe chưa phân'} {filterUnassignedDriver ? '✓' : '→'}
+          </div>
+        </button>
+
+        {/* Row 1 - Card 6: Đã gắn GPS / Giám sát */}
         <button
           type="button"
           onClick={() => navigate('/doi-xe/gps-cam-bien')}
@@ -1469,10 +1778,31 @@ export const VehiclesPage: React.FC = () => {
             {operationalStats.gpsAttached === 0 ? 'Chưa có thiết bị GPS' : 'Truyền tọa độ & cảm biến dầu'} →
           </div>
         </button>
+
+        {/* Row 1 - Card 7: Thiếu đơn vị sử dụng */}
+        <button
+          type="button"
+          onClick={() => navigate('/doi-xe/phan-xe')}
+          className="relative overflow-hidden p-4 rounded-2xl border text-left transition-all hover:shadow-md cursor-pointer border-slate-200 bg-white hover:bg-slate-50"
+        >
+          <span className="absolute inset-x-0 bottom-0 h-1.5 bg-amber-500" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-700">Thiếu đơn vị sử dụng</span>
+            <div className="rounded-xl p-2 bg-amber-50 text-amber-600">
+              <HelpCircle className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-700">
+            {loading ? '...' : operationalStats.missingRatio}
+          </div>
+          <div className="mt-1 text-[11px] font-semibold text-amber-600 truncate">
+            Xe/máy và thiết bị chờ phân bổ →
+          </div>
+        </button>
       </div>
 
-      {/* 4 TILES ASSET GROUP GRID - DÀN ĐỀU 4 CỘT KHÔNG ĐỂ KHOẢNG TRỐNG */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Row 2: ba nhóm xe cơ giới */}
+      {!isOtherAssets && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {groupOptions.map((group) => {
           const Icon = group.icon;
           const selected = selectedGroup === group.key;
@@ -1503,7 +1833,9 @@ export const VehiclesPage: React.FC = () => {
             </button>
           );
         })}
-      </div>
+      </div>}
+
+
 
       {/* 3. THANH TÌM KIẾM & CHỨC NĂNG VẬN HÀNH */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
@@ -1511,7 +1843,7 @@ export const VehiclesPage: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <span className="font-heading text-sm font-extrabold text-slate-800 uppercase tracking-wide">
-              Danh sách Hồ sơ Xe & Máy móc
+              {isOtherAssets ? 'Danh sách Tài sản dạng máy & thiết bị độc lập' : 'Danh sách Hồ sơ Xe cơ giới'}
             </span>
             <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
               {pagination.total.toLocaleString('vi-VN')} phương tiện
@@ -1529,14 +1861,6 @@ export const VehiclesPage: React.FC = () => {
               Thêm mới phương tiện
             </button>
 
-            <Link
-              to="/danh-muc/loai-xe"
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition-all hover:bg-slate-100"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-700" />
-              Danh mục {filterOptions.vehicleTypes.length} Chủng loại
-              <ExternalLink className="h-3 w-3 text-slate-400" />
-            </Link>
 
             <button
               type="button"
@@ -1643,8 +1967,8 @@ export const VehiclesPage: React.FC = () => {
                 value={selectedUnit}
                 onChange={setSelectedUnit}
                 options={unitSelectOptions}
-                placeholder={`Tất cả đơn vị (${unitOptions.length})`}
-                emptyOptionLabel={`Tất cả đơn vị (${unitOptions.length})`}
+                placeholder={`Tất cả đơn vị (${managementFilterUnits.length})`}
+                emptyOptionLabel={`Tất cả đơn vị (${managementFilterUnits.length})`}
                 heightClass="h-9"
                 icon={<Building2 className="h-4 w-4" />}
               />
@@ -1786,6 +2110,20 @@ export const VehiclesPage: React.FC = () => {
                 heightClass="h-9"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                Nhân sự quản lý
+              </label>
+              <SearchableSelect
+                value={selectedManager}
+                onChange={setSelectedManager}
+                options={managerSelectOptions}
+                placeholder={`Tất cả nhân sự (${managementFilterManagers.length})`}
+                emptyOptionLabel="Tất cả nhân sự quản lý"
+                heightClass="h-9"
+                icon={<Users className="h-4 w-4" />}
+              />
+            </div>
           </div>
         )}
       </section>
@@ -1800,7 +2138,7 @@ export const VehiclesPage: React.FC = () => {
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 px-4 py-3 bg-slate-50/70">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-sm text-slate-900">Danh sách Hồ sơ MMTB</span>
+            <span className="font-extrabold text-sm text-slate-900">{isOtherAssets ? 'Danh sách Tài sản khác' : 'Danh sách Hồ sơ Xe cơ giới'}</span>
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
               {pagination.total.toLocaleString('vi-VN')} bản ghi
             </span>
@@ -1952,8 +2290,8 @@ export const VehiclesPage: React.FC = () => {
                         {selectedVehicle.plateNumber}
                       </span>
                     )}
-                    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${statusMeta(selectedVehicle.status).badgeClass}`}>
-                      {statusMeta(selectedVehicle.status).label}
+                    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${statusMeta(selectedVehicle).badgeClass}`}>
+                      {statusMeta(selectedVehicle).label}
                     </span>
                   </div>
                   <h3 className="mt-1 text-sm font-extrabold text-slate-900">
@@ -1961,16 +2299,27 @@ export const VehiclesPage: React.FC = () => {
                   </h3>
                   <div className="mt-1 text-xs text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span>{selectedVehicle.vehicleCategory} · {selectedVehicle.teamUnit || 'Chưa phân bổ'}</span>
+                    {selectedVehicle.complexCode && (
+                      <span className="inline-flex items-center gap-1 text-emerald-900 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px] border border-emerald-300">
+                        <Building2 className="h-3 w-3 text-emerald-700" />
+                        KLH: {selectedVehicle.complexCode}
+                      </span>
+                    )}
                     {selectedVehicle.currentLocationName && (
                       <span className="inline-flex items-center gap-1 text-emerald-900 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px] border border-emerald-300">
                         <MapPin className="h-3 w-3 text-emerald-700" />
                         Nơi tập kết: {selectedVehicle.currentLocationName}
                       </span>
                     )}
-                    {selectedVehicle.managerName && (
+                    {selectedVehicle.managerName ? (
                       <span className="inline-flex items-center gap-1 text-blue-900 font-bold bg-blue-100/90 px-2 py-0.5 rounded-md text-[11px] border border-blue-300">
                         <UserCheck className="h-3 w-3 text-blue-700" />
                         Quản lý: {selectedVehicle.managerName} {selectedVehicle.managerPhone ? `(${selectedVehicle.managerPhone})` : ''}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-indigo-900 font-bold bg-indigo-100/90 px-2 py-0.5 rounded-md text-[11px] border border-indigo-300">
+                        <Users className="h-3 w-3 text-indigo-700" />
+                        Chưa phân tài xế / quản lý
                       </span>
                     )}
                   </div>
@@ -2011,6 +2360,7 @@ export const VehiclesPage: React.FC = () => {
                 { key: 'fuel', label: '3. Định mức & Nhiên liệu', icon: Fuel },
                 { key: 'assignment', label: '4. Phân bổ & Vận hành', icon: Building2 },
                 { key: 'maintenance', label: '5. Bảo dưỡng & Sửa chữa', icon: Wrench },
+                { key: 'management', label: '6. Nhân sự quản lý', icon: Users },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const active = detailTab === tab.key;
@@ -2043,7 +2393,7 @@ export const VehiclesPage: React.FC = () => {
                   <DetailField label="5. Tình trạng mua" value={selectedVehicle.purchaseCondition || 'Mua mới 100%'} />
                   <DetailField label="6. Nhà cung cấp" value={selectedVehicle.supplier || 'THACO AGRI'} />
                   <DetailField label="7. Mã tài sản kế toán" value={selectedVehicle.assetCode} mono />
-                  <DetailField label="8. Đơn vị chủ quản" value={selectedVehicle.companyOwner || 'THACO AGRI'} />
+                  <DetailField label="8. Pháp nhân sở hữu" value={selectedVehicle.companyOwner || 'THACO AGRI'} />
                   <DetailField label="9. Loại hợp đồng" value={selectedVehicle.contractStatus || 'KLH Koun Mom'} />
                   <DetailField label="Mã VehicleType" value={selectedVehicle.vehicleTypeCode || selectedVehicle.categoryCode} mono />
                   <DetailField label="Nhóm tài sản" value={selectedVehicle.assetGroup} mono />
@@ -2096,14 +2446,33 @@ export const VehiclesPage: React.FC = () => {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                   <DetailField label="21. Đơn vị sử dụng (Xí nghiệp)" value={selectedVehicle.teamUnit} />
                   <DetailField label="22. Ngày phân bổ đưa vào SD" value={selectedVehicle.allocationDate} />
-                  <DetailField label="Khu liên hợp" value={selectedVehicle.complexCode} mono />
+                  <DetailField
+                    label="Khu liên hợp"
+                    value={selectedVehicle.complexCode}
+                    mono
+                    badge={
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
+                        {selectedVehicle.complexCode}
+                      </span>
+                    }
+                  />
                   <DetailField label="Khu vực" value={selectedVehicle.regionCode} mono />
                   <DetailField
                     label="23. Tình trạng Hỏng kỹ thuật"
                     value={selectedVehicle.conditionStatus || 'Bình thường'}
                     className={selectedVehicle.conditionStatus?.toLowerCase().includes('hỏng') ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50'}
                   />
-                  <DetailField label="Tài xế phụ trách hiện tại" value={selectedVehicle.currentDriver} />
+                  <DetailField
+                    label="Tài xế phụ trách hiện tại"
+                    value={selectedVehicle.currentDriver || selectedVehicle.managerName || 'Chưa phân tài xế/quản lý'}
+                    badge={
+                      !selectedVehicle.currentDriver && !selectedVehicle.managerName ? (
+                        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">
+                          Chưa phân
+                        </span>
+                      ) : undefined
+                    }
+                  />
                   <DetailField label="Tổng giờ máy tích lũy" value={`${selectedVehicle.currentEngineHours.toLocaleString('vi-VN')} h`} mono />
                   <DetailField
                     label="26. Nhân sự quản lý"
@@ -2162,6 +2531,87 @@ export const VehiclesPage: React.FC = () => {
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {detailTab === 'management' && (
+                <div className="space-y-4 text-xs">
+                  {/* Cán bộ quản lý cơ giới phụ trách xe */}
+                  <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/30 p-4 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-emerald-100 pb-2.5 mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="rounded-xl bg-emerald-600 text-white p-2 shadow-xs">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                            Nhân sự quản lý phương tiện (Đội cơ giới)
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            Cán bộ quản lý phụ trách tài sản, điều động và giám sát định mức xe
+                          </p>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                        {selectedVehicle.managerName ? 'Đang phụ trách' : 'Chưa phân công'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      <DetailField
+                        label="26. Nhân sự quản lý"
+                        value={selectedVehicle.managerName || 'Chưa phân công'}
+                        className="border-emerald-200 bg-emerald-50/70 font-bold"
+                      />
+                      <DetailField
+                        label="27. SĐT nhân sự quản lý"
+                        value={
+                          selectedVehicle.managerPhone ? (
+                            <a href={`tel:${selectedVehicle.managerPhone}`} className="font-mono font-bold text-primary hover:underline">
+                              {selectedVehicle.managerPhone}
+                            </a>
+                          ) : '—'
+                        }
+                      />
+                      <DetailField
+                        label="Tài xế phụ trách hiện tại"
+                        value={selectedVehicle.currentDriver || 'Chưa gán tài xế'}
+                        badge={
+                          !selectedVehicle.currentDriver ? (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
+                              Chưa gán
+                            </span>
+                          ) : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* Đơn vị sử dụng & Phân cấp cơ giới */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
+                    <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2.5 mb-3">
+                      <div className="rounded-xl bg-blue-50 text-blue-700 p-2">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                          Đơn vị chủ quản & Khu vực hoạt động
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Biên chế quản lý tài sản theo Xí nghiệp và Khu liên hợp
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      <DetailField label="21. Đơn vị sử dụng (Xí nghiệp)" value={selectedVehicle.teamUnit} />
+                      <DetailField label="Khu liên hợp" value={selectedVehicle.complexCode} mono />
+                      <DetailField label="Khu vực hoạt động" value={selectedVehicle.regionCode} mono />
+                      <DetailField label="22. Ngày phân bổ đưa vào SD" value={selectedVehicle.allocationDate} />
+                      <DetailField label="Tổng giờ máy tích lũy" value={`${selectedVehicle.currentEngineHours.toLocaleString('vi-VN')} h`} mono />
+                      <DetailField label="Tình trạng kỹ thuật" value={selectedVehicle.conditionStatus || 'Bình thường'} />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

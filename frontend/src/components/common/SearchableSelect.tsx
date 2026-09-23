@@ -6,6 +6,8 @@ export interface SelectOption {
   value: string;
   label: string;
   subLabel?: string;
+  count?: number;
+  countUnit?: string;
   disabled?: boolean;
   title?: string;
 }
@@ -170,10 +172,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     if (!term) return listWithoutEmpty;
     return listWithoutEmpty.filter(
       (opt) =>
-        opt.label.toLowerCase().includes(term) ||
-        opt.value.toLowerCase().includes(term) ||
-        (opt.subLabel && opt.subLabel.toLowerCase().includes(term)) ||
-        (opt.title && opt.title.toLowerCase().includes(term))
+        (opt.label ? String(opt.label).toLowerCase().includes(term) : false) ||
+        (opt.value ? String(opt.value).toLowerCase().includes(term) : false) ||
+        (opt.subLabel ? String(opt.subLabel).toLowerCase().includes(term) : false) ||
+        (opt.count !== undefined && String(opt.count).includes(term)) ||
+        (opt.title ? String(opt.title).toLowerCase().includes(term) : false)
     );
   }, [normalizedOptions, searchTerm, isTyping, emptyValue]);
 
@@ -317,14 +320,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             inputRef.current?.select();
           }
         }}
-        className={`w-full ${heightClass} flex items-center justify-between border ${roundedClass} px-2.5 text-xs ${bgClass} text-slate-800 transition-all cursor-text ${
+        className={`w-full ${heightClass} flex items-center justify-between border ${roundedClass} px-2.5 text-xs ${bgClass} text-slate-800 transition-all ${
           disabled
             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
             : isOpen
-            ? 'border-primary bg-white ring-2 ring-primary/20 shadow-xs'
+            ? 'border-primary bg-white ring-2 ring-primary/20 shadow-xs cursor-text'
             : isSelectedActive
-            ? 'border-primary/50 bg-white font-semibold text-slate-900 shadow-2xs hover:border-primary'
-            : 'border-slate-300 hover:border-slate-400 bg-white'
+            ? 'border-primary/50 bg-white font-semibold text-slate-900 shadow-2xs hover:border-primary cursor-pointer'
+            : 'border-slate-300 hover:border-slate-400 bg-white cursor-pointer'
         } ${inputClassName}`}
       >
         {icon ? (
@@ -355,9 +358,19 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               inputRef.current?.select();
             }
           }}
+          onBlur={() => {
+            setTimeout(() => {
+              if (isTyping && !allowCustomInput) {
+                setIsTyping(false);
+                setSearchTerm('');
+              }
+            }, 200);
+          }}
           placeholder={placeholder}
           title={displayLabel || placeholder}
-          className="w-full bg-transparent text-xs font-semibold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:outline-none cursor-text truncate"
+          className={`w-full bg-transparent text-xs font-semibold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:outline-none truncate ${
+            disabled ? 'cursor-not-allowed select-none' : 'cursor-text'
+          }`}
         />
 
         <div className="flex items-center gap-1 shrink-0 ml-1">
@@ -481,9 +494,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     <div className="text-xs leading-relaxed whitespace-normal break-words font-medium">
                       {isTyping && searchTerm.trim() ? highlightMatch(opt.label, searchTerm) : opt.label}
                     </div>
-                    {opt.subLabel && (
-                      <div className="text-[11px] text-slate-400 mt-0.5 leading-normal whitespace-normal break-words font-normal">
-                        {isTyping && searchTerm.trim() ? highlightMatch(opt.subLabel, searchTerm) : opt.subLabel}
+                    {(opt.subLabel || opt.count !== undefined) && (
+                      <div className="text-[11px] text-slate-500 mt-0.5 leading-normal whitespace-normal break-words font-normal">
+                        {opt.subLabel
+                          ? (isTyping && searchTerm.trim() ? highlightMatch(opt.subLabel, searchTerm) : opt.subLabel)
+                          : `${opt.count} ${opt.countUnit || 'xe'}`}
                       </div>
                     )}
                   </div>

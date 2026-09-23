@@ -15,6 +15,12 @@ export class DispatchFilterDto extends PaginationDto {
   @IsEnum(DispatchStatus)
   status?: DispatchStatus;
 
+  @ApiPropertyOptional({ description: 'Bao gồm cả lệnh đã hủy' })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  includeCancelled?: boolean;
+
   @ApiPropertyOptional({ description: 'Chỉ lọc lệnh bị trễ' })
   @IsOptional()
   @IsBoolean()

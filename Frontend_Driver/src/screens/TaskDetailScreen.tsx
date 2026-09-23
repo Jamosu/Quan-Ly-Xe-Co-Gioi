@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -41,14 +42,31 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
   const [showIncidentModal, setShowIncidentModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [startOdo, setStartOdo] = useState('');
   const [finishOdo, setFinishOdo] = useState('');
   const [completionNotes, setCompletionNotes] = useState('');
+  const [showDailyReport, setShowDailyReport] = useState(false);
+  const [reportQuantity, setReportQuantity] = useState('');
+  const [reportNote, setReportNote] = useState('');
+  const [reportWorkCompleted, setReportWorkCompleted] = useState(false);
 
   const { online, refreshLocal } = useAppStore();
 
   const load = useCallback(async () => {
     const next = await getOrder(route.params.localKey);
     setOrder(next);
+    if (next) {
+      try {
+        const report = JSON.parse(next.raw_json || '{}').dailyReport;
+        if (report) {
+          setReportQuantity(String(report.quantityToday ?? ''));
+          setReportNote(report.note ?? '');
+          setReportWorkCompleted(Boolean(report.workCompleted));
+        }
+      } catch {
+        // Keep the local form values when an old cached payload is malformed.
+      }
+    }
     setEvents(await getOrderEvents(route.params.localKey));
   }, [route.params.localKey]);
 
@@ -193,22 +211,117 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
 
   const isAssigned = order.local_status === 'ASSIGNED';
   const isAccepted = order.local_status === 'DRIVER_ACCEPTED';
-  const canStart = ['DRIVER_ACCEPTED', 'VEHICLE_RECEIVED', 'DEPARTED', 'AT_WORKSITE'].includes(order.local_status);
+  const canStart = ['DRIVER_ACCEPTED', 'VEHICLE_RECEIVED', 'DEPARTED', 'AT_WORKSITE', 'READY_TO_CONTINUE'].includes(order.local_status);
   const isWorking = ['WORKING', 'IN_TRANSIT'].includes(order.local_status);
   const isPaused = order.local_status === 'PAUSED';
-  const isDone = ['COMPLETED', 'DELIVERED', 'ACCEPTED', 'CLOSED'].includes(order.local_status);
+  const isOnBreak = order.local_status === 'ON_BREAK';
+  const isDone = ['COMPLETED', 'DELIVERED', 'ACCEPTED', 'CLOSED', 'SUBMITTED_FOR_ACCEPTANCE'].includes(order.local_status);
+  const hasProgressToday = events.some((event) => event.event_type === 'PROGRESS_UPDATED' && new Date(event.occurred_at).toDateString() === new Date().toDateString());
+  const rawOrder = (() => { try { return JSON.parse(order.raw_json || '{}'); } catch { return {}; } })();
+  const reportOpenAt = rawOrder.reportOpenAt ? new Date(rawOrder.reportOpenAt).getTime() : undefined;
+  const reportDeadlineAt = rawOrder.reportDeadlineAt ? new Date(rawOrder.reportDeadlineAt).getTime() : undefined;
+  const reportStatus = rawOrder.dailyReport?.status as string | undefined;
+  const dailyReport = rawOrder.dailyReport as {
+    quantityToday?: number; unit?: string; note?: string; workCompleted?: boolean;
+    evidenceUrls?: string[]; submittedByType?: string; submittedBy?: { fullName?: string };
+    managerReason?: string; reportSubmittedAt?: string;
+  } | undefined;
+  const reportCanOpen = reportOpenAt !== undefined && Date.now() >= reportOpenAt;
+  const reportMinutesLeft = reportDeadlineAt !== undefined ? Math.max(0, Math.ceil((reportDeadlineAt - Date.now()) / 60_000)) : undefined;
+
+  const startWork = async () => {
+    const value = Number(startOdo);
+    if (!startOdo.trim() || !Number.isFinite(value) || value < 0) {
+      Alert.alert('Thiếu ODO / giờ máy', 'Vui lòng nhập chỉ số bắt đầu hợp lệ.');
+      return;
+    }
+    await act('JOB_STARTED', { startOdoKm: value });
+  };
+
+  const pauseWork = () => Alert.alert('Lý do tạm dừng', 'Chọn nguyên nhân gián đoạn công việc.', [
+    { text: 'Thời tiết', onPress: () => void act('WORK_PAUSED', { reason: 'WEATHER' }, 'Tạm dừng do thời tiết') },
+    { text: 'Chờ vật tư', onPress: () => void act('WORK_PAUSED', { reason: 'WAITING_MATERIAL' }, 'Chờ vật tư') },
+    { text: 'Chờ điều độ', onPress: () => void act('WORK_PAUSED', { reason: 'WAITING_DISPATCH' }, 'Chờ điều độ') },
+    { text: 'Sự cố xe', onPress: () => void act('WORK_PAUSED', { reason: 'VEHICLE_ISSUE' }, 'Sự cố phương tiện') },
+    { text: 'Hủy', style: 'cancel' },
+  ]);
+
+  const requestEndDay = () => {
+    if (!finishOdo.trim() || !Number.isFinite(Number(finishOdo)) || Number(finishOdo) < 0) {
+      Alert.alert('Thiếu ODO / giờ máy', 'Vui lòng nhập chỉ số kết thúc hợp lệ.');
+      return false;
+    }
+    const submit = (confirmNoProgress: boolean) => void act('WORK_SESSION_ENDED', { finishOdoKm: Number(finishOdo), completionNotes, confirmNoProgress }, completionNotes);
+    if (hasProgressToday) submit(false);
+    else Alert.alert('Chưa báo cáo tiến độ', 'Hôm nay không phát sinh khối lượng hay bạn chưa nhập báo cáo?', [
+      { text: 'Quay lại báo cáo', style: 'cancel' },
+      { text: 'Không phát sinh', onPress: () => submit(true) },
+    ]);
+    return true;
+  };
+
+  const saveDailyReport = async (submit: boolean) => {
+    const quantityToday = Number(reportQuantity || 0);
+    if (!Number.isFinite(quantityToday) || quantityToday < 0) {
+      Alert.alert('Khối lượng không hợp lệ', 'Vui lòng nhập số lớn hơn hoặc bằng 0.');
+      return;
+    }
+    await act(submit ? 'DAILY_REPORT_SUBMITTED' : 'DAILY_REPORT_DRAFT_SAVED', {
+      quantityToday,
+      unit: rawOrder.operationalWorkOrder?.targetUnit,
+      startOdoKm: startOdo ? Number(startOdo) : undefined,
+      endOdoKm: finishOdo ? Number(finishOdo) : undefined,
+      note: reportNote,
+      workCompleted: reportWorkCompleted,
+    }, reportNote);
+    if (submit) setShowDailyReport(false);
+  };
 
   // Compute work progress
-  let progressText = '5,2 / 8,5 ha';
-  let progressPercent = 61;
+  const isTransport = order.order_type === 'TRANSPORT';
+  let progressText = '';
+  let progressPercent = 0;
   try {
     const raw = JSON.parse(order.raw_json || '{}');
-    if (raw.areaHa) {
-      const doneHa = Number(raw.completedAreaHa || (raw.areaHa * 0.6).toFixed(1));
-      progressText = `${doneHa} / ${raw.areaHa} ha`;
-      progressPercent = Math.min(100, Math.round((doneHa / raw.areaHa) * 100));
+    if (isTransport) {
+      const tonnage = Number(raw.tonnage || 0);
+      const doneTonnage = Number(raw.completedTonnage || 0);
+      if (tonnage > 0) {
+        if (doneTonnage > 0) {
+          progressText = `${doneTonnage} / ${tonnage} tấn`;
+          progressPercent = Math.min(100, Math.round((doneTonnage / tonnage) * 100));
+        } else {
+          progressText = statusLabel(order.local_status);
+          progressPercent = isDone ? 100 : isWorking ? 60 : isAssigned ? 0 : 30;
+        }
+      } else {
+        progressText = statusLabel(order.local_status);
+        progressPercent = isDone ? 100 : isWorking ? 60 : isAssigned ? 0 : 30;
+      }
+    } else {
+      let areaHa = raw.areaHa ? Number(raw.areaHa) : null;
+      let completedAreaHa = raw.completedAreaHa ? Number(raw.completedAreaHa) : null;
+
+      if (!areaHa && raw.notes) {
+        const matchArea = String(raw.notes).match(/Diện tích:\s*([\d.]+)\s*ha/i);
+        if (matchArea) areaHa = parseFloat(matchArea[1]);
+        const matchDone = String(raw.notes).match(/hoàn thành\s*([\d.]+)\s*ha/i);
+        if (matchDone) completedAreaHa = parseFloat(matchDone[1]);
+      }
+
+      if (areaHa && areaHa > 0) {
+        const doneHa = completedAreaHa !== null ? completedAreaHa : (isDone ? areaHa : isWorking ? Number((areaHa * 0.5).toFixed(1)) : 0);
+        progressText = `${doneHa} / ${areaHa} ha`;
+        progressPercent = Math.min(100, Math.round((Number(doneHa) / areaHa) * 100));
+      } else {
+        progressText = statusLabel(order.local_status);
+        progressPercent = isDone ? 100 : isWorking ? 60 : isAssigned ? 0 : 30;
+      }
     }
-  } catch {}
+  } catch {
+    progressText = statusLabel(order.local_status);
+    progressPercent = isDone ? 100 : 0;
+  }
   if (isDone) {
     progressPercent = 100;
   }
@@ -296,7 +409,7 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
             <Ionicons name="radio-button-on" size={18} color={colors.muted} />
             <View style={{ flex: 1 }}>
               <Text style={styles.infoLabel}>Điểm xuất phát / Bãi xe</Text>
-              <Text style={styles.infoValue}>{order.origin || 'Bãi đỗ cơ giới KLH Koun Mom'}</Text>
+              <Text style={styles.infoValue}>{order.origin || 'Chưa cập nhật điểm xuất phát'}</Text>
             </View>
           </View>
           <View style={styles.routeLine} />
@@ -304,7 +417,7 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
             <Ionicons name="location" size={18} color={colors.brand} />
             <View style={{ flex: 1 }}>
               <Text style={styles.infoLabel}>Điểm thực hiện / Lô thửa</Text>
-              <Text style={styles.infoValueBold}>{order.destination || 'Nông trường Ia Puch • Lô A12'}</Text>
+              <Text style={styles.infoValueBold}>{order.destination || 'Chưa cập nhật điểm đến'}</Text>
             </View>
           </View>
         </View>
@@ -323,9 +436,9 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
             <Ionicons name="car-outline" size={18} color={colors.brand} />
             <Text style={styles.metaBoxLabel}>Phương tiện được giao</Text>
             <Text style={styles.metaBoxValue}>
-              {order.vehicle_code || 'MK-023'}
+              {order.vehicle_code || 'Chưa gán xe'}
             </Text>
-            <Text style={styles.metaBoxSub}>{order.vehicle_plate || 'John Deere 6120'}</Text>
+            <Text style={styles.metaBoxSub}>{order.vehicle_plate || (order.vehicle_name ? order.vehicle_name : '')}</Text>
           </View>
         </View>
 
@@ -359,14 +472,26 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
               )}
 
               {canStart && !isWorking && (
-                <TouchableOpacity
-                  style={[styles.bigActionBtn, styles.bigActionPrimary]}
-                  onPress={() => act('JOB_STARTED', { startOdoKm: 12450 })}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="play" size={22} color="#FFFFFF" />
-                  <Text style={styles.bigActionTextPrimary}>Bắt đầu công việc</Text>
-                </TouchableOpacity>
+                <View style={styles.startWorkBox}>
+                  <TextInput
+                    style={styles.completeInput}
+                    placeholder="ODO / giờ máy bắt đầu"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="decimal-pad"
+                    value={startOdo}
+                    onChangeText={setStartOdo}
+                  />
+                  <TouchableOpacity
+                    style={[styles.bigActionBtn, styles.bigActionPrimary, { width: '100%' }]}
+                    onPress={startWork}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="play" size={22} color="#FFFFFF" />
+                    <Text style={styles.bigActionTextPrimary}>
+                      {order.local_status === 'READY_TO_CONTINUE' ? 'Tiếp tục lệnh' : 'Bắt đầu công việc'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {isWorking && (
@@ -384,19 +509,39 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
                   {/* Secondary Outline Action */}
                   <TouchableOpacity
                     style={[styles.bigActionBtn, styles.bigActionNeutral]}
-                    onPress={() => act('JOB_PAUSED')}
+                    onPress={() => act('BREAK_STARTED', { type: 'LUNCH' }, 'Nghỉ giữa ca')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cafe-outline" size={22} color={colors.ink} />
+                    <Text style={styles.bigActionTextNeutral}>Nghỉ giữa ca</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.bigActionBtn, styles.bigActionNeutral]}
+                    onPress={pauseWork}
                     activeOpacity={0.8}
                   >
                     <Ionicons name="pause" size={22} color={colors.ink} />
-                    <Text style={styles.bigActionTextNeutral}>Tạm dừng</Text>
+                    <Text style={styles.bigActionTextNeutral}>Tạm dừng có lý do</Text>
                   </TouchableOpacity>
                 </>
+              )}
+
+              {isOnBreak && (
+                <TouchableOpacity
+                  style={[styles.bigActionBtn, styles.bigActionPrimary]}
+                  onPress={() => act('BREAK_ENDED')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="play" size={22} color="#FFFFFF" />
+                  <Text style={styles.bigActionTextPrimary}>Kết thúc nghỉ</Text>
+                </TouchableOpacity>
               )}
 
               {isPaused && (
                 <TouchableOpacity
                   style={[styles.bigActionBtn, styles.bigActionPrimary]}
-                  onPress={() => act('JOB_RESUMED')}
+                  onPress={() => act('WORK_RESUMED')}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="play" size={22} color="#FFFFFF" />
@@ -448,22 +593,83 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
               </TouchableOpacity>
             </View>
 
-            {/* Complete Task Big Green Button */}
-            <TouchableOpacity
-              style={styles.completeBtn}
-              onPress={() => setShowCompleteDialog(true)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="checkmark-done" size={22} color="#FFFFFF" />
-              <Text style={styles.completeBtnText}>HOÀN THÀNH NHIỆM VỤ</Text>
-            </TouchableOpacity>
+            {isWorking && (
+              <TouchableOpacity
+                style={styles.completeBtn}
+                onPress={() => setShowCompleteDialog(true)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="moon-outline" size={22} color="#FFFFFF" />
+                <Text style={styles.completeBtnText}>KẾT THÚC NGÀY LÀM VIỆC</Text>
+              </TouchableOpacity>
+            )}
+
+            {order.local_status === 'READY_TO_CONTINUE' && (
+              <TouchableOpacity
+                style={styles.completeBtn}
+                onPress={() => Alert.alert(
+                  'Báo hoàn thành toàn bộ công việc?',
+                  'Lệnh sẽ được gửi quản lý nghiệm thu. Đây không phải thao tác kết thúc ngày.',
+                  [
+                    { text: 'Hủy', style: 'cancel' },
+                    { text: 'Gửi nghiệm thu', onPress: () => void act('ORDER_COMPLETION_REQUESTED') },
+                  ],
+                )}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark-done" size={22} color="#FFFFFF" />
+                <Text style={styles.completeBtnText}>BÁO HOÀN THÀNH CÔNG VIỆC</Text>
+              </TouchableOpacity>
+            )}
           </>
+        )}
+
+        {dailyReport?.submittedByType === 'MANAGER' && (
+          <View style={styles.managerReportCard}>
+            <View style={styles.managerReportHeader}>
+              <Ionicons name="cloud-done-outline" size={22} color={colors.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.completeBoxTitle}>Đã đồng bộ báo cáo đội trưởng nhập hộ</Text>
+                <Text style={styles.completeBoxSubtitle}>
+                  {dailyReport.submittedBy?.fullName ?? 'Đội trưởng'} nhập thay cho tài xế
+                  {dailyReport.reportSubmittedAt ? ` · ${formatDate(dailyReport.reportSubmittedAt, true)}` : ''}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.managerReportValue}>Tiến độ: {dailyReport.quantityToday ?? 0} {dailyReport.unit ?? rawOrder.operationalWorkOrder?.targetUnit ?? ''}</Text>
+            {!!dailyReport.note && <Text style={styles.managerReportText}>Ghi chú: {dailyReport.note}</Text>}
+            {!!dailyReport.managerReason && <Text style={styles.managerReportText}>Lý do nhập hộ: {dailyReport.managerReason}</Text>}
+            <Text style={styles.managerReportText}>Công việc tổng: {dailyReport.workCompleted ? 'Đã báo hoàn thành' : 'Chưa hoàn thành, tiếp tục theo điều phối'}</Text>
+            {!!dailyReport.evidenceUrls?.length && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                {dailyReport.evidenceUrls.map((url) => <Image key={url} source={{ uri: url }} style={styles.reportImage} />)}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {reportCanOpen && !['ACCEPTED', 'SUBMITTED_ON_TIME', 'SUBMITTED_BY_MANAGER'].includes(reportStatus ?? '') && (
+          <TouchableOpacity style={styles.completeBtn} onPress={() => setShowDailyReport(value => !value)} activeOpacity={0.85}>
+            <Ionicons name="document-text-outline" size={22} color="#FFFFFF" />
+            <Text style={styles.completeBtnText}>{reportStatus === 'MISSING' ? 'GỬI BÁO CÁO TRỄ' : 'NHẬP TIẾN ĐỘ CUỐI NGÀY'}</Text>
+          </TouchableOpacity>
+        )}
+        {reportCanOpen && reportMinutesLeft !== undefined && !rawOrder.dailyReport?.reportSubmittedAt && <Text style={{ marginHorizontal: 16, marginTop: 8, color: reportMinutesLeft <= 5 ? colors.danger : colors.warning, fontWeight: '700' }}>Còn {reportMinutesLeft} phút để gửi báo cáo đúng hạn</Text>}
+
+        {showDailyReport && (
+          <View style={styles.completeBox}>
+            <Text style={styles.completeBoxTitle}>Báo cáo cuối ngày</Text>
+            <TextInput style={styles.completeInput} placeholder="Khối lượng hoàn thành hôm nay" placeholderTextColor="#94A3B8" keyboardType="decimal-pad" value={reportQuantity} onChangeText={setReportQuantity} />
+            <TextInput style={[styles.completeInput, { minHeight: 60, textAlignVertical: 'top' }]} placeholder="Ghi chú hiện trường" placeholderTextColor="#94A3B8" value={reportNote} onChangeText={setReportNote} multiline />
+            <TouchableOpacity style={styles.subActionBtn} onPress={() => setReportWorkCompleted(value => !value)}><Ionicons name={reportWorkCompleted ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={reportWorkCompleted ? colors.success : colors.inkLight} /><Text style={styles.subActionText}>Đã hoàn thành công việc tổng</Text></TouchableOpacity>
+            <View style={styles.completeActions}><TouchableOpacity style={styles.completeCancelBtn} onPress={() => void saveDailyReport(false)}><Text style={styles.completeCancelText}>LƯU NHÁP</Text></TouchableOpacity><TouchableOpacity style={styles.completeConfirmBtn} onPress={() => void saveDailyReport(true)}><Text style={styles.completeConfirmText}>{reportStatus === 'MISSING' ? 'GỬI TRỄ' : 'GỬI BÁO CÁO'}</Text></TouchableOpacity></View>
+          </View>
         )}
 
         {/* Completion input modal / block */}
         {showCompleteDialog && (
           <View style={styles.completeBox}>
-            <Text style={styles.completeBoxTitle}>Xác nhận hoàn thành lệnh</Text>
+            <Text style={styles.completeBoxTitle}>Kết thúc ngày làm việc</Text>
             <Text style={styles.completeBoxSubtitle}>
               Nhập chỉ số ODO hoặc giờ máy kết thúc ca làm việc:
             </Text>
@@ -493,11 +699,10 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
               <TouchableOpacity
                 style={styles.completeConfirmBtn}
                 onPress={() => {
-                  setShowCompleteDialog(false);
-                  act('JOB_COMPLETED', { finishOdoKm: Number(finishOdo || 12510), completionNotes }, completionNotes);
+                  if (requestEndDay()) setShowCompleteDialog(false);
                 }}
               >
-                <Text style={styles.completeConfirmText}>XÁC NHẬN HOÀN THÀNH</Text>
+                <Text style={styles.completeConfirmText}>KẾT THÚC PHIÊN HÔM NAY</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -536,7 +741,7 @@ export function TaskDetailScreen({ route, navigation }: NativeStackScreenProps<T
         visible={showProgressModal}
         onClose={() => setShowProgressModal(false)}
         onSubmit={async (p, n) => {
-          await act('PROGRESS_UPDATED', { progress: p, note: n }, n);
+          await act('PROGRESS_UPDATED', { quantityToday: p, note: n }, n);
         }}
       />
 
@@ -814,6 +1019,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
   },
+  startWorkBox: {
+    width: '100%',
+  },
   bigActionBtn: {
     width: '48.5%',
     height: 64,
@@ -900,6 +1108,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     ...shadow,
+  },
+  managerReportCard: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  managerReportHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  managerReportValue: {
+    color: colors.brandDark,
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 10,
+  },
+  managerReportText: {
+    color: colors.inkLight,
+    fontSize: 13,
+    marginTop: 5,
+  },
+  reportImage: {
+    width: 108,
+    height: 82,
+    borderRadius: 10,
+    marginRight: 8,
+    backgroundColor: '#D1FAE5',
   },
   completeBoxTitle: {
     color: colors.ink,

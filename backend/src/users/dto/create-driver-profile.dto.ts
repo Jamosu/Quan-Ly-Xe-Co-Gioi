@@ -29,7 +29,7 @@ export class CreateDriverProfileDto {
   @IsNotEmpty()
   username: string;
 
-  @ApiPropertyOptional({ example: '123456', description: 'Mật khẩu khởi tạo, nếu để trống mặc định là 123456' })
+  @ApiPropertyOptional({ example: 'Thaco@1234$', description: 'Mật khẩu khởi tạo, nếu để trống mặc định là Thaco@1234$' })
   @IsOptional()
   @IsString()
   password?: string;
@@ -182,4 +182,16 @@ export class CreateDriverProfileDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Danh sách nhiều bằng lái & chứng chỉ nghề của tài xế' })
+  @IsOptional()
+  licenses?: any[];
+
+  @ApiPropertyOptional({ description: 'Danh sách xe được phân công kèm vai trò (PRIMARY / SECONDARY)' })
+  @IsOptional()
+  assignedVehicles?: Array<{ vehicleId: number; type: 'PRIMARY' | 'SECONDARY' }>;
+
+  @ApiPropertyOptional({ description: 'Danh sách ID xe được phân công quản lý' })
+  @IsOptional()
+  assignedVehicleIds?: number[];
 }

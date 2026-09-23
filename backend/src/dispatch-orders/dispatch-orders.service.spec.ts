@@ -2,9 +2,51 @@ import { DriverEmploymentStatus, DriverLicenseClass, DriverShiftStatus, Implemen
 import { DispatchOrdersService } from './dispatch-orders.service';
 
 describe('DispatchOrdersService resource validation', () => {
+  it('loads drivers and implements from the selected TEAM', async () => {
+    const prisma = {
+      driverManagementUnit: { findUnique: jest.fn().mockResolvedValue({ id: 12, level: 'TEAM', status: 'ACTIVE', complexCode: 'KOUN_MOM' }) },
+      vehicle: { findMany: jest.fn().mockResolvedValue([{ id: 1, vehicleTypeId: 7, vehicleType: { id: 7 } }]) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      agriculturalImplement: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
+      dispatchOrder: { findFirst: jest.fn().mockResolvedValue(null) },
+      transportOrder: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const service = new DispatchOrdersService(prisma as never);
+
+    await service.availableResources({
+      managementUnitId: 12,
+      start: new Date('2026-09-21T01:00:00Z'),
+      end: new Date('2026-09-21T09:00:00Z'),
+    }, { id: 1, role: Role.SUPER_ADMIN, unit: 'TOAN_KLH' } as never);
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        driverProfile: { managementAssignments: { some: { teamUnitId: 12, effectiveTo: null } } },
+      }),
+    }));
+    expect(prisma.agriculturalImplement.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ managementUnitId: 12 }),
+    }));
+  });
+
+  it('keeps creator, vehicle manager, driver, and driver manager as separate response roles', () => {
+    const service = new DispatchOrdersService({} as never);
+    const order = (service as any).presentOrder({
+      requester: { id: 1, code: 'NV00125', fullName: 'Nguyá»…n VÄƒn A' },
+      vehicle: { id: 10, code: 'MÃY-01', managementUnit: { id: 100, code: 'CG-01', name: 'Äá»™i cÆ¡ giá»›i 01', complexCode: 'KOUN_MOM', managerAssignments: [{ manager: { id: 2, fullName: 'Tráº§n VÄƒn B' } }] } },
+      driver: { id: 20, fullName: 'LÃª VÄƒn C', driverProfile: { managementAssignments: [{ managementUnit: { id: 200, code: 'VH-01', name: 'Äá»™i váº­n hÃ nh 01', complexCode: 'KOUN_MOM', managerAssignments: [{ manager: { id: 3, fullName: 'Pháº¡m VÄƒn D' } }] } }] } },
+    });
+
+    expect(order.createdBy.fullName).toBe('Nguyá»…n VÄƒn A');
+    expect(order.vehicle.manager.fullName).toBe('Tráº§n VÄƒn B');
+    expect(order.driver.fullName).toBe('LÃª VÄƒn C');
+    expect(order.driver.manager.fullName).toBe('Pháº¡m VÄƒn D');
+  });
+
   it('approves a draft work order before assigning it from the combined approval action', async () => {
     const prisma = {
       dispatchOrder: { update: jest.fn().mockResolvedValue({}) },
+      operationalWorkOrder: { update: jest.fn().mockResolvedValue({}) },
     };
     const workOrders = {
       ensureApprovedForAssignment: jest.fn().mockResolvedValue({ status: 'APPROVED' }),
@@ -23,6 +65,7 @@ describe('DispatchOrdersService resource validation', () => {
     await service.assign(7, {
       vehicleId: 10,
       driverId: 20,
+      implementIds: [30, 31],
       departureTime: new Date('2026-09-12T01:00:00Z'),
       plannedEndTime: new Date('2026-09-12T09:00:00Z'),
     }, { id: 1 } as never);
@@ -31,15 +74,21 @@ describe('DispatchOrdersService resource validation', () => {
     expect(workOrders.assign).toHaveBeenCalledWith(17, expect.objectContaining({ vehicleId: 10, driverId: 20 }), expect.objectContaining({ id: 1 }));
     expect(prisma.dispatchOrder.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 7 },
-      data: expect.objectContaining({ approvedById: 1 }),
+      data: expect.objectContaining({ approvedById: 1, implementId: 30 }),
+    }));
+    expect(prisma.operationalWorkOrder.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 17 },
+      data: { categoryDetails: { implementIds: [30, 31] } },
     }));
   });
 
   it('rejects a standalone order without an explicit exception reason', async () => {
-    const service = new DispatchOrdersService({} as never);
+    const service = new DispatchOrdersService({ driverManagementUnit: { findUnique: jest.fn().mockResolvedValue({ id: 1, level: 'OWNER', status: 'ACTIVE', complexCode: 'KOUN_MOM' }) } } as never);
     await expect(service.create({
+      managementUnitId: 1,
       code: 'LDX-EX-001', unit: 'NT1' as never, purpose: 'Phát sinh', origin: 'A', destination: 'B',
-    }, { id: 1 } as never)).rejects.toThrow('MANUAL_EXCEPTION');
+      departureTime: new Date('2026-09-12T01:00:00Z'), plannedEndTime: new Date('2026-09-12T09:00:00Z'),
+    }, { id: 1, role: Role.SUPER_ADMIN, unit: 'TOAN_KLH' } as never)).rejects.toThrow('MANUAL_EXCEPTION');
   });
 
   it('reports maintenance, expired credentials, wrong class and overlap together', async () => {
@@ -49,6 +98,7 @@ describe('DispatchOrdersService resource validation', () => {
       user: { findUnique: jest.fn().mockResolvedValue({ id: 8, role: Role.DRIVER, employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC, currentShiftStatus: DriverShiftStatus.SAN_SANG, licenseClass: DriverLicenseClass.HANG_C, licenseExpiryDate: new Date('2025-01-01'), healthCheckExpiryDate: new Date('2025-01-01') }) },
       dispatchOrder: { findFirst: jest.fn().mockResolvedValue(conflict) },
       transportOrder: { findFirst: jest.fn().mockResolvedValue(null) },
+      agriculturalImplement: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const service = new DispatchOrdersService(prisma as never);
     const reasons = await service.validateResources({ vehicleId: 4, driverId: 8, departureTime: new Date('2026-09-03T08:00:00Z'), plannedEndTime: new Date('2026-09-03T10:00:00Z') });
@@ -101,6 +151,7 @@ describe('DispatchOrdersService resource validation', () => {
         findFirst: jest.fn().mockResolvedValue(null),
       },
       transportOrder: { findFirst: jest.fn().mockResolvedValue(null) },
+      agriculturalImplement: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const service = new DispatchOrdersService(prisma as never);
     const reasons = await service.validateResources(
@@ -117,9 +168,12 @@ describe('DispatchOrdersService resource validation', () => {
     const prisma = {
       vehicle: { findUnique: jest.fn().mockResolvedValue({ id: 1, status: VehicleStatus.CHO_PHAN_CONG, vehicleType: null }) },
       user: { findUnique: jest.fn().mockResolvedValue({ id: 2, role: Role.DRIVER, employmentStatus: DriverEmploymentStatus.DANG_LAM_VIEC, currentShiftStatus: DriverShiftStatus.SAN_SANG, licenseExpiryDate: new Date('2027-01-01'), healthCheckExpiryDate: new Date('2027-01-01') }) },
-      agriculturalImplement: { findUnique: jest.fn().mockResolvedValue({ id: 3, status: ImplementStatus.IN_DEPOT, technicalCondition: TechnicalCondition.GOOD }) },
+      agriculturalImplement: { findUnique: jest.fn(({ where }: any) => where.code
+        ? Promise.resolve(null)
+        : Promise.resolve({ id: 3, status: ImplementStatus.IN_DEPOT, technicalCondition: TechnicalCondition.GOOD })) },
       dispatchOrder: { findFirst: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 99 }) },
       transportOrder: { findFirst: jest.fn().mockResolvedValue(null) },
+      operationalWorkOrder: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const service = new DispatchOrdersService(prisma as never);
     const reasons = await service.validateResources({ vehicleId: 1, driverId: 2, implementId: 3, departureTime: new Date('2026-09-03T08:00:00Z'), plannedEndTime: new Date('2026-09-03T10:00:00Z') });

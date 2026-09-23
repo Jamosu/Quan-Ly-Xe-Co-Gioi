@@ -1,5 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
-import { Role, Unit, WorkshopRepairRoute, WorkshopRequestStatus, WorkshopRequestType } from '@prisma/client';
+﻿import { BadRequestException } from '@nestjs/common';
+import { Role, SosStatus, Unit, WorkshopRepairRoute, WorkshopRequestStatus, WorkshopRequestType } from '@prisma/client';
 import { WorkshopService } from './workshop.service';
 
 describe('WorkshopService', () => {
@@ -71,5 +71,38 @@ describe('WorkshopService', () => {
 
     expect(tx.workshopRequest.create).toHaveBeenCalled();
     expect(tx.vehicle.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { status: 'SUA_CHUA', conditionStatus: 'Hư hỏng / Đang sửa chữa' } });
+  });
+
+  it('rejects duplicate rescue dispatches for the same SOS', async () => {
+    const tx = {
+      driverSosAlert: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 15,
+          driverId: 8,
+          status: SosStatus.DISPATCHED,
+          vehicle: { unit: Unit.KOUN_MOM },
+          rescueDispatchOrder: { id: 99, code: 'CH-SOS-000015' },
+        }),
+      },
+    };
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const rescueService = new WorkshopService(prisma as any, {} as any);
+
+    await expect(rescueService.dispatchSosRescue(15, {
+      rescueVehicleId: 20,
+      driverId: 21,
+      plannedEndTime: new Date(Date.now() + 60_000),
+    }, actor)).rejects.toThrow('đã có lệnh cứu hộ');
+  });
+
+  it('rejects a rescue window that already ended before opening a transaction', async () => {
+    const prisma = { $transaction: jest.fn() };
+    const rescueService = new WorkshopService(prisma as any, {} as any);
+    await expect(rescueService.dispatchSosRescue(15, {
+      rescueVehicleId: 20,
+      driverId: 21,
+      plannedEndTime: new Date(Date.now() - 60_000),
+    }, actor)).rejects.toThrow('phải sau thời điểm hiện tại');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

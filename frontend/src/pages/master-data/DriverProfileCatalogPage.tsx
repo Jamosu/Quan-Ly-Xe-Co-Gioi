@@ -11,8 +11,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  LayoutDashboard,
-  Table as TableIcon,
   RotateCcw,
   Download,
   Upload,
@@ -24,10 +22,11 @@ import { Modal } from '../../components/common/Modal';
 import { TableRowActions } from '../../components/common/TableRowActions';
 import { StatusToggle } from '../../components/common/StatusToggle';
 import { AuditUserPopover } from '../../components/common/AuditUserPopover';
+import { SearchableSelect } from '../../components/common/SearchableSelect';
 import { useAppStore } from '../../store/useAppStore';
 import { driverManagementApi, DriverManagementLevel, DriverManagementUnit, DriverManagementUnitType } from '../../api/driverManagementApi';
 import { PositionsCatalogPage } from './PositionsCatalogPage';
-import { CatalogItem, mockComplexes } from '../../data/catalogData';
+import { CatalogItem } from '../../data/catalogData';
 import { catalogsApi } from '../../api/catalogsApi';
 import { getStoredData } from '../../utils/storage';
 import {
@@ -56,7 +55,6 @@ type Tab =
 
 const TABS: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
   { id: 'owners', label: 'Đơn vị chủ quản', icon: Building2 },
-  { id: 'teams', label: 'Đội/Tổ trực thuộc', icon: Users },
   { id: 'positions', label: 'Chức danh', icon: Briefcase },
   { id: 'license-classes', label: 'Hạng GPLX & Bằng máy', icon: Award },
   { id: 'compliance-statuses', label: 'Tình trạng GPLX & Hạn SK', icon: ShieldAlert },
@@ -93,12 +91,12 @@ export const DriverProfileCatalogPage: React.FC = () => {
   const currentUser = useAppStore((state) => state.currentUser);
   const canEdit = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'FARM_MANAGER';
 
-  const [viewMode, setViewMode] = useState<'summary' | 'table'>('table');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // 1. Quản lý Đơn vị chủ quản & Đội/Tổ (Cấp 2 & Cấp 3)
   const [units, setUnits] = useState<DriverManagementUnit[]>([]);
   const [catalogComplexes, setCatalogComplexes] = useState<CatalogItem[]>(() =>
-    getStoredData('catalogs_complexes', mockComplexes)
+    getStoredData('catalogs_complexes', [])
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -217,7 +215,7 @@ export const DriverProfileCatalogPage: React.FC = () => {
 
   useEffect(() => {
     void load();
-    catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes', mockComplexes).then((data) => {
+    catalogsApi.getCatalogs('COMPLEX', 'catalogs_complexes').then((data) => {
       if (Array.isArray(data) && data.length > 0) setCatalogComplexes(data);
     });
   }, []);
@@ -234,9 +232,17 @@ export const DriverProfileCatalogPage: React.FC = () => {
       if (unitStatusFilter !== 'ALL' && unit.status !== unitStatusFilter) return false;
       if (unitCodeFilter && !unit.code.toLowerCase().includes(unitCodeFilter.toLowerCase())) return false;
       if (unitNameFilter && !unit.name.toLowerCase().includes(unitNameFilter.toLowerCase())) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.trim().toLowerCase();
+        const match =
+          unit.code.toLowerCase().includes(q) ||
+          unit.name.toLowerCase().includes(q) ||
+          (unit.description && unit.description.toLowerCase().includes(q));
+        if (!match) return false;
+      }
       return true;
     });
-  }, [units, activeTab, complexCode, unitTypeFilter, unitStatusFilter, unitCodeFilter, unitNameFilter]);
+  }, [units, activeTab, complexCode, unitTypeFilter, unitStatusFilter, unitCodeFilter, unitNameFilter, searchTerm]);
 
   // Danh sách Hạng GPLX sau lọc
   const visibleLicenseClasses = useMemo(() => {
@@ -245,9 +251,18 @@ export const DriverProfileCatalogPage: React.FC = () => {
       if (lcStatusFilter !== 'ALL' && item.status !== lcStatusFilter) return false;
       if (lcCodeFilter && !item.code.toLowerCase().includes(lcCodeFilter.toLowerCase())) return false;
       if (lcNameFilter && !item.name.toLowerCase().includes(lcNameFilter.toLowerCase())) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.trim().toLowerCase();
+        const match =
+          item.code.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          (item.allowedVehicles && item.allowedVehicles.toLowerCase().includes(q)) ||
+          (item.categoryLabel && item.categoryLabel.toLowerCase().includes(q));
+        if (!match) return false;
+      }
       return true;
     });
-  }, [licenseClasses, lcCategoryFilter, lcStatusFilter, lcCodeFilter, lcNameFilter]);
+  }, [licenseClasses, lcCategoryFilter, lcStatusFilter, lcCodeFilter, lcNameFilter, searchTerm]);
 
   // Danh sách Tình trạng tuân thủ sau lọc
   const visibleComplianceStatuses = useMemo(() => {
@@ -256,9 +271,17 @@ export const DriverProfileCatalogPage: React.FC = () => {
       if (csStatusFilter !== 'ALL' && item.status !== csStatusFilter) return false;
       if (csCodeFilter && !item.code.toLowerCase().includes(csCodeFilter.toLowerCase())) return false;
       if (csNameFilter && !item.name.toLowerCase().includes(csNameFilter.toLowerCase())) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.trim().toLowerCase();
+        const match =
+          item.code.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          (item.actionRequired && item.actionRequired.toLowerCase().includes(q));
+        if (!match) return false;
+      }
       return true;
     });
-  }, [complianceStatuses, csBadgeFilter, csStatusFilter, csCodeFilter, csNameFilter]);
+  }, [complianceStatuses, csBadgeFilter, csStatusFilter, csCodeFilter, csNameFilter, searchTerm]);
 
   // Danh sách Trạng thái việc làm sau lọc
   const visibleEmploymentStatuses = useMemo(() => {
@@ -270,9 +293,17 @@ export const DriverProfileCatalogPage: React.FC = () => {
       if (esStatusFilter !== 'ALL' && item.status !== esStatusFilter) return false;
       if (esCodeFilter && !item.code.toLowerCase().includes(esCodeFilter.toLowerCase())) return false;
       if (esNameFilter && !item.name.toLowerCase().includes(esNameFilter.toLowerCase())) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.trim().toLowerCase();
+        const match =
+          item.code.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          (item.description && item.description.toLowerCase().includes(q));
+        if (!match) return false;
+      }
       return true;
     });
-  }, [employmentStatuses, esDispatchFilter, esStatusFilter, esCodeFilter, esNameFilter]);
+  }, [employmentStatuses, esDispatchFilter, esStatusFilter, esCodeFilter, esNameFilter, searchTerm]);
 
   // Danh sách Loại đơn vị sau lọc
   const visibleUnitTypes = useMemo(() => {
@@ -281,12 +312,22 @@ export const DriverProfileCatalogPage: React.FC = () => {
       if (utStatusFilter !== 'ALL' && item.status !== utStatusFilter) return false;
       if (utCodeFilter && !item.code.toLowerCase().includes(utCodeFilter.toLowerCase())) return false;
       if (utNameFilter && !item.name.toLowerCase().includes(utNameFilter.toLowerCase())) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.trim().toLowerCase();
+        const match =
+          item.code.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          (item.description && item.description.toLowerCase().includes(q)) ||
+          (item.levelLabel && item.levelLabel.toLowerCase().includes(q));
+        if (!match) return false;
+      }
       return true;
     });
-  }, [unitTypes, utLevelFilter, utStatusFilter, utCodeFilter, utNameFilter]);
+  }, [unitTypes, utLevelFilter, utStatusFilter, utCodeFilter, utNameFilter, searchTerm]);
 
   // Hàm reset filter theo tab
   const handleResetFilters = () => {
+    setSearchTerm('');
     if (activeTab === 'owners' || activeTab === 'teams') {
       setUnitCodeFilter('');
       setUnitNameFilter('');
@@ -669,588 +710,477 @@ export const DriverProfileCatalogPage: React.FC = () => {
 
   return (
     <div className="space-y-4 font-sans">
-      {/* 1. THANH ĐIỀU HƯỚNG CHUYỂN CHẾ ĐỘ GIỐNG HÌNH 1 (KHÔNG CÓ CHỮ DƯ THỪA ĐẦU TRANG) */}
-      <div className="flex items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-        <div className="flex items-center justify-between w-full gap-2 flex-wrap">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+      {/* 1. STATS OVERVIEW CARDS (PHONG CÁCH VEHICLE TYPES PAGE) */}
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
+        {[
+          { id: 'owners' as const, label: 'Đơn vị chủ quản', value: units.filter((u) => u.level === 'OWNER').length, icon: Building2, color: 'text-emerald-700 bg-emerald-50' },
+          { id: 'positions' as const, label: 'Chức danh', value: 12, icon: Briefcase, color: 'text-sky-700 bg-sky-50' },
+          { id: 'license-classes' as const, label: 'Hạng GPLX & Bằng máy', value: licenseClasses.length, icon: Award, color: 'text-violet-700 bg-violet-50' },
+          { id: 'compliance-statuses' as const, label: 'Tình trạng GPLX & SK', value: complianceStatuses.length, icon: ShieldAlert, color: 'text-amber-700 bg-amber-50' },
+          { id: 'employment-statuses' as const, label: 'Tình trạng việc làm', value: employmentStatuses.length, icon: UserCheck, color: 'text-blue-700 bg-blue-50' },
+          { id: 'unit-types' as const, label: 'Loại đơn vị quản lý', value: unitTypes.length, icon: Layers, color: 'text-teal-700 bg-teal-50' },
+        ].map((stat) => {
+          const Icon = stat.icon;
+          const isActive = activeTab === stat.id;
+          return (
             <button
-              onClick={() => setViewMode('summary')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'summary'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+              key={stat.id}
+              type="button"
+              onClick={() => setParams({ tab: stat.id })}
+              className={`rounded-xl border p-3 text-left transition-all hover:shadow-md cursor-pointer ${
+                isActive
+                  ? 'border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-600/20 shadow-xs'
+                  : 'border-slate-200 bg-white hover:bg-slate-50'
               }`}
             >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              Tổng quan Thống kê
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              Quản lý Bảng Dữ liệu
-            </button>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void load()}
-            disabled={loading}
-            className="flex items-center gap-1.5 bg-white hover:bg-slate-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
-            <span>Làm mới</span>
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* CHẾ ĐỘ 1: TỔNG QUAN THỐNG KÊ (KPI CARDS) */}
-      {viewMode === 'summary' && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {[
-            {
-              id: 'owners',
-              label: 'Đơn vị chủ quản',
-              count: units.filter((u) => u.level === 'OWNER').length,
-              unit: 'đơn vị',
-              icon: Building2,
-              color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-            },
-            {
-              id: 'teams',
-              label: 'Đội/Tổ trực thuộc',
-              count: units.filter((u) => u.level === 'TEAM').length,
-              unit: 'đội/tổ',
-              icon: Users,
-              color: 'text-teal-700 bg-teal-50 border-teal-200',
-            },
-            {
-              id: 'positions',
-              label: 'Chức danh tài xế',
-              count: 12,
-              unit: 'chức danh',
-              icon: Briefcase,
-              color: 'text-sky-700 bg-sky-50 border-sky-200',
-            },
-            {
-              id: 'license-classes',
-              label: 'Hạng GPLX & Bằng máy',
-              count: licenseClasses.length,
-              unit: 'hạng',
-              icon: Award,
-              color: 'text-violet-700 bg-violet-50 border-violet-200',
-            },
-            {
-              id: 'compliance-statuses',
-              label: 'Tình trạng GPLX & SK',
-              count: complianceStatuses.length,
-              unit: 'mốc',
-              icon: ShieldAlert,
-              color: 'text-amber-700 bg-amber-50 border-amber-200',
-            },
-            {
-              id: 'employment-statuses',
-              label: 'Trạng thái việc làm',
-              count: employmentStatuses.length,
-              unit: 'trạng thái',
-              icon: UserCheck,
-              color: 'text-blue-700 bg-blue-50 border-blue-200',
-            },
-            {
-              id: 'unit-types',
-              label: 'Loại đơn vị quản lý',
-              count: unitTypes.length,
-              unit: 'loại',
-              icon: Layers,
-              color: 'text-rose-700 bg-rose-50 border-rose-200',
-            },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setParams({ tab: item.id });
-                  setViewMode('table');
-                }}
-                className={`p-3.5 rounded-xl border bg-white hover:shadow-md transition-all text-left cursor-pointer border-slate-200 hover:border-emerald-500`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 truncate">{item.label}</span>
-                  <div className={`p-1.5 rounded-lg border ${item.color}`}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-                <div className="mt-2 text-xl font-black text-slate-900">{item.count}</div>
-                <div className="text-[10px] text-slate-400 font-semibold">{item.unit}</div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* CHẾ ĐỘ 2: QUẢN LÝ BẢNG DỮ LIỆU */}
-      {viewMode === 'table' && (
-        <div className="space-y-4">
-          {/* 2. THANH TABS DANH MỤC NẰM NGANG */}
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setParams({ tab: tab.id })}
-                  className={`flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-[#154E2C] text-[#B8D83D] shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* TAB CHỨC DANH TÀI XẾ (ĐÃ CÓ SẴN TIÊU CHÍ TÌM KIẾM & BẢNG CHUẨN) */}
-          {activeTab === 'positions' && <PositionsCatalogPage />}
-
-          {/* CÁC TAB CÒN LẠI: HIỂN THỊ KHUNG TIÊU CHÍ TÌM KIẾM VÀ BẢNG CHUẨN HÌNH 1 */}
-          {activeTab !== 'positions' && (
-            <div className="space-y-4">
-              {/* ========================================================================= */}
-              {/* KHUNG TIÊU CHÍ TÌM KIẾM (SEARCH CRITERIA PANEL CHUẨN HÌNH 1)               */}
-              {/* ========================================================================= */}
-              <div className="bg-white p-3.5 rounded border border-slate-200 shadow-xs space-y-3 font-sans text-xs">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-red-600 uppercase tracking-wide">Tiêu chí tìm kiếm</div>
-                  <span className="text-[11px] text-slate-400 italic">Chọn tiêu chí và bấm "Tìm kiếm" (hoặc nhấn Enter)</span>
-                </div>
-
-                {/* 1 & 2. Tiêu chí - Đơn vị chủ quản & Đội/Tổ */}
-                {(activeTab === 'owners' || activeTab === 'teams') && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Mã đơn vị</label>
-                      <input
-                        value={unitCodeFilter}
-                        onChange={(e) => setUnitCodeFilter(e.target.value)}
-                        placeholder="Tất cả mã"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Tên đơn vị</label>
-                      <input
-                        value={unitNameFilter}
-                        onChange={(e) => setUnitNameFilter(e.target.value)}
-                        placeholder="Tất cả tên đơn vị"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Khu liên hợp</label>
-                      <select
-                        value={complexCode}
-                        onChange={(e) => setComplexCode(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả Khu liên hợp</option>
-                        {catalogComplexes.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.code} - {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Loại đơn vị</label>
-                      <select
-                        value={unitTypeFilter}
-                        onChange={(e) => setUnitTypeFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả loại đơn vị</option>
-                        {Object.entries(TYPE_LABELS).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Trạng thái</label>
-                      <select
-                        value={unitStatusFilter}
-                        onChange={(e) => setUnitStatusFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="ACTIVE">Hoạt động</option>
-                        <option value="INACTIVE">Không hoạt động</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Tiêu chí - Hạng GPLX & Bằng máy */}
-                {activeTab === 'license-classes' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Mã hạng</label>
-                      <input
-                        value={lcCodeFilter}
-                        onChange={(e) => setLcCodeFilter(e.target.value)}
-                        placeholder="Tất cả mã hạng"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Tên hạng GPLX / Chứng chỉ</label>
-                      <input
-                        value={lcNameFilter}
-                        onChange={(e) => setLcNameFilter(e.target.value)}
-                        placeholder="Tất cả tên hạng"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Phân nhóm bằng lái</label>
-                      <select
-                        value={lcCategoryFilter}
-                        onChange={(e) => setLcCategoryFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả phân nhóm</option>
-                        <option value="ROAD_LICENSE">GPLX đường bộ</option>
-                        <option value="AGRI_MACHINERY">Cơ giới nông nghiệp</option>
-                        <option value="CONSTRUCTION">Máy công trình</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Trạng thái</label>
-                      <select
-                        value={lcStatusFilter}
-                        onChange={(e) => setLcStatusFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="ACTIVE">Hoạt động</option>
-                        <option value="INACTIVE">Không hoạt động</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Tiêu chí - Tình trạng tuân thủ GPLX & SK */}
-                {activeTab === 'compliance-statuses' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Mã tình trạng</label>
-                      <input
-                        value={csCodeFilter}
-                        onChange={(e) => setCsCodeFilter(e.target.value)}
-                        placeholder="Tất cả mã"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Tên hiển thị</label>
-                      <input
-                        value={csNameFilter}
-                        onChange={(e) => setCsNameFilter(e.target.value)}
-                        placeholder="Tất cả tên hiển thị"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Màu sắc cảnh báo</label>
-                      <select
-                        value={csBadgeFilter}
-                        onChange={(e) => setCsBadgeFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả màu sắc</option>
-                        <option value="green">Xanh lá (Hợp lệ)</option>
-                        <option value="amber">Vàng (Cảnh báo gia hạn)</option>
-                        <option value="red">Đỏ (Nguy hiểm / Hết hạn)</option>
-                        <option value="gray">Xám (Thiếu dữ liệu)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Trạng thái</label>
-                      <select
-                        value={csStatusFilter}
-                        onChange={(e) => setCsStatusFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="ACTIVE">Hoạt động</option>
-                        <option value="INACTIVE">Không hoạt động</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* 5. Tiêu chí - Trạng thái việc làm */}
-                {activeTab === 'employment-statuses' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Mã trạng thái</label>
-                      <input
-                        value={esCodeFilter}
-                        onChange={(e) => setEsCodeFilter(e.target.value)}
-                        placeholder="Tất cả mã"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Tên trạng thái việc làm</label>
-                      <input
-                        value={esNameFilter}
-                        onChange={(e) => setEsNameFilter(e.target.value)}
-                        placeholder="Tất cả tên trạng thái"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Phép phân công / Điều xe</label>
-                      <select
-                        value={esDispatchFilter}
-                        onChange={(e) => setEsDispatchFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả quyền gán lệnh</option>
-                        <option value="true">Có (Được nhận xe & lệnh)</option>
-                        <option value="false">Không (Khóa điều xe)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Trạng thái</label>
-                      <select
-                        value={esStatusFilter}
-                        onChange={(e) => setEsStatusFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="ACTIVE">Hoạt động</option>
-                        <option value="INACTIVE">Không hoạt động</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* 6. Tiêu chí - Loại đơn vị quản lý */}
-                {activeTab === 'unit-types' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Mã loại</label>
-                      <input
-                        value={utCodeFilter}
-                        onChange={(e) => setUtCodeFilter(e.target.value)}
-                        placeholder="Tất cả mã loại"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Tên loại đơn vị</label>
-                      <input
-                        value={utNameFilter}
-                        onChange={(e) => setUtNameFilter(e.target.value)}
-                        placeholder="Tất cả tên loại"
-                        className="w-full h-9 rounded border border-slate-200 px-3 text-xs bg-white text-slate-800 focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Cấp phân nhóm</label>
-                      <select
-                        value={utLevelFilter}
-                        onChange={(e) => setUtLevelFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả cấp phân nhóm</option>
-                        <option value="OWNER">Cấp 2 - Đơn vị chủ quản</option>
-                        <option value="TEAM">Cấp 3 - Đội/Tổ trực thuộc</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Trạng thái</label>
-                      <select
-                        value={utStatusFilter}
-                        onChange={(e) => setUtStatusFilter(e.target.value)}
-                        className="w-full h-9 rounded border border-slate-200 px-2 text-xs bg-white text-slate-700 focus:border-emerald-600 focus:outline-none"
-                      >
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="ACTIVE">Hoạt động</option>
-                        <option value="INACTIVE">Không hoạt động</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* HÀNG NÚT THAO TÁC TIÊU CHÍ TÌM KIẾM CHUẨN HÌNH 1 */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Nhập lại
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {}}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-emerald-800 hover:bg-emerald-900 text-white font-semibold shadow-xs transition-colors text-xs cursor-pointer"
-                    >
-                      <Search className="w-3.5 h-3.5" />
-                      Tìm kiếm
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadTemplate}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Download Template
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleUploadFile}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      Upload file
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExportExcel}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
-                      Xuất excel
-                    </button>
-                  </div>
-
-                  {canEdit && (
-                    <div>
-                      {activeTab === 'owners' && (
-                        <Button variant="primary" size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => openCreateUnit('OWNER')}>
-                          + Thêm đơn vị chủ quản
-                        </Button>
-                      )}
-                      {activeTab === 'teams' && (
-                        <Button variant="primary" size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => openCreateUnit('TEAM')}>
-                          + Thêm Đội/Tổ
-                        </Button>
-                      )}
-                      {activeTab === 'license-classes' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          icon={<Plus className="h-4 w-4" />}
-                          onClick={() => {
-                            setEditingLicenseClass(null);
-                            setLicenseClassForm({
-                              code: '',
-                              name: '',
-                              category: 'ROAD_LICENSE',
-                              categoryLabel: 'GPLX đường bộ',
-                              allowedVehicles: '',
-                              validityYears: 5,
-                              status: 'ACTIVE',
-                            });
-                            setLicenseClassModal(true);
-                          }}
-                        >
-                          + Thêm hạng GPLX / Bằng máy
-                        </Button>
-                      )}
-                      {activeTab === 'compliance-statuses' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          icon={<Plus className="h-4 w-4" />}
-                          onClick={() => {
-                            setEditingCompliance(null);
-                            setComplianceForm({
-                              code: '',
-                              name: '',
-                              badgeVariant: 'green',
-                              thresholdDays: '',
-                              actionRequired: '',
-                              status: 'ACTIVE',
-                            });
-                            setComplianceModal(true);
-                          }}
-                        >
-                          + Thêm tình trạng hồ sơ
-                        </Button>
-                      )}
-                      {activeTab === 'employment-statuses' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          icon={<Plus className="h-4 w-4" />}
-                          onClick={() => {
-                            setEditingEmployment(null);
-                            setEmploymentForm({
-                              code: '',
-                              name: '',
-                              canDispatch: true,
-                              badgeVariant: 'green',
-                              description: '',
-                              status: 'ACTIVE',
-                            });
-                            setEmploymentModal(true);
-                          }}
-                        >
-                          + Thêm trạng thái việc làm
-                        </Button>
-                      )}
-                      {activeTab === 'unit-types' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          icon={<Plus className="h-4 w-4" />}
-                          onClick={() => {
-                            setEditingUnitType(null);
-                            setUnitTypeForm({
-                              code: '',
-                              name: '',
-                              level: 'OWNER',
-                              levelLabel: 'Cấp 2 - Đơn vị chủ quản',
-                              description: '',
-                              status: 'ACTIVE',
-                            });
-                            setUnitTypeModal(true);
-                          }}
-                        >
-                          + Thêm loại đơn vị
-                        </Button>
-                      )}
-                    </div>
-                  )}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 truncate">{stat.label}</span>
+                <div className={`rounded-lg p-1 shrink-0 ${stat.color}`}>
+                  <Icon className="h-3.5 w-3.5" />
                 </div>
               </div>
+              <div className="mt-1.5 text-lg font-black text-slate-900">{stat.value.toLocaleString('vi-VN')}</div>
+            </button>
+          );
+        })}
+      </div>
 
-              {/* ========================================================================= */}
-              {/* BẢNG DỮ LIỆU CHUẨN HÌNH 1 (HEADER CHỮ ĐỎ + TỔNG SỐ, KHÔNG CÓ CHỮ DƯ THỪA)  */}
-              {/* ========================================================================= */}
-              <div className="bg-white rounded border border-slate-200 overflow-hidden shadow-xs">
+      {/* 2. CHỨC DANH TÀI XẾ (EMBEDDED) */}
+      {activeTab === 'positions' && <PositionsCatalogPage />}
+
+      {/* 3. MAIN TABLE CONTAINER FOR OTHER TABS */}
+      {activeTab !== 'positions' && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4 font-sans">
+          {/* Action & Context Filter Toolbar: Hàng trên là Bộ lọc xếp đều, Hàng dưới là Cụm nút tác vụ */}
+          <div className="space-y-3 border-b border-slate-100 pb-3">
+            {/* HÀNG TRÊN: BỘ LỌC (XẾP ĐỀU GRID FULL WIDTH) */}
+            {(activeTab === 'owners' || activeTab === 'teams') && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Search Input */}
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm kiếm trong danh mục..."
+                  />
+                </div>
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả Khu liên hợp"
+                  emptyValue="ALL"
+                  value={complexCode}
+                  onChange={(val) => setComplexCode(val || 'ALL')}
+                  options={catalogComplexes.map((c) => ({
+                    value: c.code,
+                    label: `${c.code} - ${c.name}`,
+                  }))}
+                />
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả loại đơn vị"
+                  emptyValue="ALL"
+                  value={unitTypeFilter}
+                  onChange={(val) => setUnitTypeFilter(val || 'ALL')}
+                  options={Object.entries(TYPE_LABELS).map(([k, v]) => ({
+                    value: k,
+                    label: v,
+                  }))}
+                />
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả trạng thái"
+                  emptyValue="ALL"
+                  value={unitStatusFilter}
+                  onChange={(val) => setUnitStatusFilter(val || 'ALL')}
+                  options={[
+                    { value: 'ACTIVE', label: 'Hoạt động' },
+                    { value: 'INACTIVE', label: 'Không hoạt động' },
+                  ]}
+                />
+              </div>
+            )}
+
+            {activeTab === 'license-classes' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm kiếm hạng GPLX..."
+                  />
+                </div>
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả phân nhóm"
+                  emptyValue="ALL"
+                  value={lcCategoryFilter}
+                  onChange={(val) => setLcCategoryFilter(val || 'ALL')}
+                  options={[
+                    { value: 'ROAD_LICENSE', label: 'GPLX đường bộ' },
+                    { value: 'AGRI_MACHINERY', label: 'Cơ giới nông nghiệp' },
+                    { value: 'CONSTRUCTION', label: 'Máy công trình' },
+                  ]}
+                />
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả trạng thái"
+                  emptyValue="ALL"
+                  value={lcStatusFilter}
+                  onChange={(val) => setLcStatusFilter(val || 'ALL')}
+                  options={[
+                    { value: 'ACTIVE', label: 'Hoạt động' },
+                    { value: 'INACTIVE', label: 'Không hoạt động' },
+                  ]}
+                />
+              </div>
+            )}
+
+            {activeTab === 'compliance-statuses' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm kiếm tình trạng hồ sơ..."
+                  />
+                </div>
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả màu sắc"
+                  emptyValue="ALL"
+                  value={csBadgeFilter}
+                  onChange={(val) => setCsBadgeFilter(val || 'ALL')}
+                  options={[
+                    { value: 'green', label: 'Xanh lá (Hợp lệ)' },
+                    { value: 'amber', label: 'Vàng (Cảnh báo gia hạn)' },
+                    { value: 'red', label: 'Đỏ (Nguy hiểm / Hết hạn)' },
+                    { value: 'gray', label: 'Xám (Thiếu dữ liệu)' },
+                  ]}
+                />
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả trạng thái"
+                  emptyValue="ALL"
+                  value={csStatusFilter}
+                  onChange={(val) => setCsStatusFilter(val || 'ALL')}
+                  options={[
+                    { value: 'ACTIVE', label: 'Hoạt động' },
+                    { value: 'INACTIVE', label: 'Không hoạt động' },
+                  ]}
+                />
+              </div>
+            )}
+
+            {activeTab === 'employment-statuses' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm kiếm trạng thái việc làm..."
+                  />
+                </div>
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả quyền gán lệnh"
+                  emptyValue="ALL"
+                  value={esDispatchFilter}
+                  onChange={(val) => setEsDispatchFilter(val || 'ALL')}
+                  options={[
+                    { value: 'true', label: 'Có (Được nhận xe & lệnh)' },
+                    { value: 'false', label: 'Không (Khóa điều xe)' },
+                  ]}
+                />
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả trạng thái"
+                  emptyValue="ALL"
+                  value={esStatusFilter}
+                  onChange={(val) => setEsStatusFilter(val || 'ALL')}
+                  options={[
+                    { value: 'ACTIVE', label: 'Hoạt động' },
+                    { value: 'INACTIVE', label: 'Không hoạt động' },
+                  ]}
+                />
+              </div>
+            )}
+
+            {activeTab === 'unit-types' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Tìm kiếm loại đơn vị..."
+                  />
+                </div>
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả cấp phân nhóm"
+                  emptyValue="ALL"
+                  value={utLevelFilter}
+                  onChange={(val) => setUtLevelFilter(val || 'ALL')}
+                  options={[
+                    { value: 'OWNER', label: 'Cấp 2 - Đơn vị chủ quản' },
+                    { value: 'TEAM', label: 'Cấp 3 - Đội/Tổ trực thuộc' },
+                  ]}
+                />
+
+                <SearchableSelect
+                  className="w-full"
+                  heightClass="h-9"
+                  roundedClass="rounded-xl"
+                  bgClass="bg-white"
+                  emptyOptionLabel="Tất cả trạng thái"
+                  emptyValue="ALL"
+                  value={utStatusFilter}
+                  onChange={(val) => setUtStatusFilter(val || 'ALL')}
+                  options={[
+                    { value: 'ACTIVE', label: 'Hoạt động' },
+                    { value: 'INACTIVE', label: 'Không hoạt động' },
+                  ]}
+                />
+              </div>
+            )}
+
+            {/* HÀNG DƯỚI: CÁC NÚT TÁC VỤ */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100/80">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">
+                  Danh mục: <b className="text-slate-800 font-bold">{
+                    activeTab === 'owners'
+                      ? 'Đơn vị chủ quản'
+                      : activeTab === 'teams'
+                      ? 'Đội / Tổ trực thuộc'
+                      : activeTab === 'license-classes'
+                      ? 'Hạng giấy phép lái xe'
+                      : activeTab === 'compliance-statuses'
+                      ? 'Tình trạng hồ sơ tài xế'
+                      : activeTab === 'employment-statuses'
+                      ? 'Trạng thái việc làm'
+                      : 'Loại đơn vị'
+                  }</b>
+                  <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
+                    {activeTab === 'owners' || activeTab === 'teams'
+                      ? `${visibleUnits.length} ${activeTab === 'teams' ? 'đội/tổ' : 'đơn vị'}`
+                      : activeTab === 'license-classes'
+                      ? `${visibleLicenseClasses.length} hạng`
+                      : activeTab === 'compliance-statuses'
+                      ? `${visibleComplianceStatuses.length} trạng thái`
+                      : activeTab === 'employment-statuses'
+                      ? `${visibleEmploymentStatuses.length} trạng thái`
+                      : `${visibleUnitTypes.length} loại đơn vị`}
+                  </span>
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs font-bold border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  icon={<RotateCcw className="h-3.5 w-3.5 text-slate-600" />}
+                  onClick={handleResetFilters}
+                >
+                  Làm mới
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs font-bold border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs"
+                  icon={<Download className="h-3.5 w-3.5" />}
+                  onClick={handleExportExcel}
+                >
+                  Xuất file
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs font-bold border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs"
+                  icon={<Download className="h-3.5 w-3.5 text-slate-500" />}
+                  onClick={handleDownloadTemplate}
+                >
+                  Template
+                </Button>
+
+                <label className="flex items-center gap-1.5 h-9 px-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold shadow-xs cursor-pointer m-0">
+                  <Upload className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleUploadFile}
+                    className="hidden"
+                  />
+                </label>
+
+                {canEdit && (
+                  <>
+                    {activeTab === 'owners' && (
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs font-bold bg-[#154E2C] hover:bg-[#124225] text-[#B8D83D] cursor-pointer shadow-xs"
+                        icon={<Plus className="h-3.5 w-3.5" />}
+                        onClick={() => openCreateUnit('OWNER')}
+                      >
+                        Thêm đơn vị chủ quản
+                      </Button>
+                    )}
+                    {activeTab === 'teams' && (
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs font-bold bg-[#154E2C] hover:bg-[#124225] text-[#B8D83D] cursor-pointer shadow-xs"
+                        icon={<Plus className="h-3.5 w-3.5" />}
+                        onClick={() => openCreateUnit('TEAM')}
+                      >
+                        Thêm Đội/Tổ
+                      </Button>
+                    )}
+                    {activeTab === 'license-classes' && (
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs font-bold bg-[#154E2C] hover:bg-[#124225] text-[#B8D83D] cursor-pointer shadow-xs"
+                        icon={<Plus className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          setEditingLicenseClass(null);
+                          setLicenseClassForm({
+                            code: '',
+                            name: '',
+                            category: 'ROAD_LICENSE',
+                            categoryLabel: 'GPLX đường bộ',
+                            allowedVehicles: '',
+                            validityYears: 5,
+                            status: 'ACTIVE',
+                          });
+                          setLicenseClassModal(true);
+                        }}
+                      >
+                        Thêm hạng GPLX
+                      </Button>
+                    )}
+                    {activeTab === 'compliance-statuses' && (
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs font-bold bg-[#154E2C] hover:bg-[#124225] text-[#B8D83D] cursor-pointer shadow-xs"
+                        icon={<Plus className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          setEditingCompliance(null);
+                          setComplianceForm({
+                            code: '',
+                            name: '',
+                            badgeVariant: 'green',
+                            thresholdDays: '',
+                            actionRequired: '',
+                            status: 'ACTIVE',
+                          });
+                          setComplianceModal(true);
+                        }}
+                      >
+                        Thêm tình trạng hồ sơ
+                      </Button>
+                    )}
+                    {activeTab === 'employment-statuses' && (
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs font-bold bg-[#154E2C] hover:bg-[#124225] text-[#B8D83D] cursor-pointer shadow-xs"
+                        icon={<Plus className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          setEditingEmployment(null);
+                          setEmploymentForm({
+                            code: '',
+                            name: '',
+                            canDispatch: true,
+                            badgeVariant: 'green',
+                            description: '',
+                            status: 'ACTIVE',
+                          });
+                          setEmploymentModal(true);
+                        }}
+                      >
+                        Thêm trạng thái việc làm
+                      </Button>
+                    )}
+                    {activeTab === 'unit-types' && (
+                      <Button
+                        size="sm"
+                        className="h-9 text-xs font-bold bg-[#154E2C] hover:bg-[#124225] text-[#B8D83D] cursor-pointer shadow-xs"
+                        icon={<Plus className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          setEditingUnitType(null);
+                          setUnitTypeForm({
+                            code: '',
+                            name: '',
+                            level: 'OWNER',
+                            levelLabel: 'Cấp 2 - Đơn vị chủ quản',
+                            description: '',
+                            status: 'ACTIVE',
+                          });
+                          setUnitTypeModal(true);
+                        }}
+                      >
+                        Thêm loại đơn vị
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
                 {/* 1 & 2. BẢNG ĐƠN VỊ CHỦ QUẢN & ĐỘI/TỔ */}
                 {(activeTab === 'owners' || activeTab === 'teams') && (
                   <div>
@@ -1631,10 +1561,8 @@ export const DriverProfileCatalogPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        </section>
       )}
 
       {/* MODAL 1: UNIT CREATE / EDIT (KHI BẤM CHỈNH SỬA / THÊM MỚI HIỆN 2 NÚT HOẠT ĐỘNG / KHÔNG HOẠT ĐỘNG) */}

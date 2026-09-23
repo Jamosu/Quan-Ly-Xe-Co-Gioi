@@ -22,7 +22,7 @@ import { apiService } from '../../api/client';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
-import { SearchableSelect } from '../../components/common/SearchableSelect';
+import { SearchableSelect, SelectOption } from '../../components/common/SearchableSelect';
 import { Column, DataTable } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { driverManagementApi, DriverManagementUnit } from '../../api/driverManagementApi';
@@ -145,6 +145,16 @@ const expiryNotice = (value?: string | null) => {
   return `Còn ${days} ngày`;
 };
 
+export const getDateComplianceStatus = (dateValue?: string | null): ComplianceStatus => {
+  if (!dateValue) return 'MISSING';
+  const days = daysFromToday(dateValue);
+  if (days === null) return 'MISSING';
+  if (days < 0) return 'EXPIRED';
+  if (days <= 30) return 'EXPIRING_30';
+  if (days <= 60) return 'EXPIRING_60';
+  return 'VALID';
+};
+
 const statusBadge = (status: ComplianceStatus) => {
   if (status === 'VALID') return <Badge variant="green">{STATUS_LABELS[status]}</Badge>;
   if (status === 'EXPIRING_30' || status === 'EXPIRING_60') return <Badge variant="amber">{STATUS_LABELS[status]}</Badge>;
@@ -222,29 +232,83 @@ export const LicenseExpiryPage: React.FC = () => {
 
   const ownerUnits = useMemo(() => masterUnits.filter((u) => u.level === 'OWNER'), [masterUnits]);
   const teamUnits = useMemo(() => {
-    if (selectedEnterprise === 'ALL') return [];
+    if (selectedEnterprise === 'ALL' || selectedEnterprise === '__UNASSIGNED__') return [];
     return masterUnits.filter((u) => u.level === 'TEAM' && String(u.parentId) === selectedEnterprise);
   }, [masterUnits, selectedEnterprise]);
 
-  // Chỉ dùng danh mục đơn vị chủ quản hồ sơ đã được xác minh trên máy chủ.
-  const unitSelectOptions = useMemo(() => {
-    return ownerUnits.map((u) => {
-      const count = licenses.filter((item) => matchDriverToUnit(item, String(u.id))).length;
-      return {
-        value: String(u.id),
-        label: `${u.complexCode} · ${u.name} (${count})`,
-      };
+  // Helper to extract complex code from a license record
+  const getRecordComplex = (item: LicenseRecord) => {
+    return item.managementUnit?.complexCode || item.employee?.complex || (item.unit && item.unit !== 'ALL' ? item.unit : '');
+  };
+
+  // Options Khu liên hợp với số đếm và tuỳ chọn Chưa phân Khu liên hợp
+  const klhOptions = useMemo<SelectOption[]>(() => {
+    const unassignedCount = licenses.filter((item) => !getRecordComplex(item)).length;
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân Khu liên hợp (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} hồ sơ`,
+      });
+    }
+    KLH_OPTIONS.forEach((opt) => {
+      const count = licenses.filter((item) => getRecordComplex(item) === opt.value).length;
+      list.push({
+        value: opt.value,
+        label: opt.label,
+        subLabel: `${count.toLocaleString('vi-VN')} hồ sơ`,
+      });
     });
+    return list;
+  }, [licenses]);
+
+  // Chỉ dùng danh mục đơn vị chủ quản hồ sơ đã được xác minh trên máy chủ.
+  const unitSelectOptions = useMemo<SelectOption[]>(() => {
+    const unassignedCount = licenses.filter((item) => !item.managementAssignment?.managementUnitId && !item.managementUnit?.id).length;
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân bổ đơn vị (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} hồ sơ`,
+      });
+    }
+    ownerUnits.forEach((u) => {
+      const count = licenses.filter((item) => matchDriverToUnit(item, String(u.id))).length;
+      list.push({
+        value: String(u.id),
+        label: `${u.complexCode} · ${u.name}`,
+        subLabel: `${count.toLocaleString('vi-VN')} hồ sơ`,
+      });
+    });
+    return list;
   }, [ownerUnits, licenses]);
 
-  const teamSelectOptions = useMemo(() => {
-    return teamUnits.map((u) => {
+  const teamSelectOptions = useMemo<SelectOption[]>(() => {
+    const unassignedCount = licenses.filter((item) => {
+      if (selectedEnterprise !== 'ALL' && selectedEnterprise !== '__UNASSIGNED__') {
+        if (!matchDriverToUnit(item, selectedEnterprise)) return false;
+      }
+      return !item.managementAssignment?.teamUnitId && !item.teamUnit?.id;
+    }).length;
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa phân đội/tổ (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} hồ sơ`,
+      });
+    }
+    teamUnits.forEach((u) => {
       const count = licenses.filter((item) => matchDriverToUnit(item, selectedEnterprise, String(u.id))).length;
-      return {
+      list.push({
         value: String(u.id),
-        label: `${u.name} (${count})`,
-      };
+        label: u.name,
+        subLabel: `${count.toLocaleString('vi-VN')} hồ sơ`,
+      });
     });
+    return list;
   }, [teamUnits, licenses, selectedEnterprise]);
 
   // License class options (Nạp động từ Danh mục hồ sơ tài xế)
@@ -252,12 +316,26 @@ export const LicenseExpiryPage: React.FC = () => {
     return getDriverLicenseClasses().filter((item) => item.status === 'ACTIVE');
   }, []);
 
-  const licenseClassOptions = useMemo(() => {
-    return [
-      { value: 'ALL', label: `Tất cả hạng GPLX (${dynamicLicenseClasses.length})` },
-      ...dynamicLicenseClasses.map((item) => ({ value: item.code, label: item.name })),
-    ];
-  }, [dynamicLicenseClasses]);
+  const licenseClassOptions = useMemo<SelectOption[]>(() => {
+    const unassignedCount = licenses.filter((item) => !item.licenseClass || item.licenseClass === 'KHONG').length;
+    const list: SelectOption[] = [];
+    if (unassignedCount > 0) {
+      list.push({
+        value: '__UNASSIGNED__',
+        label: 'Chưa có GPLX / Bằng lái (Không có dữ liệu)',
+        subLabel: `${unassignedCount.toLocaleString('vi-VN')} hồ sơ`,
+      });
+    }
+    dynamicLicenseClasses.forEach((item) => {
+      const count = licenses.filter((l) => l.licenseClass === item.code).length;
+      list.push({
+        value: item.code,
+        label: item.name,
+        subLabel: `${count.toLocaleString('vi-VN')} hồ sơ`,
+      });
+    });
+    return list;
+  }, [dynamicLicenseClasses, licenses]);
 
   // Status options for dropdown
   const statusOptions = useMemo(() => [
@@ -274,12 +352,32 @@ export const LicenseExpiryPage: React.FC = () => {
   const filteredLicenses = useMemo(() => {
     let list = filterLicensesByStatus(licenses, selectedStatus);
 
+    if (selectedKLH === '__UNASSIGNED__') {
+      list = list.filter((item) => !getRecordComplex(item));
+    }
+
     if (selectedEnterprise !== 'ALL') {
-      list = list.filter((item) => matchDriverToUnit(item, selectedEnterprise, selectedTeam));
+      if (selectedEnterprise === '__UNASSIGNED__') {
+        list = list.filter((item) => !item.managementAssignment?.managementUnitId && !item.managementUnit?.id);
+      } else {
+        list = list.filter((item) => matchDriverToUnit(item, selectedEnterprise, selectedTeam));
+      }
+    }
+
+    if (selectedTeam !== 'ALL') {
+      if (selectedTeam === '__UNASSIGNED__') {
+        list = list.filter((item) => !item.managementAssignment?.teamUnitId && !item.teamUnit?.id);
+      } else {
+        list = list.filter((item) => matchDriverToUnit(item, undefined, selectedTeam));
+      }
     }
 
     if (selectedClass !== 'ALL') {
-      list = list.filter((item) => item.licenseClass === selectedClass);
+      if (selectedClass === '__UNASSIGNED__') {
+        list = list.filter((item) => !item.licenseClass || item.licenseClass === 'KHONG');
+      } else {
+        list = list.filter((item) => item.licenseClass === selectedClass);
+      }
     }
 
     if (searchTerm.trim()) {
@@ -341,11 +439,13 @@ export const LicenseExpiryPage: React.FC = () => {
       'Số GPLX',
       'Hạng GPLX',
       'Hạn GPLX',
+      'Tình trạng GPLX',
       'Hạn khám sức khỏe',
+      'Tình trạng khám SK',
       'Xe đang giao',
       'Đơn vị chủ quản hồ sơ',
       'Đội/Tổ trực thuộc',
-      'Tình trạng',
+      'Tình trạng chung',
     ];
     const rows = filteredLicenses.map((d) => [
       d.code,
@@ -353,7 +453,9 @@ export const LicenseExpiryPage: React.FC = () => {
       `"${d.licenseNumber || 'Chưa cập nhật'}"`,
       `"${d.licenseClass ? LICENSE_LABELS[d.licenseClass] || d.licenseClass : ''}"`,
       `"${formatDate(d.licenseExpiryDate)}"`,
+      `"${STATUS_LABELS[getDateComplianceStatus(d.licenseExpiryDate)]}"`,
       `"${formatDate(d.healthCheckExpiryDate)}"`,
+      `"${STATUS_LABELS[getDateComplianceStatus(d.healthCheckExpiryDate)]}"`,
       `"${d.assignedVehicle?.plate || d.assignedVehicle?.code || 'Chưa giao xe'}"`,
       `"${d.managementUnit?.name || 'Chưa phân loại'}"`,
       `"${d.teamUnit?.name || '—'}"`,
@@ -425,13 +527,25 @@ export const LicenseExpiryPage: React.FC = () => {
     { key: 'licenseNumber', title: 'SỐ GPLX', render: (row) => <strong className="font-mono">{row.licenseNumber || 'Chưa cập nhật'}</strong> },
     { key: 'licenseClass', title: 'HẠNG', render: (row) => row.licenseClass ? <Badge variant="blue">{LICENSE_LABELS[row.licenseClass] || row.licenseClass}</Badge> : '—' },
     {
-      key: 'licenseExpiryDate', title: 'HẠN GPLX', sortable: true, render: (row) => (
-        <div><b>{formatDate(row.licenseExpiryDate)}</b><span className="block text-[10px] text-slate-500">{expiryNotice(row.licenseExpiryDate)}</span></div>
+      key: 'licenseExpiryDate', title: 'HẠN & TÌNH TRẠNG GPLX', sortable: true, render: (row) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <b>{formatDate(row.licenseExpiryDate)}</b>
+            {statusBadge(getDateComplianceStatus(row.licenseExpiryDate))}
+          </div>
+          <span className="block text-[10px] text-slate-500">{expiryNotice(row.licenseExpiryDate)}</span>
+        </div>
       ),
     },
     {
-      key: 'healthCheckExpiryDate', title: 'HẠN KHÁM SỨC KHỎE', sortable: true, render: (row) => (
-        <div><b>{formatDate(row.healthCheckExpiryDate)}</b><span className="block text-[10px] text-slate-500">{expiryNotice(row.healthCheckExpiryDate)}</span></div>
+      key: 'healthCheckExpiryDate', title: 'HẠN & TÌNH TRẠNG KHÁM SK', sortable: true, render: (row) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <b>{formatDate(row.healthCheckExpiryDate)}</b>
+            {statusBadge(getDateComplianceStatus(row.healthCheckExpiryDate))}
+          </div>
+          <span className="block text-[10px] text-slate-500">{expiryNotice(row.healthCheckExpiryDate)}</span>
+        </div>
       ),
     },
     {
@@ -448,7 +562,7 @@ export const LicenseExpiryPage: React.FC = () => {
         </div>
       ),
     },
-    { key: 'complianceStatus', title: 'TÌNH TRẠNG', render: (row) => statusBadge(row.complianceStatus) },
+    { key: 'complianceStatus', title: 'TÌNH TRẠNG CHUNG', render: (row) => statusBadge(row.complianceStatus) },
   ];
 
   return (
@@ -724,9 +838,9 @@ export const LicenseExpiryPage: React.FC = () => {
               <SearchableSelect
                 value={selectedKLH}
                 onChange={(val) => setSelectedKLH(val)}
-                options={KLH_OPTIONS}
-                placeholder="Tất cả Khu liên hợp"
-                emptyOptionLabel="Tất cả Khu liên hợp"
+                options={klhOptions}
+                placeholder={`Tất cả Khu liên hợp (${klhOptions.length})`}
+                emptyOptionLabel={`Tất cả Khu liên hợp (${klhOptions.length})`}
                 heightClass="h-9"
                 icon={<Layers className="h-4 w-4 text-slate-400" />}
               />
@@ -771,14 +885,14 @@ export const LicenseExpiryPage: React.FC = () => {
             {/* 4. HẠNG GPLX / BẰNG MÁY */}
             <div>
               <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                Hạng GPLX / Bằng máy ({licenseClassOptions.length - 1} hạng)
+                Hạng GPLX / Bằng máy ({licenseClassOptions.length} loại)
               </label>
               <SearchableSelect
                 value={selectedClass}
                 onChange={(val) => setSelectedClass(val)}
                 options={licenseClassOptions}
-                placeholder={`Tất cả GPLX (${licenseClassOptions.length - 1})`}
-                emptyOptionLabel={`Tất cả GPLX (${licenseClassOptions.length - 1})`}
+                placeholder={`Tất cả GPLX (${licenseClassOptions.length})`}
+                emptyOptionLabel={`Tất cả GPLX (${licenseClassOptions.length})`}
                 heightClass="h-9"
                 icon={<Award className="h-4 w-4 text-slate-400" />}
               />
@@ -830,20 +944,76 @@ export const LicenseExpiryPage: React.FC = () => {
         title={selectedLicense ? `${selectedLicense.fullName} (${selectedLicense.code})` : 'Chi tiết hồ sơ'}
         subtitle="GPLX hiện hành và thời hạn khám sức khỏe"
         size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setSelectedLicense(null)}>Đóng</Button>
+            {canEdit && <Button size="sm" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => { openEditor(selectedLicense); setSelectedLicense(null); }}>Cập nhật</Button>}
+          </>
+        }
       >
         {selectedLicense && (
           <div className="space-y-4 text-sm">
-            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex justify-between gap-4"><span>Số GPLX</span><b>{selectedLicense.licenseNumber || 'Chưa cập nhật'}</b></div>
-              <div className="flex justify-between gap-4"><span>Hạng GPLX</span><b>{selectedLicense.licenseClass ? LICENSE_LABELS[selectedLicense.licenseClass] || selectedLicense.licenseClass : 'Chưa cập nhật'}</b></div>
-              <div className="flex justify-between gap-4"><span>Ngày hết hạn GPLX</span><b>{formatDate(selectedLicense.licenseExpiryDate)}</b></div>
-              <div className="flex justify-between gap-4"><span>Hạn khám sức khỏe</span><b>{formatDate(selectedLicense.healthCheckExpiryDate)}</b></div>
-              <div className="flex justify-between gap-4"><span>Tình trạng</span>{statusBadge(selectedLicense.complianceStatus)}</div>
-              <div className="flex justify-between gap-4"><span>Xe đang giao</span><b>{selectedLicense.assignedVehicle?.plate || selectedLicense.assignedVehicle?.code || 'Chưa giao xe'}</b></div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedLicense(null)}>Đóng</Button>
-              {canEdit && <Button size="sm" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => { openEditor(selectedLicense); setSelectedLicense(null); }}>Cập nhật</Button>}
+            <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-slate-600">Số GPLX</span>
+                <b className="font-mono text-slate-900">{selectedLicense.licenseNumber || 'Chưa cập nhật'}</b>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-slate-600">Hạng GPLX</span>
+                <b>{selectedLicense.licenseClass ? LICENSE_LABELS[selectedLicense.licenseClass] || selectedLicense.licenseClass : 'Chưa cập nhật'}</b>
+              </div>
+
+              {/* TÁCH RIÊNG: HẠN & TÌNH TRẠNG GPLX */}
+              <div className="border-t border-slate-200/80 pt-2 space-y-2">
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-600 font-medium">Hạn GPLX</span>
+                  <div className="text-right">
+                    <b className="text-slate-900">{formatDate(selectedLicense.licenseExpiryDate)}</b>
+                    <span className="block text-[10px] text-slate-500">{expiryNotice(selectedLicense.licenseExpiryDate)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-600 font-medium">Tình trạng GPLX</span>
+                  {statusBadge(getDateComplianceStatus(selectedLicense.licenseExpiryDate))}
+                </div>
+              </div>
+
+              {/* TÁCH RIÊNG: HẠN & TÌNH TRẠNG KHÁM SỨC KHỎE */}
+              <div className="border-t border-slate-200/80 pt-2 space-y-2">
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-600 font-medium">Hạn khám sức khỏe</span>
+                  <div className="text-right">
+                    <b className="text-slate-900">{formatDate(selectedLicense.healthCheckExpiryDate)}</b>
+                    <span className="block text-[10px] text-slate-500">{expiryNotice(selectedLicense.healthCheckExpiryDate)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-600 font-medium">Tình trạng khám SK</span>
+                  {statusBadge(getDateComplianceStatus(selectedLicense.healthCheckExpiryDate))}
+                </div>
+              </div>
+
+              {/* TỔNG THỂ & PHƯƠNG TIỆN */}
+              <div className="border-t border-slate-200/80 pt-2 space-y-2">
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-700 font-bold">Tình trạng chung</span>
+                  {statusBadge(selectedLicense.complianceStatus)}
+                </div>
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-600">Xe đang giao</span>
+                  <b>{selectedLicense.assignedVehicle?.plate || selectedLicense.assignedVehicle?.code || 'Chưa giao xe'}</b>
+                </div>
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-slate-600">Đơn vị chủ quản</span>
+                  <span className="text-right text-xs font-medium text-slate-700">
+                    {selectedLicense.managementUnit?.name ? (
+                      `${selectedLicense.managementUnit.name}${selectedLicense.teamUnit?.name ? ` · ${selectedLicense.teamUnit.name}` : ''}`
+                    ) : (
+                      'Chưa phân loại'
+                    )}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -856,6 +1026,12 @@ export const LicenseExpiryPage: React.FC = () => {
         title="Cập nhật GPLX & sức khỏe"
         subtitle="Mỗi tài xế sử dụng một hồ sơ GPLX hiện hành."
         size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" disabled={saving} onClick={() => setShowEditor(false)}>Hủy</Button>
+            <Button size="sm" disabled={saving} onClick={() => void save()}>{saving ? 'Đang lưu...' : 'Lưu hồ sơ'}</Button>
+          </>
+        }
       >
         <div className="space-y-4 text-xs">
           <label className="block font-bold text-slate-700">
@@ -912,10 +1088,6 @@ export const LicenseExpiryPage: React.FC = () => {
             <label className="font-bold text-slate-700">Hạn khám sức khỏe
               <input type="date" value={form.healthCheckExpiryDate} onChange={(event) => setForm((current) => ({ ...current, healthCheckExpiryDate: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5" />
             </label>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" disabled={saving} onClick={() => setShowEditor(false)}>Hủy</Button>
-            <Button size="sm" disabled={saving} onClick={() => void save()}>{saving ? 'Đang lưu...' : 'Lưu hồ sơ'}</Button>
           </div>
         </div>
       </Modal>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { CalendarClock, RefreshCw, Search } from 'lucide-react';
 import { schedulingApi, type AvailabilityResource, type AvailabilityResponse } from '../../api/scheduling';
 import { Badge } from '../../components/common/Badge';
@@ -33,7 +33,7 @@ export const ResourceSchedulingPage: React.FC = () => {
   const now = new Date();
   const [startAt, setStartAt] = useState(inputDateTime(now));
   const [endAt, setEndAt] = useState(inputDateTime(new Date(now.getTime() + 8 * 3600000)));
-  const [unit, setUnit] = useState('NT1');
+  const [unit, setUnit] = useState('KOUN_MOM');
   const [requiredDurationMinutes, setDuration] = useState(60);
   const [data, setData] = useState<AvailabilityResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export const ResourceSchedulingPage: React.FC = () => {
   return <div className="space-y-6 p-6">
     <header><div className="flex items-center gap-3"><div className="rounded-xl bg-blue-600 p-3 text-white"><CalendarClock size={24} /></div><div><h1 className="text-2xl font-bold text-slate-900">Lịch xe và tài xế</h1><p className="text-sm text-slate-500">Availability do backend xác định; màu xanh là khoảng trống, các khối màu là khoảng bận.</p></div></div></header>
     <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-5">
-      <label className="text-sm text-slate-600">Đơn vị<select className="mt-1 w-full rounded-lg border border-slate-300 p-2" value={unit} onChange={(e) => setUnit(e.target.value)}>{['NT1','NT2','XN_BO','TT_BTSC','BAN_CO_GIOI'].map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="text-sm text-slate-600">Đơn vị<select className="mt-1 w-full rounded-lg border border-slate-300 p-2" value={unit} onChange={(e) => setUnit(e.target.value)}>{['KOUN_MOM','KOUN_MOM','KOUN_MOM','KOUN_MOM','KOUN_MOM'].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label className="text-sm text-slate-600">Bắt đầu<input className="mt-1 w-full rounded-lg border border-slate-300 p-2" type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} /></label>
       <label className="text-sm text-slate-600">Kết thúc<input className="mt-1 w-full rounded-lg border border-slate-300 p-2" type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} /></label>
       <label className="text-sm text-slate-600">Thời lượng cần (phút)<input className="mt-1 w-full rounded-lg border border-slate-300 p-2" type="number" min={0} value={requiredDurationMinutes} onChange={(e) => setDuration(Number(e.target.value))} /></label>

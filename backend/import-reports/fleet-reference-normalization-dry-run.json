@@ -1,0 +1,307 @@
+{
+  "mode": "dry-run",
+  "vehicles": 2583,
+  "implements": 1026,
+  "canonicalUnits": [
+    "B.ĐTXD AD",
+    "BAN CG-CK & SXCN",
+    "Ban cơ giới MMTB",
+    "Ban điện nước",
+    "Ban Điện Nước KV ADM",
+    "Ban Điện Nước KV DP",
+    "Ban ĐN",
+    "BAN KT CHUỐI",
+    "Ban QL DTXD LP mượn",
+    "Ban QLĐTXD ADM",
+    "BDTXD DP",
+    "BƯỞI AD",
+    "CAT AD",
+    "CGLĐ DP",
+    "CGLĐ LP",
+    "CGSX AD",
+    "CGTC AD",
+    "CGTC DP",
+    "CGTC LP",
+    "CHƯA PHÂN BỔ",
+    "Cơ khí lắp đặt RR",
+    "Điện nước AD",
+    "Điện nước LP",
+    "Đội cơ khí bảo trì DP",
+    "GNVC",
+    "Hành chính AD",
+    "Hành chính ADM",
+    "Hành chính DP",
+    "HÀNH CHÍNH KLH",
+    "Hành chính LP",
+    "KLH SNOUL",
+    "Loại biên",
+    "Nhà máy xốp",
+    "Nhãn DP",
+    "NM NHỰA -XỐP DP",
+    "NT BƯỞI AD",
+    "NT Nhãn DP",
+    "NT Xoài DP",
+    "Phòng GNVC",
+    "RAT OYD",
+    "THACO ID ME",
+    "THACO ID&ME",
+    "Thaco M&E",
+    "Thaco MI & E",
+    "Thadicons A&I",
+    "Thagricons",
+    "Tổng kho",
+    "Trạm trộn bê tông",
+    "TTBT DP2",
+    "Vườn tăng gia",
+    "XĐG XOÀI lô 93",
+    "XN AD2",
+    "XN Bò AD",
+    "XN Chuối AD2",
+    "XN Chuối DP1",
+    "XN Chuối DP2",
+    "XN Chuối DP3",
+    "XN Chuối LP1",
+    "XN Chuối LP3",
+    "XN Chuối LP4",
+    "XN DP1",
+    "XN DP2",
+    "XN DP3",
+    "XN LP1",
+    "XN LP3",
+    "XN LP4",
+    "XN SX",
+    "XNB",
+    "XNB ( NT Cỏ)",
+    "XOÀI AD",
+    "Xoài DP",
+    "Xưởng CK-MMTB AD&LP",
+    "Xưởng Cơ khí ADM&LP",
+    "Xưởng Cơ khí DP",
+    "Xưởng GCHT RR"
+  ],
+  "canonicalLocations": [
+    "Bãi máy gieo trồng NT2 Nam Lào",
+    "Bãi máy XN Trồng cỏ TMR Snoul",
+    "Bãi tập kết Nông trường 1 Attapeu",
+    "Bãi tập kết Trung tâm",
+    "Bãi tập kết XN Bò Thịt Snoul",
+    "Bãi xe NT Cao su Snoul 2",
+    "Bãi xe Trung tâm",
+    "Bãi Xe Trung Tâm - KLH Koun Mom",
+    "Bãi Xe Xí Nghiệp Chăn Nuôi Bò",
+    "Bãi xe XN Bò Thịt Nam Lào",
+    "Bãi xe XN Cao su Snoul 1",
+    "Bãi xe XN Trồng trọt Attapeu",
+    "BAN QLĐT XD",
+    "Bảo trì sửa chữa ht ròng rọc DP1",
+    "Bảo trì sửa chữa xưởng CK XN3",
+    "Cơ điện",
+    "Cửa hàng tiện ích LP",
+    "DP2 ➔ DP Tổng kho (Cảnh báo tốc độ 74km/h)",
+    "Đội CK XN LP3",
+    "Đội Cơ khí AD2",
+    "KHO TỔNG",
+    "Khu liên hợp Koun Mom",
+    "LÁN CÔNG LÔ 49",
+    "Láng công 261",
+    "Loại biên - KLH Koun Mom",
+    "Lô 101",
+    "Lô 132 XN AD",
+    "Lô 136 XN Xoài",
+    "Lô 15.6 DP2",
+    "Lô 2 LP3",
+    "Lô 21 DP1",
+    "Lô 28 DP3",
+    "Lô 28 XN Bò",
+    "Lô 63",
+    "Lô 7 LP1",
+    "Lô 73 ADM",
+    "Lô 85 DP4",
+    "Lô 94",
+    "LP3.5-LP3",
+    "Lưu động kéo theo dàn băm chuối",
+    "NHÀ Ở CBCNV LÔ 132 (CỌ DẦU)",
+    "NHÀ Ở CBCNV LÔ 14-AD2",
+    "Nhà ở CBNV lô 93",
+    "Nhà tôn 65",
+    "NM CƠ KHÍ (MR KHẢI)",
+    "NM Nhựa",
+    "NOCN L.4-LP3",
+    "Nông trường 1 - Lô A02 (Đang bừa đất tơi xốp)",
+    "Nông trường 1 - Lô A03 (Đang cày lật đất sâu 30cm)",
+    "Nông trưởng cỏ XNB",
+    "NT DP1.1",
+    "NT DP2.1",
+    "Phát điện thi công hồ tưới DP3.HT3&5",
+    "Phát điện thi công kênh L250-XNDP3",
+    "PHỤC VỤ CÔNG VIỆC CHO ĐIỆN NƯỚC ADM",
+    "Quốc Lộ 4 ➔ Cảng Quốc Tế Sihanoukville (Tốc độ 58km/h)",
+    "Sửa chữa ròng rọc lưu động",
+    "THACO M&E",
+    "Thi công hệ thống phun thuốc XN DP1",
+    "Thi công hệ thống phun thuốc XN DP2",
+    "Thi công hệ thống phun thuốc XN DP3",
+    "Thi công hệ thống phun thuốc XN LP1",
+    "Thi công hệ thống phun thuốc XN LP3",
+    "THU HỒI XĐG LP10A( lô 198)",
+    "Tổng kho KLH",
+    "Tổng kho KLH Nam Lào",
+    "Tổng kho KLH Snoul",
+    "Trại Bò AD",
+    "TRẠI BÒ ADM LÔ 92 (Trại bò cũ)",
+    "Trạm bơm chống ngập",
+    "Trạm trộn bê tông ADM",
+    "TRUNG TÂM CHẾ BIẾN THỨC ĂN-XN BÒ",
+    "TTCB TA (sử dụng tại lô 28)",
+    "Tuyến đường nội đồng NT2 (Đang cấp dầu DO lưu động)",
+    "Văn phòng 65",
+    "Văn Phòng 94",
+    "VP DP",
+    "VP LP",
+    "XĐG",
+    "XĐG AD2A (lô 61)",
+    "XĐG AD2C (lô 23)",
+    "XĐG DP3A (lô 34)",
+    "XĐG DP4A (lô 151)",
+    "XĐG LP1",
+    "XĐG LP4 (lô 144)",
+    "XĐG Xoài DP",
+    "XN LP3",
+    "XNB",
+    "XSXC DP1",
+    "XSXC DP3",
+    "Xưởng BTSC Cơ giới Snoul",
+    "XƯỞNG CK",
+    "XƯỞNG CƠ GIỚI ADM",
+    "Xưởng Cơ khí & BTSC Attapeu",
+    "Xưởng GCHT RR",
+    "Xưởng nhưạ DP",
+    "XXSC LP3"
+  ],
+  "reviewCandidates": {
+    "units": [
+      [
+        "Ban điện nước",
+        "Ban Điện Nước KV ADM"
+      ],
+      [
+        "Ban điện nước",
+        "Ban Điện Nước KV DP"
+      ],
+      [
+        "BƯỞI AD",
+        "NT BƯỞI AD"
+      ],
+      [
+        "GNVC",
+        "Phòng GNVC"
+      ],
+      [
+        "Hành chính AD",
+        "Hành chính ADM"
+      ],
+      [
+        "Nhãn DP",
+        "NT Nhãn DP"
+      ],
+      [
+        "NT Xoài DP",
+        "Xoài DP"
+      ],
+      [
+        "XN Bò AD",
+        "XNB"
+      ],
+      [
+        "XNB",
+        "XNB ( NT Cỏ)"
+      ]
+    ],
+    "locations": [
+      [
+        "Bãi tập kết XN Bò Thịt Snoul",
+        "XNB"
+      ],
+      [
+        "Bãi xe Trung tâm",
+        "Bãi Xe Trung Tâm - KLH Koun Mom"
+      ],
+      [
+        "Bãi xe XN Bò Thịt Nam Lào",
+        "XNB"
+      ],
+      [
+        "Bảo trì sửa chữa xưởng CK XN3",
+        "XƯỞNG CK"
+      ],
+      [
+        "Đội CK XN LP3",
+        "XN LP3"
+      ],
+      [
+        "Lô 28 XN Bò",
+        "XNB"
+      ],
+      [
+        "Nông trưởng cỏ XNB",
+        "XNB"
+      ],
+      [
+        "Thi công hệ thống phun thuốc XN LP3",
+        "XN LP3"
+      ],
+      [
+        "THU HỒI XĐG LP10A( lô 198)",
+        "XĐG"
+      ],
+      [
+        "THU HỒI XĐG LP10A( lô 198)",
+        "XĐG LP1"
+      ],
+      [
+        "Tổng kho KLH",
+        "Tổng kho KLH Nam Lào"
+      ],
+      [
+        "Tổng kho KLH",
+        "Tổng kho KLH Snoul"
+      ],
+      [
+        "Trại Bò AD",
+        "TRẠI BÒ ADM LÔ 92 (Trại bò cũ)"
+      ],
+      [
+        "TRUNG TÂM CHẾ BIẾN THỨC ĂN-XN BÒ",
+        "XNB"
+      ],
+      [
+        "XĐG",
+        "XĐG AD2A (lô 61)"
+      ],
+      [
+        "XĐG",
+        "XĐG AD2C (lô 23)"
+      ],
+      [
+        "XĐG",
+        "XĐG DP3A (lô 34)"
+      ],
+      [
+        "XĐG",
+        "XĐG DP4A (lô 151)"
+      ],
+      [
+        "XĐG",
+        "XĐG LP1"
+      ],
+      [
+        "XĐG",
+        "XĐG LP4 (lô 144)"
+      ],
+      [
+        "XĐG",
+        "XĐG Xoài DP"
+      ]
+    ]
+  }
+}

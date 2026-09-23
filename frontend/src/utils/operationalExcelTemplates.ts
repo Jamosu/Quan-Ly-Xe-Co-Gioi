@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+﻿import * as XLSX from 'xlsx';
 
 export type OperationalTemplateType = 'VEHICLE' | 'IMPLEMENT' | 'ASSIGNMENT' | 'DRIVER';
 
@@ -37,11 +37,11 @@ const commonCatalogRows = [
   ['Hạng GPLX', 'HANG_CE', 'Hạng CE (Đầu kéo Container/Rơ-móc)'],
   ['Hạng GPLX', 'HANG_D1', 'Hạng D1 (Xe chở người ≤20 chỗ)'],
   ['Hạng GPLX', 'HANG_D2', 'Hạng D2 (Xe chở người >20 chỗ)'],
-  ['Đơn vị hệ thống', 'NT1', 'Nông trường 1'],
-  ['Đơn vị hệ thống', 'NT2', 'Nông trường 2'],
-  ['Đơn vị hệ thống', 'XN_BO', 'Xí nghiệp bò'],
-  ['Đơn vị hệ thống', 'TT_BTSC', 'Trung tâm BTSC'],
-  ['Đơn vị hệ thống', 'BAN_CO_GIOI', 'Ban Cơ giới'],
+  ['Đơn vị hệ thống', 'KOUN_MOM', 'Nông trường 1'],
+  ['Đơn vị hệ thống', 'KOUN_MOM', 'Nông trường 2'],
+  ['Đơn vị hệ thống', 'KOUN_MOM', 'Xí nghiệp bò'],
+  ['Đơn vị hệ thống', 'KOUN_MOM', 'Trung tâm BTSC'],
+  ['Đơn vị hệ thống', 'KOUN_MOM', 'Ban Cơ giới'],
 ];
 
 const definitions: Record<OperationalTemplateType, TemplateDefinition> = {
@@ -76,7 +76,7 @@ const definitions: Record<OperationalTemplateType, TemplateDefinition> = {
     columns: [
       ['Mã nông cụ / Thiết bị (*)', 'code', 'CHT-CNA-001'], ['Tên nông cụ / Thiết bị (*)', 'name', 'Dàn cày 4 chảo Kubota DP4'],
       ['Nhóm nông cụ (*)', 'category', 'DAN_CAY'], ['Khu liên hợp (*)', 'complexCode', 'KOUN_MOM'],
-      ['Đơn vị sử dụng / XN (*)', 'unit', 'BAN_CO_GIOI'], ['Khu vực địa lý', 'regionCode', 'DP'],
+      ['Đơn vị sử dụng / XN (*)', 'unit', 'KOUN_MOM'], ['Khu vực địa lý', 'regionCode', 'DP'],
       ['Bãi / Nơi tập kết (*)', 'gatheringLocation', 'Lô 85 DP4'], ['Họ tên NS Quản lý', 'managerName', 'Phạm Ngọc Hải'],
       ['Số điện thoại / Zalo NS', 'managerPhone', '0825456565'], ['Hãng sản xuất / Hiệu', 'brand', 'KUBOTA'],
       ['Model nông cụ', 'model', 'DP244'], ['Năm sản xuất', 'year', 2023], ['Quốc gia xuất xứ', 'origin', 'THÁI LAN'],

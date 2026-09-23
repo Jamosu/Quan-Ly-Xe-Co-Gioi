@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-09-21T13:41:34.543Z",
+  "dryRun": false,
+  "targetDriversPerTeam": 5,
+  "teamsWithAssets": 1,
+  "driversToCreate": 0,
+  "driversNormalized": 5,
+  "additions": [
+    {
+      "teamCode": "CG-KM-BAN-CG-CK-SXCN",
+      "teamName": "BAN CG-CK & SXCN",
+      "existingDrivers": 5,
+      "created": 0
+    }
+  ]
+}

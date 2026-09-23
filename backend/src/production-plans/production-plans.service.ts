@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DispatchSourceType, DispatchStatus, DriverShiftStatus, OperationalEntityType, PlanStatus, PlanType, PlotStatus, Prisma, TransportStatus, Unit, VehicleStatus, WorkAssignmentMode, WorkOrderCategory, WorkOrderStatus, WorkOrderType } from '@prisma/client';
 import { assertOperationalAccess, OperationalActor, scopedUnit } from '../common/utils/operational-access';
 import { PrismaService } from '../prisma/prisma.service';
@@ -41,7 +41,7 @@ export class ProductionPlansService {
     const taskList = items || tasks || [];
     const existing = await this.prisma.productionPlan.findUnique({ where: { code: dto.code } });
     if (existing) throw new ConflictException(`Kế hoạch mã ${dto.code} đã tồn tại trong hệ thống.`);
-    const unit = scopedUnit(actor, dto.unit) ?? dto.unit ?? Unit.NT1;
+    const unit = scopedUnit(actor, dto.unit) ?? dto.unit ?? Unit.KOUN_MOM;
     const targetArea = planData.targetAreaHa || taskList.reduce((sum: number, t: any) => sum + Number(t.targetQuantity || t.targetAreaHa || 0), 0);
     const assignedVehicles = planData.assignedVehiclesCount || taskList.reduce((sum: number, t: any) => sum + Number(t.plannedVehicleCount || t.assignedVehiclesCount || 0), 0);
     const firstPlot = planData.lotPlot || taskList[0]?.plotName || taskList[0]?.lotPlot || 'Toàn vùng';
@@ -316,7 +316,7 @@ export class ProductionPlansService {
             }
             if (generatedOrder) {
               const category = plan.planType === PlanType.CONSTRUCTION ? WorkOrderCategory.CONSTRUCTION : WorkOrderCategory.AGRICULTURE;
-              await tx.operationalWorkOrder.upsert({
+              const workOrder = await tx.operationalWorkOrder.upsert({
                 where: { dispatchOrderId: generatedOrder.id },
                 update: {
                   category, sourceType: DispatchSourceType.PRODUCTION_ORDER, plannedStartAt: departureTime,
@@ -343,6 +343,7 @@ export class ProductionPlansService {
                   dispatchOrderId: generatedOrder.id, createdById: actor.id,
                 },
               });
+              await tx.dispatchOrder.update?.({ where: { id: generatedOrder.id }, data: { workOrderId: workOrder.id, scheduledStartAt: departureTime, scheduledEndAt: plannedEndTime, reportOpenAt: new Date(plannedEndTime.getTime() - 60 * 60_000), reportDeadlineAt: new Date(plannedEndTime.getTime() + 15 * 60_000) } });
             }
           }
         }

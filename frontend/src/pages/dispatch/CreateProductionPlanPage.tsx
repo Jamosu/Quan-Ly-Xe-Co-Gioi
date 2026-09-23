@@ -184,23 +184,23 @@ export const CreateProductionPlanPage: React.FC = () => {
 
   // Năm & Tuần
   const currentYear = new Date().getFullYear();
+  const currentIsoWeek = getWeekNumber(new Date());
   const [selectedYear, setSelectedYear] = useState<number>(() => {
     if (editingPlan) {
       return new Date(editingPlan.startDate).getFullYear();
     }
-    return 2026;
+    return currentYear;
   });
 
   const weeksOfYear = useMemo(() => {
-    return [...getWeeksOfYear(selectedYear)].sort((a, b) => b.weekNumber - a.weekNumber);
+    return [...getWeeksOfYear(selectedYear)].sort((a, b) => a.weekNumber - b.weekNumber);
   }, [selectedYear]);
 
   const [selectedWeekNumber, setSelectedWeekNumber] = useState<number>(() => {
     if (editingPlan) {
       return editingPlan.weekNumber;
     }
-    const currIso = getWeekNumber(new Date());
-    return currIso <= 52 ? currIso : 37;
+    return currentIsoWeek <= 52 ? currentIsoWeek : 1;
   });
 
   // Tìm tuần đã chọn
@@ -322,22 +322,37 @@ export const CreateProductionPlanPage: React.FC = () => {
     return fromMaster;
   }, [complexCode, enterpriseCode, farmCode, currentFarm]);
 
-  const yearOptions: SelectOption[] = useMemo(
-    () => [
-      { value: '2025', label: 'Năm 2025' },
-      { value: '2026', label: 'Năm 2026' },
-      { value: '2027', label: 'Năm 2027' },
-      { value: '2028', label: 'Năm 2028' },
-    ],
-    []
-  );
+  const yearOptions: SelectOption[] = useMemo(() => {
+    const curY = new Date().getFullYear();
+    const years = [curY, curY + 1];
+    const selY = selectedYear || curY;
+    if (selY && !years.includes(selY)) {
+      years.push(selY);
+      years.sort((a, b) => a - b);
+    }
+    return years.map((y) => ({ value: String(y), label: `Năm ${y}` }));
+  }, [selectedYear]);
 
   const weekOptions: SelectOption[] = useMemo(() => {
-    return weeksOfYear.map((w) => ({
+    const curY = new Date().getFullYear();
+    const curW = getWeekNumber(new Date());
+    const selY = selectedYear || curY;
+
+    // Sắp xếp tuần tăng dần: nếu là năm hiện tại, chỉ cho phép chọn từ tuần hiện tại trở đi
+    let filteredWeeks = weeksOfYear;
+    if (selY === curY) {
+      filteredWeeks = weeksOfYear.filter(
+        (w) => w.weekNumber >= curW || (editingPlan && w.weekNumber === selectedWeekNumber)
+      );
+    } else if (selY < curY) {
+      filteredWeeks = editingPlan ? weeksOfYear.filter((w) => w.weekNumber === selectedWeekNumber) : [];
+    }
+
+    return filteredWeeks.map((w) => ({
       value: String(w.weekNumber),
       label: w.label,
     }));
-  }, [weeksOfYear]);
+  }, [weeksOfYear, selectedYear, editingPlan, selectedWeekNumber]);
 
   // Giai đoạn sản xuất của kế hoạch (1 kế hoạch chỉ làm 1 giai đoạn)
   const [selectedStageCode, setSelectedStageCode] = useState<string>(() => {
@@ -443,8 +458,8 @@ export const CreateProductionPlanPage: React.FC = () => {
   const jobOptions: SelectOption[] = useMemo(() => {
     return availableJobsForStage.map((j) => ({
       value: j.code,
-      label: `${j.code}: ${j.name}`,
-      subLabel: j.implementGroup,
+      label: j.name,
+      subLabel: `${j.code} • ${j.implementGroup}`,
     }));
   }, [availableJobsForStage]);
 
@@ -614,6 +629,22 @@ export const CreateProductionPlanPage: React.FC = () => {
 
   // Đổi công việc trên dòng: tự động điền nông cụ & đầu máy theo định mức hoặc lưu tên tùy chỉnh
   const handleChangeTaskJob = (index: number, val: string) => {
+    if (!val || !val.trim() || val === 'ALL') {
+      setFormTasks((prev) => {
+        const copy = [...prev];
+        copy[index] = {
+          ...copy[index],
+          jobCode: '',
+          jobName: '',
+          stageCode: '',
+          stageName: '',
+          implementGroup: '',
+          recommendedVehicle: '',
+        };
+        return copy;
+      });
+      return;
+    }
     const selectedJob = planningJobs.find((j) => j.code === val || j.name === val);
     if (selectedJob) {
       setFormTasks((prev) => {
@@ -636,7 +667,7 @@ export const CreateProductionPlanPage: React.FC = () => {
         const copy = [...prev];
         copy[index] = {
           ...copy[index],
-          jobCode: `CUSTOM-${Date.now()}`,
+          jobCode: val,
           jobName: val,
         };
         return copy;
@@ -819,7 +850,7 @@ export const CreateProductionPlanPage: React.FC = () => {
           try {
             apiClient.post('/dispatch-orders', {
               code: newOrder.code,
-              unit: 'NT1',
+              unit: 'KOUN_MOM',
               purpose: newOrder.purpose,
               origin: newOrder.origin,
               destination: newOrder.destination,
@@ -888,10 +919,10 @@ export const CreateProductionPlanPage: React.FC = () => {
     const firstTask = normalizedTasks[0];
     const firstPlot = firstTask?.lotPlot || plotPlot || 'Lô A01';
 
-    let unitEnum = 'NT1';
+    let unitEnum = 'KOUN_MOM';
     if (complexCode === 'SNOUL') unitEnum = 'KLH_SN';
     else if (complexCode === 'NAM_LAO') unitEnum = 'KLH_NL';
-    else if (enterpriseCode?.includes('2') || farmCode?.includes('2')) unitEnum = 'NT2';
+    else if (enterpriseCode?.includes('2') || farmCode?.includes('2')) unitEnum = 'KOUN_MOM';
     else if (enterpriseCode?.includes('3') || farmCode?.includes('3')) unitEnum = 'NT3';
 
     // Chuẩn bị payload đồng bộ MySQL Database khớp với CreatePlanDto
@@ -1196,7 +1227,15 @@ export const CreateProductionPlanPage: React.FC = () => {
                 </label>
                 <SearchableSelect
                   value={String(selectedYear)}
-                  onChange={(val) => setSelectedYear(Number(val))}
+                  onChange={(val) => {
+                    const y = Number(val);
+                    setSelectedYear(y);
+                    const curY = new Date().getFullYear();
+                    const curW = getWeekNumber(new Date());
+                    if (y === curY && selectedWeekNumber < curW) {
+                      setSelectedWeekNumber(curW);
+                    }
+                  }}
                   options={yearOptions}
                   placeholder="Chọn năm"
                   disabled={isViewMode}
@@ -1463,12 +1502,12 @@ export const CreateProductionPlanPage: React.FC = () => {
                       {/* Chọn Công việc (SearchableSelect Combobox / Custom Text) */}
                       <td className="p-3 align-middle">
                         <SearchableSelect
-                          value={task.jobCode}
+                          value={task.jobCode?.startsWith('CUSTOM-') && task.jobName ? task.jobName : task.jobCode}
                           onChange={(val) => handleChangeTaskJob(index, val)}
                           options={jobOptions}
                           placeholder="Chọn hoặc nhập tên công việc..."
                           disabled={isViewMode}
-                          allowCustomInput={false}
+                          allowCustomInput={true}
                           heightClass="h-9"
                           bgClass={isViewMode ? 'bg-slate-100' : 'bg-white'}
                         />
@@ -1480,7 +1519,7 @@ export const CreateProductionPlanPage: React.FC = () => {
                           value={task.lotPlot}
                           onChange={(val) => handleUpdateTaskField(index, 'lotPlot', val)}
                           options={plotOptions}
-                          placeholder={!farmCode ? "Chưa chọn Nông trường..." : "Chọn/nhập Lô/Thửa..."}
+                          placeholder={!farmCode ? "Chưa chọn Nông trường..." : "Chọn Lô / Thửa canh tác..."}
                           disabled={isViewMode || !farmCode}
                           allowCustomInput={false}
                           heightClass="h-9"

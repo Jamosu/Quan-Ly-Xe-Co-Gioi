@@ -35,6 +35,7 @@ export interface DataTableProps<T> {
   controlledPage?: number;
   totalItems?: number;
   onPageChange?: (page: number) => void;
+  minWidth?: string | number;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -56,6 +57,7 @@ export function DataTable<T extends Record<string, any>>({
   controlledPage,
   totalItems,
   onPageChange,
+  minWidth,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -204,21 +206,24 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Table Content */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table
+          className="w-full text-left text-xs min-w-full"
+          style={{ minWidth: minWidth ? (typeof minWidth === 'number' ? `${minWidth}px` : minWidth) : undefined }}
+        >
           <thead className="bg-slate-50/75 border-b border-slate-200/80 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
             <tr>
-              <th className="py-2 px-2.5 w-10 text-center">STT</th>
+              <th className="py-2 px-1.5 w-8 text-center whitespace-nowrap">STT</th>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`py-2 px-2.5 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'} ${col.sortable ? 'cursor-pointer hover:text-slate-900 select-none' : ''}`}
-                  style={{ width: col.width }}
+                  className={`py-2 px-2 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'} ${col.sortable ? 'cursor-pointer hover:text-slate-900 select-none' : ''}`}
+                  style={{ width: col.width, minWidth: col.width }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
-                  <div className={`inline-flex items-center gap-1.5 ${col.align === 'center' ? 'justify-center' : col.align === 'right' ? 'justify-end' : 'justify-start'}`}>
-                    <span>{col.title}</span>
+                  <div className={`inline-flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : col.align === 'right' ? 'justify-end' : 'justify-start'}`}>
+                    <span className="whitespace-nowrap">{col.title}</span>
                     {col.sortable && (
-                      <ArrowUpDown className={`w-3 h-3 ${sortKey === col.key ? 'text-primary' : 'text-slate-300'}`} />
+                      <ArrowUpDown className={`w-3 h-3 shrink-0 ${sortKey === col.key ? 'text-primary' : 'text-slate-300'}`} />
                     )}
                   </div>
                 </th>
@@ -226,11 +231,11 @@ export function DataTable<T extends Record<string, any>>({
             </tr>
             {hasColumnFilters && (
               <tr className="bg-slate-100/90 border-t border-slate-200/80 text-slate-700 font-normal">
-                <th className="py-1.5 px-2 text-center font-normal">
+                <th className="py-1.5 px-1.5 text-center font-normal">
                   <Filter className="w-3 h-3 text-slate-400 mx-auto" />
                 </th>
                 {columns.map((col) => (
-                  <th key={`filter-${col.key}`} className="py-1.5 px-2 font-normal" style={{ width: col.width }}>
+                  <th key={`filter-${col.key}`} className="py-1.5 px-2 font-normal" style={{ width: col.width, minWidth: col.width }}>
                     {col.filterElement || null}
                   </th>
                 ))}
@@ -260,14 +265,14 @@ export function DataTable<T extends Record<string, any>>({
                   onClick={() => onRowClick && onRowClick(row)}
                   className={`hover:bg-slate-50/70 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
                 >
-                  <td className="py-2 px-2.5 text-center text-slate-400 font-medium text-xs">
+                  <td className="py-2 px-1.5 text-center text-slate-400 font-medium text-xs whitespace-nowrap">
                     {(activePage - 1) * pageSize + idx + 1}
                   </td>
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`py-2 px-2.5 text-slate-800 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}
-                      style={{ width: col.width }}
+                      className={`py-2 px-2 text-slate-800 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}
+                      style={{ width: col.width, minWidth: col.width }}
                     >
                       {col.render ? col.render(row) : row[col.key] ?? '—'}
                     </td>

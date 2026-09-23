@@ -14,6 +14,7 @@
 8. Không đổi schema khi chưa đánh giá migration, seed, API, frontend mapping và dữ liệu hiện hữu.
 9. Không coi dữ liệu mock, số liệu demo hoặc giá trị hard-code là yêu cầu nghiệp vụ đã xác nhận.
 10. Chạy validation/build phù hợp sau khi sửa; repo hiện chưa có test suite tự động.
+11. Bắt buộc tuân thủ quy chuẩn bảng Danh mục Hệ thống tại `rules/master-data-table-convention.md`: Luôn luôn có 3 cột kết thúc theo đúng thứ tự: TRẠNG THÁI (pill badge), USER (AuditUserPopover với icon ExternalLink), TÁC VỤ (TableRowActions với 3 icon: Eye, Edit, red Trash2).
 
 ## Workflow
 

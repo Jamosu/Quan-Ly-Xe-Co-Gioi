@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { OperationalActor } from '../common/utils/operational-access';
 import { DriverManagementService } from './driver-management.service';
-import { AssignDriverManagementDto, CreateDriverManagementScopeDto, CreateDriverManagementUnitDto, DriverManagementUnitFilterDto, UpdateDriverManagementUnitDto } from './dto/driver-management.dto';
+import { AssignDriverManagementDto, CreateDriverManagementScopeDto, CreateDriverManagementUnitDto, CreateManagerAssignmentDto, DriverManagementUnitFilterDto, EndManagerAssignmentDto, ManagerAssignmentFilterDto, UpdateDriverManagementUnitDto } from './dto/driver-management.dto';
 
 @ApiTags('Driver Management - Danh mục hồ sơ tài xế')
 @ApiBearerAuth()
@@ -40,6 +40,24 @@ export class DriverManagementController {
   @Get('scopes')
   scopes(@CurrentUser() actor: OperationalActor) { return this.service.listScopes(actor); }
 
+  @Get('managers')
+  managers(@Query() query: ManagerAssignmentFilterDto, @CurrentUser() actor: OperationalActor) { return this.service.managerAssignments(query, actor); }
+
+  @Get('managers/unresolved')
+  unresolvedManagers(@CurrentUser() actor: OperationalActor) { return this.service.unresolvedManagers(actor); }
+
+  @Post('managers')
+  @Roles(Role.SUPER_ADMIN)
+  createManager(@Body() dto: CreateManagerAssignmentDto, @CurrentUser() actor: OperationalActor) { return this.service.createManagerAssignment(dto, actor); }
+
+  @Post('managers/:id/end')
+  @Roles(Role.SUPER_ADMIN)
+  endManager(@Param('id', ParseIntPipe) id: number, @Body() dto: EndManagerAssignmentDto, @CurrentUser() actor: OperationalActor) { return this.service.endManagerAssignment(id, dto, actor); }
+
+  @Post('managers/:id/replace')
+  @Roles(Role.SUPER_ADMIN)
+  replaceManager(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateManagerAssignmentDto, @CurrentUser() actor: OperationalActor) { return this.service.replaceManagerAssignment(id, dto, actor); }
+
   @Post('scopes')
   @Roles(Role.SUPER_ADMIN)
   createScope(@Body() dto: CreateDriverManagementScopeDto, @CurrentUser() actor: OperationalActor) { return this.service.createScope(dto, actor); }
@@ -54,4 +72,3 @@ export class DriverManagementController {
   @Get('drivers/:id/assignments')
   history(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) { return this.service.assignmentHistory(id, actor); }
 }
-

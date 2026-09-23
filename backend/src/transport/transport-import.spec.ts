@@ -1,4 +1,4 @@
-import { Role, RouteType, Unit } from '@prisma/client';
+﻿import { Role, RouteType, Unit } from '@prisma/client';
 import { TransportService } from './transport.service';
 
 describe('TransportService import preview', () => {
@@ -17,7 +17,7 @@ describe('TransportService import preview', () => {
         { rowNumber: 2, values: [1,'17/08/2026','17/08/2026','07:00','92C-14749','92R-00446','Phan Văn Hưng','Đối lưu','24 Palet','Mang thanh chắn','CHUOI-XK','Chuối thành phẩm','Thùng',1300,'DP1','DP Tổng kho'] },
         { rowNumber: 3, values: [2,'17/08/2026','17/08/2026',null,null,null,null,null,null,null,'BB-0263','Đáy thùng chuối','Cái',6400,'XĐG LP1','LP1'] },
       ],
-    }, { id: 1, role: Role.DISPATCHER, unit: Unit.BAN_CO_GIOI });
+    }, { id: 1, role: Role.DISPATCHER, unit: Unit.KOUN_MOM });
     expect(result.canCommit).toBe(true);
     expect(result.tripCount).toBe(1);
     expect(result.itemCount).toBe(2);

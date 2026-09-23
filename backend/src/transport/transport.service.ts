@@ -66,13 +66,13 @@ export class TransportService {
   }
 
   async findAll(filter: TransportFilterDto, actor?: OperationalActor) {
-    const { page = 1, limit = 20, search, routeType, status, returnDriverStatus, isRouteDeviated, planId, planType, year, weekNumber } = filter;
+    const { page = 1, limit = 20, search, routeType, status, returnDriverStatus, isRouteDeviated, planId, planType, year, weekNumber, includeCancelled } = filter;
     const where: Prisma.TransportOrderWhereInput = {};
     if (actor?.role === Role.DRIVER) where.driverId = actor.id;
     else { const unit = scopedUnit(actor, (filter as TransportFilterDto & { unit?: Unit }).unit); if (unit) where.unit = unit; }
     if (routeType) where.routeType = routeType;
     if (status) where.status = status;
-    else where.status = { not: TransportStatus.CANCELLED };
+    else if (!includeCancelled) where.status = { not: TransportStatus.CANCELLED };
     if (returnDriverStatus) where.returnDriverStatus = returnDriverStatus;
     if (isRouteDeviated !== undefined) where.isRouteDeviated = isRouteDeviated;
     if (planId || planType || year || weekNumber) {

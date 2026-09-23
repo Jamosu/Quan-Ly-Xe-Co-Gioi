@@ -1,4 +1,4 @@
-const { PrismaClient, Unit, ProductionStage, PlanStatus } = require('@prisma/client');
+﻿const { PrismaClient, Unit, ProductionStage, PlanStatus } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
@@ -32,8 +32,8 @@ async function main() {
     else if (p.status === 'COMPLETED') status = PlanStatus.COMPLETED;
 
     // Map unit
-    let unit = Unit.NT1;
-    if (p.farmCode?.includes('02') || p.enterpriseCode?.includes('02')) unit = Unit.NT2;
+    let unit = Unit.KOUN_MOM;
+    if (p.farmCode?.includes('02') || p.enterpriseCode?.includes('02')) unit = Unit.KOUN_MOM;
 
     const upsertedPlan = await prisma.productionPlan.upsert({
       where: { code: p.code },

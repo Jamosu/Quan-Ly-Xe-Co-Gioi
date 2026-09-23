@@ -1,0 +1,413 @@
+{
+  "masters": [
+    {
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "name": "",
+      "background": {}
+    }
+  ],
+  "layouts": [
+    {
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "name": "",
+      "placeholders": []
+    },
+    {
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "DEFAULT",
+      "placeholders": []
+    },
+    {
+      "id": "/ppt/slideLayouts/slideLayout2.xml",
+      "name": "Title and Content",
+      "placeholders": [
+        {
+          "name": "title",
+          "type": "title",
+          "text": ""
+        }
+      ]
+    }
+  ]
+}
+{"kind":"deck","id":"pr/2cftd1","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"","type":"master"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"DEFAULT"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout2.xml","name":"Title and Content","placeholders":[{"name":"title","type":"title"}]}
+{"kind":"slide","id":"sl/y90nupkv","slide":1,"title":"TÀI LIỆU GIỚI THIỆU","textShapes":5}
+{"kind":"textbox","id":"sh/k3yl0zql","slide":1,"textChars":19,"textLines":1}
+{"kind":"textbox","id":"sh/7qp4be9c","slide":1,"textChars":33,"textLines":1}
+{"kind":"textbox","id":"sh/65g3298r","slide":1,"textChars":25,"textLines":1}
+{"kind":"textbox","id":"sh/ts7md4r2","slide":1,"textChars":63,"textLines":2}
+{"kind":"shape","id":"sh/sryl4zqx","slide":1,"name":"Text 4","bbox":[0,624,1279.97,38.4]}
+{"kind":"textbox","id":"sh/utg3698n","slide":1,"textChars":70,"textLines":1}
+{"kind":"image","id":"im/jqxw72dk","slide":1,"name":"Image 0","bbox":[-8.82,0,1279.97,720]}
+{"kind":"notes","id":"nt/y90nupkv","slide":1,"text":""}
+{"kind":"slide","id":"sl/hwbqtkby","slide":2,"title":"NỘI DUNG GIỚI THIỆU","textShapes":19}
+{"kind":"textbox","id":"sh/ozy1ofad","slide":2,"textChars":19,"textLines":1}
+{"kind":"shape","id":"sh/b29kza94","slide":2,"name":"Shape 1","bbox":[48,110.4,70.6,39.06]}
+{"kind":"textbox","id":"sh/a10jqpsj","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/x4r21kru","slide":2,"name":"Shape 3","bbox":[129.6,110.4,1044.84,39.06]}
+{"kind":"textbox","id":"sh/w3i1sfa9","slide":2,"textChars":31,"textLines":1}
+{"kind":"shape","id":"sh/r65knqtk","slide":2,"name":"Shape 5","bbox":[48,167.37,70.6,39.06]}
+{"kind":"textbox","id":"sh/q5wjelsz","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/ove9o7yd","slide":2,"name":"Shape 7","bbox":[129.6,167.37,1044.84,39.06]}
+{"kind":"textbox","id":"sh/9wnqhczy","slide":2,"textChars":49,"textLines":1}
+{"kind":"shape","id":"sh/mtwrmxg7","slide":2,"name":"Shape 9","bbox":[48,223.09,70.6,39.06]}
+{"kind":"textbox","id":"sh/nu58f2hs","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/wjy9sry9","slide":2,"name":"Shape 11","bbox":[129.6,223.09,1044.84,39.06]}
+{"kind":"textbox","id":"sh/xk7qlczu","slide":2,"textChars":43,"textLines":1}
+{"kind":"shape","id":"sh/ahwrqhgj","slide":2,"name":"Shape 13","bbox":[48,278.82,70.6,39.06]}
+{"kind":"textbox","id":"sh/bip8jmho","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/cnupgny5","slide":2,"name":"Shape 15","bbox":[129.6,278.82,1044.84,39.06]}
+{"kind":"textbox","id":"sh/do3q9szq","slide":2,"textChars":28,"textLines":1}
+{"kind":"shape","id":"sh/t8byxkn2","slide":2,"name":"Shape 17","bbox":[48,334.54,70.6,39.06]}
+{"kind":"textbox","id":"sh/s72xofmh","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/76twva5c","slide":2,"name":"Shape 19","bbox":[129.6,334.54,1044.84,39.06]}
+{"kind":"textbox","id":"sh/65kfmpor","slide":2,"textChars":34,"textLines":1}
+{"kind":"shape","id":"sh/hcvy14ne","slide":2,"name":"Shape 21","bbox":[48,390.27,70.6,39.06]}
+{"kind":"textbox","id":"sh/gbmxszmt","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/fadgzu58","slide":2,"name":"Shape 23","bbox":[129.6,390.27,1044.84,39.06]}
+{"kind":"textbox","id":"sh/u94fqp4n","slide":2,"textChars":37,"textLines":1}
+{"kind":"shape","id":"sh/p0vy54na","slide":2,"name":"Shape 25","bbox":[48,445.99,70.6,39.06]}
+{"kind":"textbox","id":"sh/4zmxwzmp","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/mlgvq147","slide":2,"name":"Shape 27","bbox":[129.6,445.99,1044.84,39.06]}
+{"kind":"textbox","id":"sh/nmpcj6ls","slide":2,"textChars":67,"textLines":1}
+{"kind":"textbox","id":"sh/onydsbmd","slide":2,"textChars":59,"textLines":1}
+{"kind":"textbox","id":"sh/9o7ulg3y","slide":2,"textChars":1,"textLines":1}
+{"kind":"shape","id":"sh/id0vylkf","slide":2,"name":"Shape 21","bbox":[48,501.71,70.6,39.06]}
+{"kind":"textbox","id":"sh/je9crql0","slide":2,"textChars":2,"textLines":1}
+{"kind":"shape","id":"sh/ru5cbqd4","slide":2,"name":"Shape 23","bbox":[129.6,501.71,1044.84,39.06]}
+{"kind":"textbox","id":"sh/69wbilcj","slide":2,"textChars":46,"textLines":1}
+{"kind":"image","id":"im/2l4b6hsf","slide":2,"name":"Image 0","bbox":[0,0,1279.97,720]}
+{"kind":"notes","id":"nt/hwbqtkby","slide":2,"text":""}
+{"kind":"slide","id":"sl/ofy9wn61","slide":3,"title":"KHÓ KHĂN KHI QUẢN LÝ XE CÔNG VỤ","textShapes":21}
+{"kind":"textbox","id":"sh/cza94vmx","slide":3,"textChars":35,"textLines":1}
+{"kind":"textbox","id":"sh/d0jax03i","slide":3,"textChars":54,"textLines":1}
+{"kind":"textbox","id":"sh/298ryl4v","slide":3,"textChars":40,"textLines":1}
+{"kind":"textbox","id":"sh/pcjqtg36","slide":3,"textChars":44,"textLines":1}
+{"kind":"textbox","id":"sh/m5cra54z","slide":3,"textChars":33,"textLines":1}
+{"kind":"textbox","id":"sh/n6ls3alk","slide":3,"textChars":47,"textLines":1}
+{"kind":"textbox","id":"sh/n2l4fq98","slide":3,"textChars":27,"textLines":1}
+{"kind":"textbox","id":"sh/943mhgre","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/v6l4jq94","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/a5c3ql8z","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/x8nml0ra","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/w7ulsvqp","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/ja54na9g","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/obq90bml","slide":3,"textChars":107,"textLines":1}
+{"kind":"textbox","id":"sh/m1c3mlsn","slide":3,"textChars":88,"textLines":1}
+{"kind":"textbox","id":"sh/03ix43e5","slide":3,"textChars":67,"textLines":1}
+{"kind":"textbox","id":"sh/14ryd8fq","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/re9g7yxo","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/tgry9ofu","slide":3,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/batgjixs","slide":3,"textChars":67,"textLines":1}
+{"kind":"textbox","id":"sh/l4fi9cza","slide":3,"textChars":1,"textLines":1}
+{"kind":"shape","id":"sh/k3m1g7yp","slide":3,"name":"Right Arrow 30","bbox":[578.21,363.9,61.79,34.27]}
+{"kind":"notes","id":"nt/ofy9wn61","slide":3,"text":""}
+{"kind":"slide","id":"sl/jyx0ra1s","slide":4,"title":"DANH SÁCH THUẬT NGỮ","textShapes":1}
+{"kind":"textbox","id":"sh/1cj2d8b6","slide":4,"textChars":22,"textLines":1}
+{"kind":"table","id":"tb/tsnut0v2","slide":4,"name":"Table 3","rows":12,"cols":3,"preview":"TT | THUẬT NGỮ | ĐỊNH NGHĨA","bbox":[0,79,1280,641]}
+{"kind":"notes","id":"nt/jyx0ra1s","slide":4,"text":""}
+{"kind":"slide","id":"sl/i107q5of","slide":5,"title":"TỔNG QUAN CÁC TÍNH NĂNG CỦA PHẦN MỀM","textShapes":8}
+{"kind":"shape","id":"sh/l4bupwny","slide":5,"name":"Alternate Process 5","bbox":[198.63,126.68,264.82,426.73]}
+{"kind":"textbox","id":"sh/dgbulwnm","slide":5,"textChars":42,"textLines":1}
+{"kind":"textbox","id":"sh/yhkbe1o7","slide":5,"textChars":25,"textLines":1}
+{"kind":"textbox","id":"sh/x4vedgvm","slide":5,"textChars":159,"textLines":5}
+{"kind":"shape","id":"sh/v2twb6dw","slide":5,"name":"Alternate Process 12","bbox":[505.38,126.68,264.82,426.73]}
+{"kind":"textbox","id":"sh/gfi5grih","slide":5,"textChars":23,"textLines":1}
+{"kind":"textbox","id":"sh/fe94nm1w","slide":5,"textChars":247,"textLines":6}
+{"kind":"shape","id":"sh/ud0ne10b","slide":5,"name":"Alternate Process 22","bbox":[812.14,126.68,264.82,426.73]}
+{"kind":"textbox","id":"sh/pkr6tgjy","slide":5,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/4ji5kbid","slide":5,"textChars":162,"textLines":4}
+{"kind":"textbox","id":"sh/kny587i9","slide":5,"textChars":120,"textLines":1}
+{"kind":"notes","id":"nt/i107q5of","slide":5,"text":""}
+{"kind":"slide","id":"sl/x8f69ofe","slide":6,"title":"PHÂN QUYỀN NGƯỜI DÙNG (RBAC) TRONG PHẦN MỀM","textShapes":2}
+{"kind":"textbox","id":"sh/yhg7epsj","slide":6,"textChars":48,"textLines":1}
+{"kind":"textbox","id":"sh/zi98nu94","slide":6,"textChars":180,"textLines":1}
+{"kind":"table","id":"tb/5gzmp4vu","slide":6,"name":"Table 8","rows":8,"cols":11,"preview":"TT | TÊN ĐỐI TƯỢNG | ĐẶT XE | ĐIỀU PHỐI CHUYẾN | QL THÔNG TIN XE | QL THÔNG TIN TÀI XẾ | QL CẤP PHÁT NHIÊN LIỆU | BÁO CÁO | ...","bbox":[27.95,108.66,1231.08,374.4]}
+{"kind":"image","id":"im/8jyl8rmd","slide":6,"name":"Graphic 12","bbox":[313.49,187.43,48,48]}
+{"kind":"image","id":"im/nyp4fmls","slide":6,"name":"Graphic 13","bbox":[313.49,229.3,48,48]}
+{"kind":"image","id":"im/mxg36h47","slide":6,"name":"Graphic 14","bbox":[431.34,229.66,48,48]}
+{"kind":"image","id":"im/lwn2dc3m","slide":6,"name":"Graphic 15","bbox":[533.8,229.07,48,48]}
+{"kind":"image","id":"im/0vel47m1","slide":6,"name":"Graphic 16","bbox":[639.25,229.66,48,48]}
+{"kind":"image","id":"im/6xcbq9cz","slide":6,"name":"Graphic 17","bbox":[746.2,229.66,48,48]}
+{"kind":"image","id":"im/7ylcjetk","slide":6,"name":"Graphic 18","bbox":[863.8,227.85,48,48]}
+{"kind":"image","id":"im/8zutsju5","slide":6,"name":"Graphic 19","bbox":[1071.71,227.85,48,48]}
+{"kind":"image","id":"im/t03ulobq","slide":6,"name":"Graphic 20","bbox":[313.49,266.31,48,48]}
+{"kind":"image","id":"im/y9sbm9c3","slide":6,"name":"Graphic 21","bbox":[534.94,266.31,48,48]}
+{"kind":"image","id":"im/ju1cfeto","slide":6,"name":"Graphic 22","bbox":[638.53,266.31,48,48]}
+{"kind":"image","id":"im/kvatojut","slide":6,"name":"Graphic 23","bbox":[863.8,264.86,48,48]}
+{"kind":"image","id":"im/lw3uh4be","slide":6,"name":"Graphic 24","bbox":[966.26,229.07,48,48]}
+{"kind":"image","id":"im/a5sbipcr","slide":6,"name":"Graphic 25","bbox":[1071.96,264.86,48,48]}
+{"kind":"image","id":"im/b61sbutc","slide":6,"name":"Graphic 26","bbox":[313.49,304.73,48,48]}
+{"kind":"image","id":"im/zax8jq94","slide":6,"name":"Graphic 28","bbox":[1071.71,303.28,48,48]}
+{"kind":"image","id":"im/e9orqlsj","slide":6,"name":"Graphic 29","bbox":[313.49,341.45,48,48]}
+{"kind":"image","id":"im/1cfql0ra","slide":6,"name":"Graphic 30","bbox":[863.8,340,48,48]}
+{"kind":"image","id":"im/0b69svap","slide":6,"name":"Graphic 31","bbox":[1181.28,229.07,48,48]}
+{"kind":"image","id":"im/neh8na9g","slide":6,"name":"Graphic 32","bbox":[1181.28,266.6,48,48]}
+{"kind":"image","id":"im/md8ru5sv","slide":6,"name":"Graphic 33","bbox":[431.34,266.31,48,48]}
+{"kind":"image","id":"im/90zqp0r6","slide":6,"name":"Graphic 35","bbox":[638.53,393.07,48,48]}
+{"kind":"image","id":"im/ofq9wfal","slide":6,"name":"Graphic 36","bbox":[746.2,392.79,48,48]}
+{"kind":"image","id":"im/3id8b69w","slide":6,"name":"Graphic 37","bbox":[313.49,438.4,48,48]}
+{"kind":"image","id":"im/2h47i1sb","slide":6,"name":"Graphic 38","bbox":[431.34,438.76,48,48]}
+{"kind":"image","id":"im/sn25c7q9","slide":6,"name":"Graphic 39","bbox":[533.8,438.16,48,48]}
+{"kind":"image","id":"im/tob6lc7u","slide":6,"name":"Graphic 40","bbox":[639.25,438.76,48,48]}
+{"kind":"image","id":"im/6l0nax83","slide":6,"name":"Graphic 41","bbox":[746.2,438.76,48,48]}
+{"kind":"image","id":"im/7mtoj2po","slide":6,"name":"Graphic 42","bbox":[863.8,436.95,48,48]}
+{"kind":"image","id":"im/kji587qd","slide":6,"name":"Graphic 43","bbox":[1071.71,436.95,48,48]}
+{"kind":"image","id":"im/lkr6hc7i","slide":6,"name":"Graphic 44","bbox":[966.26,438.16,48,48]}
+{"kind":"image","id":"im/yh0n6x87","slide":6,"name":"Graphic 45","bbox":[1181.28,438.16,48,48]}
+{"kind":"image","id":"im/ji9of2ps","slide":6,"name":"Graphic 6","bbox":[1181.28,392.79,48,48]}
+{"kind":"notes","id":"nt/x8f69ofe","slide":6,"text":""}
+{"kind":"slide","id":"sl/gnmp4jqx","slide":7,"title":"PHÂN QUYỀN QUẢN LÝ THEO KHU VỰC","textShapes":16}
+{"kind":"textbox","id":"sh/cb2tkvap","slide":7,"textChars":35,"textLines":1}
+{"kind":"textbox","id":"sh/zedcfa9g","slide":7,"textChars":90,"textLines":6}
+{"kind":"textbox","id":"sh/l0vuh0rm","slide":7,"textChars":164,"textLines":3}
+{"kind":"textbox","id":"sh/dcbud0ra","slide":7,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/ydkbm5sv","slide":7,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/eh0ba1sr","slide":7,"textChars":12,"textLines":2}
+{"kind":"textbox","id":"sh/fi9c369c","slide":7,"textChars":9,"textLines":1}
+{"kind":"textbox","id":"sh/baxkjqlk","slide":7,"textChars":14,"textLines":2}
+{"kind":"textbox","id":"sh/a9ojq5kz","slide":7,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/xcz2l03q","slide":7,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/cbq1sv25","slide":7,"textChars":16,"textLines":2}
+{"kind":"textbox","id":"sh/n6x0fqlo","slide":7,"textChars":16,"textLines":2}
+{"kind":"textbox","id":"sh/25ojml43","slide":7,"textChars":16,"textLines":2}
+{"kind":"textbox","id":"sh/p8fih03e","slide":7,"textChars":16,"textLines":2}
+{"kind":"textbox","id":"sh/o761ov2t","slide":7,"textChars":16,"textLines":2}
+{"kind":"shape","id":"sh/eh4jil4r","slide":7,"name":"Straight Arrow Connector 18","bbox":[961.56,146.82,0,32.14]}
+{"kind":"shape","id":"sh/r2dkrq5g","slide":7,"name":"Elbow Connector 24","bbox":[814.16,131.53,46.78,248.02]}
+{"kind":"shape","id":"sh/s3ml0v61","slide":7,"name":"Elbow Connector 25","bbox":[1065.96,127.75,45.69,254.51]}
+{"kind":"shape","id":"sh/f6xkvq5c","slide":7,"name":"Elbow Connector 28","bbox":[1001.74,191.98,46.78,127.14]}
+{"kind":"shape","id":"sh/nyh4jupo","slide":7,"name":"Elbow Connector 31","bbox":[877.73,195.1,46.78,120.89]}
+{"kind":"shape","id":"sh/c3a5wzq5","slide":7,"name":"Elbow Connector 34","bbox":[938.05,255.42,46.78,0.24]}
+{"kind":"shape","id":"sh/lsj6t47m","slide":7,"name":"Straight Arrow Connector 37","bbox":[713.3,332.99,0.24,25.14]}
+{"kind":"shape","id":"sh/honq18ru","slide":7,"name":"Straight Arrow Connector 40","bbox":[840.67,332.99,1.06,25.14]}
+{"kind":"shape","id":"sh/8jupo3ad","slide":7,"name":"Straight Arrow Connector 43","bbox":[960.89,332.99,0.43,25.14]}
+{"kind":"shape","id":"sh/7yl8vy9s","slide":7,"name":"Straight Arrow Connector 46","bbox":[1088.69,332.99,0,25.14]}
+{"kind":"shape","id":"sh/na9sz6tk","slide":7,"name":"Straight Arrow Connector 49","bbox":[1216.06,332.99,0.31,25.14]}
+{"kind":"textbox","id":"sh/obitsrup","slide":7,"textChars":207,"textLines":1}
+{"kind":"table","id":"tb/sjmxkn6l","slide":7,"name":"Table 5","rows":9,"cols":5,"preview":"PHIẾU | CHUYẾN","bbox":[24.05,101.65,605.14,472.13]}
+{"kind":"notes","id":"nt/gnmp4jqx","slide":7,"text":""}
+{"kind":"slide","id":"sl/fu1gfa1s","slide":8,"title":"QUY TRÌNH ĐIỀU PHỐI XE CÔNG VỤ","textShapes":30}
+{"kind":"textbox","id":"sh/18byd4zy","slide":8,"textChars":34,"textLines":1}
+{"kind":"textbox","id":"sh/g72x4zyd","slide":8,"textChars":17,"textLines":1}
+{"kind":"textbox","id":"sh/ri9g7uhw","slide":8,"textChars":9,"textLines":1}
+{"kind":"textbox","id":"sh/6h0fypgb","slide":8,"textChars":19,"textLines":1}
+{"kind":"textbox","id":"sh/tkby9kzm","slide":8,"textChars":10,"textLines":1}
+{"kind":"textbox","id":"sh/je9g3ahk","slide":8,"textChars":17,"textLines":1}
+{"kind":"textbox","id":"sh/id0fu50z","slide":8,"textChars":24,"textLines":1}
+{"kind":"textbox","id":"sh/o7ydoret","slide":8,"textChars":42,"textLines":1}
+{"kind":"textbox","id":"sh/98rehwve","slide":8,"textChars":28,"textLines":1}
+{"kind":"textbox","id":"sh/m5gvmhwn","slide":8,"textChars":43,"textLines":1}
+{"kind":"textbox","id":"sh/0jydkreh","slide":8,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/1k7edwv2","slide":8,"textChars":24,"textLines":1}
+{"kind":"shape","id":"sh/tw7e9gnq","slide":8,"name":"Straight Arrow Connector 19","bbox":[149.76,220.81,0,37.75]}
+{"kind":"shape","id":"sh/na1sb2lg","slide":8,"name":"Straight Arrow Connector 30","bbox":[1174.76,228.27,0,28.88]}
+{"kind":"shape","id":"sh/l8ja9s3a","slide":8,"name":"Straight Arrow Connector 36","bbox":[1174.76,544.26,0,22.29]}
+{"kind":"shape","id":"sh/4vap8j69","slide":8,"name":"Straight Arrow Connector 42","bbox":[656.61,536.86,47.64,0.3]}
+{"kind":"shape","id":"sh/grap4zqd","slide":8,"name":"Elbow Connector 46","bbox":[149.76,536.86,250.02,55.37]}
+{"kind":"shape","id":"sh/xwvelwj2","slide":8,"name":"Elbow Connector 50","bbox":[511.6,324.46,26.28,563.89]}
+{"kind":"shape","id":"sh/filsfyts","slide":8,"name":"Straight Connector 61","bbox":[266.97,111.63,0,564.69]}
+{"kind":"shape","id":"sh/po3ulsbu","slide":8,"name":"Straight Connector 63","bbox":[1038.7,111.63,0,564.69]}
+{"kind":"textbox","id":"sh/4nutsnu9","slide":8,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/3mlcjit4","slide":8,"textChars":41,"textLines":1}
+{"kind":"textbox","id":"sh/2lcbqdcj","slide":8,"textChars":7,"textLines":1}
+{"kind":"shape","id":"sh/dcnupsb6","slide":8,"name":"Elbow Connector 67","bbox":[97.8,311.41,332.77,228.86]}
+{"kind":"textbox","id":"sh/i18ru9sz","slide":8,"textChars":5,"textLines":1}
+{"kind":"textbox","id":"sh/5ozqp4rq","slide":8,"textChars":5,"textLines":1}
+{"kind":"textbox","id":"sh/6p8ry9sb","slide":8,"textChars":3,"textLines":1}
+{"kind":"textbox","id":"sh/298nm5wj","slide":8,"textChars":11,"textLines":1}
+{"kind":"textbox","id":"sh/3e58fqhs","slide":8,"textChars":24,"textLines":1}
+{"kind":"shape","id":"sh/val8bqhw","slide":8,"name":"Elbow Connector 104","bbox":[909.13,537.16,171.5,56.7]}
+{"kind":"shape","id":"sh/f6p87ah0","slide":8,"name":"Straight Arrow Connector 108","bbox":[1174.76,311.78,0,35.72]}
+{"kind":"shape","id":"sh/natkry58","slide":8,"name":"Straight Arrow Connector 111","bbox":[1174.76,459.71,0,29.92]}
+{"kind":"shape","id":"sh/k3m1sn61","slide":8,"name":"Elbow Connector 118","bbox":[149.76,463.22,252.63,129.01]}
+{"kind":"textbox","id":"sh/lgjm5wfe","slide":8,"textChars":5,"textLines":1}
+{"kind":"shape","id":"sh/kfa5cry9","slide":8,"name":"Elbow Connector 136","bbox":[242.8,203.35,33.38,82.52]}
+{"kind":"textbox","id":"sh/03mhwjap","slide":8,"textChars":14,"textLines":1}
+{"kind":"shape","id":"sh/rah03y10","slide":8,"name":"Elbow Connector 162","bbox":[659.23,403.6,440.45,59.62]}
+{"kind":"textbox","id":"sh/r2lcny5g","slide":8,"textChars":24,"textLines":1}
+{"kind":"shape","id":"sh/s3utw361","slide":8,"name":"Elbow Connector 181","bbox":[242.8,358.38,542.61,45.23]}
+{"kind":"textbox","id":"sh/4zutsj65","slide":8,"textChars":5,"textLines":1}
+{"kind":"shape","id":"sh/1wnets7y","slide":8,"name":"Straight Arrow Connector 197","bbox":[149.76,385.69,0,206.54]}
+{"kind":"textbox","id":"sh/ehgvihwr","slide":8,"textChars":35,"textLines":1}
+{"kind":"textbox","id":"sh/2ts769o3","slide":8,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/gjuto3ud","slide":8,"textChars":20,"textLines":1}
+{"kind":"shape","id":"sh/cbetwnul","slide":8,"name":"Straight Arrow Connector 68","bbox":[481.06,203.35,41.93,0]}
+{"kind":"shape","id":"sh/wzq9szat","slide":8,"name":"Straight Arrow Connector 71","bbox":[702.85,203.1,70.12,0.26]}
+{"kind":"shape","id":"sh/rix4n6dw","slide":8,"name":"Straight Arrow Connector 79","bbox":[888.39,230.41,0,41.86]}
+{"kind":"shape","id":"sh/sj65gbeh","slide":8,"name":"Straight Arrow Connector 82","bbox":[887.86,326.9,0.54,34.01]}
+{"kind":"shape","id":"sh/lgjml0bi","slide":8,"name":"Elbow Connector 90","bbox":[990.3,200.95,90.34,202.65]}
+{"kind":"textbox","id":"sh/xcjmh0b6","slide":8,"textChars":3,"textLines":1}
+{"kind":"textbox","id":"sh/idc76l07","slide":8,"textChars":3,"textLines":1}
+{"kind":"textbox","id":"sh/4fep8vid","slide":8,"textChars":3,"textLines":1}
+{"kind":"notes","id":"nt/fu1gfa1s","slide":8,"text":""}
+{"kind":"slide","id":"sl/udsvah03","slide":9,"title":"SƠ ĐỒ HÀNH TRÌNH – ĐIỂM TRUNG CHUYỂN","textShapes":4}
+{"kind":"textbox","id":"sh/1cfmhgne","slide":9,"textChars":41,"textLines":1}
+{"kind":"textbox","id":"sh/ofq5svm5","slide":9,"textChars":473,"textLines":4}
+{"kind":"textbox","id":"sh/mdonql4z","slide":9,"textChars":489,"textLines":7}
+{"kind":"textbox","id":"sh/9gzml0nq","slide":9,"textChars":126,"textLines":1}
+{"kind":"image","id":"im/ytkjutwz","slide":9,"name":"Picture 3","bbox":[693.78,107.58,547,504.84]}
+{"kind":"notes","id":"nt/udsvah03","slide":9,"text":""}
+{"kind":"slide","id":"sl/m90b6t0r","slide":10,"title":"GHÉP CHUYẾN CÙNG HƯỚNG","textShapes":11}
+{"kind":"textbox","id":"sh/xc3mho32","slide":10,"textChars":26,"textLines":1}
+{"kind":"textbox","id":"sh/zelojyl8","slide":10,"textChars":136,"textLines":1}
+{"kind":"textbox","id":"sh/l036l83y","slide":10,"textChars":210,"textLines":5}
+{"kind":"shape","id":"sh/kzu5c32t","slide":10,"name":"Oval 6","bbox":[695.35,212.76,28.54,28.54]}
+{"kind":"shape","id":"sh/725onyl4","slide":10,"name":"Oval 7","bbox":[851.68,212.76,28.54,28.54]}
+{"kind":"shape","id":"sh/m1cnetkj","slide":10,"name":"Oval 8","bbox":[1019.14,214.05,28.54,28.54]}
+{"kind":"shape","id":"sh/s7yt4b21","slide":10,"name":"Oval 9","bbox":[1168.65,214.05,28.54,28.54]}
+{"kind":"shape","id":"sh/q5gb21kb","slide":10,"name":"Straight Arrow Connector 11","bbox":[723.89,227.03,127.78,0]}
+{"kind":"shape","id":"sh/r6pcv6lw","slide":10,"name":"Straight Arrow Connector 12","bbox":[880.22,227.03,138.92,1.3]}
+{"kind":"shape","id":"sh/e9gb61k7","slide":10,"name":"Straight Arrow Connector 15","bbox":[1047.68,228.32,120.97,0]}
+{"kind":"textbox","id":"sh/p0ru503u","slide":10,"textChars":6,"textLines":1}
+{"kind":"textbox","id":"sh/xwnupgvy","slide":10,"textChars":6,"textLines":1}
+{"kind":"textbox","id":"sh/wvetgbud","slide":10,"textChars":5,"textLines":1}
+{"kind":"textbox","id":"sh/bu5cnqd8","slide":10,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/lk7ut0va","slide":10,"textChars":8,"textLines":1}
+{"kind":"textbox","id":"sh/kjytkvup","slide":10,"textChars":8,"textLines":1}
+{"kind":"textbox","id":"sh/jypcrqd4","slide":10,"textChars":8,"textLines":1}
+{"kind":"textbox","id":"sh/yxgbilcj","slide":10,"textChars":231,"textLines":1}
+{"kind":"notes","id":"nt/m90b6t0r","slide":10,"text":""}
+{"kind":"slide","id":"sl/jetc3ut0","slide":11,"title":"CÁC NỘI DUNG CẦN THỐNG NHẤT VỚI NGHIỆP VỤ","textShapes":11}
+{"kind":"textbox","id":"sh/xcryxg7y","slide":11,"textChars":49,"textLines":1}
+{"kind":"textbox","id":"sh/250zy18b","slide":11,"textChars":18,"textLines":1}
+{"kind":"textbox","id":"sh/98rytw72","slide":11,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/1cfa58zi","slide":11,"textChars":10,"textLines":1}
+{"kind":"textbox","id":"sh/epobatgr","slide":11,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/zaxs3yhc","slide":11,"textChars":36,"textLines":1}
+{"kind":"textbox","id":"sh/cn6t83y1","slide":11,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/wbih4b6d","slide":11,"textChars":28,"textLines":1}
+{"kind":"textbox","id":"sh/n69grmpw","slide":11,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/61kzalof","slide":11,"textChars":19,"textLines":1}
+{"kind":"textbox","id":"sh/ofqtgnyt","slide":11,"textChars":1,"textLines":1}
+{"kind":"notes","id":"nt/jetc3ut0","slide":11,"text":""}
+{"kind":"slide","id":"sl/8f2psfyx","slide":12,"title":"GIÁM SÁT GPS TRỰC TUYẾN & DASHBOARD TỔNG QUAN","textShapes":21}
+{"kind":"textbox","id":"sh/0f2lgnmp","slide":12,"textChars":45,"textLines":1}
+{"kind":"shape","id":"sh/ra943il8","slide":12,"name":"Shape 1","bbox":[54.38,110.4,278.4,100.8]}
+{"kind":"shape","id":"sh/q903ad4n","slide":12,"name":"Shape 2","bbox":[54.38,110.4,11.52,100.8]}
+{"kind":"textbox","id":"sh/dcbm583y","slide":12,"textChars":10,"textLines":1}
+{"kind":"textbox","id":"sh/sb2lcnmd","slide":12,"textChars":18,"textLines":1}
+{"kind":"shape","id":"sh/b6d4f2lc","slide":12,"name":"Shape 5","bbox":[351.98,110.4,278.4,100.8]}
+{"kind":"shape","id":"sh/a543mx4r","slide":12,"name":"Shape 6","bbox":[351.98,110.4,11.52,100.8]}
+{"kind":"textbox","id":"sh/wvupgz6t","slide":12,"textChars":17,"textLines":1}
+{"kind":"textbox","id":"sh/xw3q94ne","slide":12,"textChars":12,"textLines":1}
+{"kind":"shape","id":"sh/atc7epon","slide":12,"name":"Shape 9","bbox":[649.58,110.4,278.4,100.8]}
+{"kind":"shape","id":"sh/bulo7u58","slide":12,"name":"Shape 10","bbox":[649.58,110.4,11.52,100.8]}
+{"kind":"textbox","id":"sh/orapcf6h","slide":12,"textChars":17,"textLines":1}
+{"kind":"textbox","id":"sh/9sj65kn2","slide":12,"textChars":14,"textLines":1}
+{"kind":"shape","id":"sh/mps7a5or","slide":12,"name":"Shape 13","bbox":[947.18,110.4,278.4,100.8]}
+{"kind":"shape","id":"sh/nq1o3a5w","slide":12,"name":"Shape 14","bbox":[947.18,110.4,11.52,100.8]}
+{"kind":"textbox","id":"sh/0nap8f6l","slide":12,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/1oj61kn6","slide":12,"textChars":17,"textLines":1}
+{"kind":"shape","id":"sh/hkbm5wzu","slide":12,"name":"Shape 17","bbox":[54.38,240,575.46,403.2]}
+{"kind":"textbox","id":"sh/gj25cry9","slide":12,"textChars":28,"textLines":1}
+{"kind":"textbox","id":"sh/fit436ho","slide":12,"textChars":122,"textLines":1}
+{"kind":"textbox","id":"sh/uh0na1g3","slide":12,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/tgrm1wzy","slide":12,"textChars":36,"textLines":1}
+{"kind":"textbox","id":"sh/sfi58ryd","slide":12,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/7u94zmhs","slide":12,"textChars":38,"textLines":1}
+{"kind":"textbox","id":"sh/6t0n6hg7","slide":12,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/dcv6dgz2","slide":12,"textChars":36,"textLines":1}
+{"kind":"textbox","id":"sh/cbm5kbyh","slide":12,"textChars":73,"textLines":1}
+{"kind":"textbox","id":"sh/alwbitsn","slide":12,"textChars":83,"textLines":1}
+{"kind":"textbox","id":"sh/5436t0fq","slide":12,"textChars":59,"textLines":1}
+{"kind":"textbox","id":"sh/43upkve5","slide":12,"textChars":1,"textLines":1}
+{"kind":"image","id":"im/cj2lwnqt","slide":12,"name":"Image 0","bbox":[0,0,1279.97,720]}
+{"kind":"image","id":"im/dkb2ps7y","slide":12,"name":"Picture 48","bbox":[678.72,233.75,520.34,409.45]}
+{"kind":"notes","id":"nt/8f2psfyx","slide":12,"text":""}
+{"kind":"slide","id":"sl/hgzapcr6","slide":13,"title":"QUY TRÌNH ĐĂNG KỂM – BẢO TRÌ","textShapes":23}
+{"kind":"textbox","id":"sh/q50nydsj","slide":13,"textChars":32,"textLines":1}
+{"kind":"textbox","id":"sh/bq9orito","slide":13,"textChars":18,"textLines":1}
+{"kind":"textbox","id":"sh/o3i5w3ad","slide":13,"textChars":9,"textLines":1}
+{"kind":"textbox","id":"sh/p4r6p8by","slide":13,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/21gnuts7","slide":13,"textChars":10,"textLines":1}
+{"kind":"textbox","id":"sh/1076lobm","slide":13,"textChars":27,"textLines":1}
+{"kind":"textbox","id":"sh/hcfy9k3u","slide":13,"textChars":26,"textLines":1}
+{"kind":"textbox","id":"sh/gb6x0zm9","slide":13,"textChars":10,"textLines":1}
+{"kind":"textbox","id":"sh/vaxg7ulo","slide":13,"textChars":9,"textLines":1}
+{"kind":"shape","id":"sh/cnqh8fux","slide":13,"name":"Straight Arrow Connector 19","bbox":[185.14,220.81,0,37.75]}
+{"kind":"shape","id":"sh/y9cfa50v","slide":13,"name":"Straight Connector 61","bbox":[349.09,110.96,0,564.69]}
+{"kind":"shape","id":"sh/8zexgzix","slide":13,"name":"Straight Connector 63","bbox":[941.19,110.96,0,564.69]}
+{"kind":"textbox","id":"sh/90nypkzi","slide":13,"textChars":41,"textLines":1}
+{"kind":"textbox","id":"sh/mdwfep0r","slide":13,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/ne5gnuhc","slide":13,"textChars":21,"textLines":2}
+{"kind":"textbox","id":"sh/32ponyts","slide":13,"textChars":24,"textLines":1}
+{"kind":"shape","id":"sh/u9ofyp43","slide":13,"name":"Straight Arrow Connector 12","bbox":[185.14,313.18,0,19.83]}
+{"kind":"textbox","id":"sh/bmhgfatc","slide":13,"textChars":19,"textLines":1}
+{"kind":"textbox","id":"sh/jqlkfyds","slide":13,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/4re1o3ed","slide":13,"textChars":20,"textLines":1}
+{"kind":"shape","id":"sh/6dwjqtw3","slide":13,"name":"Elbow Connector 34","bbox":[313.56,181.59,209.2,104.27]}
+{"kind":"shape","id":"sh/mhsje9wz","slide":13,"name":"Elbow Connector 38","bbox":[313.56,285.87,332.94,68.51]}
+{"kind":"shape","id":"sh/m5gjyt4r","slide":13,"name":"Elbow Connector 43","bbox":[727.64,181.59,238.8,0.19]}
+{"kind":"shape","id":"sh/vupkvylo","slide":13,"name":"Elbow Connector 48","bbox":[851.38,354.37,115.06,79.46]}
+{"kind":"shape","id":"sh/t4velwry","slide":13,"name":"Straight Arrow Connector 53","bbox":[1094.86,209.1,0,35.01]}
+{"kind":"shape","id":"sh/614va1sn","slide":13,"name":"Straight Arrow Connector 56","bbox":[1094.86,461.15,0,20.34]}
+{"kind":"shape","id":"sh/jup0fy1k","slide":13,"name":"Elbow Connector 73","bbox":[912.01,392.52,39.25,326.44]}
+{"kind":"shape","id":"sh/kvy1o325","slide":13,"name":"Elbow Connector 76","bbox":[768.42,271.43,198.03,217.32]}
+{"kind":"shape","id":"sh/yxkratwz","slide":13,"name":"Elbow Connector 83","bbox":[313.56,488.75,198.03,47.36]}
+{"kind":"shape","id":"sh/lkbal8vq","slide":13,"name":"Elbow Connector 86","bbox":[313.56,536.11,198.03,39.25]}
+{"kind":"shape","id":"sh/tozulwfq","slide":13,"name":"Elbow Connector 89","bbox":[269.62,153.22,271.1,440.06]}
+{"kind":"shape","id":"sh/pgjetgfy","slide":13,"name":"Elbow Connector 97","bbox":[417.88,177.74,98.32,563.79]}
+{"kind":"textbox","id":"sh/v6hofel4","slide":13,"textChars":5,"textLines":1}
+{"kind":"textbox","id":"sh/ul8nm94j","slide":13,"textChars":3,"textLines":1}
+{"kind":"textbox","id":"sh/9kz6d43y","slide":13,"textChars":5,"textLines":1}
+{"kind":"textbox","id":"sh/gzy5s3a1","slide":13,"textChars":53,"textLines":1}
+{"kind":"textbox","id":"sh/t8fy5k3i","slide":13,"textChars":1,"textLines":1}
+{"kind":"textbox","id":"sh/876xwfmx","slide":13,"textChars":39,"textLines":1}
+{"kind":"textbox","id":"sh/7mdg3als","slide":13,"textChars":1,"textLines":1}
+{"kind":"notes","id":"nt/hgzapcr6","slide":13,"text":""}
+{"kind":"slide","id":"sl/6lsnupw7","slide":14,"title":"QUẢN LÝ NHIÊN LIỆU / CHI PHÍ","textShapes":18}
+{"kind":"textbox","id":"sh/xc7eds76","slide":14,"textChars":32,"textLines":1}
+{"kind":"textbox","id":"sh/wbydknq1","slide":14,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/jepwf2pc","slide":14,"textChars":9,"textLines":1}
+{"kind":"textbox","id":"sh/idgvmx8r","slide":14,"textChars":27,"textLines":1}
+{"kind":"textbox","id":"sh/5grehs7i","slide":14,"textChars":10,"textLines":1}
+{"kind":"textbox","id":"sh/ehwvat8n","slide":14,"textChars":22,"textLines":1}
+{"kind":"shape","id":"sh/hsvy50re","slide":14,"name":"Straight Arrow Connector 19","bbox":[183.43,222.41,1.02,37.49]}
+{"kind":"shape","id":"sh/r2h0vy10","slide":14,"name":"Straight Connector 61","bbox":[349.09,110.96,0,564.69]}
+{"kind":"shape","id":"sh/50fitoja","slide":14,"name":"Straight Connector 63","bbox":[941.19,110.96,0,564.69]}
+{"kind":"textbox","id":"sh/kz61kj2p","slide":14,"textChars":8,"textLines":1}
+{"kind":"textbox","id":"sh/jex0re14","slide":14,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/idoji9kj","slide":14,"textChars":41,"textLines":1}
+{"kind":"textbox","id":"sh/up4fal83","slide":14,"textChars":17,"textLines":1}
+{"kind":"shape","id":"sh/jyp4fil4","slide":14,"name":"Elbow Connector 34","bbox":[311.84,222.5,128.42,64.71]}
+{"kind":"shape","id":"sh/365472tg","slide":14,"name":"Elbow Connector 43","bbox":[662.96,193.36,303.48,29.14]}
+{"kind":"shape","id":"sh/0rq18zad","slide":14,"name":"Straight Arrow Connector 53","bbox":[1094.86,220.68,0,78.44]}
+{"kind":"textbox","id":"sh/4bqtcra9","slide":14,"textChars":5,"textLines":1}
+{"kind":"shape","id":"sh/1w3i14fq","slide":14,"name":"Elbow Connector 18","bbox":[220.47,244.22,295.12,367.16]}
+{"kind":"textbox","id":"sh/4vmh0vq5","slide":14,"textChars":3,"textLines":1}
+{"kind":"textbox","id":"sh/cvylkn2d","slide":14,"textChars":12,"textLines":1}
+{"kind":"shape","id":"sh/kzy5on2p","slide":14,"name":"Straight Arrow Connector 35","bbox":[312.86,355.22,679.55,7.11]}
+{"kind":"textbox","id":"sh/h4nm5sba","slide":14,"textChars":25,"textLines":1}
+{"kind":"shape","id":"sh/gjelc7up","slide":14,"name":"Elbow Connector 42","bbox":[311.84,287.21,298.75,173.7]}
+{"kind":"shape","id":"sh/47y5g7u1","slide":14,"name":"Elbow Connector 46","bbox":[739.29,176.02,209.81,244.5]}
+{"kind":"shape","id":"sh/1szi14by","slide":14,"name":"Elbow Connector 54","bbox":[608.18,116,191.35,781.99]}
+{"kind":"textbox","id":"sh/5o32d8r2","slide":14,"textChars":3,"textLines":1}
+{"kind":"textbox","id":"sh/t4zixoj6","slide":14,"textChars":5,"textLines":1}
+{"kind":"shape","id":"sh/s3q1oj2l","slide":14,"name":"Straight Arrow Connector 60","bbox":[184.45,389.64,0,185.72]}
+{"kind":"textbox","id":"sh/kfidonqx","slide":14,"textChars":112,"textLines":1}
+{"kind":"textbox","id":"sh/zi5c3y98","slide":14,"textChars":1,"textLines":1}
+{"kind":"notes","id":"nt/6lsnupw7","slide":14,"text":""}
+{"kind":"slide","id":"sl/vaxsvy10","slide":15,"title":"PHỤ LỤC – DỮ LIỆU ĐẦU VÀO CHO HỆ THỐNG","textShapes":3}
+{"kind":"textbox","id":"sh/k3y5ov21","slide":15,"textChars":46,"textLines":1}
+{"kind":"textbox","id":"sh/uh4v2pkj","slide":15,"textChars":59,"textLines":1}
+{"kind":"textbox","id":"sh/vixcvu14","slide":15,"textChars":1,"textLines":1}
+{"kind":"table","id":"tb/i1cbixkz","slide":15,"name":"Table 31","rows":7,"cols":1,"preview":"THÔNG TIN TÀI XẾ","bbox":[28.8,124.12,200.47,272.53]}
+{"kind":"table","id":"tb/x03upsje","slide":15,"name":"Table 32","rows":11,"cols":1,"preview":"THÔNG TIN XE","bbox":[270.11,125.13,200.47,428.27]}
+{"kind":"table","id":"tb/wzutgn2t","slide":15,"name":"Table 33","rows":6,"cols":1,"preview":"CẤU HÌNH ĐIỂM ĐI/ĐẾN","bbox":[511.41,125.13,200.47,249.07]}
+{"kind":"table","id":"tb/velcni18","slide":15,"name":"Table 36","rows":4,"cols":1,"preview":"LOẠI BẢO DƯỠNG","bbox":[752.72,125.13,200.47,155.73]}
+{"kind":"table","id":"tb/adcbexkn","slide":15,"name":"Table 37","rows":4,"cols":1,"preview":"LOẠI CHI PHÍ","bbox":[994.02,124.12,200.47,155.73]}
+{"kind":"table","id":"tb/hw7u1wji","slide":15,"name":"Table 38","rows":4,"cols":1,"preview":"CẤU HÌNH KHOẢNG CÁCH","bbox":[511.41,396.65,200.47,171.2]}
+{"kind":"table","id":"tb/gvydsr2x","slide":15,"name":"Table 39","rows":5,"cols":1,"preview":"TÀI KHOẢN","bbox":[28.8,428.27,200.47,194.67]}
+{"kind":"image","id":"im/7yt83adg","slide":15,"name":"Image 0","bbox":[0,0,1279.97,741.46]}
+{"kind":"notes","id":"nt/vaxsvy10","slide":15,"text":""}
+{"kind":"slide","id":"sl/gny5sjyp","slide":16,"title":"TRÂN TRỌNG CẢM ƠN","textShapes":2}
+{"kind":"textbox","id":"sh/ytkf2h8j","slide":16,"textChars":17,"textLines":1}
+{"kind":"textbox","id":"sh/kv2h4rqp","slide":16,"textChars":63,"textLines":2}
+{"kind":"shape","id":"sh/lwbyxwra","slide":16,"name":"Text 4","bbox":[0,624,1279.97,38.4]}
+{"kind":"image","id":"im/3u5kvqx8","slide":16,"name":"Image 0","bbox":[-8.82,0,1279.97,720]}
+{"kind":"notes","id":"nt/gny5sjyp","slide":16,"text":""}
+{"kind":"notice","message":"Truncated: omitted 0 lines. Increase maxChars or narrow target."}

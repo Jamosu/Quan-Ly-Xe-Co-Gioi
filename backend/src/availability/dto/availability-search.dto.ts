@@ -4,6 +4,12 @@ import { ArrayUnique, IsArray, IsDate, IsEnum, IsInt, IsOptional, IsString, Min 
 import { Unit, WorkOrderCategory } from '@prisma/client';
 
 export class AvailabilitySearchDto {
+  @ApiPropertyOptional({ description: 'Khu vực OWNER dùng để lọc trực tiếp xe và tài xế' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  managementUnitId?: number;
+
   @ApiProperty({ type: String, format: 'date-time' })
   @Type(() => Date)
   @IsDate()

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+﻿import { ConflictException, ForbiddenException } from '@nestjs/common';
 import {
   Role,
   Unit,
@@ -12,13 +12,13 @@ import {
 } from '@prisma/client';
 import { WorkOrdersService } from './work-orders.service';
 
-const driver = { id: 20, role: Role.DRIVER, unit: Unit.NT1 };
-const manager = { id: 10, role: Role.FARM_MANAGER, unit: Unit.NT1 };
+const driver = { id: 20, role: Role.DRIVER, unit: Unit.KOUN_MOM };
+const manager = { id: 10, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM };
 
 const baseOrder = (status: WorkOrderStatus, overrides: Record<string, unknown> = {}) => ({
   id: 7,
   type: WorkOrderType.DISPATCH,
-  unit: Unit.NT1,
+  unit: Unit.KOUN_MOM,
   status,
   version: 3,
   assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT,
@@ -41,6 +41,8 @@ const lockedTx = (order: ReturnType<typeof baseOrder>) => ({
     update: jest.fn().mockResolvedValue({ ...order, version: order.version + 1 }),
   },
   workOrderEvent: { create: jest.fn().mockResolvedValue({}) },
+  workBreakSession: { findFirst: jest.fn().mockResolvedValue(null) },
+  workPauseSession: { findFirst: jest.fn().mockResolvedValue(null) },
 });
 
 describe('WorkOrdersService business-flow guards', () => {
@@ -59,7 +61,7 @@ describe('WorkOrdersService business-flow guards', () => {
       },
       vehicleDriverAssignment: { findFirst: jest.fn().mockResolvedValue({ vehicleId: 502 }) },
       user: { findUnique: jest.fn().mockResolvedValue({ assignedVehicleId: 502 }) },
-      vehicle: { findUnique: jest.fn().mockResolvedValue({ id: 502, unit: Unit.NT1, vehicleTypeId: 101, vehicleType: { isAssignable: true, operationalDomain: VehicleOperationalDomain.AGRICULTURE } }) },
+      vehicle: { findUnique: jest.fn().mockResolvedValue({ id: 502, unit: Unit.KOUN_MOM, vehicleTypeId: 101, vehicleType: { isAssignable: true, operationalDomain: VehicleOperationalDomain.AGRICULTURE } }) },
       driverProfile: { findUnique: jest.fn().mockResolvedValue({ userId: driver.id }) },
       workDriverAssignment: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 51 }) },
       driverKpiEvent: { create: jest.fn().mockResolvedValue({}) },

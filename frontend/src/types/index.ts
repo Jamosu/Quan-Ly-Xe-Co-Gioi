@@ -110,6 +110,8 @@ export interface VehicleProfile {
   contractStatus?: string;
   companyOwner?: string;
   assignedUnitCode?: string;
+  isLiquidated?: boolean;
+  managementUnitId?: number;
   complexCode?: string;
   regionCode?: string;
   categoryGroup?: string;
@@ -129,6 +131,7 @@ export interface VehicleProfile {
   // Nhân sự quản lý & Nơi tập kết (từ sheet XE & MÁY CG AGRI)
   managerName?: string | null;
   managerPhone?: string | null;
+  managerUserId?: number | null;
   currentLocationName?: string | null;
 }
 
@@ -172,6 +175,12 @@ export interface VehicleFilterOptions {
   assignedUnits: string[];
   locations?: string[];
   assetGroups: string[];
+  complexCounts?: Record<string, number>;
+  regionCounts?: Record<string, number>;
+  unitCounts?: Record<string, number>;
+  locationCounts?: Record<string, number>;
+  assetGroupCounts?: Record<string, number>;
+  unassignedCounts?: Record<string, number>;
   vehicleTypes: VehicleTypeOption[];
   manufacturers: ManufacturerOption[];
   models: ModelOption[];
@@ -182,6 +191,7 @@ export interface VehicleFilterOptions {
   purchaseConditions?: string[];
   suppliers?: string[];
   companyOwners?: string[];
+  managers?: Array<{ id: number; name: string; phone?: string | null; vehicleCount: number }>;
 }
 
 export interface VehicleListResponse {
@@ -196,13 +206,25 @@ export interface VehicleListResponse {
 
 export interface VehicleStatistics {
   totalVehicles: number;
+  totalImplements: number;
+  totalEquipment: number;
   running: number;
   standby: number;
+  liquidated?: number;
   maintenance: number;
   repair: number;
   waitingDispatch: number;
   gpsAttached: number;
   availabilityRate: string;
+  unassignedUnit: number;
+  unassignedDriver?: number;
+  assignedUnit: number;
+  unassignedImplement: number;
+  unassignedEquipment: number;
+  activeEquipment: number;
+  equipmentMaintenance: number;
+  equipmentRepair: number;
+  assetGroupCounts: Record<string, number>;
   maintenanceAlerts: {
     red: number;
     amber: number;
@@ -314,11 +336,12 @@ export type PlanType = 'AGRICULTURE' | 'CONSTRUCTION' | 'INTERNAL_TRANSPORT';
 export type DispatchWorkflowStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'ASSIGNED' | 'DRIVER_ACCEPTED' | 'DEPARTED' | 'AT_WORKSITE' | 'WORKING' | 'RETURNING_TO_DEPOT' | 'COMPLETED' | 'ACCEPTED' | 'CLOSED' | 'REJECTED' | 'CANCELLED';
 export type TransportWorkflowStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'ASSIGNED' | 'DRIVER_ACCEPTED' | 'AT_PICKUP' | 'LOADING' | 'DEPARTED' | 'IN_TRANSIT' | 'AT_DELIVERY' | 'UNLOADING' | 'DELIVERED' | 'RETURNING_TO_DEPOT' | 'AT_DEPOT' | 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';
 
-export interface ApiPerson { id: number; fullName: string; phone?: string; licenseClass?: string; licenseExpiryDate?: string; healthCheckExpiryDate?: string; }
-export interface ApiVehicle { id: number; code: string; plate?: string; name: string; status: string; vehicleType?: { id: number; name: string; requiredLicenseClass?: string }; }
+export interface ApiManagementUnit { id: number; code: string; name: string; complexCode?: string; }
+export interface ApiPerson { id: number; code?: string; fullName: string; phone?: string; licenseClass?: string; licenseExpiryDate?: string; healthCheckExpiryDate?: string; manager?: ApiPerson | null; managementUnit?: ApiManagementUnit | null; }
+export interface ApiVehicle { id: number; code: string; plate?: string; name: string; status: string; vehicleType?: { id: number; name: string; requiredLicenseClass?: string }; manager?: ApiPerson | null; managementUnit?: ApiManagementUnit | null; }
 export interface ProductionPlanItemRecord { id: number; workDate: string; shift: string; plotName: string; stage: 'LAM_DAT' | 'TRONG_MOI' | 'THU_HOACH' | 'VAN_CHUYEN' | 'HAU_CAN'; jobCode?: string; jobName: string; scheduledDays?: string; location?: string; origin?: string; destination?: string; machineType?: string; durationHours?: number; targetQuantity: number; targetUnit: string; plannedVehicleCount: number; plannedMachineHours: number; taskStatus?: string; status?: string; notes?: string; vehicleType?: { id: number; name: string }; }
 export interface ProductionPlanRecord { id: number; code: string; title: string; planType: PlanType; stage: ProductionPlanItemRecord['stage']; unit: string; complexCode: string; complexName?: string; enterpriseCode?: string; enterpriseName?: string; farmCode?: string; farmName?: string; categoryCode?: string; categoryName?: string; lotPlot: string; targetAreaHa: number; completedAreaHa: number; assignedVehiclesCount: number; startDate: string; endDate: string; weekStart?: string; weekNumber?: number; notes?: string; status: PlanWorkflowStatus; items: ProductionPlanItemRecord[]; orderSummary?: { productionOrders: number; generatedOrders: number; pendingOrders: number; activeOrders: number; completedOrders: number }; }
-export interface DispatchOrderRecord { id: number; code: string; sourceType: string; generationKey?: string; unit: string; purpose: string; origin: string; destination: string; departureTime?: string; plannedEndTime?: string; actualDepartureTime?: string; status: DispatchWorkflowStatus; isDelayed: boolean; isOverdue?: boolean; needsAttention?: boolean; notes?: string; planNotes?: string; taskNotes?: string; orderCategory?: string; categoryLabel?: string; workVolumeTarget?: number; workVolumeUnit?: string; plannedFuelLiters?: number; fuelQuotaRate?: string; vehicle?: ApiVehicle; driver?: ApiPerson; implement?: { id: number; code: string; name: string }; productionOrder?: { id: number; plan?: Pick<ProductionPlanRecord, 'id' | 'code' | 'title' | 'planType'>; planItem?: Pick<ProductionPlanItemRecord, 'id' | 'jobCode' | 'jobName'> }; operationalWorkOrder?: { id: number; status: string; complexName?: string; enterpriseName?: string; farmName?: string; targetQuantity?: number; targetUnit?: string }; legacyVehicle?: string; legacyDriver?: string; approvedAt?: string; confirmations?: OperationConfirmationRecord[]; }
+export interface DispatchOrderRecord { id: number; code: string; sourceType: string; generationKey?: string; unit: string; purpose: string; origin: string; destination: string; departureTime?: string; plannedEndTime?: string; actualDepartureTime?: string; createdAt?: string; createdBy?: ApiPerson | null; requester?: ApiPerson | null; status: DispatchWorkflowStatus; isDelayed: boolean; isOverdue?: boolean; needsAttention?: boolean; notes?: string; planNotes?: string; taskNotes?: string; orderCategory?: string; categoryLabel?: string; workVolumeTarget?: number; workVolumeUnit?: string; plannedFuelLiters?: number; fuelQuotaRate?: string; vehicle?: ApiVehicle; driver?: ApiPerson; implement?: { id: number; code: string; name: string }; productionOrder?: { id: number; plan?: Pick<ProductionPlanRecord, 'id' | 'code' | 'title' | 'planType'>; planItem?: Pick<ProductionPlanItemRecord, 'id' | 'jobCode' | 'jobName'> }; operationalWorkOrder?: { id: number; status: string; complexName?: string; enterpriseName?: string; farmName?: string; targetQuantity?: number; targetUnit?: string }; legacyVehicle?: string; legacyDriver?: string; approvedAt?: string; confirmations?: OperationConfirmationRecord[]; }
 export interface TransportItemRecord { id: number; materialCode?: string; cargoName: string; unitOfMeasure: string; plannedQuantity: number; actualQuantity?: number; pickupLocation?: string; deliveryLocation?: string; sourceRowNumber?: number; notes?: string; }
 export interface TransportOrderRecord { id: number; code: string; sourceType?: string; generationKey?: string; routeType: 'ONE_WAY' | 'TWO_WAY'; flowType: 'STANDARD' | 'LIVESTOCK_FEED_3_LEG'; unit: string; complexCode?: string; complexName?: string; planCode?: string; planTitle?: string; requestDate?: string; executionDate?: string; cargoType?: string; tonnage?: number; origin?: string; destination?: string; returnCargoName?: string; returnTonnage?: number; returnOrigin?: string; returnDestination?: string; departureTime?: string; plannedEndTime?: string; actualEndTime?: string; completedAt?: string; distanceKm: number; plannedFuelLiters?: number; actualFuelLiters?: number; palletCount?: number; trailerNote?: string; notes?: string; transportMode?: string; cargoHandlingStatus?: string; containerNumber?: string; status: TransportWorkflowStatus; isRouteDeviated: boolean; vehicle?: ApiVehicle; driver?: ApiPerson; secondaryDriver?: ApiPerson; secondaryDriverName?: string; trailer?: { id: number; code: string; name: string }; productionOrder?: { id: number; plan?: Pick<ProductionPlanRecord, 'id' | 'code' | 'title' | 'planType'>; planItem?: Pick<ProductionPlanItemRecord, 'id' | 'jobCode' | 'jobName'> }; operationalWorkOrder?: { id: number; status: string; complexName?: string; enterpriseName?: string; farmName?: string; targetQuantity?: number; targetUnit?: string }; legacyVehicle?: string; legacyDriver?: string; legacyTrailer?: string; items: TransportItemRecord[]; confirmations?: OperationConfirmationRecord[]; completedBy?: string; acceptanceRating?: string; }
 export interface OperationConfirmationRecord { id: number; code: string; type: 'WEIGHT' | 'GPS'; status: 'PENDING' | 'CONFIRMED' | 'REJECTED'; grossWeightTons?: number; tareWeightTons?: number; netWeightTons?: number; measuredAreaHa?: number; machineHours?: number; routeLocation?: string; confirmedAt?: string; dispatchOrder?: DispatchOrderRecord; transportOrder?: TransportOrderRecord; }

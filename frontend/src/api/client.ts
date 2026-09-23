@@ -15,14 +15,17 @@ import {
   VehicleTypeMaster,
 } from '../types';
 import { useAppStore } from '../store/useAppStore';
+import { isLiquidatedAssignedUnit } from '../utils/vehicleLifecycle';
 
-const API_BASE_URL =
+export const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? 'https://backend-qlxcg.onrender.com/api' : 'http://localhost:3001/api');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 600000, // 10 minutes for large file sync (>500MB)
+  maxBodyLength: Infinity,
+  maxContentLength: Infinity,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -39,6 +42,7 @@ export const setSessionAuth = (token: string, user: any) => {
   sessionStorage.setItem('thaco_agri_jwt_token', token);
   sessionStorage.setItem('thaco_auth_user', JSON.stringify(user));
   useAppStore.getState().setCurrentUser(user);
+  window.dispatchEvent(new Event('auth-session-updated'));
 };
 
 export const clearSessionAuth = () => {
@@ -47,6 +51,7 @@ export const clearSessionAuth = () => {
   sessionStorage.removeItem('thaco_auth_user');
   localStorage.removeItem('thaco_agri_jwt_token');
   useAppStore.getState().logout();
+  window.dispatchEvent(new Event('auth-session-updated'));
 };
 
 // Request interceptor to attach JWT Token
@@ -136,7 +141,9 @@ const assetGroupLabels: Record<string, string> = {
 
 const unwrapPayload = (response: any) => response.data?.data || response.data || {};
 
-const mapVehicleResponse = (v: any): VehicleProfile => ({
+const mapVehicleResponse = (v: any): VehicleProfile => {
+  const isLiquidated = isLiquidatedAssignedUnit(v.assignedUnitCode);
+  return ({
   id: `V${v.id}`,
   plateNumber: v.plate || 'Chưa gắn biển',
   internalCode: v.code,
@@ -150,11 +157,11 @@ const mapVehicleResponse = (v: any): VehicleProfile => ({
   brandModel: v.modelName ? `${v.name} (${v.modelName})` : v.name,
   yearManufactured: v.manufactureYear || 0,
   klhName: v.complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom (Campuchia)' : (v.complexCode || 'Khu liên hợp Koun Mom'),
-  teamUnit: v.assignedUnitCode || (
-    v.unit === 'NT1' ? 'Đội cơ giới Nông trường 1' :
-    v.unit === 'NT2' ? 'Đội cơ giới Nông trường 2' :
-    v.unit === 'XN_BO' ? 'Xí nghiệp Chăn nuôi Bò' :
-    v.unit === 'TT_BTSC' ? 'Xưởng BTSC' : 'Ban Ô tô Xe máy'
+  teamUnit: v.managementUnit?.name || v.assignedUnitCode || (
+    v.unit === 'KOUN_MOM' ? 'Đội cơ giới Nông trường 1' :
+    v.unit === 'KOUN_MOM' ? 'Đội cơ giới Nông trường 2' :
+    v.unit === 'KOUN_MOM' ? 'Xí nghiệp Chăn nuôi Bò' :
+    v.unit === 'KOUN_MOM' ? 'Xưởng BTSC' : 'Ban Ô tô Xe máy'
   ),
   currentDriver: v.defaultDriver?.fullName || 'Chưa gán',
   status: v.status === 'HOAT_DONG' ? 'active' :
@@ -176,7 +183,7 @@ const mapVehicleResponse = (v: any): VehicleProfile => ({
   conditionStatus: v.conditionStatus || (
     v.status === 'SUA_CHUA' ? 'Hư hỏng / Đang sửa chữa' :
     v.status === 'BAO_DUONG' ? 'Đang bảo dưỡng' :
-    v.status === 'TAM_DUNG' ? 'Thanh lý' :
+    v.status === 'TAM_DUNG' ? (isLiquidated ? 'Đã loại biên / Thanh lý' : 'Tạm dừng') :
     v.status === 'CHO_PHAN_CONG' ? 'Chờ phân công' : 'Bình thường'
   ),
   transferHistory: v.transferHistory,
@@ -194,7 +201,9 @@ const mapVehicleResponse = (v: any): VehicleProfile => ({
   imageUrl: v.imageUrl,
   contractStatus: v.contractStatus,
   companyOwner: v.companyOwner,
-  assignedUnitCode: v.assignedUnitCode,
+  assignedUnitCode: v.managementUnit?.name || v.assignedUnitCode,
+  isLiquidated,
+  managementUnitId: v.managementUnit?.id || v.managementUnitId,
   complexCode: v.complexCode,
   regionCode: v.regionCode,
   categoryGroup: assetGroupLabels[v.assetGroup] || 'Chưa phân loại',
@@ -210,10 +219,12 @@ const mapVehicleResponse = (v: any): VehicleProfile => ({
   roadFeeExpiryDate: v.roadFeeExpiryDate,
   nextRoadFeeDate: v.nextRoadFeeDate,
   sourceSheets: Array.isArray(v.sourceSheets) ? v.sourceSheets : undefined,
-  managerName: v.managerName,
-  managerPhone: v.managerPhone,
-  currentLocationName: v.currentLocationName,
-});
+  managerName: v.managementUnit?.managerAssignments?.[0]?.manager?.fullName || v.managerName,
+  managerPhone: v.managementUnit?.managerAssignments?.[0]?.manager?.phone || v.managerPhone,
+  managerUserId: v.managementUnit?.managerAssignments?.[0]?.manager?.id || null,
+  currentLocationName: v.homeDepot?.name || v.managementUnit?.mainDepot?.name || v.currentLocationName,
+  });
+};
 
 // Map database entities to Frontend React Types
 export const apiService = {
@@ -240,10 +251,10 @@ export const apiService = {
                    v.category === 'XE_XUC' ? 'Máy xúc đào' :
                    v.category === 'XE_NANG' ? 'Xe nâng hàng' : 'Xe cơ giới',
       klhName: 'Khu liên hợp Koun Mom (Campuchia)',
-      subUnit: v.unit === 'NT1' ? 'Nông trường Chuối 01' :
-               v.unit === 'NT2' ? 'Nông trường Chuối 02' :
-               v.unit === 'XN_BO' ? 'Xí nghiệp Chăn nuôi Bò' :
-               v.unit === 'TT_BTSC' ? 'Trung tâm BTSC' : 'Ban Xe Cơ Giới',
+      subUnit: v.unit === 'KOUN_MOM' ? 'Nông trường Chuối 01' :
+               v.unit === 'KOUN_MOM' ? 'Nông trường Chuối 02' :
+               v.unit === 'KOUN_MOM' ? 'Xí nghiệp Chăn nuôi Bò' :
+               v.unit === 'KOUN_MOM' ? 'Trung tâm BTSC' : 'Ban Xe Cơ Giới',
       status: v.status === 'HOAT_DONG' ? 'running' :
               v.status === 'BAO_DUONG' ? 'maintenance' :
               v.status === 'SUA_CHUA' ? 'maintenance' : 'idling',
@@ -345,9 +356,10 @@ export const apiService = {
     return mapVehicleResponse(payload);
   },
 
-  async deleteVehicle(id: number | string): Promise<void> {
+  async archiveVehicle(id: number | string, reason: string): Promise<VehicleProfile> {
     const numericId = typeof id === 'string' ? parseInt(id.replace(/\D/g, ''), 10) : id;
-    await apiClient.delete(`/vehicles/${numericId}`);
+    const response = await apiClient.delete(`/vehicles/${numericId}`, { data: { reason } });
+    return mapVehicleResponse(unwrapPayload(response));
   },
 
   async getSosAlerts(): Promise<any[]> {
@@ -568,13 +580,16 @@ export const apiService = {
     status?: string;
     category?: string;
     unit?: string;
+    managementUnitId?: number;
   }) {
     const res = await apiClient.get('/implements', { params });
     return res.data?.data || res.data;
   },
 
-  async getAllImplements(params?: { search?: string; status?: string; category?: string; unit?: string }) {
-    const firstRes = await apiClient.get('/implements', { params: { ...params, page: 1, limit: 200 } });
+  async getAllImplements(params?: { search?: string; status?: string; category?: string; unit?: string; usageMode?: string; assetScope?: 'ALL' | 'VEHICLE_RELATED' | 'OTHER'; managerUserId?: number; managementUnitId?: number }) {
+    const cleanParams = { ...params };
+    if (cleanParams.assetScope === 'ALL') delete cleanParams.assetScope;
+    const firstRes = await apiClient.get('/implements', { params: { ...cleanParams, page: 1, limit: 200 } });
     const firstData = firstRes.data?.data || firstRes.data;
     const items = [...(firstData?.items || [])];
     const totalPages = firstData?.pagination?.totalPages || 1;
@@ -583,7 +598,7 @@ export const apiService = {
       const pagePromises = [];
       for (let p = 2; p <= totalPages; p++) {
         pagePromises.push(
-          apiClient.get('/implements', { params: { ...params, page: p, limit: 200 } })
+          apiClient.get('/implements', { params: { ...cleanParams, page: p, limit: 200 } })
         );
       }
       const pageResults = await Promise.all(pagePromises);
@@ -600,8 +615,34 @@ export const apiService = {
     };
   },
 
-  async getImplementStatistics() {
-    const res = await apiClient.get('/implements/statistics');
+  async getImplementFilterOptions(params?: { category?: string; unit?: string; usageMode?: string; assetScope?: 'ALL' | 'VEHICLE_RELATED' | 'OTHER'; managerUserId?: number; managementUnitId?: number }) {
+    const response = await apiClient.get('/implements/filter-options', { params });
+    return unwrapPayload(response) as {
+      units: string[];
+      locations: string[];
+      categories: Array<{ code: string; count: number }>;
+      managers: Array<{ id: number; name: string; phone?: string | null; implementCount: number }>;
+      statuses: string[];
+      technicalConditions: string[];
+      usageModes: string[];
+    };
+  },
+
+  async getImplementStatistics(params?: { unit?: string; category?: string; usageMode?: string; assetScope?: 'ALL' | 'VEHICLE_RELATED' | 'OTHER'; managerUserId?: number; managementUnitId?: number }): Promise<{
+    totalImplements: number;
+    attached: number;
+    inDepot: number;
+    maintenance: number;
+    unassignedUnit?: number;
+    condition?: {
+      good: number;
+      wornOut: number;
+      needRepair: number;
+    };
+  }> {
+    const cleanParams = { ...params };
+    if (cleanParams.assetScope === 'ALL') delete cleanParams.assetScope;
+    const res = await apiClient.get('/implements/statistics', { params: cleanParams });
     return res.data?.data || res.data;
   },
 
@@ -656,7 +697,10 @@ export const apiService = {
   // 13. System Users
   async getUsers(params?: Record<string, unknown>) {
     const res = await apiClient.get('/users', { params });
-    return res.data?.data?.items || res.data?.items || res.data || [];
+    const payload = res.data?.data ?? res.data;
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
   },
 
   async createUser(data: any) {

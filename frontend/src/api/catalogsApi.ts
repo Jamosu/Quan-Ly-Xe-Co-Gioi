@@ -28,7 +28,7 @@ export const catalogsApi = {
         params: type ? { type } : {},
       });
       const data = unwrapCatalogResponse(res);
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         if (storageKey) {
           setStoredData(storageKey, data);
         }

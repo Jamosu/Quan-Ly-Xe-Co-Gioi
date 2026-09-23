@@ -6,11 +6,19 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 
+const jwtSecret = () => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required in production.');
+  }
+  return 'THACO_AGRI_KOUN_MOM_DEV_ONLY_SECRET';
+};
+
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'THACO_AGRI_KOUN_MOM_SECRET_KEY_2026_VERY_SECURE',
+      secret: jwtSecret(),
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
     }),
     UsersModule,

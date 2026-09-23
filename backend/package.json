@@ -19,6 +19,12 @@
     "workshop:damage-pilot": "ts-node scripts/backfill-workshop-damage-pilot.ts",
     "prisma:studio": "prisma studio",
     "import:vehicles": "ts-node scripts/import-vehicles-from-excel.ts",
+    "import:implements": "ts-node scripts/import-implements-from-excel.ts",
+    "repair:vehicle-implement-overlap": "ts-node scripts/repair-vehicle-implement-overlap.ts",
+    "seed:demo-drivers": "ts-node scripts/seed-demo-drivers-by-team.ts",
+    "standardize:teams": "ts-node scripts/standardize-fleet-and-drivers-for-teams.ts",
+    "import:cg-management": "ts-node scripts/import-koun-mom-cg-management.ts",
+    "normalize:fleet-references": "ts-node scripts/normalize-fleet-reference-data.ts",
     "generate:operational-templates": "node scripts/generate-operational-templates.js && python scripts/style-operational-templates.py",
     "test": "jest --runInBand",
     "test:watch": "jest --watch"

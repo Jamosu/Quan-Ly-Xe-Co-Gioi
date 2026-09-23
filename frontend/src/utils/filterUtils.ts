@@ -1,4 +1,4 @@
-export interface FilterCriteria {
+﻿export interface FilterCriteria {
   searchTerm?: string;
   selectedKLH?: string;
   selectedStatus?: string;
@@ -24,7 +24,7 @@ export function matchesKLH(item: any, selectedKLH?: string): boolean {
   // Check unit mapping (NT1, NT2, NT3, NT4 belong to KOUN_MOM)
   const unit = (item.unit || item.assignedUnitCode || '').toString().toUpperCase();
   if (unit) {
-    if (selectedKLH === 'KOUN_MOM' && ['NT1', 'NT2', 'NT3', 'NT4', 'XN_CHUOI', 'BP_CO_GIOI_KM', 'BAN_CO_GIOI'].includes(unit)) return true;
+    if (selectedKLH === 'KOUN_MOM' && ['KOUN_MOM', 'KOUN_MOM', 'NT3', 'NT4', 'XN_CHUOI', 'BP_CO_GIOI_KM', 'KOUN_MOM'].includes(unit)) return true;
     if (selectedKLH === 'SNOUL' && ['NT_SN_1', 'NT_SN_2', 'BP_CO_GIOI_SN'].includes(unit)) return true;
     if (selectedKLH === 'NAM_LAO' && ['NT_NL_1', 'NT_NL_2', 'BP_CO_GIOI_NL'].includes(unit)) return true;
   }

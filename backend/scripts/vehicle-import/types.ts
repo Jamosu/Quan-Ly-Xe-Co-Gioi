@@ -9,7 +9,7 @@ export interface WorkbookSheetInventory {
   sheet: string;
   nonEmptyRows: number;
   parsedRows: number;
-  role: 'VEHICLE_SOURCE' | 'REFERENCE' | 'IGNORED';
+  role: 'VEHICLE_SOURCE' | 'EQUIPMENT_SOURCE' | 'REFERENCE' | 'IGNORED';
 }
 
 export interface NormalizedVehicleRecord {
@@ -108,9 +108,30 @@ export interface VehicleImportReport {
   updated: number;
   mergedRows: number;
   unresolvedRows: number;
+  unresolved: Array<{
+    sheet: string;
+    row: number;
+    code?: string;
+    oldCode?: string;
+    bravoCode?: string;
+    assetCode?: string;
+    plate?: string;
+    frameNumber?: string;
+    engineNumber?: string;
+  }>;
   conflicts: ImportConflict[];
+  excludedEquipmentCount: number;
+  excludedEquipment: Array<{ code: string; name: string; sourceSheets: string[] }>;
+  classificationConflicts: Array<{ code: string; name: string; sourceSheets: string[] }>;
   skippedRows: number;
   databaseVehicleCount?: number;
+  managementUnits?: {
+    exact: number;
+    alias: number;
+    liquidated: number;
+    unresolved: Array<{ label: string; reason: string; count: number }>;
+  };
+  retainedOutOfWorkbook?: string[];
 }
 
 export interface CategoryMetadata {

@@ -1,0 +1,752 @@
+{
+  "workbook": "00. DANH MỤC MMTB THUỘC KLH KOUN MOM.xlsx",
+  "generatedAt": "2026-09-20T13:03:16.607Z",
+  "dryRun": true,
+  "sheets": [
+    {
+      "sheet": "TỔNG KLH + TN",
+      "nonEmptyRows": 3147,
+      "parsedRows": 3055,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "01. TH",
+      "nonEmptyRows": 281,
+      "parsedRows": 0,
+      "role": "REFERENCE"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "nonEmptyRows": 711,
+      "parsedRows": 678,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "nonEmptyRows": 706,
+      "parsedRows": 652,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "nonEmptyRows": 809,
+      "parsedRows": 776,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "XE & MÁY CG AGRI",
+      "nonEmptyRows": 660,
+      "parsedRows": 575,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "TB CG AGRI",
+      "nonEmptyRows": 320,
+      "parsedRows": 290,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "NS QUẢN LÝ CG",
+      "nonEmptyRows": 28,
+      "parsedRows": 0,
+      "role": "IGNORED"
+    },
+    {
+      "sheet": "04. XMA",
+      "nonEmptyRows": 112,
+      "parsedRows": 101,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "03.1 NHÓM TB",
+      "nonEmptyRows": 890,
+      "parsedRows": 707,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "Danh mục",
+      "nonEmptyRows": 1774,
+      "parsedRows": 1689,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "Thông số",
+      "nonEmptyRows": 102,
+      "parsedRows": 0,
+      "role": "REFERENCE"
+    },
+    {
+      "sheet": "05. MPC",
+      "nonEmptyRows": 745,
+      "parsedRows": 729,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "nonEmptyRows": 102,
+      "parsedRows": 90,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "nonEmptyRows": 104,
+      "parsedRows": 86,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "08. ĐKĐK",
+      "nonEmptyRows": 115,
+      "parsedRows": 60,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
+      "nonEmptyRows": 25,
+      "parsedRows": 5,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "nonEmptyRows": 466,
+      "parsedRows": 408,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "03.1-TB.SXCN",
+      "nonEmptyRows": 114,
+      "parsedRows": 103,
+      "role": "VEHICLE_SOURCE"
+    },
+    {
+      "sheet": "TT BTSC",
+      "nonEmptyRows": 1,
+      "parsedRows": 0,
+      "role": "IGNORED"
+    }
+  ],
+  "totalWorkbookNonEmptyRows": 11212,
+  "totalRowsRead": 10004,
+  "uniqueVehicles": 3196,
+  "newVehicles": 637,
+  "updatedVehicles": 2559,
+  "inserted": 637,
+  "updated": 2559,
+  "mergedRows": 6690,
+  "unresolvedRows": 118,
+  "unresolved": [
+    {
+      "sheet": "02. MM-KLH",
+      "row": 52,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 80,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 137,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 166,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 181,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 228,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 276,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 334,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 374,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 439,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 452,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 460,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 467,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 473,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 57,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 24,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 50,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 55,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 58,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 66,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 76,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 81,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 101,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
+      "row": 15,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "THIẾT BỊ ĐIỆN NƯỚC",
+      "row": 25,
+      "oldCode": "KOXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 113,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 131,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 147,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 153,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 527,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 534,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 540,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 562,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 588,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 600,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 611,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 616,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 668,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 497,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 518,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 543,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 556,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 567,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "Danh mục",
+      "row": 572,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 62,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 99,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 114,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 171,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 203,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 224,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 9,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 14,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 22,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 43,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "07. MFĐ",
+      "row": 84,
+      "oldCode": "0XOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 183,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 210,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 244,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 272,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 312,
+      "oldCode": "KHÔNGXOÁHÀNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 320,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 335,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 482,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 640,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 343,
+      "oldCode": "KHÔNGXOÁDÒNGNÀY"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 504,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 518,
+      "oldCode": "KHONGXOA"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 408,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 454,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 515,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 523,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 566,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 574,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "05. MPC",
+      "row": 136,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 7,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 9,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 11,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 17,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 21,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 23,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 26,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 33,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 46,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 67,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 71,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 76,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 78,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 84,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 88,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 95,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 101,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 103,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 13,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 23,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 33,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 35,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 49,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 65,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 71,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 81,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 83,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "04. XMA",
+      "row": 111,
+      "oldCode": "KHÔNGXOÁ"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 642,
+      "oldCode": "MK12-VCKLH",
+      "frameNumber": "C000032"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 675,
+      "oldCode": "MK12-VCKLH",
+      "frameNumber": "C000032"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 459,
+      "frameNumber": "C000032"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 643,
+      "oldCode": "MK67-VCKLH",
+      "frameNumber": "SD3000AD0-10355"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 676,
+      "oldCode": "MK67-VCKLH",
+      "frameNumber": "SD3000AD0-10355"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 460,
+      "frameNumber": "SD3000AD0-10355"
+    },
+    {
+      "sheet": "02. MM-KLH",
+      "row": 707,
+      "frameNumber": "RW7810P001704",
+      "engineNumber": "RG6081T011143"
+    },
+    {
+      "sheet": "02.1 NHÓM XE & MÁY",
+      "row": 740,
+      "assetCode": "ATM-A22-0012",
+      "frameNumber": "RW7810P001704",
+      "engineNumber": "RG6081T011143"
+    },
+    {
+      "sheet": "TỔNG KLH + TN",
+      "row": 661,
+      "frameNumber": "RW7810P001704",
+      "engineNumber": "RG6081T011143"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 64,
+      "bravoCode": "A23-XTA-048"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 66,
+      "bravoCode": "A23-XTA-050"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 67,
+      "bravoCode": "A23-XTA-051"
+    },
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 68,
+      "bravoCode": "A23-XTA-052"
+    },
+    {
+      "sheet": "03.1 NHÓM TB",
+      "row": 895,
+      "oldCode": "TBCHỜPHÂNBỔVUILÒNGTHÊMTRÊNHÀNGNÀY"
+    },
+    {
+      "sheet": "03. THIẾT BỊ",
+      "row": 809,
+      "oldCode": "TBCHỜPHÂNBỔVUILÒNGTHÊMTRÊNHÀNGNÀY"
+    },
+    {
+      "sheet": "06. MCG-MKH",
+      "row": 99,
+      "oldCode": "KHÔGNXOÁ"
+    }
+  ],
+  "conflicts": [
+    {
+      "sheet": " 02.1 KLH-CN MÃ BRAVO MM",
+      "row": 64,
+      "values": {
+        "bravoCode": "A23-XTA-048"
+      },
+      "candidateVehicles": [
+        "CNN-XTA-001",
+        "XD1-XTA-007"
+      ],
+      "reason": "Một dòng khớp nhiều hồ sơ theo identifier tin cậy; không tự động gộp các candidate."
+    }
+  ],
+  "skippedRows": 757,
+  "databaseVehicleCount": 2583
+}

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -13,16 +13,101 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState, OfflineBanner, SyncIndicator, TaskCard } from '../components';
 import { useAppStore } from '../store';
-import { LocalOrder } from '../offline/db';
+import { LocalOrder } from '../types';
 import { syncNow } from '../syncEngine';
 import { colors, shadow } from '../theme';
 import { TasksStackParams } from '../navigationTypes';
 
+type PeriodMode = 'WEEK' | 'ALL';
+
+function getWeekRange(offsetWeeks = 0, baseDate = new Date()) {
+  const date = new Date(baseDate);
+  const day = date.getDay();
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + diffToMonday + offsetWeeks * 7);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  return { start: monday, end: sunday };
+}
+
+function fmtDate(d: Date) {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}`;
+}
+
+function fmtDateWithYear(d: Date) {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function getWeekNumber(d: Date) {
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+}
+
+function getOrderDate(order: LocalOrder): Date | null {
+  const dateStr = order.planned_start || order.planned_end || order.actual_start || order.actual_end || order.server_updated_at;
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export function HomeScreen({ navigation }: NativeStackScreenProps<TasksStackParams, 'Tasks'>) {
   const [tab, setTab] = useState<'today' | 'upcoming'>('today');
+  const [upcomingMode, setUpcomingMode] = useState<PeriodMode>('WEEK');
+  const [upcomingWeekOffset, setUpcomingWeekOffset] = useState<number>(0);
+
   const { today, upcoming, online, syncing, stats, session, setSyncing, refreshLocal } = useAppStore();
 
-  const data = tab === 'today' ? today : upcoming;
+  const currentUpcomingWeek = useMemo(() => getWeekRange(upcomingWeekOffset), [upcomingWeekOffset]);
+
+  const filteredUpcoming = useMemo(() => {
+    if (upcomingMode === 'ALL') return upcoming;
+    return upcoming.filter(item => {
+      const orderDate = getOrderDate(item);
+      if (!orderDate) return true;
+      return orderDate >= currentUpcomingWeek.start && orderDate <= currentUpcomingWeek.end;
+    });
+  }, [upcoming, upcomingMode, currentUpcomingWeek]);
+
+  const upcomingSummary = useMemo(() => {
+    let totalTons = 0;
+    let totalHa = 0;
+
+    for (const item of filteredUpcoming) {
+      try {
+        const raw = JSON.parse(item.raw_json || '{}');
+        if (raw.tonnage) totalTons += Number(raw.tonnage);
+        else if (raw.weightKg) totalTons += Number(raw.weightKg) / 1000;
+
+        if (raw.areaHa) totalHa += Number(raw.areaHa);
+        else if (raw.completedAreaHa) totalHa += Number(raw.completedAreaHa);
+      } catch {}
+    }
+
+    return {
+      totalCount: filteredUpcoming.length,
+      totalTons: totalTons > 0 ? totalTons.toFixed(1).replace('.0', '') : '0',
+      totalHa: totalHa > 0 ? totalHa.toFixed(1).replace('.0', '') : '0',
+    };
+  }, [filteredUpcoming]);
+
+  const data = tab === 'today' ? today : filteredUpcoming;
   const hasActiveJob = today.some(t => ['WORKING', 'IN_TRANSIT'].includes(t.local_status));
 
   // Time-aware greeting
@@ -55,6 +140,24 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<TasksStackPara
       setSyncing(false);
     }
   }, [online, refreshLocal, setSyncing]);
+
+  const upcomingWeekNum = useMemo(() => getWeekNumber(currentUpcomingWeek.start), [currentUpcomingWeek]);
+  const upcomingRangeLabel = useMemo(() => {
+    if (upcomingMode === 'WEEK') {
+      return `Tuần ${upcomingWeekNum} • ${fmtDate(currentUpcomingWeek.start)} – ${fmtDate(currentUpcomingWeek.end)}/${currentUpcomingWeek.start.getFullYear()}`;
+    }
+    return 'Toàn bộ kế hoạch sắp tới';
+  }, [upcomingMode, upcomingWeekNum, currentUpcomingWeek]);
+
+  const upcomingSubLabel = useMemo(() => {
+    if (upcomingMode === 'WEEK') {
+      if (upcomingWeekOffset === 0) return 'Từ Thứ Hai đến Chủ Nhật tuần này';
+      if (upcomingWeekOffset === 1) return 'Kế hoạch tuần tới (Thứ Hai – Chủ Nhật)';
+      if (upcomingWeekOffset === 2) return 'Kế hoạch 2 tuần tới';
+      return `Từ ${fmtDateWithYear(currentUpcomingWeek.start)} đến ${fmtDateWithYear(currentUpcomingWeek.end)}`;
+    }
+    return `Tất cả ${upcoming.length} lệnh sắp tới đã lưu trên thiết bị`;
+  }, [upcomingMode, upcomingWeekOffset, currentUpcomingWeek, upcoming.length]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -164,9 +267,132 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<TasksStackPara
               </TouchableOpacity>
             </View>
 
+            {/* Week Filter for Upcoming Tasks */}
+            {tab === 'upcoming' && (
+              <View style={styles.upcomingFilterContainer}>
+                {/* Presets: Tuần này | Tuần tới | 2 tuần tới | Tất cả */}
+                <View style={styles.presetRow}>
+                  <TouchableOpacity
+                    style={[styles.presetChip, upcomingMode === 'WEEK' && upcomingWeekOffset === 0 && styles.presetChipActive]}
+                    onPress={() => {
+                      setUpcomingMode('WEEK');
+                      setUpcomingWeekOffset(0);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetText, upcomingMode === 'WEEK' && upcomingWeekOffset === 0 && styles.presetTextActive]}>
+                      Tuần này
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.presetChip, upcomingMode === 'WEEK' && upcomingWeekOffset === 1 && styles.presetChipActive]}
+                    onPress={() => {
+                      setUpcomingMode('WEEK');
+                      setUpcomingWeekOffset(1);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetText, upcomingMode === 'WEEK' && upcomingWeekOffset === 1 && styles.presetTextActive]}>
+                      Tuần tới
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.presetChip, upcomingMode === 'WEEK' && upcomingWeekOffset === 2 && styles.presetChipActive]}
+                    onPress={() => {
+                      setUpcomingMode('WEEK');
+                      setUpcomingWeekOffset(2);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetText, upcomingMode === 'WEEK' && upcomingWeekOffset === 2 && styles.presetTextActive]}>
+                      2 tuần tới
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.presetChip, upcomingMode === 'ALL' && styles.presetChipActive]}
+                    onPress={() => {
+                      setUpcomingMode('ALL');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetText, upcomingMode === 'ALL' && styles.presetTextActive]}>
+                      Tất cả
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Week Stepper Card */}
+                <View style={styles.weekCard}>
+                  <View style={styles.weekHeader}>
+                    <TouchableOpacity
+                      style={styles.weekArrowBtn}
+                      onPress={() => {
+                        setUpcomingMode('WEEK');
+                        setUpcomingWeekOffset(w => w - 1);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="chevron-back" size={20} color={colors.brand} />
+                    </TouchableOpacity>
+
+                    <View style={styles.weekCenterInfo}>
+                      <View style={styles.weekTitleRow}>
+                        <Ionicons name="calendar" size={15} color={colors.brand} style={{ marginRight: 6 }} />
+                        <Text style={styles.weekTitleText}>{upcomingRangeLabel}</Text>
+                      </View>
+                      <Text style={styles.weekSubText}>{upcomingSubLabel}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.weekArrowBtn}
+                      onPress={() => {
+                        setUpcomingMode('WEEK');
+                        setUpcomingWeekOffset(w => w + 1);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="chevron-forward" size={20} color={colors.brand} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {upcomingMode === 'WEEK' && upcomingWeekOffset !== 0 && (
+                    <TouchableOpacity
+                      style={styles.returnThisWeekBtn}
+                      onPress={() => setUpcomingWeekOffset(0)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="today-outline" size={13} color={colors.brand} style={{ marginRight: 4 }} />
+                      <Text style={styles.returnThisWeekText}>Về tuần này</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Upcoming Summary Box */}
+                <View style={styles.summaryContainer}>
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>{upcomingSummary.totalCount}</Text>
+                    <Text style={styles.summaryLabel}>Kế hoạch</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>{upcomingSummary.totalTons} tấn</Text>
+                    <Text style={styles.summaryLabel}>Dự kiến chở</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>{upcomingSummary.totalHa} ha</Text>
+                    <Text style={styles.summaryLabel}>Dự kiến cày</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>
-                {tab === 'today' ? 'NHIỆM VỤ TRONG NGÀY' : 'LỊCH ĐÃ TẢI TRÊN THIẾT BỊ'}
+                {tab === 'today' ? 'NHIỆM VỤ TRONG NGÀY' : 'KẾ HOẠCH SẮP TỚI ĐÃ LỌC'}
               </Text>
               <Text style={styles.sectionCount}>
                 {data.length} lệnh
@@ -177,11 +403,11 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<TasksStackPara
         ListEmptyComponent={
           <EmptyState
             icon="calendar-outline"
-            title={tab === 'today' ? 'Hôm nay chưa có nhiệm vụ' : 'Chưa có lịch sắp tới'}
+            title={tab === 'today' ? 'Hôm nay chưa có nhiệm vụ' : 'Chưa có kế hoạch tuần này'}
             text={
-              online
-                ? 'Kéo xuống để kiểm tra lệnh điều phối mới nhất.'
-                : 'Ứng dụng đã lưu dữ liệu trên máy. Khi có mạng sẽ tự động tải trước 7 ngày.'
+              tab === 'today'
+                ? (online ? 'Kéo xuống để kiểm tra lệnh điều phối mới nhất.' : 'Ứng dụng đang chạy offline. Khi có mạng sẽ tự động đồng bộ.')
+                : 'Chưa có lệnh phân công trong khoảng thời gian đã chọn. Bấm "Tuần tới" hoặc "Tất cả" để xem thêm.'
             }
           />
         }
@@ -359,5 +585,125 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     fontWeight: '700',
+  },
+  upcomingFilterContainer: {
+    marginTop: 14,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  presetChip: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  presetChipActive: {
+    backgroundColor: colors.brand,
+    borderColor: colors.brand,
+  },
+  presetText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.muted,
+  },
+  presetTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  weekCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    ...shadow,
+  },
+  weekHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weekArrowBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.brandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekCenterInfo: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  weekTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  weekTitleText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.ink,
+  },
+  weekSubText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.muted,
+  },
+  returnThisWeekBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: colors.brandLight,
+  },
+  returnThisWeekText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.brand,
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.brand,
+    marginBottom: 2,
+  },
+  summaryLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.muted,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: colors.line,
   },
 });

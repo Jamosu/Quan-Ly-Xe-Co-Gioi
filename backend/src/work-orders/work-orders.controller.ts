@@ -12,12 +12,19 @@ import {
   AcceptanceReviewDto,
   AssignWorkOrderDto,
   ClaimWorkOrderDto,
+  DailyProgressDto,
+  DailyReportDto,
+  DailyReportReviewDto,
+  ContinueNextDayDto,
+  EndWorkSessionDto,
   FinishExecutionDto,
   HandoverExecutionDto,
   JourneyAction,
   JourneyActionDto,
   ReassignWorkOrderDto,
   StartExecutionDto,
+  StartBreakDto,
+  PauseWorkDto,
   WorkReasonDto,
 } from './dto/work-order-actions.dto';
 import { PrepareWorkOrderDto } from './dto/prepare-work-order.dto';
@@ -41,6 +48,10 @@ export class WorkOrdersController {
     return this.service.preparationContext(dto, actor);
   }
 
+  @Post('deadlines/scan')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  scanDeadlines() { return this.service.scanDailyReportDeadlines(); }
+
   @Patch(':id/preparation')
   @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   prepare(@Param('id', ParseIntPipe) id: number, @Body() dto: PrepareWorkOrderDto, @CurrentUser() actor: OperationalActor) { return this.service.prepare(id, dto, actor); }
@@ -58,6 +69,9 @@ export class WorkOrdersController {
 
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) { return this.service.findOne(id, actor); }
+
+  @Get(':id/driver-context')
+  driverContext(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) { return this.service.driverContext(id, actor); }
 
   @Post(':id/assign')
   assign(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignWorkOrderDto, @CurrentUser() actor: OperationalActor) { return this.service.assign(id, dto, actor); }
@@ -94,6 +108,42 @@ export class WorkOrdersController {
 
   @Post(':id/execution/finish')
   finish(@Param('id', ParseIntPipe) id: number, @Body() dto: FinishExecutionDto, @CurrentUser() actor: OperationalActor) { return this.service.finishExecution(id, dto, actor); }
+
+  @Post(':id/execution/start-break')
+  startBreak(@Param('id', ParseIntPipe) id: number, @Body() dto: StartBreakDto, @CurrentUser() actor: OperationalActor) { return this.service.startBreak(id, dto, actor); }
+
+  @Post(':id/execution/end-break')
+  endBreak(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) { return this.service.endBreak(id, actor); }
+
+  @Post(':id/execution/pause')
+  pause(@Param('id', ParseIntPipe) id: number, @Body() dto: PauseWorkDto, @CurrentUser() actor: OperationalActor) { return this.service.pauseWork(id, dto, actor); }
+
+  @Post(':id/execution/resume')
+  resume(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) { return this.service.resumeWork(id, actor); }
+
+  @Post(':id/execution/end-session')
+  endSession(@Param('id', ParseIntPipe) id: number, @Body() dto: EndWorkSessionDto, @CurrentUser() actor: OperationalActor) { return this.service.endWorkSession(id, dto, actor); }
+
+  @Post(':id/progress')
+  progress(@Param('id', ParseIntPipe) id: number, @Body() dto: DailyProgressDto, @CurrentUser() actor: OperationalActor) { return this.service.updateDailyProgress(id, dto, actor); }
+
+  @Post(':id/daily-report/draft')
+  saveDailyReport(@Param('id', ParseIntPipe) id: number, @Body() dto: DailyReportDto, @CurrentUser() actor: OperationalActor) { return this.service.saveDailyReport(id, dto, actor); }
+
+  @Post(':id/daily-report/submit')
+  submitDailyReport(@Param('id', ParseIntPipe) id: number, @Body() dto: DailyReportDto, @CurrentUser() actor: OperationalActor) { return this.service.submitDailyReport(id, dto, actor); }
+
+  @Post(':id/daily-report/:dispatchOrderId/revision')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  requestDailyReportRevision(@Param('id', ParseIntPipe) id: number, @Param('dispatchOrderId', ParseIntPipe) dispatchOrderId: number, @Body() dto: DailyReportReviewDto, @CurrentUser() actor: OperationalActor) { return this.service.requestDailyReportRevision(id, dispatchOrderId, dto, actor); }
+
+  @Post(':id/daily-report/:dispatchOrderId/accept')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  acceptDailyReport(@Param('id', ParseIntPipe) id: number, @Param('dispatchOrderId', ParseIntPipe) dispatchOrderId: number, @Body() dto: DailyReportReviewDto, @CurrentUser() actor: OperationalActor) { return this.service.acceptDailyReport(id, dispatchOrderId, dto, actor); }
+
+  @Post(':id/continue-next-day')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  continueNextDay(@Param('id', ParseIntPipe) id: number, @Body() dto: ContinueNextDayDto, @CurrentUser() actor: OperationalActor) { return this.service.continueNextDay(id, dto, actor); }
 
   @Post(':id/evidence/upload')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))

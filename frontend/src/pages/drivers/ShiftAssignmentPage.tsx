@@ -166,17 +166,17 @@ export const ShiftAssignmentPage: React.FC = () => {
           title={`Phân Công Ca: ${selectedShift.vehicleCode} (${selectedShift.vehicleModel})`}
           subtitle={`Khu vực: ${selectedShift.workArea} - ${selectedShift.unitName}`}
           size="md"
+          footer={
+            <Button variant="outline" size="sm" onClick={() => setSelectedShift(null)}>
+              Đóng
+            </Button>
+          }
         >
           <div className="space-y-3.5 text-xs text-slate-700">
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
               <div className="flex justify-between"><span>Tài xế chính (Ca 1):</span> <strong className="text-primary">{selectedShift.primaryDriver} ({selectedShift.primaryDriverPhone})</strong></div>
               <div className="flex justify-between"><span>Tài xế phụ (Ca 2):</span> <b>{selectedShift.secondaryDriver}</b></div>
               <div className="flex justify-between"><span>Nhiệm vụ:</span> <span>{selectedShift.taskTitle}</span></div>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button variant="primary" size="sm" onClick={() => setSelectedShift(null)}>
-                Đóng
-              </Button>
             </div>
           </div>
         </Modal>
@@ -189,6 +189,12 @@ export const ShiftAssignmentPage: React.FC = () => {
         title="Phân Công Lái Xe Theo Ca Mới"
         subtitle="Bố trí nhân sự lái xe chính và phụ cho đầu xe"
         size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setShowAddModal(false)}>Hủy</Button>
+            <Button variant="primary" size="sm" onClick={() => setShowAddModal(false)}>Lưu Phân Công</Button>
+          </>
+        }
       >
         <div className="space-y-3 text-xs">
           <div>
@@ -217,10 +223,6 @@ export const ShiftAssignmentPage: React.FC = () => {
                 <option>Đỗ Thanh Hải (Phụ)</option>
               </select>
             </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setShowAddModal(false)}>Hủy</Button>
-            <Button variant="primary" size="sm" onClick={() => setShowAddModal(false)}>Lưu Phân Công</Button>
           </div>
         </div>
       </Modal>

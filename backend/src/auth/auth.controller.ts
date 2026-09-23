@@ -19,6 +19,7 @@ import { AuthService } from './auth.service';
 import { UserPresenceService } from '../users/user-presence.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { MobileLoginDto, MobileRefreshDto } from './dto/mobile-session.dto';
 
 @ApiTags('Auth - Xác Thực & Phân Quyền')
 @Controller('auth')
@@ -67,8 +68,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Đăng nhập app di động tài xế' })
   @ApiResponse({ status: 200, description: 'Đăng nhập thành công' })
-  async mobileLogin(@Body() dto: LoginDto) {
-    const result = await this.authService.login(dto);
+  async mobileLogin(@Body() dto: MobileLoginDto) {
+    const result = await this.authService.mobileLogin(dto);
     if (result?.user?.id) {
       this.userPresenceService.recordActivity(result.user.id, 'MOBILE');
     }
@@ -79,8 +80,8 @@ export class AuthController {
   @Post('mobile-refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Làm mới token app di động tài xế' })
-  async mobileRefresh(@Body() dto: any) {
-    return this.authService.refreshMobileToken(dto);
+  async mobileRefresh(@Body() dto: MobileRefreshDto) {
+    return this.authService.refreshMobileSession(dto);
   }
 
   @UseGuards(JwtAuthGuard)

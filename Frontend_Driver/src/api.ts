@@ -4,7 +4,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { getDeviceId, loadSession, saveSession } from './session';
 import { DriverSession } from './types';
 
-export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.apiBaseUrl || 'http://10.23.3.8:3001/api').replace(/\/$/, '');
+const rawApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.apiBaseUrl;
+// Web and driver mobile intentionally use the same canonical NestJS API.
+// Deployments may override it, but the fallback must remain the main backend.
+export const API_BASE_URL = (rawApiUrl || 'http://10.23.2.228:3001/api').replace(/\/$/, '');
 
 export const api = axios.create({ baseURL: API_BASE_URL, timeout: 20000 });
 

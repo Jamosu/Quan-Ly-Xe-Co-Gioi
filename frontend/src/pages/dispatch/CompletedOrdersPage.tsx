@@ -30,6 +30,7 @@ import { apiClient } from '../../api/client';
 import { KLH_OPTIONS } from '../../data/locationCatalogData';
 import { getVehicleFuelQuotaRate } from '../../components/dispatch/WorkflowActionPanel';
 import { matchesKLH } from '../../utils/filterUtils';
+import { useAppStore } from '../../store/useAppStore';
 
 export type CompletedOrderScope = 'ALL' | 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN';
 
@@ -109,10 +110,22 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
 
-  // Bộ lọc
-  const [selectedKLH, setSelectedKLH] = useState<string>('ALL');
+  // Bộ lọc & đồng bộ Khu liên hợp toàn cục
+  const globalKLH = useAppStore((state) => state.selectedKLH);
+  const [selectedKLH, setSelectedKLH] = useState<string>(globalKLH || 'ALL');
   const [selectedDate, setSelectedDate] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
+
+  useEffect(() => {
+    if (globalKLH) {
+      setSelectedKLH(globalKLH);
+    }
+  }, [globalKLH]);
+
+  const handleKlhChange = (newKlh: string) => {
+    setSelectedKLH(newKlh);
+    useAppStore.getState().setSelectedKLH(newKlh);
+  };
 
   // Khi thay đổi URL sub-path thì cập nhật scope
   useEffect(() => {
@@ -131,16 +144,31 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
 
       const list: CompletedOrderRecord[] = [];
 
-      // 1. Phân hệ Nông nghiệp & Công trình
+      // 1. Phân hệ Nông nghiệp, Công trình & Vận hành từ dispatchOrders
       if (dispatchRes.status === 'fulfilled' && dispatchRes.value?.items) {
         dispatchRes.value.items.forEach((item: any) => {
           // Chỉ lấy các lệnh đã hoàn thành / nghiệm thu / đóng
           const isDone = ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(item.status);
           if (!isDone) return;
 
-          const isConstruction = item.productionOrder?.plan?.planType === 'CONSTRUCTION';
-          const cat = isConstruction ? 'CONG_TRINH' : 'NONG_NGHIEP';
-          const catLabel = isConstruction ? 'Công trình ca máy' : 'Nông nghiệp';
+          const isConstruction =
+            item.orderCategory === 'CONG_TRINH' ||
+            item.operationDomain === 'CONSTRUCTION' ||
+            item.sourceType === 'CONSTRUCTION' ||
+            item.productionOrder?.plan?.planType === 'CONSTRUCTION' ||
+            item.vehicle?.operationalDomain === 'CONSTRUCTION' ||
+            ['MAY_DAO', 'MAY_UI', 'MAY_SAN', 'MAY_LU', 'MAY_XUC_LAT', 'XE_XUC', 'XE_BEN_NHO'].includes(item.vehicle?.type);
+
+          const isTransport =
+            item.orderCategory === 'VAN_CHUYEN' ||
+            item.operationDomain === 'TRANSPORT' ||
+            item.sourceType === 'TRANSPORT' ||
+            item.productionOrder?.plan?.planType === 'TRANSPORT' ||
+            item.vehicle?.operationalDomain === 'TRANSPORT' ||
+            ['XE_TAI', 'XE_BEN', 'DAU_KEO', 'XE_BON', 'XE_BAN_TAI', 'XE_BA_GAC'].includes(item.vehicle?.type);
+
+          const cat: 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' = isTransport ? 'VAN_CHUYEN' : (isConstruction ? 'CONG_TRINH' : 'NONG_NGHIEP');
+          const catLabel = cat === 'CONG_TRINH' ? 'Công trình ca máy' : (cat === 'VAN_CHUYEN' ? 'Vận hành vận chuyển' : 'Nông nghiệp');
 
           const durationH = item.departureTime && item.plannedEndTime
             ? Math.max(0.5, (new Date(item.plannedEndTime).getTime() - new Date(item.departureTime).getTime()) / 3_600_000)
@@ -148,6 +176,7 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
           const vQuota = item.vehicle ? getVehicleFuelQuotaRate(item.vehicle, cat) : undefined;
           const initialPlannedFuel = item.plannedFuelLiters ?? (vQuota && item.vehicle ? Number((durationH * vQuota).toFixed(1)) : undefined);
           const initialQuotaRate = vQuota && item.vehicle ? `${vQuota} L/h` : item.fuelQuotaRate;
+          const defaultVolumeUnit = isTransport ? 'Tấn' : (isConstruction ? 'Giờ' : 'Ha');
 
           list.push({
             ...item,
@@ -155,9 +184,9 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
             categoryLabel: catLabel,
             planCode: item.productionOrder?.plan?.code,
             planTitle: item.productionOrder?.plan?.title,
-            workVolumeTarget: item.workVolumeTarget ?? 25,
-            workVolumeActual: item.workVolumeActual ?? item.workVolumeTarget ?? 25,
-            workVolumeUnit: item.workVolumeUnit ?? (isConstruction ? 'Giờ' : 'Ha'),
+            workVolumeTarget: item.workVolumeTarget ?? (isConstruction ? 8 : (isTransport ? 10 : 25)),
+            workVolumeActual: item.workVolumeActual ?? item.workVolumeTarget ?? (isConstruction ? 8 : (isTransport ? 10 : 25)),
+            workVolumeUnit: item.workVolumeUnit ?? defaultVolumeUnit,
             plannedFuelLiters: initialPlannedFuel,
             actualFuelLiters: item.actualFuelLiters ?? initialPlannedFuel,
             fuelQuotaRate: initialQuotaRate,
@@ -177,7 +206,7 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
             code: item.code,
             orderCategory: 'VAN_CHUYEN',
             categoryLabel: 'Vận hành vận chuyển',
-            unit: item.unit || 'BAN_CO_GIOI',
+            unit: item.unit || 'KOUN_MOM',
             purpose: item.cargoType || 'Vận chuyển hàng hóa nội bộ',
             origin: item.origin || 'Kho Trung Tâm',
             destination: item.destination || 'Điểm giao hàng',
@@ -234,6 +263,35 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Lắng nghe sự kiện làm mới từ Topbar, cập nhật thời gian thực, và chuyển đổi KLH
+  useEffect(() => {
+    const handleRefresh = (e: Event) => {
+      const customEvent = e as CustomEvent<{ pathname?: string }>;
+      if (!customEvent.detail?.pathname || customEvent.detail.pathname.includes('/hoan-tat') || customEvent.detail.pathname.includes('/lenh-dieu-xe')) {
+        void load();
+      }
+    };
+    const handleRealtime = () => {
+      void load();
+    };
+    const handleKlhEvent = (e: Event) => {
+      const detail = (e as CustomEvent<{ klh?: string }>).detail;
+      if (detail?.klh) {
+        setSelectedKLH(detail.klh);
+      }
+    };
+
+    window.addEventListener('thaco_refresh_current_page', handleRefresh);
+    window.addEventListener('operational-data-updated', handleRealtime);
+    window.addEventListener('thaco_klh_changed', handleKlhEvent);
+
+    return () => {
+      window.removeEventListener('thaco_refresh_current_page', handleRefresh);
+      window.removeEventListener('operational-data-updated', handleRealtime);
+      window.removeEventListener('thaco_klh_changed', handleKlhEvent);
+    };
   }, [load]);
 
   // Điều hướng khi đổi Tab scope
@@ -737,7 +795,7 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
             </label>
             <select
               value={selectedKLH}
-              onChange={(e) => setSelectedKLH(e.target.value)}
+              onChange={(e) => handleKlhChange(e.target.value)}
               className="w-full h-9 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 shadow-2xs focus:border-primary focus:outline-none"
             >
               <option value="ALL">-- Tất cả Khu liên hợp --</option>
@@ -823,6 +881,8 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
           serverSide={false}
           totalItems={filteredOrders.length}
           useGlobalFilters={false}
+          showSearch={false}
+          showExport={false}
         />
       </div>
     </div>

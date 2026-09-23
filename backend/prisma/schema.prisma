@@ -21,11 +21,9 @@ enum Role {
 }
 
 enum Unit {
-  NT1
-  NT2
-  XN_BO
-  TT_BTSC
-  BAN_CO_GIOI
+  KOUN_MOM
+  SNOUL
+  NAM_LAO
   TOAN_KLH
 }
 
@@ -59,6 +57,11 @@ enum DriverManagementUnitType {
 enum DriverManagementUnitStatus {
   ACTIVE
   INACTIVE
+}
+
+enum ManagementUnitManagerType {
+  PRIMARY
+  DEPUTY
 }
 
 enum DriverLicenseClass {
@@ -215,12 +218,49 @@ enum DispatchStatus {
   DEPARTED
   AT_WORKSITE
   WORKING
+  SHIFT_FINISHED
+  WAITING_REPORT
+  WAITING_REVIEW
   RETURNING_TO_DEPOT
   COMPLETED
   ACCEPTED
   CLOSED
   REJECTED
   CANCELLED
+}
+
+enum DispatchAcceptStatus {
+  NOT_ACCEPTED
+  ON_TIME
+  WITHIN_GRACE
+  LATE
+}
+
+enum DailyReportStatus {
+  NOT_OPEN
+  DRAFT
+  SUBMITTED_ON_TIME
+  LATE
+  MISSING
+  SUBMITTED_BY_MANAGER
+  REVISION_REQUESTED
+  ACCEPTED
+}
+
+enum DailyReportSubmitterType {
+  DRIVER
+  MANAGER
+}
+
+enum WorkDelayReason {
+  DRIVER_RESPONSIBILITY
+  VEHICLE_BREAKDOWN
+  WEATHER
+  WAITING_FUEL
+  WAITING_MATERIAL
+  PLAN_CHANGED
+  REASSIGNED_TO_OTHER_JOB
+  OTHER
 }
 
 enum RouteType {
@@ -263,6 +303,7 @@ enum TransportFlowType {
 enum OperationalEntityType {
   VEHICLE
   VEHICLE_DRIVER_ASSIGNMENT
+  MANAGEMENT_UNIT_MANAGER_ASSIGNMENT
   DRIVER_UNAVAILABILITY
   VEHICLE_UNAVAILABILITY
   MAINTENANCE
@@ -284,6 +325,12 @@ enum OperationConfirmationStatus {
   PENDING
   CONFIRMED
   REJECTED
+}
+
+enum MobileSyncEventStatus {
+  PROCESSING
+  PROCESSED
+  CONFLICT
 }
 
 enum TransportImportStatus {
@@ -498,6 +545,7 @@ enum WorkOrderCategory {
   AGRICULTURE
   CONSTRUCTION
   TRANSPORT
+  RESCUE
 }
 
 enum WorkPriority {
@@ -613,12 +661,39 @@ enum DriverKpiEventType {
   EXECUTION_COMPLETED
   REASSIGNED
   ACCEPTANCE_APPROVED
+  SHIFT_ACCEPTANCE
+  DAILY_REPORT
+  WORK_PROGRESS
 }
 
 enum KpiDecision {
   UNDECIDED
   EXEMPT
   COUNTED
+}
+
+enum WorkSessionStatus {
+  ACTIVE
+  ON_BREAK
+  PAUSED
+  ENDED
+}
+
+enum WorkBreakType {
+  LUNCH
+  PERSONAL
+  SCHEDULED_BREAK
+  OTHER
+}
+
+enum WorkPauseReason {
+  WAITING_MATERIAL
+  WAITING_CARGO
+  WEATHER
+  WAITING_DISPATCH
+  VEHICLE_ISSUE
+  WORKSITE_NOT_READY
+  OTHER
 }
 
 // ==========================================
@@ -633,7 +708,7 @@ model User {
   fullName              String
   phone                 String?
   role                  Role                   @default(DRIVER)
-  unit                  Unit                   @default(NT1)
+  unit                  Unit                   @default(KOUN_MOM)
   employmentStatus      DriverEmploymentStatus @default(DANG_LAM_VIEC)
   joinedDate            DateTime               @default(now()) // Ngày gia nhập để tính thâm niên
   resignedDate          DateTime? // Ngày nghỉ việc (nếu DA_NGHI_VIEC)
@@ -652,59 +727,68 @@ model User {
   updatedAt             DateTime               @updatedAt
 
   // Quan hệ
-  assignedVehicle                 Vehicle?                  @relation("UserAssignedVehicle", fields: [assignedVehicleId], references: [id], onDelete: SetNull)
-  drivenVehicles                  Vehicle[]                 @relation("DefaultDriver")
-  secondaryVehicles               Vehicle[]                 @relation("SecondaryDriver")
-  implementLogs                   ImplementAttachmentLog[]  @relation("ActorLogs")
-  productionPlans                 ProductionPlan[]          @relation("SupervisorPlans")
-  plotProgresses                  ProductionPlotProgress[]  @relation("DriverPlots")
-  auditTrails                     ProductionAuditTrail[]    @relation("AuditActor")
-  productionPlansCreated          ProductionPlan[]          @relation("ProductionPlanCreator")
-  productionPlansApproved         ProductionPlan[]          @relation("ProductionPlanApprover")
-  productionOrdersCreated         ProductionOrder[]         @relation("ProductionOrderCreator")
-  dispatchOrdersReq               DispatchOrder[]           @relation("RequesterDispatch")
-  dispatchOrdersDriven            DispatchOrder[]           @relation("DriverDispatch")
-  dispatchOrdersApproved          DispatchOrder[]           @relation("DispatchApprover")
-  dispatchOrdersAssigned          DispatchOrder[]           @relation("DispatchAssigner")
-  dispatchOrdersAccepted          DispatchOrder[]           @relation("DispatchAcceptor")
-  transportOrders                 TransportOrder[]          @relation("DriverTransport")
-  transportOrdersApproved         TransportOrder[]          @relation("TransportApprover")
-  operationalAuditLogs            OperationalAuditLog[]     @relation("OperationalAuditActor")
-  operationConfirmationsCreated   OperationConfirmation[]   @relation("ConfirmationCreator")
-  operationConfirmationsConfirmed OperationConfirmation[]   @relation("ConfirmationConfirmer")
-  transportImportBatches          TransportImportBatch[]    @relation("TransportImportActor")
-  feedTrips                       InternalFeedTrip[]        @relation("DriverFeedTrip")
-  feedMaterialsCreated            FeedRawMaterial[]         @relation("MaterialCreator")
-  fuelTicketsOperated             FuelDispenseTicket[]      @relation("OperatorTicket")
-  fuelTicketsReceived             FuelDispenseTicket[]      @relation("DriverFuelTicket")
-  maintenanceRecords              MaintenanceRecord[]       @relation("TechnicianMaintenance")
-  maintenanceStandardsCreated     MaintenanceStandard[]     @relation("MaintenanceStandardCreator")
-  maintenanceStandardsUpdated     MaintenanceStandard[]     @relation("MaintenanceStandardUpdater")
-  bdc1Logs                        Bdc1Log[]                  @relation("Bdc1Performer")
-  repairsReported                 RepairTicket[]            @relation("DriverRepairs")
-  repairsAssigned                 RepairTicket[]            @relation("TechnicianRepairs")
-  workshopRequestsReported        WorkshopRequest[]         @relation("WorkshopRequestReporter")
-  workshopRequestsAssigned        WorkshopRequest[]         @relation("WorkshopRequestTechnician")
-  alertReadReceipts               AlertReadReceipt[]
-  alertEventsHandled              AlertEvent[]               @relation("AlertHandler")
-  alertEventsAsDriver             AlertEvent[]               @relation("AlertDriver")
-  alertRulesUpdated               AlertRule[]                @relation("AlertRuleUpdater")
-  kpis                            DriverKpi[]               @relation("DriverKpiRel")
-  sosAlerts                       DriverSosAlert[]          @relation("DriverSosRel")
-  driverProfile                   DriverProfile?
-  vehicleDriverAssignmentsCreated VehicleDriverAssignment[] @relation("VehicleDriverAssignmentActor")
-  driverUnavailabilityApprovals   DriverUnavailability[]    @relation("DriverUnavailabilityApprover")
-  vehicleUnavailabilityCreated    VehicleUnavailability[]   @relation("VehicleUnavailabilityActor")
-  workOrdersCreated               OperationalWorkOrder[]    @relation("WorkOrderCreator")
-  workOrdersApproved              OperationalWorkOrder[]    @relation("WorkOrderApprover")
-  workAssignmentsCreated          WorkDriverAssignment[]    @relation("WorkDriverAssignmentActor")
-  workVehicleAssignmentsCreated   WorkVehicleAssignment[]   @relation("WorkVehicleAssignmentActor")
-  workAcceptancesReviewed         WorkAcceptance[]          @relation("WorkAcceptanceReviewer")
-  workOrderEvents                 WorkOrderEvent[]          @relation("WorkOrderEventActor")
-  workEvidenceCreated             WorkEvidence[]
-  driverManagementAssignmentsMade DriverManagementAssignment[] @relation("DriverManagementAssignmentActor")
-  driverManagementScopes          DriverManagementAccessScope[] @relation("DriverManagementScopeUser")
-  driverManagementScopesGranted   DriverManagementAccessScope[] @relation("DriverManagementScopeGrantor")
+  assignedVehicle                      Vehicle?                          @relation("UserAssignedVehicle", fields: [assignedVehicleId], references: [id], onDelete: SetNull)
+  drivenVehicles                       Vehicle[]                         @relation("DefaultDriver")
+  secondaryVehicles                    Vehicle[]                         @relation("SecondaryDriver")
+  implementLogs                        ImplementAttachmentLog[]          @relation("ActorLogs")
+  productionPlans                      ProductionPlan[]                  @relation("SupervisorPlans")
+  plotProgresses                       ProductionPlotProgress[]          @relation("DriverPlots")
+  auditTrails                          ProductionAuditTrail[]            @relation("AuditActor")
+  productionPlansCreated               ProductionPlan[]                  @relation("ProductionPlanCreator")
+  productionPlansApproved              ProductionPlan[]                  @relation("ProductionPlanApprover")
+  productionOrdersCreated              ProductionOrder[]                 @relation("ProductionOrderCreator")
+  dispatchOrdersReq                    DispatchOrder[]                   @relation("RequesterDispatch")
+  dispatchOrdersDriven                 DispatchOrder[]                   @relation("DriverDispatch")
+  dispatchOrdersApproved               DispatchOrder[]                   @relation("DispatchApprover")
+  dispatchOrdersAssigned               DispatchOrder[]                   @relation("DispatchAssigner")
+  dispatchOrdersAccepted               DispatchOrder[]                   @relation("DispatchAcceptor")
+  transportOrders                      TransportOrder[]                  @relation("DriverTransport")
+  transportOrdersApproved              TransportOrder[]                  @relation("TransportApprover")
+  operationalAuditLogs                 OperationalAuditLog[]             @relation("OperationalAuditActor")
+  operationConfirmationsCreated        OperationConfirmation[]           @relation("ConfirmationCreator")
+  operationConfirmationsConfirmed      OperationConfirmation[]           @relation("ConfirmationConfirmer")
+  transportImportBatches               TransportImportBatch[]            @relation("TransportImportActor")
+  feedTrips                            InternalFeedTrip[]                @relation("DriverFeedTrip")
+  feedMaterialsCreated                 FeedRawMaterial[]                 @relation("MaterialCreator")
+  fuelTicketsOperated                  FuelDispenseTicket[]              @relation("OperatorTicket")
+  fuelTicketsReceived                  FuelDispenseTicket[]              @relation("DriverFuelTicket")
+  maintenanceRecords                   MaintenanceRecord[]               @relation("TechnicianMaintenance")
+  maintenanceStandardsCreated          MaintenanceStandard[]             @relation("MaintenanceStandardCreator")
+  maintenanceStandardsUpdated          MaintenanceStandard[]             @relation("MaintenanceStandardUpdater")
+  bdc1Logs                             Bdc1Log[]                         @relation("Bdc1Performer")
+  repairsReported                      RepairTicket[]                    @relation("DriverRepairs")
+  repairsAssigned                      RepairTicket[]                    @relation("TechnicianRepairs")
+  workshopRequestsReported             WorkshopRequest[]                 @relation("WorkshopRequestReporter")
+  workshopRequestsAssigned             WorkshopRequest[]                 @relation("WorkshopRequestTechnician")
+  alertReadReceipts                    AlertReadReceipt[]
+  alertEventsHandled                   AlertEvent[]                      @relation("AlertHandler")
+  alertEventsAsDriver                  AlertEvent[]                      @relation("AlertDriver")
+  alertRulesUpdated                    AlertRule[]                       @relation("AlertRuleUpdater")
+  kpis                                 DriverKpi[]                       @relation("DriverKpiRel")
+  sosAlerts                            DriverSosAlert[]                  @relation("DriverSosRel")
+  driverProfile                        DriverProfile?
+  vehicleDriverAssignmentsCreated      VehicleDriverAssignment[]         @relation("VehicleDriverAssignmentActor")
+  driverUnavailabilityApprovals        DriverUnavailability[]            @relation("DriverUnavailabilityApprover")
+  vehicleUnavailabilityCreated         VehicleUnavailability[]           @relation("VehicleUnavailabilityActor")
+  workOrdersCreated                    OperationalWorkOrder[]            @relation("WorkOrderCreator")
+  workOrdersApproved                   OperationalWorkOrder[]            @relation("WorkOrderApprover")
+  workAssignmentsCreated               WorkDriverAssignment[]            @relation("WorkDriverAssignmentActor")
+  workVehicleAssignmentsCreated        WorkVehicleAssignment[]           @relation("WorkVehicleAssignmentActor")
+  workAcceptancesReviewed              WorkAcceptance[]                  @relation("WorkAcceptanceReviewer")
+  workOrderEvents                      WorkOrderEvent[]                  @relation("WorkOrderEventActor")
+  workEvidenceCreated                  WorkEvidence[]
+  workDailyProgressReports             WorkDailyProgress[]               @relation("WorkDailyProgressReporter")
+  dailyReportsSubmitted                DailyReport[]                     @relation("DailyReportSubmitter")
+  dailyReportsForDriver                DailyReport[]                     @relation("DailyReportDriver")
+  workCompletionReports                OperationalWorkOrder[]            @relation("WorkCompletionReporter")
+  workCompletionApprovals              OperationalWorkOrder[]            @relation("WorkCompletionApprover")
+  mobileSessions                       MobileSession[]
+  mobileSyncEvents                     MobileSyncEvent[]
+  driverManagementAssignmentsMade      DriverManagementAssignment[]      @relation("DriverManagementAssignmentActor")
+  driverManagementScopes               DriverManagementAccessScope[]     @relation("DriverManagementScopeUser")
+  driverManagementScopesGranted        DriverManagementAccessScope[]     @relation("DriverManagementScopeGrantor")
+  managementUnitManagerAssignments     ManagementUnitManagerAssignment[] @relation("ManagementUnitManager")
+  managementUnitManagerAssignmentsMade ManagementUnitManagerAssignment[] @relation("ManagementUnitManagerActor")
 
   @@index([role])
   @@index([unit])
@@ -797,9 +881,10 @@ model Vehicle {
   vehicleTypeId     Int?
   assetGroup        String?
   vehicleSubtype    String?
-  unit              Unit            @default(BAN_CO_GIOI)
+  unit              Unit            @default(KOUN_MOM)
   complexCode       String          @default("KOUN_MOM")
   assignedUnitCode  String? // Đơn vị sử dụng (CGTC DP, XN Chuối DP1...)
+  managementUnitId  Int?
   regionCode        String? // Khu vực (DP, LP, AD, KLH)
   allocationDate    DateTime? // Ngày phân bổ
   conditionStatus   String? // Tình trạng (Bình thường / Hỏng...)
@@ -841,6 +926,7 @@ model Vehicle {
   defaultDriverId       Int?
   secondaryDriverId     Int?
   status                VehicleStatus        @default(CHO_PHAN_CONG)
+  isRescueCapable       Boolean              @default(false)
   totalMachineHours     Float                @default(0)
   hoursSinceLastService Float                @default(0) // 0-250h
   alertTier             MaintenanceAlertTier @default(GREEN)
@@ -854,6 +940,8 @@ model Vehicle {
   currentLng          Float?    @default(106.8901)
   currentLocationName String?   @default("Khu liên hợp Koun Mom")
   lastGpsUpdate       DateTime?
+  currentSpeedKmH     Float?
+  movingSince         DateTime?
   managerName         String? // Nhân sự quản lý (từ sheet XE & MÁY CG AGRI)
   managerPhone        String? // Số liên lạc / Zalo
   homeDepotId         Int?
@@ -862,39 +950,42 @@ model Vehicle {
   updatedAt DateTime @updatedAt
 
   // Quan hệ
-  vehicleType        VehicleType?              @relation(fields: [vehicleTypeId], references: [id], onDelete: SetNull)
-  manufacturerRef    VehicleManufacturer?      @relation(fields: [manufacturerRefId], references: [id], onDelete: SetNull)
-  modelRef           VehicleModel?             @relation(fields: [modelRefId], references: [id], onDelete: SetNull)
-  defaultDriver      User?                     @relation("DefaultDriver", fields: [defaultDriverId], references: [id], onDelete: SetNull)
-  secondaryDriver    User?                     @relation("SecondaryDriver", fields: [secondaryDriverId], references: [id], onDelete: SetNull)
-  assignedUsers      User[]                    @relation("UserAssignedVehicle")
-  currentImplements  AgriculturalImplement[]   @relation("VehicleImplement")
-  implementLogs      ImplementAttachmentLog[]
-  plotProgresses     ProductionPlotProgress[]
-  dispatchOrders     DispatchOrder[]
-  transportOrders    TransportOrder[]
-  feedTrips          InternalFeedTrip[]
-  fuelTickets        FuelDispenseTicket[]
-  maintenanceRecords MaintenanceRecord[]
+  vehicleType            VehicleType?              @relation(fields: [vehicleTypeId], references: [id], onDelete: SetNull)
+  manufacturerRef        VehicleManufacturer?      @relation(fields: [manufacturerRefId], references: [id], onDelete: SetNull)
+  modelRef               VehicleModel?             @relation(fields: [modelRefId], references: [id], onDelete: SetNull)
+  defaultDriver          User?                     @relation("DefaultDriver", fields: [defaultDriverId], references: [id], onDelete: SetNull)
+  secondaryDriver        User?                     @relation("SecondaryDriver", fields: [secondaryDriverId], references: [id], onDelete: SetNull)
+  assignedUsers          User[]                    @relation("UserAssignedVehicle")
+  currentImplements      AgriculturalImplement[]   @relation("VehicleImplement")
+  implementLogs          ImplementAttachmentLog[]
+  plotProgresses         ProductionPlotProgress[]
+  dispatchOrders         DispatchOrder[]
+  transportOrders        TransportOrder[]
+  feedTrips              InternalFeedTrip[]
+  fuelTickets            FuelDispenseTicket[]
+  maintenanceRecords     MaintenanceRecord[]
   maintenanceOccurrences MaintenanceOccurrence[]
-  bdc1Logs          Bdc1Log[]
-  owedPartNotes      WorkshopOwedPartNote[]
-  repairTickets      RepairTicket[]
-  workshopRequests   WorkshopRequest[]
-  alertEvents        AlertEvent[]
-  sosAlerts          DriverSosAlert[]
-  driverAssignments  VehicleDriverAssignment[]
-  workAssignments    WorkVehicleAssignment[]
-  executionSegments  WorkExecutionSegment[]
-  unavailability     VehicleUnavailability[]
-  homeDepot          OperationalLocation?      @relation("VehicleHomeDepot", fields: [homeDepotId], references: [id], onDelete: SetNull)
+  bdc1Logs               Bdc1Log[]
+  owedPartNotes          WorkshopOwedPartNote[]
+  repairTickets          RepairTicket[]
+  workshopRequests       WorkshopRequest[]
+  alertEvents            AlertEvent[]
+  sosAlerts              DriverSosAlert[]
+  driverAssignments      VehicleDriverAssignment[]
+  workAssignments        WorkVehicleAssignment[]
+  executionSegments      WorkExecutionSegment[]
+  unavailability         VehicleUnavailability[]
+  homeDepot              OperationalLocation?      @relation("VehicleHomeDepot", fields: [homeDepotId], references: [id], onDelete: SetNull)
+  managementUnit         DriverManagementUnit?     @relation(fields: [managementUnitId], references: [id], onDelete: SetNull)
 
   @@index([category])
   @@index([vehicleTypeId])
   @@index([assetGroup])
   @@index([unit])
   @@index([complexCode])
+  @@index([managementUnitId])
   @@index([status])
+  @@index([isRescueCapable, status])
   @@index([conditionStatus])
   @@index([alertTier])
   @@index([plate])
@@ -926,6 +1017,8 @@ model AgriculturalImplement {
   managerName        String? // Nhân sự quản lý (Nguyễn Tấn Triều...)
   gatheringLocation  String? // Địa chỉ / Nơi tập kết (Lô 85 DP4, LP3.5-LP3...)
   managerPhone       String? // Số liên lạc (Zalo)
+  assignedUnitCode   String? // Đơn vị sử dụng theo workbook
+  managementUnitId   Int?
   usageMode          EquipmentUsageMode @default(UNCLASSIFIED)
   sourceGroup        String?
   createdAt          DateTime           @default(now())
@@ -941,12 +1034,15 @@ model AgriculturalImplement {
   workshopRequests       WorkshopRequest[]
   owedPartNotes          WorkshopOwedPartNote[]
   alertEvents            AlertEvent[]
+  managementUnit         DriverManagementUnit?               @relation(fields: [managementUnitId], references: [id], onDelete: SetNull)
 
   @@index([category])
   @@index([unit])
   @@index([status])
   @@index([technicalCondition])
   @@index([usageMode])
+  @@index([assignedUnitCode])
+  @@index([managementUnitId])
   @@map("agricultural_implements")
 }
 
@@ -992,7 +1088,7 @@ model ProductionPlan {
   code                  String          @unique // KH-2026-NT1-008
   title                 String // Kế hoạch làm đất vụ Chuối 2026 - NT1
   stage                 ProductionStage @default(LAM_DAT)
-  unit                  Unit            @default(NT1)
+  unit                  Unit            @default(KOUN_MOM)
   lotPlot               String // Lô A01-A04, Khoảnh 4
   targetAreaHa          Float           @default(0)
   completedAreaHa       Float           @default(0)
@@ -1156,67 +1252,87 @@ model ProductionAuditTrail {
 }
 
 model DispatchOrder {
-  id                    Int                       @id @default(autoincrement())
-  code                  String                    @unique // LC-2026-0512
-  requesterId           Int
-  unit                  Unit
-  purpose               String // San gạt mặt bằng đường giao thông nội đồng Lô B
-  origin                String // Kho cơ giới Trung tâm
-  destination           String // Lô B04 - NT2
-  originLocationId      Int?
-  destinationLocationId Int?
-  sourceType            DispatchSourceType        @default(MANUAL_EXCEPTION)
-  operationDomain       VehicleOperationalDomain?
-  productionOrderId     Int?
-  generationKey         String?                   @unique
-  implementId           Int?
-  vehicleId             Int?
-  driverId              Int?
-  departureTime         DateTime?
-  plannedEndTime        DateTime?
-  actualDepartureTime   DateTime?
-  actualStartTime       DateTime?
-  actualCompletedTime   DateTime?
-  returnTime            DateTime?
-  approvedById          Int?
-  assignedById          Int?
-  acceptedById          Int?
-  submittedAt           DateTime?
-  approvedAt            DateTime?
-  assignedAt            DateTime?
-  driverAcceptedAt      DateTime?
-  acceptedAt            DateTime?
-  closedAt              DateTime?
-  cancelledAt           DateTime?
-  rejectionReason       String?                   @db.Text
-  legacyVehicle         String?
-  legacyDriver          String?
-  legacyImplement       String?
-  status                DispatchStatus            @default(DRAFT)
-  isDelayed             Boolean                   @default(false)
-  notes                 String?                   @db.Text
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
+  id                      Int                       @id @default(autoincrement())
+  code                    String                    @unique // LC-2026-0512
+  requesterId             Int
+  unit                    Unit
+  purpose                 String // San gạt mặt bằng đường giao thông nội đồng Lô B
+  origin                  String // Kho cơ giới Trung tâm
+  destination             String // Lô B04 - NT2
+  originLocationId        Int?
+  destinationLocationId   Int?
+  sourceType              DispatchSourceType        @default(MANUAL_EXCEPTION)
+  operationDomain         VehicleOperationalDomain?
+  productionOrderId       Int?
+  sosAlertId              Int?                      @unique
+  generationKey           String?                   @unique
+  implementId             Int?
+  vehicleId               Int?
+  driverId                Int?
+  workOrderId             Int?
+  previousDispatchOrderId Int?                      @unique
+  departureTime           DateTime?
+  plannedEndTime          DateTime?
+  scheduledStartAt        DateTime?
+  scheduledEndAt          DateTime?
+  workDurationMinutes     Int                       @default(0)
+  breakDurationMinutes    Int                       @default(0)
+  acceptGraceMinutes      Int                       @default(15)
+  acceptDelayMinutes      Int                       @default(0)
+  acceptStatus            DispatchAcceptStatus      @default(NOT_ACCEPTED)
+  reportOpenAt            DateTime?
+  reportDeadlineAt        DateTime?
+  actualDepartureTime     DateTime?
+  actualStartTime         DateTime?
+  actualCompletedTime     DateTime?
+  returnTime              DateTime?
+  approvedById            Int?
+  assignedById            Int?
+  acceptedById            Int?
+  submittedAt             DateTime?
+  approvedAt              DateTime?
+  assignedAt              DateTime?
+  driverAcceptedAt        DateTime?
+  acceptedAt              DateTime?
+  closedAt                DateTime?
+  cancelledAt             DateTime?
+  rejectionReason         String?                   @db.Text
+  legacyVehicle           String?
+  legacyDriver            String?
+  legacyImplement         String?
+  status                  DispatchStatus            @default(DRAFT)
+  isDelayed               Boolean                   @default(false)
+  notes                   String?                   @db.Text
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
 
   // Quan hệ
-  requester            User                    @relation("RequesterDispatch", fields: [requesterId], references: [id], onDelete: Cascade)
-  originLocation       OperationalLocation?    @relation("DispatchOriginLocation", fields: [originLocationId], references: [id], onDelete: SetNull)
-  destinationLocation  OperationalLocation?    @relation("DispatchDestinationLocation", fields: [destinationLocationId], references: [id], onDelete: SetNull)
-  vehicle              Vehicle?                @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  driver               User?                   @relation("DriverDispatch", fields: [driverId], references: [id], onDelete: SetNull)
-  productionOrder      ProductionOrder?        @relation(fields: [productionOrderId], references: [id], onDelete: SetNull)
-  implement            AgriculturalImplement?  @relation(fields: [implementId], references: [id], onDelete: SetNull)
-  approvedBy           User?                   @relation("DispatchApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  assignedBy           User?                   @relation("DispatchAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
-  acceptedBy           User?                   @relation("DispatchAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
-  confirmations        OperationConfirmation[]
-  operationalWorkOrder OperationalWorkOrder?
+  requester             User                    @relation("RequesterDispatch", fields: [requesterId], references: [id], onDelete: Cascade)
+  originLocation        OperationalLocation?    @relation("DispatchOriginLocation", fields: [originLocationId], references: [id], onDelete: SetNull)
+  destinationLocation   OperationalLocation?    @relation("DispatchDestinationLocation", fields: [destinationLocationId], references: [id], onDelete: SetNull)
+  vehicle               Vehicle?                @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driver                User?                   @relation("DriverDispatch", fields: [driverId], references: [id], onDelete: SetNull)
+  productionOrder       ProductionOrder?        @relation(fields: [productionOrderId], references: [id], onDelete: SetNull)
+  sosAlert              DriverSosAlert?         @relation("SosRescueDispatch", fields: [sosAlertId], references: [id], onDelete: SetNull)
+  implement             AgriculturalImplement?  @relation(fields: [implementId], references: [id], onDelete: SetNull)
+  approvedBy            User?                   @relation("DispatchApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  assignedBy            User?                   @relation("DispatchAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  acceptedBy            User?                   @relation("DispatchAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  confirmations         OperationConfirmation[]
+  operationalWorkOrder  OperationalWorkOrder?
+  workTask              OperationalWorkOrder?   @relation("DailyDispatchWorkTask", fields: [workOrderId], references: [id], onDelete: Restrict)
+  previousDispatchOrder DispatchOrder?          @relation("DispatchOrderSequence", fields: [previousDispatchOrderId], references: [id], onDelete: SetNull)
+  nextDispatchOrders    DispatchOrder[]         @relation("DispatchOrderSequence")
+  dailyReport           DailyReport?
 
   @@index([unit])
   @@index([status])
   @@index([operationDomain])
   @@index([vehicleId])
   @@index([driverId])
+  @@index([workOrderId, scheduledStartAt])
+  @@index([previousDispatchOrderId])
+  @@index([reportDeadlineAt, status])
   @@index([productionOrderId])
   @@index([implementId])
   @@index([departureTime, plannedEndTime])
@@ -1235,7 +1351,7 @@ model TransportOrder {
   flowType              TransportFlowType  @default(STANDARD)
   requestDate           DateTime?
   executionDate         DateTime?
-  unit                  Unit               @default(BAN_CO_GIOI)
+  unit                  Unit               @default(KOUN_MOM)
   cargoType             String?
   tonnage               Float              @default(0)
   origin                String?
@@ -1362,6 +1478,49 @@ model OperationalAuditLog {
   @@map("operational_audit_logs")
 }
 
+/// Mobile refresh sessions are device-bound. The refresh token itself is never persisted.
+model MobileSession {
+  id               Int       @id @default(autoincrement())
+  driverId         Int
+  deviceId         String
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastUsedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+
+  driver User @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, deviceId])
+  @@index([expiresAt])
+  @@map("mobile_sessions")
+}
+
+/// Immutable mobile commands. `eventId` makes retries safe when the app reconnects.
+model MobileSyncEvent {
+  id             Int                   @id @default(autoincrement())
+  eventId        String                @unique @db.VarChar(36)
+  deviceId       String
+  driverId       Int
+  orderType      String?
+  orderId        Int?
+  eventType      String
+  sequenceNumber Int
+  occurredAt     DateTime
+  baseVersion    Int?
+  payload        Json
+  result         Json?
+  status         MobileSyncEventStatus @default(PROCESSED)
+  createdAt      DateTime              @default(now())
+
+  driver User @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId, occurredAt])
+  @@index([deviceId, sequenceNumber])
+  @@index([orderType, orderId])
+  @@map("mobile_sync_events")
+}
+
 model OperationConfirmation {
   id               Int                         @id @default(autoincrement())
   code             String                      @unique
@@ -1472,7 +1631,7 @@ model FuelWarehouse {
   type               WarehouseType @default(STATIONARY_TANK_45000L)
   capacityLiters     Float         @default(45000)
   currentStockLiters Float         @default(38500)
-  unit               Unit          @default(BAN_CO_GIOI)
+  unit               Unit          @default(KOUN_MOM)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -1544,17 +1703,17 @@ model MaintenanceStandard {
 }
 
 model MaintenanceMilestone {
-  id                    Int               @id @default(autoincrement())
+  id                    Int      @id @default(autoincrement())
   standardId            Int
   sequence              Int
   meterValue            Float
   label                 String?
   checklistTemplateJson Json?
-  active                Boolean           @default(true)
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  standard   MaintenanceStandard     @relation(fields: [standardId], references: [id], onDelete: Cascade)
+  standard    MaintenanceStandard     @relation(fields: [standardId], references: [id], onDelete: Cascade)
   occurrences MaintenanceOccurrence[]
 
   @@unique([standardId, sequence])
@@ -1579,9 +1738,9 @@ model MaintenanceOccurrence {
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
 
-  vehicle   Vehicle              @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  standard  MaintenanceStandard  @relation(fields: [standardId], references: [id], onDelete: Restrict)
-  milestone MaintenanceMilestone @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle              @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  standard         MaintenanceStandard  @relation(fields: [standardId], references: [id], onDelete: Restrict)
+  milestone        MaintenanceMilestone @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
   records          MaintenanceRecord[]
   workshopRequests WorkshopRequest[]
 
@@ -1592,20 +1751,20 @@ model MaintenanceOccurrence {
 }
 
 model Bdc1Log {
-  id                 Int      @id @default(autoincrement())
-  vehicleId          Int
-  performerId        Int?
-  operatingDate      DateTime @db.Date
+  id                  Int       @id @default(autoincrement())
+  vehicleId           Int
+  performerId         Int?
+  operatingDate       DateTime  @db.Date
   openingMachineHours Float
-  openingOdoKm       Float
-  checklistJson      Json
-  notes              String?  @db.Text
-  photoUrlsJson      Json?
-  submittedAt        DateTime?
-  skippedAt          DateTime?
-  skipReason         String?  @db.Text
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  openingOdoKm        Float
+  checklistJson       Json
+  notes               String?   @db.Text
+  photoUrlsJson       Json?
+  submittedAt         DateTime?
+  skippedAt           DateTime?
+  skipReason          String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   performer User?   @relation("Bdc1Performer", fields: [performerId], references: [id], onDelete: SetNull)
@@ -1675,10 +1834,10 @@ model WorkshopOwedPartNote {
   updatedAt            DateTime  @updatedAt
 
   // Quan hệ
-  maintenanceRecord MaintenanceRecord?      @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
-  workshopRequest   WorkshopRequest?        @relation(fields: [workshopRequestId], references: [id], onDelete: Cascade)
-  vehicle           Vehicle?                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  implement         AgriculturalImplement?  @relation(fields: [implementId], references: [id], onDelete: Cascade)
+  maintenanceRecord MaintenanceRecord?     @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  workshopRequest   WorkshopRequest?       @relation(fields: [workshopRequestId], references: [id], onDelete: Cascade)
+  vehicle           Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  implement         AgriculturalImplement? @relation(fields: [implementId], references: [id], onDelete: Cascade)
 
   @@index([maintenanceRecordId])
   @@index([workshopRequestId])
@@ -1717,11 +1876,11 @@ model RepairTicket {
   updatedAt                  DateTime     @updatedAt
 
   // Quan hệ
-  vehicle            Vehicle?           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  vehicle            Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   implement          AgriculturalImplement? @relation(fields: [implementId], references: [id], onDelete: Restrict)
-  reportedByDriver   User?              @relation("DriverRepairs", fields: [reportedByDriverId], references: [id], onDelete: SetNull)
-  assignedTechnician User?              @relation("TechnicianRepairs", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
-  maintenanceRecord  MaintenanceRecord? @relation("MaintenanceToRepair", fields: [maintenanceRecordId], references: [id], onDelete: SetNull)
+  reportedByDriver   User?                  @relation("DriverRepairs", fields: [reportedByDriverId], references: [id], onDelete: SetNull)
+  assignedTechnician User?                  @relation("TechnicianRepairs", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  maintenanceRecord  MaintenanceRecord?     @relation("MaintenanceToRepair", fields: [maintenanceRecordId], references: [id], onDelete: SetNull)
 
   @@index([vehicleId])
   @@index([implementId])
@@ -1732,58 +1891,58 @@ model RepairTicket {
 }
 
 model WorkshopRequest {
-  id                    Int                    @id @default(autoincrement())
-  code                  String                 @unique
-  type                  WorkshopRequestType
-  source                WorkshopRequestSource  @default(MANUAL)
-  status                WorkshopRequestStatus  @default(RECEIVED)
-  repairRoute           WorkshopRepairRoute    @default(INTERNAL)
-  priority              WorkshopPriority       @default(EQUIPMENT)
-  repairTier            RepairTier?
-  vehicleId             Int?
-  implementId           Int?
+  id                      Int                   @id @default(autoincrement())
+  code                    String                @unique
+  type                    WorkshopRequestType
+  source                  WorkshopRequestSource @default(MANUAL)
+  status                  WorkshopRequestStatus @default(RECEIVED)
+  repairRoute             WorkshopRepairRoute   @default(INTERNAL)
+  priority                WorkshopPriority      @default(EQUIPMENT)
+  repairTier              RepairTier?
+  vehicleId               Int?
+  implementId             Int?
   maintenanceOccurrenceId Int?
-  sosAlertId            Int?                   @unique
-  reportedById          Int?
-  assignedTechnicianId  Int?
-  issueDescription      String                 @db.Text
-  rootCause             String?                @db.Text
-  resolution            String?                @db.Text
-  checklistJson         Json?
-  photoUrlsJson         Json?
-  partsJson             Json?
-  currentHours          Float?
-  currentKm             Float?
-  completionHours       Float?
-  completionKm          Float?
-  explanationReason     String?                @db.Text
-  explanationUrl        String?                @db.Text
-  incidentLocation      String?
-  vendorName            String?
-  vendorContact         String?
-  vendorSentAt          DateTime?
-  vendorExpectedReturnAt DateTime?
-  vendorReturnedAt      DateTime?
-  vendorNotes           String?                @db.Text
-  estimatedCostVnd      Float                   @default(0)
-  actualCostVnd         Float                   @default(0)
-  plannedStartAt        DateTime?
-  plannedEndAt          DateTime?
-  startedAt             DateTime?
-  readyForAcceptanceAt  DateTime?
-  handedOverAt          DateTime?
-  completedAt           DateTime?
-  cancelledAt           DateTime?
-  cancellationReason    String?                @db.Text
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  sosAlertId              Int?                  @unique
+  reportedById            Int?
+  assignedTechnicianId    Int?
+  issueDescription        String                @db.Text
+  rootCause               String?               @db.Text
+  resolution              String?               @db.Text
+  checklistJson           Json?
+  photoUrlsJson           Json?
+  partsJson               Json?
+  currentHours            Float?
+  currentKm               Float?
+  completionHours         Float?
+  completionKm            Float?
+  explanationReason       String?               @db.Text
+  explanationUrl          String?               @db.Text
+  incidentLocation        String?
+  vendorName              String?
+  vendorContact           String?
+  vendorSentAt            DateTime?
+  vendorExpectedReturnAt  DateTime?
+  vendorReturnedAt        DateTime?
+  vendorNotes             String?               @db.Text
+  estimatedCostVnd        Float                 @default(0)
+  actualCostVnd           Float                 @default(0)
+  plannedStartAt          DateTime?
+  plannedEndAt            DateTime?
+  startedAt               DateTime?
+  readyForAcceptanceAt    DateTime?
+  handedOverAt            DateTime?
+  completedAt             DateTime?
+  cancelledAt             DateTime?
+  cancellationReason      String?               @db.Text
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
-  vehicle               Vehicle?                @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  implement             AgriculturalImplement?  @relation(fields: [implementId], references: [id], onDelete: Restrict)
-  maintenanceOccurrence MaintenanceOccurrence?  @relation(fields: [maintenanceOccurrenceId], references: [id], onDelete: SetNull)
-  sosAlert              DriverSosAlert?          @relation(fields: [sosAlertId], references: [id], onDelete: SetNull)
-  reportedBy            User?                    @relation("WorkshopRequestReporter", fields: [reportedById], references: [id], onDelete: SetNull)
-  assignedTechnician    User?                    @relation("WorkshopRequestTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  vehicle               Vehicle?                  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  implement             AgriculturalImplement?    @relation(fields: [implementId], references: [id], onDelete: Restrict)
+  maintenanceOccurrence MaintenanceOccurrence?    @relation(fields: [maintenanceOccurrenceId], references: [id], onDelete: SetNull)
+  sosAlert              DriverSosAlert?           @relation(fields: [sosAlertId], references: [id], onDelete: SetNull)
+  reportedBy            User?                     @relation("WorkshopRequestReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+  assignedTechnician    User?                     @relation("WorkshopRequestTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
   documents             WorkshopRequestDocument[]
   owedPartNotes         WorkshopOwedPartNote[]
 
@@ -1796,15 +1955,15 @@ model WorkshopRequest {
 }
 
 model WorkshopRequestDocument {
-  id          Int                    @id @default(autoincrement())
-  requestId   Int
-  type        WorkshopDocumentType
-  status      WorkshopDocumentStatus @default(NOT_STARTED)
-  documentNo  String?
-  fileUrl     String?                @db.Text
-  notes       String?                @db.Text
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  id         Int                    @id @default(autoincrement())
+  requestId  Int
+  type       WorkshopDocumentType
+  status     WorkshopDocumentStatus @default(NOT_STARTED)
+  documentNo String?
+  fileUrl    String?                @db.Text
+  notes      String?                @db.Text
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
 
   request WorkshopRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
@@ -1851,17 +2010,24 @@ model DriverSosAlert {
   photoUrl      String?          @db.Text
   description   String           @db.Text
   status        SosStatus        @default(PENDING)
+  workOrderId   Int?
+  workSessionId Int?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   // Quan hệ
-  driver  User    @relation("DriverSosRel", fields: [driverId], references: [id], onDelete: Cascade)
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  workshopRequest WorkshopRequest?
+  driver              User                  @relation("DriverSosRel", fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle             Vehicle               @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  workshopRequest     WorkshopRequest?
+  rescueDispatchOrder DispatchOrder?        @relation("SosRescueDispatch")
+  workOrder           OperationalWorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workSession         WorkExecutionSegment? @relation(fields: [workSessionId], references: [id], onDelete: SetNull)
 
   @@index([driverId])
   @@index([vehicleId])
   @@index([status])
+  @@index([workOrderId])
+  @@index([workSessionId])
   @@map("driver_sos_alerts")
 }
 
@@ -1886,47 +2052,50 @@ model AlertRule {
 }
 
 model AlertEvent {
-  id             Int           @id @default(autoincrement())
-  ruleId         Int?
-  dedupeKey      String?       @unique
-  sourceType     String
-  sourceId       String?
-  category       AlertCategory
-  alertType      String
-  severity       AlertSeverity
-  status         AlertStatus   @default(OPEN)
-  title          String
-  message        String        @db.Text
-  location       String?
-  metricValue    Float?
-  thresholdValue Float?
-  metricUnit     String?
-  targetUrl      String?
-  metadataJson   Json?
-  complexCode    String?
-  unit           Unit?
-  vehicleId      Int?
-  implementId    Int?
-  driverId       Int?
-  handledById    Int?
-  handlingReason String?       @db.Text
-  occurredAt     DateTime      @default(now())
-  handledAt      DateTime?
-  resolvedAt     DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id               Int           @id @default(autoincrement())
+  ruleId           Int?
+  dedupeKey        String?       @unique
+  sourceType       String
+  sourceId         String?
+  category         AlertCategory
+  alertType        String
+  severity         AlertSeverity
+  status           AlertStatus   @default(OPEN)
+  title            String
+  message          String        @db.Text
+  location         String?
+  metricValue      Float?
+  thresholdValue   Float?
+  metricUnit       String?
+  targetUrl        String?
+  metadataJson     Json?
+  complexCode      String?
+  unit             Unit?
+  managementUnitId Int?
+  vehicleId        Int?
+  implementId      Int?
+  driverId         Int?
+  handledById      Int?
+  handlingReason   String?       @db.Text
+  occurredAt       DateTime      @default(now())
+  handledAt        DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  rule         AlertRule?             @relation(fields: [ruleId], references: [id], onDelete: SetNull)
-  vehicle      Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  implement    AgriculturalImplement? @relation(fields: [implementId], references: [id], onDelete: SetNull)
-  driver       User?                  @relation("AlertDriver", fields: [driverId], references: [id], onDelete: SetNull)
-  handledBy    User?                  @relation("AlertHandler", fields: [handledById], references: [id], onDelete: SetNull)
-  readReceipts AlertReadReceipt[]
+  rule           AlertRule?             @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  vehicle        Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  implement      AgriculturalImplement? @relation(fields: [implementId], references: [id], onDelete: SetNull)
+  driver         User?                  @relation("AlertDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  handledBy      User?                  @relation("AlertHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  managementUnit DriverManagementUnit?  @relation(fields: [managementUnitId], references: [id], onDelete: SetNull)
+  readReceipts   AlertReadReceipt[]
 
   @@index([status, severity, occurredAt])
   @@index([category, status])
   @@index([complexCode, status])
   @@index([unit, status])
+  @@index([managementUnitId, status])
   @@index([vehicleId])
   @@index([implementId])
   @@index([driverId])
@@ -1934,9 +2103,9 @@ model AlertEvent {
 }
 
 model AlertReadReceipt {
-  alertId  Int
-  userId   Int
-  readAt   DateTime @default(now())
+  alertId   Int
+  userId    Int
+  readAt    DateTime @default(now())
   createdAt DateTime @default(now())
 
   alert AlertEvent @relation(fields: [alertId], references: [id], onDelete: Cascade)
@@ -1957,17 +2126,18 @@ model DriverProfile {
   licenseNumber         String?
   licenseExpiryDate     DateTime?
   healthCheckExpiryDate DateTime?
+  licensesJson          Json?
   currentShiftStatus    DriverShiftStatus      @default(SAN_SANG)
   currentLocation       String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
-  user               User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  vehicleAssignments VehicleDriverAssignment[]
-  unavailability     DriverUnavailability[]
-  workAssignments    WorkDriverAssignment[]
-  executionSegments  WorkExecutionSegment[]
-  kpiEvents          DriverKpiEvent[]
+  user                  User                         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  vehicleAssignments    VehicleDriverAssignment[]
+  unavailability        DriverUnavailability[]
+  workAssignments       WorkDriverAssignment[]
+  executionSegments     WorkExecutionSegment[]
+  kpiEvents             DriverKpiEvent[]
   managementAssignments DriverManagementAssignment[]
 
   @@index([employmentStatus])
@@ -1983,36 +2153,69 @@ model DriverManagementUnit {
   level       DriverManagementLevel
   unitType    DriverManagementUnitType
   parentId    Int?
+  mainDepotId Int?
   status      DriverManagementUnitStatus @default(ACTIVE)
   description String?                    @db.Text
+  managerName  String?
+  managerPhone String?
   createdAt   DateTime                   @default(now())
   updatedAt   DateTime                   @updatedAt
 
-  parent           DriverManagementUnit?         @relation("DriverManagementHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children         DriverManagementUnit[]        @relation("DriverManagementHierarchy")
-  ownerAssignments DriverManagementAssignment[]  @relation("DriverManagementOwnerUnit")
-  teamAssignments  DriverManagementAssignment[]  @relation("DriverManagementTeamUnit")
-  accessScopes     DriverManagementAccessScope[]
+  parent             DriverManagementUnit?             @relation("DriverManagementHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children           DriverManagementUnit[]            @relation("DriverManagementHierarchy")
+  mainDepot          OperationalLocation?              @relation("ManagementUnitMainDepot", fields: [mainDepotId], references: [id], onDelete: SetNull)
+  ownerAssignments   DriverManagementAssignment[]      @relation("DriverManagementOwnerUnit")
+  teamAssignments    DriverManagementAssignment[]      @relation("DriverManagementTeamUnit")
+  accessScopes       DriverManagementAccessScope[]
+  managerAssignments ManagementUnitManagerAssignment[]
+  vehicles           Vehicle[]
+  implements         AgriculturalImplement[]
+  workOrders         OperationalWorkOrder[]
+  alertEvents        AlertEvent[]
 
   @@unique([complexCode, code])
   @@index([complexCode, level, status])
   @@index([parentId])
+  @@index([mainDepotId])
   @@map("driver_management_units")
 }
 
+model ManagementUnitManagerAssignment {
+  id               Int                       @id @default(autoincrement())
+  managementUnitId Int
+  managerUserId    Int
+  managerType      ManagementUnitManagerType @default(PRIMARY)
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  assignedById     Int
+  legacyCatalogId  String?
+  reason           String?                   @db.Text
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  managementUnit DriverManagementUnit @relation(fields: [managementUnitId], references: [id], onDelete: Restrict)
+  manager        User                 @relation("ManagementUnitManager", fields: [managerUserId], references: [id], onDelete: Restrict)
+  assignedBy     User                 @relation("ManagementUnitManagerActor", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  @@index([managementUnitId, managerType, effectiveFrom, effectiveTo], map: "manager_assignment_unit_effective_idx")
+  @@index([managerUserId, effectiveFrom, effectiveTo], map: "manager_assignment_user_effective_idx")
+  @@index([legacyCatalogId])
+  @@map("management_unit_manager_assignments")
+}
+
 model DriverManagementAssignment {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   driverId         Int
   managementUnitId Int
   teamUnitId       Int?
   effectiveFrom    DateTime
   effectiveTo      DateTime?
-  reason           String?  @db.Text
+  reason           String?   @db.Text
   assignedById     Int
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
-  driver         DriverProfile        @relation(fields: [driverId], references: [userId], onDelete: Restrict)
-  managementUnit DriverManagementUnit @relation("DriverManagementOwnerUnit", fields: [managementUnitId], references: [id], onDelete: Restrict)
+  driver         DriverProfile         @relation(fields: [driverId], references: [userId], onDelete: Restrict)
+  managementUnit DriverManagementUnit  @relation("DriverManagementOwnerUnit", fields: [managementUnitId], references: [id], onDelete: Restrict)
   teamUnit       DriverManagementUnit? @relation("DriverManagementTeamUnit", fields: [teamUnitId], references: [id], onDelete: Restrict)
   assignedBy     User                  @relation("DriverManagementAssignmentActor", fields: [assignedById], references: [id], onDelete: Restrict)
 
@@ -2023,15 +2226,16 @@ model DriverManagementAssignment {
 }
 
 model DriverManagementAccessScope {
-  id                Int      @id @default(autoincrement())
-  userId            Int
-  complexCode       String
-  managementUnitId  Int?
-  canManageCatalog  Boolean  @default(false)
-  canAssignDrivers  Boolean  @default(false)
-  grantedById       Int
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                  Int      @id @default(autoincrement())
+  userId              Int
+  complexCode         String
+  managementUnitId    Int?
+  canManageCatalog    Boolean  @default(false)
+  canAssignDrivers    Boolean  @default(false)
+  isManagerProjection Boolean  @default(false)
+  grantedById         Int
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   user           User                  @relation("DriverManagementScopeUser", fields: [userId], references: [id], onDelete: Cascade)
   managementUnit DriverManagementUnit? @relation(fields: [managementUnitId], references: [id], onDelete: Cascade)
@@ -2107,13 +2311,16 @@ model VehicleUnavailability {
 }
 
 model SchedulingPolicy {
-  unit                 Unit     @id
-  vehicleBufferMinutes Int      @default(0)
-  driverBufferMinutes  Int      @default(0)
-  timezone             String   @default("Asia/Phnom_Penh")
-  completionPhotoCount Int      @default(1)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  unit                    Unit     @id
+  vehicleBufferMinutes    Int      @default(0)
+  driverBufferMinutes     Int      @default(0)
+  timezone                String   @default("Asia/Phnom_Penh")
+  completionPhotoCount    Int      @default(1)
+  acceptGraceMinutes      Int      @default(15)
+  reportOpenBeforeMinutes Int      @default(60)
+  reportGraceMinutes      Int      @default(15)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@map("scheduling_policies")
 }
@@ -2122,6 +2329,7 @@ model OperationalWorkOrder {
   id                     Int                @id @default(autoincrement())
   type                   WorkOrderType
   unit                   Unit
+  managementUnitId       Int?
   category               WorkOrderCategory
   sourceType             DispatchSourceType @default(MANUAL)
   assignmentMode         WorkAssignmentMode @default(FIXED_ASSIGNMENT)
@@ -2146,6 +2354,14 @@ model OperationalWorkOrder {
   priority               WorkPriority       @default(NORMAL)
   targetQuantity         Float              @default(0)
   targetUnit             String?
+  completedQuantity      Float              @default(0)
+  expectedCompletedAt    DateTime?
+  actualCompletedAt      DateTime?
+  completionReportedById Int?
+  completionApprovedById Int?
+  completionApprovedAt   DateTime?
+  delayReason            WorkDelayReason?
+  delayReasonNote        String?            @db.Text
   requestedVehicleTypeId Int?
   requestedVehicleCount  Int                @default(1)
   categoryDetails        Json?
@@ -2171,6 +2387,7 @@ model OperationalWorkOrder {
   approvedBy           User?                   @relation("WorkOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   workLocation         OperationalLocation?    @relation("WorkOrderLocation", fields: [workLocationId], references: [id], onDelete: SetNull)
   requestedVehicleType VehicleType?            @relation("RequestedVehicleType", fields: [requestedVehicleTypeId], references: [id], onDelete: SetNull)
+  managementUnit       DriverManagementUnit?   @relation(fields: [managementUnitId], references: [id], onDelete: SetNull)
   vehicleAssignments   WorkVehicleAssignment[]
   driverAssignments    WorkDriverAssignment[]
   executionSegments    WorkExecutionSegment[]
@@ -2179,13 +2396,21 @@ model OperationalWorkOrder {
   events               WorkOrderEvent[]
   kpiEvents            DriverKpiEvent[]
   journeyLegs          WorkJourneyLeg[]
+  dailyProgress        WorkDailyProgress[]
+  dailyDispatchOrders  DispatchOrder[]         @relation("DailyDispatchWorkTask")
+  completionReportedBy User?                   @relation("WorkCompletionReporter", fields: [completionReportedById], references: [id], onDelete: SetNull)
+  completionApprovedBy User?                   @relation("WorkCompletionApprover", fields: [completionApprovedById], references: [id], onDelete: SetNull)
+  sosAlerts            DriverSosAlert[]
+  dailyReports         DailyReport[]
 
   @@index([unit, status, plannedStartAt, plannedEndAt], map: "owo_unit_status_planned_window_idx")
+  @@index([managementUnitId])
   @@index([type, status])
   @@index([category, sourceType])
   @@index([complexCode, enterpriseCode, farmCode])
   @@index([workLocationId])
   @@index([requestedVehicleTypeId])
+  @@index([expectedCompletedAt, status])
   @@map("operational_work_orders")
 }
 
@@ -2236,7 +2461,7 @@ model WorkDriverAssignment {
 }
 
 model WorkExecutionSegment {
-  id                  Int       @id @default(autoincrement())
+  id                  Int               @id @default(autoincrement())
   workOrderId         Int
   vehicleAssignmentId Int?
   driverAssignmentId  Int?
@@ -2244,6 +2469,12 @@ model WorkExecutionSegment {
   driverId            Int
   startedAt           DateTime
   endedAt             DateTime?
+  workDate            DateTime          @default(now()) @db.Date
+  status              WorkSessionStatus @default(ACTIVE)
+  grossMinutes        Int               @default(0)
+  breakMinutes        Int               @default(0)
+  pauseMinutes        Int               @default(0)
+  workingMinutes      Int               @default(0)
   startOdoKm          Float?
   endOdoKm            Float?
   startMachineHours   Float?
@@ -2253,9 +2484,9 @@ model WorkExecutionSegment {
   endLat              Float?
   endLng              Float?
   quantity            Float?
-  notes               String?   @db.Text
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  notes               String?           @db.Text
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   workOrder         OperationalWorkOrder   @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   vehicleAssignment WorkVehicleAssignment? @relation(fields: [vehicleAssignmentId], references: [id], onDelete: SetNull)
@@ -2263,11 +2494,114 @@ model WorkExecutionSegment {
   vehicle           Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   driver            DriverProfile          @relation(fields: [driverId], references: [userId], onDelete: Restrict)
   kpiEvents         DriverKpiEvent[]
+  breaks            WorkBreakSession[]
+  pauses            WorkPauseSession[]
+  sosAlerts         DriverSosAlert[]
 
   @@index([workOrderId, startedAt, endedAt])
   @@index([vehicleId, startedAt, endedAt])
   @@index([driverId, startedAt, endedAt])
+  @@index([driverId, status])
+  @@index([driverId, workDate])
+  @@index([workOrderId, workDate])
   @@map("work_execution_segments")
+}
+
+model WorkBreakSession {
+  id              Int           @id @default(autoincrement())
+  workSessionId   Int
+  type            WorkBreakType @default(OTHER)
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationMinutes Int           @default(0)
+  note            String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  workSession WorkExecutionSegment @relation(fields: [workSessionId], references: [id], onDelete: Restrict)
+
+  @@index([workSessionId, startedAt])
+  @@index([workSessionId, endedAt])
+  @@map("work_break_sessions")
+}
+
+model WorkPauseSession {
+  id              Int             @id @default(autoincrement())
+  workSessionId   Int
+  reason          WorkPauseReason
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationMinutes Int             @default(0)
+  note            String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  workSession WorkExecutionSegment @relation(fields: [workSessionId], references: [id], onDelete: Restrict)
+
+  @@index([workSessionId, startedAt])
+  @@index([workSessionId, endedAt])
+  @@map("work_pause_sessions")
+}
+
+model WorkDailyProgress {
+  id                     Int      @id @default(autoincrement())
+  workOrderId            Int
+  progressDate           DateTime @db.Date
+  quantityToday          Float    @default(0)
+  accumulatedQuantity    Float    @default(0)
+  overallProgressPercent Float    @default(0)
+  description            String?  @db.Text
+  note                   String?  @db.Text
+  evidenceUrls           Json?
+  reportedById           Int
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  workOrder  OperationalWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  reportedBy User                 @relation("WorkDailyProgressReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+
+  @@unique([workOrderId, progressDate])
+  @@index([reportedById, progressDate])
+  @@map("work_daily_progress")
+}
+
+model DailyReport {
+  id                 Int                       @id @default(autoincrement())
+  dispatchOrderId    Int                       @unique
+  workOrderId        Int
+  originalDriverId   Int
+  reportDate         DateTime                  @db.Date
+  status             DailyReportStatus         @default(NOT_OPEN)
+  quantityToday      Float                     @default(0)
+  unit               String?
+  startMachineHours  Float?
+  endMachineHours    Float?
+  startOdoKm         Float?
+  endOdoKm           Float?
+  fuelLiters         Float?
+  evidenceUrls       Json?
+  note               String?                   @db.Text
+  workCompleted      Boolean                   @default(false)
+  reportStartedAt    DateTime?
+  reportSubmittedAt  DateTime?
+  reportDelayMinutes Int                       @default(0)
+  submittedByType    DailyReportSubmitterType?
+  submittedByUserId  Int?
+  managerReason      String?                   @db.Text
+  revisionReason     String?                   @db.Text
+  reviewedAt         DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  dispatchOrder  DispatchOrder        @relation(fields: [dispatchOrderId], references: [id], onDelete: Restrict)
+  workOrder      OperationalWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  originalDriver User                 @relation("DailyReportDriver", fields: [originalDriverId], references: [id], onDelete: Restrict)
+  submittedBy    User?                @relation("DailyReportSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId, reportDate])
+  @@index([originalDriverId, status, reportDate])
+  @@index([status, reportDate])
+  @@map("daily_reports")
 }
 
 model WorkEvidence {
@@ -2318,6 +2652,7 @@ model OperationalLocation {
   journeyOrigins              WorkJourneyLeg[]       @relation("JourneyOriginLocation")
   journeyDestinations         WorkJourneyLeg[]       @relation("JourneyDestinationLocation")
   workOrders                  OperationalWorkOrder[] @relation("WorkOrderLocation")
+  managementUnits             DriverManagementUnit[] @relation("ManagementUnitMainDepot")
 
   @@unique([name, complexCode])
   @@index([type, active])
@@ -2445,40 +2780,51 @@ enum CatalogType {
   SPARE_PART
   TECHNICAL_QUOTA
   CG_MANAGER
+  VEHICLE_ORIGIN
+  PURCHASE_CONDITION
+  SUPPLIER
+  COMPANY_OWNER
 }
 
 model CatalogItem {
-  id             String      @id
-  code           String
-  name           String
-  type           CatalogType
-  parentCode     String?
-  parentName     String?
-  enterpriseName String?
-  farmName       String?
-  plotStatus     String?
-  systemId       String?
-  address        String?
-  managerName    String?
-  phone          String?
-  areaHa         Float?
-  status         String      @default("HOAT_DONG")
-  description    String?     @db.Text
-  createdUser    String?     @default("admin")
-  createdDate    String?
-  updatedUser    String?     @default("admin")
-  updatedDate    String?
-  confirmedUser  String?
-  confirmedDate  String?
-  deletedUser    String?
-  deletedDate    String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                String      @id
+  code              String
+  name              String
+  normalizedKey     String?
+  type              CatalogType
+  parentCode        String?
+  parentName        String?
+  enterpriseName    String?
+  farmName          String?
+  plotStatus        String?
+  routeFlowType     RouteType?
+  returnOrigin      String?
+  returnDestination String?
+  returnCargoName   String?
+  returnTonnage     Float?
+  systemId          String?
+  address           String?
+  managerName       String?
+  phone             String?
+  areaHa            Float?
+  status            String      @default("HOAT_DONG")
+  description       String?     @db.Text
+  createdUser       String?     @default("admin")
+  createdDate       String?
+  updatedUser       String?     @default("admin")
+  updatedDate       String?
+  confirmedUser     String?
+  confirmedDate     String?
+  deletedUser       String?
+  deletedDate       String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@index([type])
   @@index([code])
   @@index([parentCode])
   @@index([status])
+  @@unique([type, normalizedKey])
   @@map("catalogs")
 }
 

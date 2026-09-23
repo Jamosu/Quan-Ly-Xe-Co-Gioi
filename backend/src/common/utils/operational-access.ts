@@ -8,9 +8,7 @@ export interface OperationalActor {
 }
 
 export const hasGlobalOperationalAccess = (actor?: OperationalActor | null) =>
-  !!actor && (actor.role === Role.SUPER_ADMIN ||
-  actor.unit === Unit.TOAN_KLH ||
-  (actor.role === Role.DISPATCHER && actor.unit === Unit.BAN_CO_GIOI));
+  !!actor && (actor.role === Role.SUPER_ADMIN || actor.role === Role.DISPATCHER);
 
 export const scopedUnit = (actor?: OperationalActor | null, requested?: Unit): Unit | undefined => {
   if (!actor) throw new UnauthorizedException('Yêu cầu đăng nhập để truy cập dữ liệu vận hành.');

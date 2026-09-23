@@ -1,13 +1,17 @@
+import 'dotenv/config';
 import * as XLSX from 'xlsx';
 import {
   EquipmentUsageMode,
-  PrismaClient,
   ImplementCategory,
   ImplementStatus,
+  PrismaClient,
   TechnicalCondition,
   Unit,
   VehicleCategory,
 } from '@prisma/client';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs';
+import { basename, dirname, resolve } from 'path';
+import { resolveManagementTeam } from './vehicle-import/management-unit-resolution';
 
 const prisma = new PrismaClient();
 
@@ -28,59 +32,46 @@ export interface ExcelImplementRow {
   purchaseCondition: string;
 }
 
-// Bảng nhân sự quản lý & nơi tập kết chuẩn từ sheet "NS QUẢN LÝ CG" và "TB CG AGRI"
-const UNIT_MANAGER_MAP: Record<string, { managerName: string; gatheringLocation: string; managerPhone: string }> = {
-  'CGLĐ DP': { managerName: 'Nguyễn Tấn Triều', gatheringLocation: 'Lô 85 DP4', managerPhone: '05974160290' },
-  'CGLĐ LP': { managerName: 'Nguyễn Tấn Triều', gatheringLocation: 'LP3.5-LP3', managerPhone: '05974160290' },
-  'CGTC DP': { managerName: 'Phạm Ngọc Hải', gatheringLocation: 'Lô 85 DP4', managerPhone: '0825456565' },
-  'CGTC LP': { managerName: 'Phạm Ngọc Hải', gatheringLocation: 'Lô 85 DP4', managerPhone: '0825456565' },
-  'CGTC AD': { managerName: 'Phạm Ngọc Hải', gatheringLocation: 'Lô 85 DP4', managerPhone: '0825456565' },
-  'XN Chuối DP1': { managerName: 'Thái Cao Lưu', gatheringLocation: 'Lô 21 DP1', managerPhone: '0387783316' },
-  'XN Chuối DP2': { managerName: 'Huỳnh Quang Viên', gatheringLocation: 'Lô 15.6 DP2', managerPhone: '0977623379' },
-  'XN Chuối DP3': { managerName: 'Thạch Ngọc Vững', gatheringLocation: 'Lô 28 DP3', managerPhone: '0975905267' },
-  'XN Chuối DP4': { managerName: 'Cơ giới DP4', gatheringLocation: 'Lô 85 DP4', managerPhone: '0825456565' },
-  'XN Chuối LP1': { managerName: 'Nguyễn Ngọc Nhân', gatheringLocation: 'Lô 7 LP1', managerPhone: '0979578112' },
-  'XN Chuối LP2': { managerName: 'Nguyễn Ngọc Nhân', gatheringLocation: 'Lô 7 LP1', managerPhone: '0979578112' },
-  'XN Chuối LP3': { managerName: 'Lê Cao Nghị', gatheringLocation: 'Lô 2 LP3', managerPhone: '0977423100' },
-  'XN Bò AD': { managerName: 'Đội cơ giới XN Bò', gatheringLocation: 'Trại Bò AD', managerPhone: '0975905267' },
-  'TT BTSC': { managerName: 'Xưởng cơ khí BTSC', gatheringLocation: 'Xưởng BTSC Trung tâm', managerPhone: '0825456565' },
-};
-
-function inferCategory(name: string, subType: string): ImplementCategory {
-  const text = (name + ' ' + subType).toLowerCase();
-  if (text.includes('cày') || text.includes('cày') || text.includes('cna') || text.includes('cch')) {
-    return ImplementCategory.DAN_CAY;
-  }
-  if (text.includes('bừa') || text.includes('bừa') || text.includes('bua')) {
-    return ImplementCategory.DAN_BUA;
-  }
-  if (text.includes('xới') || text.includes('xới') || text.includes('úp luống') || text.includes('luống') || text.includes('rãnh') || text.includes('rãnh')) {
-    return ImplementCategory.DAN_XOI;
-  }
-  if (text.includes('phân') || text.includes('vôi') || text.includes('vôi') || text.includes('rải') || text.includes('rải')) {
-    return ImplementCategory.DAN_RAI_PHAN;
-  }
-  if (text.includes('phun') || text.includes('xịt') || text.includes('khử trùng') || text.includes('bvtv')) {
-    return ImplementCategory.DAN_PHUN_THUOC;
-  }
-  return ImplementCategory.RO_MOOC;
+interface WorkbookContact {
+  mgr: string;
+  addr: string;
+  phone: string;
 }
 
-function inferUnitEnum(unitName: string): Unit {
-  const u = (unitName || '').toUpperCase();
-  if (u.includes('NT1') || u.includes('DP1') || u.includes('DP2')) return Unit.NT1;
-  if (u.includes('NT2') || u.includes('LP1') || u.includes('LP2')) return Unit.NT2;
-  if (u.includes('BÒ') || u.includes('BO') || u.includes('AD')) return Unit.XN_BO;
-  if (u.includes('BTSC') || u.includes('SC')) return Unit.TT_BTSC;
-  return Unit.BAN_CO_GIOI;
+function argumentValue(name: string): string | undefined {
+  const direct = process.argv.find((argument) => argument.startsWith(`${name}=`));
+  if (direct) return direct.slice(name.length + 1);
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function findDefaultWorkbook(): string {
+  for (const directory of [resolve(process.cwd(), 'docs'), resolve(process.cwd(), '..', 'docs')]) {
+    if (!existsSync(directory)) continue;
+    const file = readdirSync(directory).find(
+      (name) => name.startsWith('00.') && name.toUpperCase().includes('KOUN MOM') && name.endsWith('.xlsx'),
+    );
+    if (file) return resolve(directory, file);
+  }
+  throw new Error('Không tìm thấy workbook 00. DANH MỤC MMTB THUỘC KLH KOUN MOM.xlsx');
+}
+
+function inferCategory(name: string, subType: string): ImplementCategory {
+  const text = `${name} ${subType}`.toLowerCase();
+  if (/cày|cày|cna|cch/.test(text)) return ImplementCategory.DAN_CAY;
+  if (/bừa|bừa|bua/.test(text)) return ImplementCategory.DAN_BUA;
+  if (/xới|xới|úp luống|luống|rãnh|rãnh/.test(text)) return ImplementCategory.DAN_XOI;
+  if (/phân|vôi|vôi|rải|rải/.test(text)) return ImplementCategory.DAN_RAI_PHAN;
+  if (/phun|xịt|khử trùng|bvtv/.test(text)) return ImplementCategory.DAN_PHUN_THUOC;
+  return ImplementCategory.RO_MOOC;
 }
 
 export function inferUsageMode(raw: ExcelImplementRow): EquipmentUsageMode {
   const code = raw.code.toUpperCase();
   const name = raw.name.toLowerCase();
   if (
-    code.startsWith('CHT-CNA-') || code.startsWith('CHT-BDU-') || code.startsWith('CHT-GĐH-') || code.startsWith('CHT-ĐTL-') ||
-    name.includes('gắn sau') || /^(dàn|giàn|thiết bị|rơ mooc|rơ-moóc|smrm|gầu|búa|đầm|bộ bánh)(\s|$)/i.test(raw.name)
+    code.startsWith('CHT-CNA-') || code.startsWith('CHT-BDU-') || code.startsWith('CHT-GĐH-') || code.startsWith('CHT-ĐTL-')
+    || name.includes('gắn sau') || /^(dàn|giàn|thiết bị|rơ mooc|rơ-moóc|smrm|gầu|búa|đầm|bộ bánh)(\s|$)/i.test(raw.name)
   ) return EquipmentUsageMode.ATTACHABLE;
   if (/^(máy kéo chuối|máy cao áp|máy nổ|cối trộn|súng phun|máy tời)(\s|$)/i.test(raw.name) || /máy băm.*cố định/i.test(raw.name)) {
     return EquipmentUsageMode.STANDALONE;
@@ -97,191 +88,214 @@ export function compatibleCategories(raw: ExcelImplementRow, usageMode: Equipmen
   return [VehicleCategory.MAY_KEO, VehicleCategory.MAY_CAY];
 }
 
-async function main() {
-  console.log('🚀 Bắt đầu nạp 100% dữ liệu thực tế kho bãi, nhân sự quản lý & nơi tập kết từ Excel...');
-  const filePath = 'd:/ThacoAgri_Code/Mockup/docs/00. DANH MỤC MMTB THUỘC KLH KOUN MOM.xlsx';
-  const wb = XLSX.readFile(filePath);
+export function deduplicateImplements(rows: ExcelImplementRow[]): ExcelImplementRow[] {
+  const unique = new Map<string, ExcelImplementRow>();
+  for (const row of rows) {
+    const previous = unique.get(row.code);
+    if (!previous) {
+      unique.set(row.code, row);
+      continue;
+    }
+    if (JSON.stringify(previous) !== JSON.stringify(row)) {
+      throw new Error(`Mã thiết bị ${row.code} bị trùng nhưng nội dung khác nhau trong workbook.`);
+    }
+  }
+  return [...unique.values()];
+}
 
-  // 1. Đọc sheet "TB CG AGRI" để lấy thông tin chi tiết từng mã
-  const wsTb = wb.Sheets['TB CG AGRI'];
-  const tbRows: any[] = XLSX.utils.sheet_to_json(wsTb, { header: 1 });
-  const tbMap = new Map<string, { mgr: string; addr: string; phone: string; status: string }>();
-  for (let r = 3; r < tbRows.length; r++) {
-    const row = tbRows[r];
-    if (!row || !row[9]) continue;
-    const code = String(row[9]).trim();
+export function readImplementWorkbook(workbookPath: string) {
+  const workbook = XLSX.readFile(workbookPath, { cellDates: true });
+  const contactRows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['TB CG AGRI'], { header: 1, defval: '' });
+  const contacts = new Map<string, WorkbookContact>();
+  for (let index = 3; index < contactRows.length; index++) {
+    const row = contactRows[index];
+    const code = String(row?.[9] ?? '').trim();
     if (!code || code === '-' || code.startsWith('KLH')) continue;
-    tbMap.set(code, {
-      mgr: row[15] ? String(row[15]).trim() : '',
-      addr: row[16] ? String(row[16]).trim() : '',
-      phone: row[17] ? String(row[17]).trim() : '',
-      status: row[10] ? 'Đang HĐ' : row[11] ? 'Chờ Sửa' : row[12] ? 'Không còn SD' : '',
+    contacts.set(code, {
+      mgr: String(row[15] ?? '').trim(),
+      addr: String(row[16] ?? '').trim(),
+      phone: String(row[17] ?? '').trim(),
     });
   }
 
-  // 2. Đọc sheet "03.1 NHÓM TB" (danh mục 690 thiết bị gốc)
-  const ws = wb.Sheets['03.1 NHÓM TB'];
-  const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
-  const rawList: ExcelImplementRow[] = [];
+  const sheetName = workbook.SheetNames.find((name) => name.includes('03.1'));
+  if (!sheetName) throw new Error('Không tìm thấy sheet 03.1 NHÓM TB.');
+  const sheetRows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: '' });
+  const parsed: ExcelImplementRow[] = [];
   let currentSubType = 'Nông cụ cơ giới';
-
-  for (let i = 4; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || row.length === 0) continue;
-
-    const col0 = String(row[0] || '').trim();
-    const col1 = String(row[1] || '').trim();
-
-    if ((col0 === '-' || col0 === 'I.' || col0 === 'II.' || col0 === 'III.' || col0 === 'IV.' || col0 === 'V.') && col1 && !col1.startsWith('C') && !col1.startsWith('T') && !col1.startsWith('K')) {
+  for (let index = 4; index < sheetRows.length; index++) {
+    const row = sheetRows[index];
+    const col0 = String(row?.[0] ?? '').trim();
+    const col1 = String(row?.[1] ?? '').trim();
+    if (/^(-|I\.|II\.|III\.|IV\.|V\.)$/.test(col0) && col1 && !/^[CTK]/.test(col1)) {
       currentSubType = col1;
       continue;
     }
-
-    if (!col1 || col1 === '-' || col1.startsWith('KLH') || col1.startsWith('NHÓM') || col1.startsWith('I.') || col1.startsWith('II.') || col1.startsWith('III.') || col1.startsWith('IV.') || col1.startsWith('V.') || col1.length < 4) continue;
-
-    const code = col1;
-    const name = String(row[5] || '').trim();
+    if (!col1 || col1 === '-' || /^(KLH|NHÓM|I\.|II\.|III\.|IV\.|V\.)/.test(col1) || col1.length < 4) continue;
+    const name = String(row[5] ?? '').trim();
     if (!name) continue;
-
-    const purchaseCondition = String(row[4] || '').trim();
-    const unit = String(row[7] || '').trim();
-    const condition = String(row[10] || '').trim();
-    const notes = String(row[12] || '').trim();
-    const brand = String(row[13] || '').trim();
-    const model = String(row[14] || '').trim();
-    const origin = String(row[15] || '').trim();
-    const yearRaw = Number(row[16]);
-    const year = Number.isFinite(yearRaw) && yearRaw > 1980 ? yearRaw : null;
-    const specs = String(row[17] || '').trim();
-    const serial = String(row[18] || '').trim();
-    const fuelQuotaRaw = Number(row[19]);
-    const fuelQuota = Number.isFinite(fuelQuotaRaw) && fuelQuotaRaw > 0 ? fuelQuotaRaw : null;
-
-    rawList.push({
-      code,
+    const year = Number(row[16]);
+    const fuelQuota = Number(row[19]);
+    parsed.push({
+      code: col1,
       name,
       subType: currentSubType,
-      unit: unit || 'Ban Cơ Giới',
-      condition,
-      notes,
-      brand,
-      model,
-      origin,
-      year,
-      specs,
-      serial,
-      fuelQuota,
-      purchaseCondition,
+      unit: String(row[7] ?? '').trim(),
+      condition: String(row[10] ?? '').trim(),
+      notes: String(row[12] ?? '').trim(),
+      brand: String(row[13] ?? '').trim(),
+      model: String(row[14] ?? '').trim(),
+      origin: String(row[15] ?? '').trim(),
+      year: Number.isFinite(year) && year > 1980 ? year : null,
+      specs: String(row[17] ?? '').trim(),
+      serial: String(row[18] ?? '').trim(),
+      fuelQuota: Number.isFinite(fuelQuota) && fuelQuota > 0 ? fuelQuota : null,
+      purchaseCondition: String(row[4] ?? '').trim(),
     });
   }
+  return { sourceRows: parsed.length, rows: deduplicateImplements(parsed), contacts };
+}
 
-  console.log(`Đã trích xuất ${rawList.length} thiết bị đính kèm thực tế từ file Excel.`);
+function conditionFor(raw: ExcelImplementRow) {
+  const text = `${raw.condition} ${raw.notes}`.toLowerCase();
+  const needsRepair = /hỏng|hỏng|^hư|\shư|xsc|xưởng sc/.test(text);
+  return {
+    status: needsRepair ? ImplementStatus.MAINTENANCE : ImplementStatus.IN_DEPOT,
+    technicalCondition: needsRepair ? TechnicalCondition.NEED_REPAIR : TechnicalCondition.GOOD,
+  };
+}
 
-  // Xóa sạch dữ liệu mẫu và các liên kết cũ
-  await prisma.implementAttachmentLog.deleteMany({});
-  await prisma.agriculturalImplement.deleteMany({});
+function purposeFor(raw: ExcelImplementRow) {
+  return [
+    raw.unit ? `Đơn vị: ${raw.unit}` : '',
+    raw.brand ? `Hãng: ${raw.brand}` : '',
+    raw.model ? `Model: ${raw.model}` : '',
+    raw.subType ? `Nhóm: ${raw.subType}` : '',
+    raw.purchaseCondition ? `Tình trạng mua: ${raw.purchaseCondition}` : '',
+    raw.year ? `Năm SX: ${raw.year}` : '',
+    raw.notes ? `Ghi chú: ${raw.notes}` : '',
+  ].filter(Boolean).join(' · ').slice(0, 191);
+}
 
-  const vehicleTypes = await prisma.vehicleType.findMany({
-    select: { id: true, category: true },
+async function findOutOfWorkbook(sourceCodes: string[]) {
+  return prisma.agriculturalImplement.findMany({
+    where: { unit: Unit.KOUN_MOM, code: { notIn: sourceCodes } },
+    select: {
+      id: true,
+      code: true,
+      _count: { select: {
+        attachmentLogs: true,
+        dispatchOrders: true,
+        transportOrders: true,
+        repairTickets: true,
+        workshopRequests: true,
+        owedPartNotes: true,
+        alertEvents: true,
+      } },
+    },
+    orderBy: { code: 'asc' },
   });
+}
 
-  let countInDepot = 0;
-  let countMaintenance = 0;
+async function main() {
+  const apply = process.argv.includes('--apply');
+  const workbookPath = resolve(argumentValue('--file') || findDefaultWorkbook());
+  const reportPath = resolve(argumentValue('--report') || resolve(process.cwd(), 'import-reports', 'implement-import-report.json'));
+  const workbook = readImplementWorkbook(workbookPath);
+  const teams = await prisma.driverManagementUnit.findMany({
+    where: { complexCode: 'KOUN_MOM', level: 'TEAM', status: 'ACTIVE' },
+    select: { id: true, code: true, name: true, parentId: true },
+  });
+  const vehicleTypes = await prisma.vehicleType.findMany({ select: { id: true, category: true } });
+  const existingCodes = new Set((await prisma.agriculturalImplement.findMany({
+    where: { code: { in: workbook.rows.map((row) => row.code) } }, select: { code: true },
+  })).map((item) => item.code));
+  const extras = await findOutOfWorkbook(workbook.rows.map((row) => row.code));
+  const blocked = extras.filter((item) => Object.values(item._count).some((count) => count > 0));
+  if (blocked.length) throw new Error(`Không xóa thiết bị ngoài workbook đang có nghiệp vụ: ${blocked.map((item) => item.code).join(', ')}`);
 
-  const seenCodes = new Map<string, number>();
-
-  for (const raw of rawList) {
-    let finalCode = raw.code;
-    if (seenCodes.has(finalCode)) {
-      const count = seenCodes.get(finalCode)! + 1;
-      seenCodes.set(finalCode, count);
-      finalCode = `${finalCode}-${count}`;
-    } else {
-      seenCodes.set(finalCode, 1);
-    }
-
-    const category = inferCategory(raw.name, raw.subType);
-    const unitEnum = inferUnitEnum(raw.unit);
-    const usageMode = inferUsageMode(raw);
-    const compatibilityIds = vehicleTypes
-      .filter((vehicleType) => vehicleType.category && compatibleCategories(raw, usageMode).includes(vehicleType.category))
-      .map((vehicleType) => vehicleType.id);
-
-    // Kiểm tra tình trạng hư hỏng
-    const condLower = raw.condition.toLowerCase();
-    const notesLower = raw.notes.toLowerCase();
-    const isHuuHong =
-      condLower.includes('hỏng') ||
-      condLower.includes('hỏng') ||
-      condLower.startsWith('hư') ||
-      notesLower.includes('hư') ||
-      notesLower.includes('xsc') ||
-      notesLower.includes('xưởng sc');
-
-    // Lấy thông tin Quản lý & Nơi tập kết thực tế từ TB CG AGRI hoặc UNIT_MANAGER_MAP
-    const tbInfo = tbMap.get(raw.code);
-    const defaultUnitInfo = UNIT_MANAGER_MAP[raw.unit] || {
-      managerName: raw.unit.includes('DP') ? 'Nguyễn Tấn Triều' : raw.unit.includes('LP') ? 'Nguyễn Ngọc Nhân' : 'Phạm Ngọc Hải',
-      gatheringLocation: raw.unit.includes('DP') ? 'Lô 85 DP4' : raw.unit.includes('LP') ? 'LP3.5-LP3' : 'Bãi xe Trung tâm',
-      managerPhone: raw.unit.includes('DP') ? '05974160290' : '0825456565',
-    };
-
-    const managerName = tbInfo?.mgr || defaultUnitInfo.managerName;
-    const gatheringLocation = tbInfo?.addr || defaultUnitInfo.gatheringLocation;
-    const managerPhone = tbInfo?.phone || defaultUnitInfo.managerPhone;
-
-    // PHƯƠNG ÁN A: 100% NÔNG CỤ Ở TRẠNG THÁI KHO BÃI THỰC TẾ, KHÔNG TỰ ĐỘNG GÁN XE ẢO
-    const status: ImplementStatus = isHuuHong ? ImplementStatus.MAINTENANCE : ImplementStatus.IN_DEPOT;
-    const technicalCondition: TechnicalCondition = isHuuHong ? TechnicalCondition.NEED_REPAIR : TechnicalCondition.GOOD;
-
-    if (isHuuHong) countMaintenance++;
-    else countInDepot++;
-
-    const purposeParts: string[] = [
-      `Đơn vị: ${raw.unit}`,
-      raw.brand ? `Hãng: ${raw.brand}` : '',
-      raw.model ? `Model: ${raw.model}` : '',
-      raw.subType ? `Nhóm: ${raw.subType}` : '',
-      raw.purchaseCondition ? `Tình trạng mua: ${raw.purchaseCondition}` : '',
-      raw.year ? `Năm SX: ${raw.year}` : '',
-      gatheringLocation ? `Nơi tập kết: ${gatheringLocation}` : '',
-      managerName ? `Quản lý: ${managerName}` : '',
-      managerPhone ? `Zalo/SĐT: ${managerPhone}` : '',
-      raw.notes ? `Ghi chú: ${raw.notes}` : '',
-    ].filter(Boolean);
-
-    await prisma.agriculturalImplement.create({
-      data: {
-        code: finalCode,
-        name: raw.name,
-        category,
-        unit: unitEnum,
-        usageMode,
-        sourceGroup: raw.subType,
-        compatibleVehicleTypes: compatibilityIds.length
-          ? { create: compatibilityIds.map((vehicleTypeId) => ({ vehicleTypeId, source: 'WORKBOOK_RULE' })) }
-          : undefined,
-        currentVehicleId: null, // Không gắn xe ảo nào!
-        status,
-        technicalCondition,
-        standardPurpose: purposeParts.join(' · '),
-        managerName,
-        gatheringLocation,
-        managerPhone,
-      },
-    });
+  const resolutions = workbook.rows.map((row) => ({ row, resolution: resolveManagementTeam(row.unit, teams) }));
+  const unresolved = new Map<string, { label: string; reason: string; count: number }>();
+  for (const item of resolutions) {
+    if (item.resolution.kind !== 'UNRESOLVED') continue;
+    const key = `${item.resolution.reason}:${item.resolution.source}`;
+    const current = unresolved.get(key);
+    unresolved.set(key, { label: item.resolution.source, reason: item.resolution.reason, count: (current?.count || 0) + 1 });
   }
 
-  console.log(`\n🎉 HOÀN TẤT NẠP DỮ LIỆU PHƯƠNG ÁN A:`);
-  console.log(`- Tổng số thiết bị đính kèm: ${rawList.length}`);
-  console.log(`- Sẵn sàng hoạt động (Tại bãi đội / Sẵn sàng điều động): ${countInDepot}`);
-  console.log(`- Đang bảo dưỡng / Sửa chữa tại Xưởng BTSC: ${countMaintenance}`);
-  console.log(`- Xe cơ giới gắn ảo: 0 (Đúng 100% thực tế, sẵn sàng cho nghiệp vụ gán xe khi cần)`);
+  if (apply) {
+    for (let start = 0; start < resolutions.length; start += 50) {
+      await prisma.$transaction(resolutions.slice(start, start + 50).map(({ row, resolution }) => {
+        const usageMode = inferUsageMode(row);
+        const compatibilityIds = vehicleTypes
+          .filter((type) => type.category && compatibleCategories(row, usageMode).includes(type.category))
+          .map((type) => type.id);
+        const contact = workbook.contacts.get(row.code);
+        const initialCondition = conditionFor(row);
+        const liquidated = resolution.kind === 'LIQUIDATED';
+        const staticData = {
+          name: row.name,
+          category: inferCategory(row.name, row.subType),
+          unit: Unit.KOUN_MOM,
+          usageMode,
+          sourceGroup: row.subType,
+          standardPurpose: purposeFor(row),
+          managerName: contact?.mgr || null,
+          gatheringLocation: contact?.addr || null,
+          managerPhone: contact?.phone || null,
+          assignedUnitCode: row.unit || null,
+          managementUnitId: resolution.kind === 'MATCHED' ? resolution.team.id : null,
+        };
+        return prisma.agriculturalImplement.upsert({
+          where: { code: row.code },
+          create: {
+            code: row.code,
+            ...staticData,
+            status: liquidated ? ImplementStatus.MAINTENANCE : initialCondition.status,
+            technicalCondition: liquidated ? TechnicalCondition.WORN_OUT : initialCondition.technicalCondition,
+            compatibleVehicleTypes: compatibilityIds.length
+              ? { create: compatibilityIds.map((vehicleTypeId) => ({ vehicleTypeId, source: 'WORKBOOK_RULE' })) }
+              : undefined,
+          },
+          update: {
+            ...staticData,
+            ...(liquidated ? { status: ImplementStatus.MAINTENANCE, technicalCondition: TechnicalCondition.WORN_OUT } : {}),
+            compatibleVehicleTypes: {
+              deleteMany: {},
+              ...(compatibilityIds.length ? { create: compatibilityIds.map((vehicleTypeId) => ({ vehicleTypeId, source: 'WORKBOOK_RULE' })) } : {}),
+            },
+          },
+        });
+      }));
+    }
+    if (extras.length) await prisma.agriculturalImplement.deleteMany({ where: { id: { in: extras.map((item) => item.id) } } });
+  }
+
+  const report = {
+    workbook: basename(workbookPath),
+    generatedAt: new Date().toISOString(),
+    dryRun: !apply,
+    sourceRows: workbook.sourceRows,
+    uniqueImplements: workbook.rows.length,
+    duplicateRowsMerged: workbook.sourceRows - workbook.rows.length,
+    inserted: workbook.rows.filter((row) => !existingCodes.has(row.code)).length,
+    updated: workbook.rows.filter((row) => existingCodes.has(row.code)).length,
+    removedOutOfWorkbook: extras.map((item) => item.code),
+    managementUnits: {
+      exact: resolutions.filter((item) => item.resolution.kind === 'MATCHED' && item.resolution.method === 'EXACT').length,
+      alias: resolutions.filter((item) => item.resolution.kind === 'MATCHED' && item.resolution.method === 'ALIAS').length,
+      liquidated: resolutions.filter((item) => item.resolution.kind === 'LIQUIDATED').length,
+      unresolved: [...unresolved.values()].sort((a, b) => b.count - a.count),
+    },
+    databaseImplementCount: apply
+      ? await prisma.agriculturalImplement.count({ where: { unit: Unit.KOUN_MOM } })
+      : await prisma.agriculturalImplement.count({ where: { unit: Unit.KOUN_MOM } }),
+  };
+  mkdirSync(dirname(reportPath), { recursive: true });
+  writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
+  console.log(JSON.stringify({ ...report, reportPath }, null, 2));
 }
 
 if (require.main === module) {
-  main()
-    .catch(console.error)
-    .finally(() => prisma.$disconnect());
+  main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());
 }

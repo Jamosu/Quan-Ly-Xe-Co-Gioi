@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Role, Unit } from '@prisma/client';
-import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -28,18 +27,19 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OperationalActor } from '../common/utils/operational-access';
 
 @ApiTags('Users - Quản Lý Nhân Sự & Phân Quyền')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService, private readonly availabilityService: AvailabilityService) {}
 
-  @Public()
   @Post()
+  @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Tạo người dùng / tài xế mới' })
   async create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
   }
 
-  @Public()
   @Get()
   @ApiOperation({ summary: 'Danh sách nhân sự (lọc theo Role, Unit, Search)' })
   @ApiQuery({ name: 'role', enum: Role, required: false })
@@ -53,7 +53,6 @@ export class UsersController {
     return this.usersService.findAll(role, unit, search);
   }
 
-  @Public()
   @Get('drivers')
   @ApiOperation({ summary: 'Lấy danh sách tất cả tài xế' })
   @ApiQuery({ name: 'unit', enum: Unit, required: false })
@@ -106,15 +105,14 @@ export class UsersController {
     return this.usersService.updateDriverProfile(id, dto, actor);
   }
 
-  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Xem chi tiết thông tin nhân sự' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
   }
 
-  @Public()
   @Patch(':id')
+  @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Cập nhật thông tin nhân sự' })
   async update(
     @Param('id', ParseIntPipe) id: number,

@@ -64,15 +64,15 @@ npm run start:prod
 
 | Tên Đăng Nhập | Mật Khẩu | Họ Và Tên | Vai Trò (Role) | Đơn Vị (Unit) |
 | :--- | :--- | :--- | :--- | :--- |
-| `admin` | `123456` | Quản Trị Viên Hệ Thống | `SUPER_ADMIN` | `TOAN_KLH` |
-| `dispatcher.dat` | `123456` | Trần Quốc Đạt | `DISPATCHER` | `BAN_CO_GIOI` |
-| `manager.im` | `123456` | Đào Văn Im | `FARM_MANAGER` | `NT1` (Nông trường 1) |
-| `workshop.tu` | `123456` | Nguyễn Ngọc Anh Tú | `WORKSHOP_MANAGER` | `TT_BTSC` |
-| `fuel.long` | `123456` | Phạm Hoàng Long | `FUEL_STOREKEEPER` | `BAN_CO_GIOI` |
-| `driver.trong` | `123456` | Trần Đình Trọng | `DRIVER` | `NT1` |
-| `driver.vu` | `123456` | Nguyễn Thái Vũ | `DRIVER` | `NT2` |
-| `driver.hung` | `123456` | Lê Văn Hùng | `DRIVER` | `XN_BO` |
-| `driver.nam` | `123456` | Võ Hoài Nam | `DRIVER` | `BAN_CO_GIOI` |
+| `admin` | `Thaco@1234$` | Quản Trị Viên Hệ Thống | `SUPER_ADMIN` | `TOAN_KLH` |
+| `dispatcher.dat` | `Thaco@1234$` | Trần Quốc Đạt | `DISPATCHER` | `BAN_CO_GIOI` |
+| `manager.im` | `Thaco@1234$` | Đào Văn Im | `FARM_MANAGER` | `NT1` (Nông trường 1) |
+| `workshop.tu` | `Thaco@1234$` | Nguyễn Ngọc Anh Tú | `WORKSHOP_MANAGER` | `TT_BTSC` |
+| `fuel.long` | `Thaco@1234$` | Phạm Hoàng Long | `FUEL_STOREKEEPER` | `BAN_CO_GIOI` |
+| `driver.trong` | `Thaco@1234$` | Trần Đình Trọng | `DRIVER` | `NT1` |
+| `driver.vu` | `Thaco@1234$` | Nguyễn Thái Vũ | `DRIVER` | `NT2` |
+| `driver.hung` | `Thaco@1234$` | Lê Văn Hùng | `DRIVER` | `XN_BO` |
+| `driver.nam` | `Thaco@1234$` | Võ Hoài Nam | `DRIVER` | `BAN_CO_GIOI` |
 
 ---
 

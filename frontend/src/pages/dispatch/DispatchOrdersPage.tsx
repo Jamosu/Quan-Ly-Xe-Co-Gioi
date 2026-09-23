@@ -31,7 +31,10 @@ import {
   Activity,
   UserCheck,
   RotateCcw,
+  FileDown,
+  XCircle,
 } from 'lucide-react';
+import { exportDispatchOrdersToExcel, buildWeekRangeLabel } from '../../utils/dispatchExcel';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { operationsApi } from '../../api/operations';
 import { Button } from '../../components/common/Button';
@@ -71,6 +74,9 @@ export interface ExtendedDispatchOrder extends Omit<DispatchOrderRecord, 'implem
   implement?: { id: number | string; code: string; name: string };
   orderCategory: 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' | 'CUU_HO_SOS';
   categoryLabel: string;
+  cancellationReason?: string;
+  rejectionReason?: string;
+  cancelledAt?: string;
   workVolumeTarget?: number;
   workVolumeActual?: number;
   workVolumeUnit?: string;
@@ -195,7 +201,8 @@ export const DispatchOrdersPage: React.FC = () => {
   const isAgriculturalSpecific = location.pathname.includes('/lenh-nong-nghiep');
 
   const [selectedCategory, setSelectedCategory] = useState<DispatchCategory>(() => {
-    return isAgriculturalSpecific ? 'NONG_NGHIEP' : 'ALL';
+    const requested = searchParams.get('category');
+    return isAgriculturalSpecific ? 'NONG_NGHIEP' : requested === 'CUU_HO_SOS' ? 'CUU_HO_SOS' : 'ALL';
   });
 
   // Khi URL thay đổi, đồng bộ lại category nếu vào trang Nông nghiệp
@@ -206,7 +213,19 @@ export const DispatchOrdersPage: React.FC = () => {
   }, [isAgriculturalSpecific]);
 
   const [view, setView] = useState<'table' | 'daily_timeline' | 'kanban'>('table');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const qStatus = searchParams.get('status');
+    if (qStatus) return qStatus;
+    return 'ALL';
+  });
+
+  useEffect(() => {
+    const qStatus = searchParams.get('status');
+    if (qStatus) {
+      setStatusFilter(qStatus);
+    }
+  }, [searchParams]);
+
   const [selectedPurpose, setSelectedPurpose] = useState<string>('ALL');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('ALL');
   const [selectedDriver, setSelectedDriver] = useState<string>('ALL');
@@ -227,6 +246,41 @@ export const DispatchOrdersPage: React.FC = () => {
   const [rescheduleForm, setRescheduleForm] = useState({ newDepartureTime: '', newPlannedEndTime: '', reason: '' });
   // Dữ liệu form Nghiệm thu hồi tố
   const [retroForm, setRetroForm] = useState({ actualStartTime: '', actualCompletedTime: '', actualMachineHours: '', actualQuantity: '', notes: '' });
+  // Dữ liệu form Hủy lệnh
+  const [cancelTarget, setCancelTarget] = useState<ExtendedDispatchOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSaving, setCancelSaving] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+
+  const handleOpenCancel = (order: ExtendedDispatchOrder) => {
+    setCancelTarget(order);
+    setCancelReason('');
+    setCancelError('');
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+    const trimmed = cancelReason.trim();
+    if (!trimmed) {
+      setCancelError('Vui lòng nhập hoặc chọn nguyên nhân hủy lệnh điều xe.');
+      return;
+    }
+    setCancelSaving(true);
+    setCancelError('');
+    try {
+      await operationsApi.cancelDispatch(cancelTarget.id, trimmed);
+      useAppStore.getState().setHeaderAlert({
+        type: 'success',
+        message: `Đã hủy lệnh điều xe ${cancelTarget.code} thành công! Nguyên nhân: ${trimmed}`,
+      });
+      setCancelTarget(null);
+      void load();
+    } catch (err: any) {
+      setCancelError(err?.response?.data?.message || err?.message || 'Hủy lệnh thất bại. Vui lòng thử lại.');
+    } finally {
+      setCancelSaving(false);
+    }
+  };
 
 
   // 52 Tuần trong năm
@@ -234,18 +288,25 @@ export const DispatchOrdersPage: React.FC = () => {
     return [...getWeeksOfYear(2026)].sort((a, b) => b.weekNumber - a.weekNumber);
   }, []);
 
-  // Bộ lọc Tuần: 'ALL' hoặc số tuần (Mặc định tuần hiện tại)
-  const [selectedWeek, setSelectedWeek] = useState<number | 'ALL'>(() => {
+  // Bộ lọc Tuần dạng khoảng: weekFrom đến weekTo (mặc định = tuần hiện tại)
+  const [weekFrom, setWeekFrom] = useState<number | 'ALL'>(() => {
     const qWeek = searchParams.get('week');
     if (qWeek && !isNaN(Number(qWeek))) return Number(qWeek);
     return getWeekNumber(new Date());
   });
+  const [weekTo, setWeekTo] = useState<number | 'ALL'>(() => {
+    const qWeek = searchParams.get('week');
+    if (qWeek && !isNaN(Number(qWeek))) return Number(qWeek);
+    return getWeekNumber(new Date());
+  });
+  // Alias cho các nơi dùng selectedWeek (dùng weekFrom để filter theo tuần chính)
+  const selectedWeek = weekFrom;
 
-  // Bộ lọc theo ngày & sắp xếp: Vừa vào mặc định chọn Ngày hôm nay
+  // Bộ lọc theo ngày & sắp xếp: Mặc định ALL để hiển thị trọn vẹn theo khoảng tuần
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const qDate = searchParams.get('date');
     if (qDate) return qDate;
-    return toDateString(new Date());
+    return 'ALL';
   });
   const [sortOrder, setSortOrder] = useState<'time_asc' | 'time_desc'>('time_asc');
 
@@ -254,7 +315,12 @@ export const DispatchOrdersPage: React.FC = () => {
     const qPlan = searchParams.get('planCode');
     if (qPlan) setSearch(qPlan);
     const qWeek = searchParams.get('week');
-    if (qWeek && !isNaN(Number(qWeek))) setSelectedWeek(Number(qWeek));
+    if (qWeek && !isNaN(Number(qWeek))) {
+      setWeekFrom(Number(qWeek));
+      setWeekTo(Number(qWeek));
+    }
+    const qCategory = searchParams.get('category');
+    if (!isAgriculturalSpecific && qCategory === 'CUU_HO_SOS') setSelectedCategory('CUU_HO_SOS');
   }, [searchParams]);
 
   const selectedStatus = useFilterStore((state) => state.selectedStatus);
@@ -266,17 +332,17 @@ export const DispatchOrdersPage: React.FC = () => {
       const planId = searchParams.get('planId');
       const apiFilters = planId ? { planId: Number(planId) } : {};
       const [dispatchRes, transportRes] = await Promise.allSettled([
-        operationsApi.dispatchOrders({ limit: 1000, ...apiFilters }),
-        operationsApi.transportOrders({ limit: 500, ...apiFilters }),
+        operationsApi.dispatchOrders({ limit: 1000, includeCancelled: true, ...apiFilters }),
+        operationsApi.transportOrders({ limit: 500, includeCancelled: true, ...apiFilters }),
       ]);
 
       const realDispatches: ExtendedDispatchOrder[] = [];
       if (dispatchRes.status === 'fulfilled' && dispatchRes.value?.items) {
         dispatchRes.value.items.forEach((item: any) => {
-          if (item.status === 'CANCELLED') return;
-          const isConstruction = item.productionOrder?.plan?.planType === 'CONSTRUCTION';
-          const cat = isConstruction ? 'CONG_TRINH' : 'NONG_NGHIEP';
-          const catLabel = isConstruction ? 'Công trình ca máy' : 'Nông nghiệp';
+          const isRescue = Boolean(item.sosAlertId);
+          const isConstruction = !isRescue && item.productionOrder?.plan?.planType === 'CONSTRUCTION';
+          const cat: ExtendedDispatchOrder['orderCategory'] = isRescue ? 'CUU_HO_SOS' : isConstruction ? 'CONG_TRINH' : 'NONG_NGHIEP';
+          const catLabel = isRescue ? 'Cứu hộ SOS' : isConstruction ? 'Công trình ca máy' : 'Nông nghiệp';
 
           const durationH = item.departureTime && item.plannedEndTime
             ? Math.max(0.5, (new Date(item.plannedEndTime).getTime() - new Date(item.departureTime).getTime()) / 3_600_000)
@@ -286,8 +352,8 @@ export const DispatchOrdersPage: React.FC = () => {
           const initialQuotaRate = vQuota && item.vehicle ? `${vQuota} L/h` : item.fuelQuotaRate;
 
           const plan = item.productionOrder?.plan;
-          const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
-          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+          const complexCode = plan?.complexCode || (['KOUN_MOM', 'KOUN_MOM', 'NT3', 'NT4', 'KOUN_MOM'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'KOUN_MOM' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
 
           realDispatches.push({
             ...item,
@@ -301,16 +367,16 @@ export const DispatchOrdersPage: React.FC = () => {
             workVolumeUnit: item.workVolumeUnit ?? (isConstruction ? 'Giờ' : 'Ha'),
             plannedFuelLiters: initialPlannedFuel,
             fuelQuotaRate: initialQuotaRate,
+            cancellationReason: item.cancellationReason || item.rejectionReason,
           });
         });
       }
 
       if (transportRes.status === 'fulfilled' && transportRes.value?.items) {
         transportRes.value.items.forEach((item: any) => {
-          if (item.status === 'CANCELLED') return;
           const plan = item.productionOrder?.plan;
-          const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
-          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+          const complexCode = plan?.complexCode || (['KOUN_MOM', 'KOUN_MOM', 'NT3', 'NT4', 'KOUN_MOM'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'KOUN_MOM' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
 
           realDispatches.push({
             id: item.id ? 200000 + item.id : Math.floor(Math.random() * 100000),
@@ -318,7 +384,7 @@ export const DispatchOrdersPage: React.FC = () => {
             orderCategory: 'VAN_CHUYEN',
             categoryLabel: 'Vận chuyển',
             sourceType: 'TRANSPORT_ORDER' as any,
-            unit: item.unit || 'BAN_CO_GIOI',
+            unit: item.unit || 'KOUN_MOM',
             complexCode,
             complexName,
             purpose: item.cargoType || 'Vận chuyển hàng hóa nội bộ',
@@ -337,6 +403,7 @@ export const DispatchOrdersPage: React.FC = () => {
             notes: item.notes,
             planCode: plan?.code,
             planTitle: plan?.title,
+            cancellationReason: item.cancellationReason,
           });
         });
       }
@@ -410,6 +477,12 @@ export const DispatchOrdersPage: React.FC = () => {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener('operational-data-updated', refresh);
+    return () => window.removeEventListener('operational-data-updated', refresh);
   }, [load]);
 
   // Load Overdue Summary khi component mount và sau khi load xong
@@ -561,21 +634,28 @@ export const DispatchOrdersPage: React.FC = () => {
         if (driverName !== selectedDriver && (d as any)?.code !== selectedDriver) return false;
       }
 
-      // Lọc theo Tuần (selectedWeek) - bỏ qua khi đang lọc riêng Lệnh trễ hoặc Lệnh tương lai
-      if (selectedWeek !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
-        const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
-        if (weekObj) {
-          const start = weekObj.startDateKey;
-          const end = weekObj.endDateKey;
+      // Lọc theo khoảng tuần (weekFrom → weekTo) - bỏ qua khi đang lọc riêng Lệnh trễ hoặc Lệnh tương lai
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
+        const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
+        const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
+        if (fromObj && toObj) {
+          const start = fromObj.startDateKey;
+          const end   = toObj.endDateKey;
           const depDate = order.departureTime ? toDateString(order.departureTime) : '';
           const endDate = order.plannedEndTime ? toDateString(order.plannedEndTime) : '';
-          const inWeek = (depDate && depDate >= start && depDate <= end) || (endDate && endDate >= start && endDate <= end);
-          if (!inWeek) return false;
+          const inRange = (depDate && depDate >= start && depDate <= end) || (endDate && endDate >= start && endDate <= end);
+          if (!inRange) return false;
         }
       }
 
       // Lọc theo Bộ lọc Trạng thái nhanh (statusFilter)
-      if (statusFilter !== 'ALL') {
+      if (statusFilter === 'CANCELLED') {
+        if (order.status !== 'CANCELLED') return false;
+      } else if (statusFilter === 'ALL') {
+        // Mặc định ở màn hình Tất cả chỉ hiện các lệnh đang hoạt động hoặc hoàn thành (loại trừ lệnh đã hủy)
+        if (order.status === 'CANCELLED') return false;
+      } else {
+        if (order.status === 'CANCELLED') return false;
         if (statusFilter === 'CHO_DUYET' || statusFilter === 'CHUA_PHAN_CONG') {
           if (!['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(order.status)) return false;
         } else if (statusFilter === 'DA_DUYET' || statusFilter === 'DA_GIAO_VIEC') {
@@ -613,8 +693,8 @@ export const DispatchOrdersPage: React.FC = () => {
         if (!isStatusMatch && order.status !== selectedStatus) return false;
       }
 
-      // Lọc theo Ngày: So khớp theo ngày khởi hành/ngày tác nghiệp chính (bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai)
-      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
+      // Lọc theo Ngày: So khớp theo ngày khởi hành/ngày tác nghiệp chính (bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai hoặc Lệnh đã hủy)
+      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED' && statusFilter !== 'CANCELLED') {
         const orderDate = order.departureTime ? toDateString(order.departureTime) : (order.plannedEndTime ? toDateString(order.plannedEndTime) : '');
         if (orderDate !== selectedDate) return false;
       }
@@ -641,22 +721,23 @@ export const DispatchOrdersPage: React.FC = () => {
       const timeB = b.departureTime ? new Date(b.departureTime).getTime() : 0;
       return sortOrder === 'time_asc' ? timeA - timeB : timeB - timeA;
     });
-  }, [orders, selectedCategory, selectedPurpose, selectedVehicle, selectedDriver, selectedWeek, availableWeeks, statusFilter, selectedStatus, selectedDate, search, sortOrder, selectedKLH]);
+  }, [orders, selectedCategory, selectedPurpose, selectedVehicle, selectedDriver, weekFrom, weekTo, availableWeeks, statusFilter, selectedStatus, selectedDate, search, sortOrder, selectedKLH]);
 
   // Đếm số lượng theo từng nhóm trạng thái cho bộ lọc statusFilter
   const statusCounts = useMemo(() => {
     const baseList = orders.filter((o) => {
       if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
       if (selectedCategory !== 'ALL' && o.orderCategory !== selectedCategory) return false;
-      if (selectedWeek !== 'ALL') {
-        const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
-        if (weekObj) {
-          const start = weekObj.startDateKey;
-          const end = weekObj.endDateKey;
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL') {
+        const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
+        const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
+        if (fromObj && toObj) {
+          const start = fromObj.startDateKey;
+          const end   = toObj.endDateKey;
           const depDate = o.departureTime ? toDateString(o.departureTime) : '';
           const endDate = o.plannedEndTime ? toDateString(o.plannedEndTime) : '';
-          const inWeek = (depDate && depDate >= start && depDate <= end) || (endDate && endDate >= start && endDate <= end);
-          if (!inWeek) return false;
+          const inRange = (depDate && depDate >= start && depDate <= end) || (endDate && endDate >= start && endDate <= end);
+          if (!inRange) return false;
         }
       }
       if (selectedDate !== 'ALL') {
@@ -665,12 +746,14 @@ export const DispatchOrdersPage: React.FC = () => {
       }
       return true;
     });
-    const chuaPhanCong = baseList.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status)).length;
-    const daGiaoViec = baseList.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(o.status)).length;
-    const dangLamViec = baseList.filter((o) => ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(o.status)).length;
-    const driverPending = baseList.filter((o) => o.status === 'ASSIGNED' || (o.status === 'DA_DUYET' && !['DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(o.status))).length;
-    const completed = baseList.filter((o) => ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(o.status)).length;
-    const delayed = baseList.filter((o) => {
+    const activeList = baseList.filter((o) => o.status !== 'CANCELLED');
+    const cancelledCount = baseList.filter((o) => o.status === 'CANCELLED').length;
+    const chuaPhanCong = activeList.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status)).length;
+    const daGiaoViec = activeList.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(o.status)).length;
+    const dangLamViec = activeList.filter((o) => ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(o.status)).length;
+    const driverPending = activeList.filter((o) => o.status === 'ASSIGNED' || (o.status === 'DA_DUYET' && !['DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(o.status))).length;
+    const completed = activeList.filter((o) => ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(o.status)).length;
+    const delayed = activeList.filter((o) => {
       const isDelayed = isDepartureDelayed(o);
       const isPastUnassigned = needsOperatorAttention(o) && (!o.vehicle || !o.driver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status));
       return isDelayed || isPastUnassigned;
@@ -691,7 +774,7 @@ export const DispatchOrdersPage: React.FC = () => {
     }).length;
 
     return {
-      ALL: baseList.length,
+      ALL: activeList.length,
       CHO_DUYET: chuaPhanCong,
       CHUA_PHAN_CONG: chuaPhanCong,
       DA_DUYET: daGiaoViec,
@@ -703,8 +786,9 @@ export const DispatchOrdersPage: React.FC = () => {
       COMPLETED: completed,
       DELAYED: delayed,
       FUTURE_UNASSIGNED: futureUnassigned,
+      CANCELLED: cancelledCount,
     };
-  }, [orders, selectedCategory, selectedWeek, availableWeeks, selectedDate, selectedKLH]);
+  }, [orders, selectedCategory, weekFrom, weekTo, availableWeeks, selectedDate, selectedKLH]);
 
   // Danh sách các ngày duy nhất có dữ liệu
   const availableDates = useMemo(() => {
@@ -938,16 +1022,18 @@ export const DispatchOrdersPage: React.FC = () => {
     return list;
   }, [orders, filteredOrders, statusFilter, selectedCategory, selectedDate, search]);
 
-  // Đếm số lượng theo từng loại lệnh
+  // Đếm số lượng theo từng loại lệnh (loại trừ lệnh đã hủy khỏi tổng quan hoạt động)
   const categoryCounts = useMemo(() => {
+    const nonCancelled = orders.filter((o) => o.status !== 'CANCELLED');
     return {
-      ALL: orders.length,
-      NONG_NGHIEP: orders.filter((o) => o.orderCategory === 'NONG_NGHIEP').length,
-      CONG_TRINH: orders.filter((o) => o.orderCategory === 'CONG_TRINH').length,
-      VAN_CHUYEN: orders.filter((o) => o.orderCategory === 'VAN_CHUYEN').length,
-      CUU_HO_SOS: orders.filter((o) => o.orderCategory === 'CUU_HO_SOS').length,
+      ALL: nonCancelled.length,
+      NONG_NGHIEP: nonCancelled.filter((o) => o.orderCategory === 'NONG_NGHIEP').length,
+      CONG_TRINH: nonCancelled.filter((o) => o.orderCategory === 'CONG_TRINH').length,
+      VAN_CHUYEN: nonCancelled.filter((o) => o.orderCategory === 'VAN_CHUYEN').length,
+      CUU_HO_SOS: nonCancelled.filter((o) => o.orderCategory === 'CUU_HO_SOS').length,
+      CANCELLED: statusCounts.CANCELLED,
     };
-  }, [orders]);
+  }, [orders, statusCounts.CANCELLED]);
 
   // Tính toán cảnh báo lệnh quá hạn chuẩn xác theo từng loại lệnh đang xem (Nông nghiệp vs Toàn hệ thống)
   const computedOverdueSummary = useMemo(() => {
@@ -995,14 +1081,14 @@ export const DispatchOrdersPage: React.FC = () => {
       missingDriver,
       lateAssigned,
       lateAccepted,
-      categoryName: targetCategory === 'NONG_NGHIEP' ? 'nông nghiệp' : targetCategory === 'CONG_TRINH' ? 'công trình' : targetCategory === 'VAN_CHUYEN' ? 'vận chuyển' : '',
+      categoryName: targetCategory === 'NONG_NGHIEP' ? 'nông nghiệp' : targetCategory === 'CONG_TRINH' ? 'công trình' : targetCategory === 'VAN_CHUYEN' ? 'vận chuyển' : targetCategory === 'CUU_HO_SOS' ? 'cứu hộ SOS' : '',
     };
   }, [orders, selectedKLH, isAgriculturalSpecific, selectedCategory]);
 
-  // 7 ngày trong tuần đang chọn
+  // 7 ngày trong tuần đang chọn (dùng weekFrom để hiển thị pill ngày trong tuần)
   const weekDays = useMemo(() => {
-    if (selectedWeek === 'ALL') return [];
-    const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
+    if (weekFrom === 'ALL') return [];
+    const weekObj = availableWeeks.find((w) => w.weekNumber === weekFrom);
     if (!weekObj?.monday) return [];
     const days: { dayName: string; shortName: string; dateStr: string; displayDate: string; isToday: boolean; count: number }[] = [];
     const mon = new Date(weekObj.monday);
@@ -1026,7 +1112,19 @@ export const DispatchOrdersPage: React.FC = () => {
       days.push({ dayName, shortName, dateStr, displayDate, isToday, count });
     }
     return days;
-  }, [selectedWeek, availableWeeks, orders, selectedCategory]);
+  }, [weekFrom, availableWeeks, orders, selectedCategory]);
+
+  // Label khoảng tuần cho xuất file và hiển thị
+  const weekRangeLabel = useMemo(() => buildWeekRangeLabel(weekFrom, weekTo), [weekFrom, weekTo]);
+
+  // Handler xuất Excel
+  const handleExportExcel = () => {
+    exportDispatchOrdersToExcel(
+      filteredOrders,
+      weekRangeLabel,
+      isAgriculturalSpecific ? 'LỆNH NÔNG NGHIỆP' : 'LỆNH ĐIỀU XE TỔNG HỢP',
+    );
+  };
 
   // Điều hướng ngày nhanh
   const handleStepDate = (days: number) => {
@@ -1039,7 +1137,8 @@ export const DispatchOrdersPage: React.FC = () => {
     const today = new Date();
     const todayStr = toDateString(today);
     const todayWeek = getWeekNumber(today);
-    setSelectedWeek(todayWeek);
+    setWeekFrom(todayWeek);
+    setWeekTo(todayWeek);
     setSelectedDate(todayStr);
   };
 
@@ -1221,17 +1320,25 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'status',
       title: 'Trạng thái',
-      width: '135px',
+      width: '145px',
       render: (row) => (
         <div className="space-y-1">
           <StatusBadge status={row.status} />
+          {row.status === 'CANCELLED' && (row.cancellationReason || row.rejectionReason) && (
+            <div
+              className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded leading-tight line-clamp-2"
+              title={`Lý do hủy: ${row.cancellationReason || row.rejectionReason}`}
+            >
+              <span className="font-bold">Lý do:</span> {row.cancellationReason || row.rejectionReason}
+            </div>
+          )}
           {needsOperatorAttention(row) && (!row.vehicle || !row.driver) && (
             <div className="flex flex-wrap gap-1">
               {!row.vehicle && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu xe</span>}
               {!row.driver && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu tài xế</span>}
             </div>
           )}
-          {row.plannedFuelLiters && (
+          {row.plannedFuelLiters && row.status !== 'CANCELLED' && (
             <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
               <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
               <span>Định mức: <b>{row.plannedFuelLiters}L</b></span>
@@ -1242,13 +1349,12 @@ export const DispatchOrdersPage: React.FC = () => {
     },
     {
       key: 'user',
-      title: 'User',
-      width: '70px',
-      align: 'center',
+      title: 'Người tạo',
+      width: '135px',
       render: (row) => (
         <AuditUserPopover
-          createdDate={row.departureTime || '14-03-2026'}
-          createdUser="admin"
+          createdDate={row.createdAt || row.departureTime || '—'}
+          createdUser={row.createdBy?.fullName || row.requester?.fullName || 'Chưa xác định'}
           updatedDate={row.approvedAt || row.departureTime || '01-08-2026'}
           updatedUser="admin"
           title={`Xem thông tin lệnh điều xe ${row.code}`}
@@ -1268,8 +1374,11 @@ export const DispatchOrdersPage: React.FC = () => {
             <TableRowActions
               onView={() => handleOpenOrder(row)}
               onEdit={() => handleOpenOrder(row)}
+              onDelete={['PENDING_APPROVAL', 'APPROVED', 'ASSIGNED', 'CHO_DUYET', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN', 'DRAFT'].includes(row.status) ? () => handleOpenCancel(row) : undefined}
               viewTitle="Xem chi tiết lệnh điều xe"
               editTitle="Chỉnh sửa lệnh điều xe"
+              deleteTitle="Hủy lệnh điều xe"
+              requireAdminToDelete={false}
             />
             {/* Giữ nguyên icon điều xe */}
             <button
@@ -1497,13 +1606,12 @@ export const DispatchOrdersPage: React.FC = () => {
     },
     {
       key: 'user',
-      title: 'User',
-      width: '70px',
-      align: 'center',
+      title: 'Người tạo',
+      width: '135px',
       render: (row) => (
         <AuditUserPopover
-          createdDate={row.departureTime || '14-03-2026'}
-          createdUser="admin"
+          createdDate={row.createdAt || row.departureTime || '—'}
+          createdUser={row.createdBy?.fullName || row.requester?.fullName || 'Chưa xác định'}
           updatedDate={row.approvedAt || row.departureTime || '01-08-2026'}
           updatedUser="admin"
           title={`Xem thông tin lệnh hoàn tất ${row.code}`}
@@ -1540,9 +1648,14 @@ export const DispatchOrdersPage: React.FC = () => {
     <div className="space-y-4">
       {/* 1. Page Header */}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold text-slate-900">
-          {isAgriculturalSpecific ? 'Lệnh điều xe Nông nghiệp' : 'Tất cả Lệnh điều xe'}
-        </h1>
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900">
+            {isAgriculturalSpecific ? 'Lệnh điều xe Nông nghiệp' : 'Tất cả Lệnh điều xe'}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Quản lý, điều phối và theo dõi tiến độ toàn bộ lệnh điều động phương tiện
+          </p>
+        </div>
       </div>
 
       {/* OVERDUE BANNER: Cảnh báo lệnh quá hạn theo từng loại lệnh (hoặc toàn hệ thống) */}
@@ -1560,7 +1673,7 @@ export const DispatchOrdersPage: React.FC = () => {
           <button
             type="button"
             className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-            onClick={() => { setSelectedWeek('ALL'); setSelectedDate('ALL'); setStatusFilter('DELAYED'); setView('table'); }}
+            onClick={() => { setWeekFrom('ALL'); setWeekTo('ALL'); setSelectedDate('ALL'); setStatusFilter('DELAYED'); setView('table'); }}
           >
             Xem và xử lý
           </button>
@@ -1569,19 +1682,36 @@ export const DispatchOrdersPage: React.FC = () => {
 
       {/* 2. THANH BỘ LỌC PHÂN LOẠI LỆNH (CATEGORY SEGMENTED TABS) */}
       <DispatchCategoryTabs
-        activeTab={isAgriculturalSpecific ? 'NONG_NGHIEP' : (selectedCategory === 'ALL' ? 'ALL' : selectedCategory as any)}
+        activeTab={
+          statusFilter === 'CANCELLED'
+            ? 'CANCELLED'
+            : isAgriculturalSpecific
+            ? 'NONG_NGHIEP'
+            : (selectedCategory === 'ALL' ? 'ALL' : selectedCategory as any)
+        }
         counts={categoryCounts}
         onTabChange={(tabKey) => {
-          if (tabKey === 'ALL') {
+          if (tabKey === 'CANCELLED') {
+            setStatusFilter('CANCELLED');
+            setView('table');
+          } else if (tabKey === 'ALL') {
+            setStatusFilter('ALL');
             navigate('/lenh-dieu-xe/danh-sach');
             setSelectedCategory('ALL');
           } else if (tabKey === 'NONG_NGHIEP') {
+            setStatusFilter('ALL');
             navigate('/lenh-dieu-xe/lenh-nong-nghiep');
             setSelectedCategory('NONG_NGHIEP');
           } else if (tabKey === 'CONG_TRINH') {
+            setStatusFilter('ALL');
             navigate('/lenh-dieu-xe/lenh-cong-trinh');
           } else if (tabKey === 'VAN_CHUYEN') {
+            setStatusFilter('ALL');
             navigate('/lenh-dieu-xe/lenh-noi-bo');
+          } else if (tabKey === 'CUU_HO_SOS') {
+            setStatusFilter('ALL');
+            navigate('/lenh-dieu-xe/danh-sach?category=CUU_HO_SOS');
+            setSelectedCategory('CUU_HO_SOS');
           }
         }}
       />
@@ -1605,7 +1735,8 @@ export const DispatchOrdersPage: React.FC = () => {
           pillText="Lệnh trễ phân công"
           pillVariant="danger"
           onClick={() => {
-            setSelectedWeek('ALL');
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
             setSelectedDate('ALL');
             setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
           }}
@@ -1627,7 +1758,8 @@ export const DispatchOrdersPage: React.FC = () => {
           pillText="Kế hoạch tuần tới"
           pillVariant="neutral"
           onClick={() => {
-            setSelectedWeek('ALL');
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
             setSelectedDate('ALL');
             setStatusFilter(statusFilter === 'FUTURE_UNASSIGNED' ? 'ALL' : 'FUTURE_UNASSIGNED');
           }}
@@ -1766,64 +1898,68 @@ export const DispatchOrdersPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Cột 5: Tuần kế hoạch */}
-          <div>
+          {/* Cột 5: Tuần kế hoạch (từ - đến) */}
+          <div className="col-span-1 sm:col-span-2">
             <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
-              Tuần kế hoạch
+              Tuần kế hoạch (từ → đến)
             </label>
-            <div className="relative">
+            <div className="flex items-center gap-1">
               <select
-                value={selectedWeek}
+                value={weekFrom}
                 onChange={(e) => {
                   const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
-                  setSelectedWeek(val);
+                  if (val === 'ALL') {
+                    setWeekFrom('ALL');
+                    setWeekTo('ALL');
+                  } else {
+                    setWeekFrom(val);
+                    if (weekTo === 'ALL' || Number(weekTo) < val) {
+                      setWeekTo(val);
+                    }
+                  }
                   setSelectedDate('ALL');
                 }}
                 className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <option value="ALL">Tất cả các tuần</option>
+                <option value="ALL">Tất cả</option>
                 {availableWeeks.map((w) => (
                   <option key={w.weekNumber} value={w.weekNumber}>
                     {w.label}
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          {/* Cột 6: Ngày thực hiện */}
-          <div>
-            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
-              Ngày thực hiện cụ thể
-            </label>
-            <div className="flex items-center gap-1 bg-slate-50/70 rounded-xl border border-slate-200 p-0.5 h-9 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                title="Ngày trước"
+              <span className="text-slate-400 text-xs font-bold shrink-0">→</span>
+              <select
+                value={weekTo}
+                onChange={(e) => {
+                  const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                  if (val === 'ALL') {
+                    setWeekFrom('ALL');
+                    setWeekTo('ALL');
+                  } else {
+                    setWeekTo(val);
+                    if (weekFrom === 'ALL' || Number(weekFrom) > val) {
+                      setWeekFrom(val);
+                    }
+                  }
+                  setSelectedDate('ALL');
+                }}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="w-full bg-transparent text-xs font-semibold text-slate-800 px-1 py-0.5 focus:outline-none cursor-pointer min-w-0"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+                <option value="ALL">Tất cả</option>
+                {availableWeeks
+                  .filter((w) => weekFrom === 'ALL' || w.weekNumber >= Number(weekFrom))
+                  .map((w) => (
+                    <option key={w.weekNumber} value={w.weekNumber}>
+                      {w.label}
+                    </option>
+                  ))}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất in, Tạo mới) */}
+        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất file, Tạo mới) */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             {/* Nút Nhập lại */}
@@ -1834,8 +1970,10 @@ export const DispatchOrdersPage: React.FC = () => {
                 setSelectedPurpose('ALL');
                 setSelectedVehicle('ALL');
                 setSelectedDriver('ALL');
-                setSelectedWeek(getWeekNumber(new Date()));
-                setSelectedDate(toDateString(new Date()));
+                const curWeek = getWeekNumber(new Date());
+                setWeekFrom(curWeek);
+                setWeekTo(curWeek);
+                setSelectedDate('ALL');
                 setStatusFilter('ALL');
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
@@ -1857,7 +1995,7 @@ export const DispatchOrdersPage: React.FC = () => {
             </button>
 
             {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần T2 -> CN */}
-            {selectedWeek !== 'ALL' && (
+            {weekFrom !== 'ALL' && (
               <div className="flex flex-wrap items-center gap-1 pl-1">
                 <span className="text-slate-300 mx-0.5">|</span>
                 <button
@@ -1869,7 +2007,7 @@ export const DispatchOrdersPage: React.FC = () => {
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  Cả tuần {selectedWeek}
+                  {weekFrom === weekTo ? `Cả tuần ${weekFrom}` : `Tuần ${Math.min(Number(weekFrom), Number(weekTo))}–${Math.max(Number(weekFrom), Number(weekTo))}`}
                 </button>
                 {weekDays.map((d) => {
                   const isDayActive = selectedDate === d.dateStr;
@@ -1908,11 +2046,12 @@ export const DispatchOrdersPage: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              onClick={handleExportExcel}
+              title={`Xuất ${filteredOrders.length} lệnh đang hiển thị ra Excel`}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-300 hover:border-emerald-400 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5 text-slate-600" />
-              <span>Xuất / In</span>
+              <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Xuất Excel</span>
             </button>
 
             <button
@@ -1942,7 +2081,7 @@ export const DispatchOrdersPage: React.FC = () => {
           ]}
         />
         {(view === 'table' || view === 'daily_timeline') && (
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-1.5 shadow-xs">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-1.5 shadow-xs flex-wrap">
             <span className="text-xs font-bold text-slate-700 whitespace-nowrap">Lọc trạng thái:</span>
             <select
               value={statusFilter}
@@ -1957,10 +2096,37 @@ export const DispatchOrdersPage: React.FC = () => {
               <option value="DA_GIAO_VIEC">Đã phân công ({statusCounts.DA_GIAO_VIEC})</option>
               <option value="DANG_LAM_VIEC">Đang vận hành ({statusCounts.DANG_LAM_VIEC})</option>
               <option value="COMPLETED">Nghiệm thu ({statusCounts.COMPLETED})</option>
+              <option value="CANCELLED">Lệnh đã hủy ({statusCounts.CANCELLED})</option>
             </select>
           </div>
         )}
       </div>
+
+      {/* Banner thông báo khi đang xem Danh sách lệnh đã hủy */}
+      {statusFilter === 'CANCELLED' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-rose-100 text-rose-600 shrink-0">
+              <XCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-extrabold text-rose-900">
+                Đang hiển thị danh sách {filteredOrders.length} lệnh điều xe đã hủy
+              </p>
+              <p className="text-xs text-rose-700 font-medium">
+                Bao gồm các lệnh điều xe nông nghiệp, công trình và vận chuyển đã hủy kèm lý do thu hồi / hủy lệnh
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ALL')}
+            className="rounded-xl border border-rose-300 bg-white px-3.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all shadow-2xs cursor-pointer"
+          >
+            ← Quay lại tất cả lệnh
+          </button>
+        </div>
+      )}
 
 
 
@@ -1981,6 +2147,8 @@ export const DispatchOrdersPage: React.FC = () => {
           serverSide={false}
           totalItems={filteredOrders.length}
           useGlobalFilters={false}
+          showSearch={false}
+          showExport={false}
         />
       ) : view === 'daily_timeline' ? (
         /* GIAO DIỆN SCHEDULER LỊCH CHẠY THEO XE 24 TIẾNG */
@@ -2072,12 +2240,28 @@ export const DispatchOrdersPage: React.FC = () => {
                 {renderCategoryBadge(selected.orderCategory)}
                 <StatusBadge status={selected.status} />
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" icon={<Download className="h-3.5 w-3.5" />} onClick={() => window.print()}>
-                  In lệnh điều xe
-                </Button>
-              </div>
             </div>
+
+            {/* CẢNH BÁO LỆNH ĐÃ HỦY */}
+            {selected.status === 'CANCELLED' && (
+              <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-xs text-rose-950 space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-2 font-extrabold text-rose-800 text-sm">
+                  <XCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>LỆNH ĐIỀU XE ĐÃ BỊ HỦY BỎ / THU HỒI</span>
+                </div>
+                {(selected.cancellationReason || (selected as any).rejectionReason) && (
+                  <div className="pl-6 text-slate-800">
+                    <span className="font-bold text-rose-900">Nguyên nhân hủy: </span>
+                    <span className="font-semibold text-rose-950">{selected.cancellationReason || (selected as any).rejectionReason}</span>
+                  </div>
+                )}
+                {selected.cancelledAt && (
+                  <div className="pl-6 text-[11px] text-rose-700">
+                    Thời điểm ghi nhận hủy: {formatDateTime(selected.cancelledAt)}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 1. THẺ THÔNG TIN KẾ HOẠCH LỚN */}
             <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 p-3.5 border border-emerald-200/80 text-xs shadow-2xs">
@@ -2272,10 +2456,11 @@ export const DispatchOrdersPage: React.FC = () => {
               )}
             </div>
 
-            {/* 4. Khung quy trình phê duyệt & phân công vào ca (Từng xe riêng biệt trong tổ máy) */}
-            <WorkflowActionPanel
-              key={selected.id}
-              kind={selected.orderCategory === 'CONG_TRINH' ? 'CONSTRUCTION' : selected.orderCategory === 'VAN_CHUYEN' ? 'TRANSPORT' : 'AGRICULTURE'}
+            {/* 4. Khung quy trình phê duyệt & phân công vào ca (Chỉ hiển thị cho lệnh chưa hủy) */}
+            {selected.status !== 'CANCELLED' && (
+              <WorkflowActionPanel
+                key={selected.id}
+                kind={selected.orderCategory === 'CONG_TRINH' ? 'CONSTRUCTION' : selected.orderCategory === 'VAN_CHUYEN' ? 'TRANSPORT' : 'AGRICULTURE'}
               step={workflowStep(selected.status)}
               taskName={selected.purpose}
               vehicleCode={selected.vehicle?.code}
@@ -2289,6 +2474,7 @@ export const DispatchOrdersPage: React.FC = () => {
               initialStartTime={selected.departureTime}
               initialDurationHours={selected.departureTime && selected.plannedEndTime ? Math.max(0.5, (new Date(selected.plannedEndTime).getTime() - new Date(selected.departureTime).getTime()) / 3_600_000) : 8}
               unit={selected.unit}
+              managementUnitId={(selected as any).operationalWorkOrder?.managementUnitId}
               onVehicleScheduleChange={(details) => {
                 setSelected((current) => {
                   if (!current) return current;
@@ -2353,6 +2539,7 @@ export const DispatchOrdersPage: React.FC = () => {
                 }
               }}
             />
+            )}
           </div>
         )}
       </Modal>
@@ -2500,6 +2687,99 @@ export const DispatchOrdersPage: React.FC = () => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* ===================== MODAL: HỦY LỆNH ĐIỀU XE ===================== */}
+      <Modal
+        isOpen={Boolean(cancelTarget)}
+        onClose={() => { setCancelTarget(null); setCancelError(''); }}
+        title={`Xác nhận hủy lệnh điều xe: ${cancelTarget?.code}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelTarget(null)} disabled={cancelSaving}>
+              Đóng
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => void handleConfirmCancel()}
+              disabled={cancelSaving}
+            >
+              {cancelSaving ? 'Đang xử lý...' : 'Xác nhận hủy lệnh'}
+            </Button>
+          </div>
+        }
+      >
+        {cancelTarget && (
+          <div className="space-y-4 text-xs">
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-rose-900 leading-relaxed">
+              <div className="font-bold flex items-center gap-1.5 mb-1 text-rose-800">
+                <AlertTriangle className="h-4 w-4 text-rose-600" />
+                <span>Cảnh báo chuyển trạng thái lệnh</span>
+              </div>
+              Thao tác này sẽ chuyển lệnh điều xe <b>{cancelTarget.code}</b> thành <b>LỆNH ĐÃ HỦY</b> và tự động giải phóng phương tiện / thợ lái về trạng thái Chờ phân công.
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-slate-600">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mục đích / Công việc:</span>
+                <span className="font-bold text-slate-800 text-right">{cancelTarget.purpose}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Phương tiện điều động:</span>
+                <span className="font-bold text-slate-800">{cancelTarget.vehicle?.code || 'Chưa gán xe'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Thợ lái / Tài xế:</span>
+                <span className="font-bold text-slate-800">{cancelTarget.driver?.fullName || 'Chưa gán tài xế'}</span>
+              </div>
+            </div>
+
+            <div>
+              <span className="mb-1.5 block font-bold text-slate-800">
+                Nguyên nhân hủy lệnh <span className="text-rose-600">*</span>
+              </span>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {[
+                  'Thời tiết không thuận lợi (mưa lớn / ngập úng)',
+                  'Kế hoạch sản xuất nông trường thay đổi',
+                  'Phương tiện / thiết bị phát sinh sự cố kỹ thuật',
+                  'Thợ lái xin nghỉ đột xuất / thiếu nhân sự',
+                  'Lệnh tạo thử nghiệm / trùng lặp',
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => setCancelReason(suggestion)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                      cancelReason === suggestion
+                        ? 'bg-rose-100 border-rose-400 text-rose-800 font-bold'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => {
+                  setCancelReason(e.target.value);
+                  if (cancelError) setCancelError('');
+                }}
+                placeholder="Nhập hoặc chọn nguyên nhân hủy lệnh điều xe..."
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
+            {cancelError && (
+              <div className="rounded-xl bg-red-100 border border-red-300 p-2.5 text-red-800 font-medium">
+                {cancelError}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
     </div>

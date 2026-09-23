@@ -26,7 +26,9 @@ import {
   Users,
   UserCheck,
   RotateCcw,
+  FileDown,
 } from 'lucide-react';
+import { exportTransportOrdersToExcel, buildWeekRangeLabel } from '../../utils/dispatchExcel';
 import { operationsApi } from '../../api/operations';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
@@ -153,18 +155,19 @@ export const InternalTransportPage: React.FC = () => {
     return [...getWeeksOfYear(2026)].sort((a, b) => b.weekNumber - a.weekNumber);
   }, []);
 
-  // Bộ lọc Tuần: 'ALL' hoặc số tuần (Mặc định tuần hiện tại)
-  const [selectedWeek, setSelectedWeek] = useState<number | 'ALL'>(() => {
-    return getWeekNumber(new Date());
-  });
+  // Bộ lọc Tuần dạng khoảng: weekFrom đến weekTo
+  const [weekFrom, setWeekFrom] = useState<number | 'ALL'>(() => getWeekNumber(new Date()));
+  const [weekTo, setWeekTo] = useState<number | 'ALL'>(() => getWeekNumber(new Date()));
+  // Alias cho các nơi cần selectedWeek
+  const selectedWeek = weekFrom;
 
   // Bộ lọc theo Loại hàng, Phương tiện xe và Tài xế
   const [selectedCargo, setSelectedCargo] = useState<string>('ALL');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('ALL');
   const [selectedDriver, setSelectedDriver] = useState<string>('ALL');
 
-  // Quản lý ngày: Vừa vào mặc định chọn ngày hôm nay
-  const [selectedDate, setSelectedDate] = useState<string>(() => formatDateKey(new Date()));
+  // Quản lý ngày: Mặc định ALL để hiển thị trọn vẹn theo khoảng tuần
+  const [selectedDate, setSelectedDate] = useState<string>('ALL');
   const [sortOrder, setSortOrder] = useState<'time_asc' | 'time_desc'>('time_asc');
 
   const selectedStatus = useFilterStore((state) => state.selectedStatus);
@@ -172,8 +175,8 @@ export const InternalTransportPage: React.FC = () => {
 
   // 7 ngày trong tuần đang chọn
   const weekDays = useMemo(() => {
-    if (selectedWeek === 'ALL') return [];
-    const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
+    if (weekFrom === 'ALL') return [];
+    const weekObj = availableWeeks.find((w) => w.weekNumber === weekFrom);
     if (!weekObj?.monday) return [];
     const days: { dayName: string; shortName: string; dateStr: string; displayDate: string; isToday: boolean; count: number }[] = [];
     const mon = new Date(weekObj.monday);
@@ -197,7 +200,15 @@ export const InternalTransportPage: React.FC = () => {
       days.push({ dayName, shortName, dateStr, displayDate, isToday, count });
     }
     return days;
-  }, [selectedWeek, availableWeeks, orders, selectedKLH]);
+  }, [weekFrom, availableWeeks, orders, selectedKLH]);
+
+  // Label khoảng tuần cho xuất file và hiển thị
+  const weekRangeLabel = useMemo(() => buildWeekRangeLabel(weekFrom, weekTo), [weekFrom, weekTo]);
+
+  // Handler xuất Excel
+  const handleExportExcel = () => {
+    exportTransportOrdersToExcel(filteredOrders, weekRangeLabel);
+  };
 
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -231,7 +242,7 @@ export const InternalTransportPage: React.FC = () => {
       orderCategory: 'VAN_CHUYEN',
       categoryLabel: 'Vận chuyển',
       sourceType: 'TRANSPORT_ORDER',
-      unit: order.unit || 'BAN_CO_GIOI',
+      unit: order.unit || 'KOUN_MOM',
       purpose: order.cargoType || 'Vận chuyển hàng hóa nội bộ',
       origin: order.origin || 'Kho Trung Tâm',
       destination: order.destination || 'Điểm giao hàng',
@@ -292,8 +303,8 @@ export const InternalTransportPage: React.FC = () => {
         .filter((item) => item.status !== 'CANCELLED')
         .map((item: any) => {
           const plan = item.productionOrder?.plan;
-          const complexCode = plan?.complexCode || (['NT1', 'NT2', 'NT3', 'NT4', 'BAN_CO_GIOI'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
-          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'NT1' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
+          const complexCode = plan?.complexCode || (['KOUN_MOM', 'KOUN_MOM', 'NT3', 'NT4', 'KOUN_MOM'].includes(item.unit) ? 'KOUN_MOM' : item.unit) || 'KOUN_MOM';
+          const complexName = plan?.complexName || (complexCode === 'KOUN_MOM' ? 'Khu liên hợp Koun Mom' : item.unit === 'KOUN_MOM' ? 'Nông trường 1' : item.unit || 'Khu liên hợp');
           return {
             ...item,
             complexCode,
@@ -325,6 +336,12 @@ export const InternalTransportPage: React.FC = () => {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener('operational-data-updated', refresh);
+    return () => window.removeEventListener('operational-data-updated', refresh);
   }, [load]);
 
   // Lắng nghe sự kiện làm mới từ nút Header Refresh
@@ -364,11 +381,12 @@ export const InternalTransportPage: React.FC = () => {
       if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(order, selectedKLH)) {
         return false;
       }
-      if (selectedWeek !== 'ALL') {
-        const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
-        if (weekObj) {
-          const start = weekObj.startDateKey;
-          const end = weekObj.endDateKey;
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL') {
+        const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
+        const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
+        if (fromObj && toObj) {
+          const start = fromObj.startDateKey;
+          const end   = toObj.endDateKey;
           const dKey = formatDateKey(order.departureTime || order.executionDate || order.requestDate);
           if (!dKey || dKey < start || dKey > end) return false;
         }
@@ -417,7 +435,7 @@ export const InternalTransportPage: React.FC = () => {
       DELAYED: delayed,
       FUTURE_UNASSIGNED: futureUnassigned,
     };
-  }, [orders, selectedWeek, availableWeeks, selectedDate, selectedKLH]);
+  }, [orders, weekFrom, weekTo, availableWeeks, selectedDate, selectedKLH]);
 
   // Tính toán cảnh báo chuyến vận chuyển quá hạn / chờ điều độ (CHỈ BÁO CHUYẾN ĐÃ ĐẾN HẠN/QUÁ HẠN)
   const computedOverdueSummary = useMemo(() => {
@@ -589,12 +607,13 @@ export const InternalTransportPage: React.FC = () => {
         return false;
       }
 
-      // Lọc theo Tuần (selectedWeek) - bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai
-      if (selectedWeek !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
-        const weekObj = availableWeeks.find((w) => w.weekNumber === selectedWeek);
-        if (weekObj) {
-          const start = weekObj.startDateKey;
-          const end = weekObj.endDateKey;
+      // Lọc theo khoảng tuần (weekFrom → weekTo) - bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
+        const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
+        const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
+        if (fromObj && toObj) {
+          const start = fromObj.startDateKey;
+          const end   = toObj.endDateKey;
           const dKey = formatDateKey(order.departureTime || order.executionDate || order.requestDate);
           if (!dKey || dKey < start || dKey > end) return false;
         }
@@ -612,7 +631,7 @@ export const InternalTransportPage: React.FC = () => {
       const timeB = b.departureTime ? new Date(b.departureTime).getTime() : 0;
       return sortOrder === 'time_asc' ? timeA - timeB : timeB - timeA;
     });
-  }, [orders, search, selectedCargo, selectedVehicle, statusFilter, selectedStatus, selectedWeek, availableWeeks, selectedDate, selectedKLH, sortOrder]);
+  }, [orders, search, selectedCargo, selectedVehicle, statusFilter, selectedStatus, weekFrom, weekTo, availableWeeks, selectedDate, selectedKLH, sortOrder]);
 
   // Danh sách các chuyến đã hoàn tất
   const completedOrders = useMemo(() => {
@@ -773,7 +792,8 @@ export const InternalTransportPage: React.FC = () => {
   };
 
   const handleSelectToday = () => {
-    setSelectedWeek(getWeekNumber(new Date()));
+    setWeekFrom(getWeekNumber(new Date()));
+    setWeekTo(getWeekNumber(new Date()));
     setSelectedDate(formatDateKey(new Date()));
   };
 
@@ -851,7 +871,7 @@ export const InternalTransportPage: React.FC = () => {
               <b className="font-bold text-slate-900 text-xs leading-snug">{row.cargoType || 'Vận chuyển hàng hóa nội bộ'}</b>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || 'BAN_CO_GIOI'}</span>
+              <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || 'KOUN_MOM'}</span>
               {(row.tonnage || row.palletCount) && (
                 <span className="font-bold text-emerald-700">
                   🎯 {row.tonnage || row.palletCount} {row.palletCount ? 'Pallet' : 'Tấn'}
@@ -1318,7 +1338,7 @@ export const InternalTransportPage: React.FC = () => {
       routeType,
       transportMode: routeType === 'TWO_WAY' ? '2 Chiều (Đối lưu)' : '1 Chiều',
       flowType: 'STANDARD',
-      unit: 'BAN_CO_GIOI',
+      unit: 'KOUN_MOM',
       requestDate: reqDate,
       executionDate: execDate,
       departureTime: departureIso,
@@ -1423,7 +1443,7 @@ export const InternalTransportPage: React.FC = () => {
           <button
             type="button"
             className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-            onClick={() => { setSelectedWeek('ALL'); setSelectedDate('ALL'); setStatusFilter('CHUA_PHAN_CONG'); setView('table'); }}
+            onClick={() => { setWeekFrom('ALL'); setWeekTo('ALL'); setSelectedDate('ALL'); setStatusFilter('CHUA_PHAN_CONG'); setView('table'); }}
           >
             Xem và xử lý
           </button>
@@ -1452,7 +1472,8 @@ export const InternalTransportPage: React.FC = () => {
           pillText="Lệnh trễ phân công"
           pillVariant="danger"
           onClick={() => {
-            setSelectedWeek('ALL');
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
             setSelectedDate('ALL');
             setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
           }}
@@ -1474,7 +1495,8 @@ export const InternalTransportPage: React.FC = () => {
           pillText="Kế hoạch tuần tới"
           pillVariant="neutral"
           onClick={() => {
-            setSelectedWeek('ALL');
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
             setSelectedDate('ALL');
             setStatusFilter(statusFilter === 'FUTURE_UNASSIGNED' ? 'ALL' : 'FUTURE_UNASSIGNED');
           }}
@@ -1613,64 +1635,68 @@ export const InternalTransportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Cột 5: Tuần kế hoạch */}
-          <div>
+          {/* Cột 5: Tuần kế hoạch (từ - đến) */}
+          <div className="col-span-1 sm:col-span-2">
             <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
-              Tuần kế hoạch
+              Tuần kế hoạch (từ → đến)
             </label>
-            <div className="relative">
+            <div className="flex items-center gap-1">
               <select
-                value={selectedWeek}
+                value={weekFrom}
                 onChange={(e) => {
                   const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
-                  setSelectedWeek(val);
+                  if (val === 'ALL') {
+                    setWeekFrom('ALL');
+                    setWeekTo('ALL');
+                  } else {
+                    setWeekFrom(val);
+                    if (weekTo === 'ALL' || Number(weekTo) < val) {
+                      setWeekTo(val);
+                    }
+                  }
                   setSelectedDate('ALL');
                 }}
                 className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <option value="ALL">Tất cả các tuần</option>
+                <option value="ALL">Tất cả</option>
                 {availableWeeks.map((w) => (
                   <option key={w.weekNumber} value={w.weekNumber}>
                     {w.label}
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          {/* Cột 6: Ngày vận chuyển */}
-          <div>
-            <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate">
-              Ngày vận chuyển cụ thể
-            </label>
-            <div className="flex items-center gap-1 bg-slate-50/70 rounded-xl border border-slate-200 p-0.5 h-9 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                title="Ngày trước"
+              <span className="text-slate-400 text-xs font-bold shrink-0">→</span>
+              <select
+                value={weekTo}
+                onChange={(e) => {
+                  const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                  if (val === 'ALL') {
+                    setWeekFrom('ALL');
+                    setWeekTo('ALL');
+                  } else {
+                    setWeekTo(val);
+                    if (weekFrom === 'ALL' || Number(weekFrom) > val) {
+                      setWeekFrom(val);
+                    }
+                  }
+                  setSelectedDate('ALL');
+                }}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedDate === 'ALL' ? '' : selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value || 'ALL')}
-                className="w-full bg-transparent text-xs font-semibold text-slate-800 px-1 py-0.5 focus:outline-none cursor-pointer min-w-0"
-              />
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+                <option value="ALL">Tất cả</option>
+                {availableWeeks
+                  .filter((w) => weekFrom === 'ALL' || w.weekNumber >= Number(weekFrom))
+                  .map((w) => (
+                    <option key={w.weekNumber} value={w.weekNumber}>
+                      {w.label}
+                    </option>
+                  ))}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Nhập Excel, In/PDF, Tạo mới) */}
+        {/* Hàng 2: Toolbar Nút Thao Tác (Nhập lại, Tìm kiếm, Ngày trong tuần, Xuất file, Tạo mới) */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             {/* Nút Nhập lại */}
@@ -1681,8 +1707,10 @@ export const InternalTransportPage: React.FC = () => {
                 setSelectedCargo('ALL');
                 setSelectedVehicle('ALL');
                 setSelectedDriver('ALL');
-                setSelectedWeek(getWeekNumber(new Date()));
-                setSelectedDate(formatDateKey(new Date()));
+                const curWeek = getWeekNumber(new Date());
+                setWeekFrom(curWeek);
+                setWeekTo(curWeek);
+                setSelectedDate('ALL');
                 setStatusFilter('ALL');
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
@@ -1703,8 +1731,8 @@ export const InternalTransportPage: React.FC = () => {
               <span>Tìm kiếm</span>
             </button>
 
-            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần T2 -> CN */}
-            {selectedWeek !== 'ALL' && (
+            {/* Nếu đang lọc theo Tuần: Hiển thị các pill Ngày trong tuần */}
+            {weekFrom !== 'ALL' && (
               <div className="flex flex-wrap items-center gap-1 pl-1">
                 <span className="text-slate-300 mx-0.5">|</span>
                 <button
@@ -1716,7 +1744,7 @@ export const InternalTransportPage: React.FC = () => {
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  Cả tuần {selectedWeek}
+                  {weekFrom === weekTo ? `Cả tuần ${weekFrom}` : `Tuần ${Math.min(Number(weekFrom), Number(weekTo))}–${Math.max(Number(weekFrom), Number(weekTo))}`}
                 </button>
                 {weekDays.map((d) => {
                   const isDayActive = selectedDate === d.dateStr;
@@ -1755,20 +1783,12 @@ export const InternalTransportPage: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <button
               type="button"
-              onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              onClick={handleExportExcel}
+              title={`Xuất ${filteredOrders.length} lệnh vận chuyển đang hiển thị ra Excel`}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-300 hover:border-emerald-400 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
             >
-              <Upload className="w-3.5 h-3.5 text-slate-600" />
-              <span>Nhập Excel</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-600" />
-              <span>In / PDF</span>
+              <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Xuất Excel</span>
             </button>
 
             <button
@@ -1828,6 +1848,8 @@ export const InternalTransportPage: React.FC = () => {
           totalItems={filteredOrders.length}
           onPageChange={setPage}
           useGlobalFilters={false}
+          showSearch={false}
+          showExport={false}
         />
       ) : view === 'scheduler' ? (
         /* GIAO DIỆN SCHEDULER LỊCH CHẠY THEO XE VẬN CHUYỂN NỘI BỘ 24 TIẾNG */
@@ -2066,6 +2088,7 @@ export const InternalTransportPage: React.FC = () => {
               initialDurationHours={selected.departureTime && selected.plannedEndTime ? Math.max(0.5, (new Date(selected.plannedEndTime).getTime() - new Date(selected.departureTime).getTime()) / 3_600_000) : 8}
               unit={selected.unit}
               complexCode={(selected as any).complexCode || (selected as any).operationalWorkOrder?.complexCode || 'KOUN_MOM'}
+              managementUnitId={(selected as any).operationalWorkOrder?.managementUnitId}
               onApprove={async (vehicle, driver, schedule, implement) => {
                 try {
                   const updated = await operationsApi.assignTransport(selected.id, {
@@ -2093,9 +2116,6 @@ export const InternalTransportPage: React.FC = () => {
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setSelected(null)}>
                   Đóng
-                </Button>
-                <Button icon={<Printer className="h-4 w-4" />} onClick={() => window.print()}>
-                  In phiếu điều vận
                 </Button>
               </div>
             </div>

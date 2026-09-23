@@ -22,7 +22,7 @@ import { useAppStore } from '../store';
 
 export function LoginScreen() {
   const [username, setUsername] = useState('minh.nv');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('Thaco@1234$');
   const [secure, setSecure] = useState(true);
   const [busy, setBusy] = useState(false);
   const [focusedField, setFocusedField] = useState<'username' | 'password' | null>(null);
@@ -53,7 +53,7 @@ export function LoginScreen() {
 
   const fillSample = (u: string) => {
     setUsername(u);
-    setPassword('123456');
+    setPassword('Thaco@1234$');
   };
 
   return (
@@ -157,7 +157,7 @@ export function LoginScreen() {
                 onFocus={() => setFocusedField('password')}
                 onBlur={() => setFocusedField(null)}
                 secureTextEntry={secure}
-                placeholder="Nhập mật khẩu (Mặc định: 123456)"
+                placeholder="Nhập mật khẩu (Mặc định: Thaco@1234$)"
                 placeholderTextColor="#94A3B8"
                 style={styles.input}
                 selectionColor={colors.brand}

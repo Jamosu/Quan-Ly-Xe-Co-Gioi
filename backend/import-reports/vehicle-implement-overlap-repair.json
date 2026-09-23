@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-09-22T02:35:57.522Z",
+  "dryRun": false,
+  "applied": false,
+  "candidateVehicleCount": 0,
+  "candidateCodes": [],
+  "workshopRequestsToMigrate": 0,
+  "targetDispatchReset": false,
+  "classificationConflicts": [],
+  "blockers": []
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -218,7 +218,7 @@ export const EditEquipmentModal: React.FC<EditEquipmentModalProps> = ({
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim(),
         category: formData.category,
-        unit: 'BAN_CO_GIOI' as any,
+        unit: 'KOUN_MOM' as any,
         managerName: formData.managerName.trim() || undefined,
         gatheringLocation: formData.gatheringLocation.trim() || undefined,
         managerPhone: formData.managerPhone.trim() || undefined,

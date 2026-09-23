@@ -19,10 +19,10 @@ async function main() {
   console.log(`Tìm thấy ${users.length} tài khoản người dùng.`);
 
   const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash('123456', salt);
+  const passwordHash = await bcrypt.hash('Thaco@1234$', salt);
 
-  console.log('Băm mật khẩu 123456 thành công:', passwordHash);
-  console.log('🔄 Đang cập nhật mật khẩu 123456 và kích hoạt isActive: true cho toàn bộ người dùng...');
+  console.log('Băm mật khẩu Thaco@1234$ thành công:', passwordHash);
+  console.log('🔄 Đang cập nhật mật khẩu Thaco@1234$ và kích hoạt isActive: true cho toàn bộ người dùng...');
 
   const result = await prisma.user.updateMany({
     data: {
@@ -31,7 +31,7 @@ async function main() {
     },
   });
 
-  console.log(`✅ Đã cập nhật thành công mật khẩu "123456" cho ${result.count} tài khoản!`);
+  console.log(`✅ Đã cập nhật thành công mật khẩu "Thaco@1234$" cho ${result.count} tài khoản!`);
 
   // In danh sách các tài khoản để kiểm tra
   const updatedUsers = await prisma.user.findMany({

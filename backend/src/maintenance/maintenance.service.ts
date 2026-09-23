@@ -403,14 +403,28 @@ export class MaintenanceService {
   }
 
   async getUpcomingSchedule() {
-    const vehicles = await this.prisma.vehicle.findMany({ select: { id: true } });
-    for (const vehicle of vehicles) await this.refreshVehicleOccurrences(vehicle.id);
-    const occurrences = await this.prisma.maintenanceOccurrence.findMany({
-      where: { status: { notIn: [MaintenanceOccurrenceStatus.COMPLETED, MaintenanceOccurrenceStatus.CANCELLED] } },
-      include: { vehicle: { include: { defaultDriver: { select: { id: true, fullName: true, phone: true } }, vehicleType: true } }, standard: true, milestone: true, records: { where: { status: { not: MaintenanceStatus.COMPLETED } }, take: 1 } },
-      orderBy: [{ alertTier: 'desc' }, { dueMeter: 'asc' }],
-    });
-    const legacy = await this.prisma.vehicle.findMany({ where: { alertTier: { in: [MaintenanceAlertTier.RED, MaintenanceAlertTier.AMBER] }, OR: [{ vehicleTypeId: null }, { vehicleType: { maintenanceStandards: { none: { status: MaintenanceStandardStatus.ACTIVE } } } }] }, include: { vehicleType: true, defaultDriver: { select: { id: true, fullName: true, phone: true } } } });
+    // Occurrences are synchronized when a standard is activated and when vehicle
+    // telemetry is updated. A read endpoint must not refresh every vehicle: the
+    // catalog contains thousands of assets and the previous sequential loop made
+    // this request exceed the frontend timeout.
+    const [occurrences, legacy] = await Promise.all([
+      this.prisma.maintenanceOccurrence.findMany({
+        where: { status: { notIn: [MaintenanceOccurrenceStatus.COMPLETED, MaintenanceOccurrenceStatus.CANCELLED] } },
+        include: { vehicle: { include: { defaultDriver: { select: { id: true, fullName: true, phone: true } }, vehicleType: true } }, standard: true, milestone: true, records: { where: { status: { not: MaintenanceStatus.COMPLETED } }, take: 1 } },
+        orderBy: [{ alertTier: 'desc' }, { dueMeter: 'asc' }],
+      }),
+      this.prisma.vehicle.findMany({
+        where: {
+          hoursSinceLastService: { gt: 0 },
+          OR: [
+            { vehicleTypeId: null },
+            { vehicleType: { maintenanceStandards: { none: { status: MaintenanceStandardStatus.ACTIVE } } } },
+          ],
+        },
+        include: { vehicleType: true, defaultDriver: { select: { id: true, fullName: true, phone: true } } },
+        orderBy: [{ alertTier: 'desc' }, { hoursSinceLastService: 'desc' }],
+      }),
+    ]);
     return { occurrences, legacy };
   }
 

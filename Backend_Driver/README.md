@@ -1,4 +1,6 @@
-# THACO AGRI Driver Backend
+# THACO AGRI Driver Backend (deprecated)
+
+> Không khởi động dịch vụ này trong môi trường vận hành. Ứng dụng Expo hiện gọi backend chính tại cổng `3001`; toàn bộ thay đổi trạng thái lệnh, phiên làm việc, nghỉ, tạm dừng và báo cáo tiến độ phải đi qua module `backend/src/mobile-driver` và `backend/src/work-orders`. Mã nguồn này chỉ được giữ lại để tham chiếu/migration, không còn là nguồn ghi dữ liệu nghiệp vụ.
 
 Backend NestJS riêng cho ứng dụng tài xế. Dịch vụ dùng chung MySQL và bảng `users` với backend quản trị hiện tại, vì vậy tài khoản được tạo tại `/phan-quyen/nguoi-dung` có thể đăng nhập ngay khi `role=DRIVER` và `isActive=true`.
 

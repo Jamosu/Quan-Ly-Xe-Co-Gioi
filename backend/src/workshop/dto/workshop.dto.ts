@@ -31,6 +31,23 @@ export enum WorkshopAssetType {
   IMPLEMENT = 'IMPLEMENT',
 }
 
+export class DispatchSosRescueDto {
+  @ApiProperty({ description: 'ID xe cứu hộ đã được đánh dấu đủ năng lực cứu hộ' })
+  @Type(() => Number)
+  @IsInt()
+  rescueVehicleId: number;
+
+  @ApiProperty({ description: 'ID tài xế được phân công lái xe cứu hộ' })
+  @Type(() => Number)
+  @IsInt()
+  driverId: number;
+
+  @ApiProperty({ type: String, format: 'date-time', description: 'Thời điểm dự kiến kết thúc nhiệm vụ cứu hộ' })
+  @Type(() => Date)
+  @IsDate()
+  plannedEndTime: Date;
+}
+
 export class WorkshopRequestFilterDto extends PaginationDto {
   @ApiPropertyOptional({ enum: WorkshopRequestType })
   @IsOptional() @IsEnum(WorkshopRequestType)

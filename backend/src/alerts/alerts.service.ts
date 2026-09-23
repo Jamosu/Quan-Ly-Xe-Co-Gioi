@@ -22,6 +22,7 @@ import { UpdateAlertStatusDto } from './dto/update-alert-status.dto';
 import { UpdateAlertRuleDto } from './dto/update-alert-rule.dto';
 import { daysUntilExpiry, resolveDriverComplianceFields } from '../users/driver-compliance';
 import { DISPATCH_FIRST_DELAY_MINUTES } from '../common/constants/dispatch-delay-policy';
+import { assertManagementUnitAccess, scopedManagementUnitIds } from '../common/utils/management-scope';
 
 type AlertDb = Prisma.TransactionClient | PrismaService;
 
@@ -43,6 +44,7 @@ export interface EmitAlertInput {
   metadataJson?: Prisma.InputJsonValue;
   complexCode?: string;
   unit?: Unit;
+  managementUnitId?: number;
   vehicleId?: number;
   implementId?: number;
   driverId?: number;
@@ -97,6 +99,7 @@ export class AlertsService {
         metadataJson: input.metadataJson,
         complexCode: input.complexCode,
         unit: input.unit,
+        managementUnitId: input.managementUnitId,
         vehicleId: input.vehicleId,
         implementId: input.implementId,
         driverId: input.driverId,
@@ -117,6 +120,7 @@ export class AlertsService {
         metadataJson: input.metadataJson,
         complexCode: input.complexCode,
         unit: input.unit,
+        managementUnitId: input.managementUnitId,
         vehicleId: input.vehicleId,
         implementId: input.implementId,
         driverId: input.driverId,
@@ -147,7 +151,7 @@ export class AlertsService {
     });
   }
 
-  private scopeWhere(actor: OperationalActor, complexCode?: string): Prisma.AlertEventWhereInput {
+  private async scopeWhere(actor: OperationalActor, complexCode?: string): Promise<Prisma.AlertEventWhereInput> {
     const where: Prisma.AlertEventWhereInput = {};
     if (complexCode && complexCode !== 'ALL') where.complexCode = complexCode;
     if (hasGlobalOperationalAccess(actor)) return where;
@@ -155,7 +159,8 @@ export class AlertsService {
       where.driverId = actor.id;
       return where;
     }
-    where.unit = actor.unit;
+    const managementUnitIds = await scopedManagementUnitIds(this.prisma, actor);
+    if (managementUnitIds) where.managementUnitId = { in: managementUnitIds };
     return where;
   }
 
@@ -163,6 +168,10 @@ export class AlertsService {
     const alert = await this.prisma.alertEvent.findUnique({ where: { id } });
     if (!alert) throw new NotFoundException(`Không tìm thấy cảnh báo #${id}.`);
     if (!hasGlobalOperationalAccess(actor)) {
+      if (actor.role === Role.FARM_MANAGER && alert.managementUnitId) {
+        await assertManagementUnitAccess(this.prisma, actor, alert.managementUnitId);
+        return alert;
+      }
       const allowed = actor.role === Role.DRIVER ? alert.driverId === actor.id : !alert.unit || alert.unit === actor.unit;
       if (!allowed) throw new ForbiddenException('Không được truy cập cảnh báo ngoài phạm vi được phân quyền.');
     }
@@ -255,7 +264,7 @@ export class AlertsService {
         ruleCode: 'SOS_EMERGENCY', dedupeKey: `SOS:${sos.id}`, sourceType: 'DriverSosAlert', sourceId: String(sos.id),
         category: AlertCategory.SOS, alertType: sos.emergencyType, severity: AlertSeverity.CRITICAL,
         title: `Cứu hộ SOS: ${sos.emergencyType}`, message: sos.description,
-        location: sos.lotLocation, targetUrl: `/doi-xe/quan-ly-sos?alertId=${sos.id}`, vehicleId: sos.vehicleId,
+        location: sos.lotLocation, targetUrl: `/gps/realtime?sosId=${sos.id}`, vehicleId: sos.vehicleId,
         driverId: sos.driverId, unit: sos.vehicle.unit, complexCode: sos.vehicle.complexCode, occurredAt: sos.createdAt,
       })),
       ...legacyMaintenance.map((vehicle) => this.emit({
@@ -353,11 +362,12 @@ export class AlertsService {
 
   async findAll(filter: AlertFilterDto, actor: OperationalActor) {
     await this.reconcileCurrentSources();
+    const scope = await this.scopeWhere(actor, filter.complexCode);
     const page = filter.page || 1;
     const limit = filter.limit || 20;
     const skip = (page - 1) * limit;
     const baseWhere: Prisma.AlertEventWhereInput = {
-      ...this.scopeWhere(actor, filter.complexCode),
+      ...scope,
       category: filter.category,
       severity: filter.severity,
       status: filter.status || { in: activeStatuses },
@@ -427,8 +437,9 @@ export class AlertsService {
   }
 
   async markAllRead(filter: AlertFilterDto, actor: OperationalActor) {
+    const scope = await this.scopeWhere(actor, filter.complexCode);
     const where: Prisma.AlertEventWhereInput = {
-      ...this.scopeWhere(actor, filter.complexCode),
+      ...scope,
       category: filter.category,
       severity: filter.severity,
       status: filter.status || { in: activeStatuses },
@@ -464,7 +475,8 @@ export class AlertsService {
   }
 
   async getStatistics(filter: AlertFilterDto, actor: OperationalActor) {
-    const where = { ...this.scopeWhere(actor, filter.complexCode), occurredAt: filter.from || filter.to ? { gte: filter.from, lte: filter.to } : undefined };
+    const scope = await this.scopeWhere(actor, filter.complexCode);
+    const where = { ...scope, occurredAt: filter.from || filter.to ? { gte: filter.from, lte: filter.to } : undefined };
     const items = await this.prisma.alertEvent.findMany({ where, select: { category: true, severity: true, status: true, occurredAt: true, resolvedAt: true } });
     const byCategory = Object.values(AlertCategory).map((category) => {
       const group = items.filter((item) => item.category === category);

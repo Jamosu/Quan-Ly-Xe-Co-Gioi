@@ -54,10 +54,34 @@ export async function initializeDatabase() {
       latitude REAL, longitude REAL, upload_status TEXT NOT NULL DEFAULT 'PENDING', retry_count INTEGER NOT NULL DEFAULT 0,
       next_retry_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS work_sessions (
+      id INTEGER PRIMARY KEY NOT NULL, dispatch_order_key TEXT NOT NULL, work_date TEXT NOT NULL,
+      status TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, gross_minutes INTEGER NOT NULL DEFAULT 0,
+      break_minutes INTEGER NOT NULL DEFAULT 0, pause_minutes INTEGER NOT NULL DEFAULT 0,
+      working_minutes INTEGER NOT NULL DEFAULT 0, raw_json TEXT NOT NULL,
+      FOREIGN KEY(dispatch_order_key) REFERENCES dispatch_orders(local_key)
+    );
+    CREATE TABLE IF NOT EXISTS work_breaks (
+      id INTEGER PRIMARY KEY NOT NULL, work_session_id INTEGER NOT NULL, type TEXT NOT NULL,
+      started_at TEXT NOT NULL, ended_at TEXT, duration_minutes INTEGER NOT NULL DEFAULT 0, raw_json TEXT NOT NULL,
+      FOREIGN KEY(work_session_id) REFERENCES work_sessions(id)
+    );
+    CREATE TABLE IF NOT EXISTS work_pauses (
+      id INTEGER PRIMARY KEY NOT NULL, work_session_id INTEGER NOT NULL, reason TEXT NOT NULL,
+      started_at TEXT NOT NULL, ended_at TEXT, duration_minutes INTEGER NOT NULL DEFAULT 0, raw_json TEXT NOT NULL,
+      FOREIGN KEY(work_session_id) REFERENCES work_sessions(id)
+    );
+    CREATE TABLE IF NOT EXISTS daily_progress (
+      id INTEGER PRIMARY KEY NOT NULL, dispatch_order_key TEXT NOT NULL, progress_date TEXT NOT NULL,
+      quantity_today REAL NOT NULL DEFAULT 0, accumulated_quantity REAL NOT NULL DEFAULT 0,
+      overall_percent REAL NOT NULL DEFAULT 0, description TEXT, note TEXT, raw_json TEXT NOT NULL,
+      UNIQUE(dispatch_order_key, progress_date), FOREIGN KEY(dispatch_order_key) REFERENCES dispatch_orders(local_key)
+    );
     CREATE INDEX IF NOT EXISTS idx_orders_planned_start ON dispatch_orders(planned_start);
     CREATE INDEX IF NOT EXISTS idx_events_order ON dispatch_events(dispatch_order_key, occurred_at);
     CREATE INDEX IF NOT EXISTS idx_queue_status ON sync_queue(status, priority, sequence_number);
     CREATE INDEX IF NOT EXISTS idx_attachments_status ON attachments(upload_status);
+    CREATE INDEX IF NOT EXISTS idx_sessions_order_date ON work_sessions(dispatch_order_key, work_date);
   `);
   const queueColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sync_queue)');
   if (!queueColumns.some(column => column.name === 'next_retry_at')) {
@@ -67,7 +91,63 @@ export async function initializeDatabase() {
   if (!attachmentColumns.some(column => column.name === 'next_retry_at')) {
     await db.execAsync('ALTER TABLE attachments ADD COLUMN next_retry_at TEXT');
   }
-  await db.execAsync('PRAGMA user_version = 2');
+  await db.execAsync('PRAGMA user_version = 3');
+
+  // Dọn dẹp các lệnh mẫu cũ đã bị xóa trên server (xóa các bảng phụ trước để không vi phạm FOREIGN KEY)
+  await db.runAsync(
+    "DELETE FROM work_breaks WHERE work_session_id IN (SELECT id FROM work_sessions WHERE dispatch_order_key IN (SELECT local_key FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002')))"
+  );
+  await db.runAsync(
+    "DELETE FROM work_pauses WHERE work_session_id IN (SELECT id FROM work_sessions WHERE dispatch_order_key IN (SELECT local_key FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002')))"
+  );
+  await db.runAsync(
+    "DELETE FROM work_sessions WHERE dispatch_order_key IN (SELECT local_key FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002'))"
+  );
+  await db.runAsync(
+    "DELETE FROM daily_progress WHERE dispatch_order_key IN (SELECT local_key FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002'))"
+  );
+  await db.runAsync(
+    "DELETE FROM dispatch_events WHERE dispatch_order_key IN (SELECT local_key FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002'))"
+  );
+  await db.runAsync(
+    "DELETE FROM attachments WHERE dispatch_order_key IN (SELECT local_key FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002'))"
+  );
+  await db.runAsync("DELETE FROM dispatch_orders WHERE code IN ('LDX-20260912-001', 'VD-20260912-002')");
+
+  // Khởi tạo sẵn 2 dữ liệu mẫu hoàn thành cho Lịch sử nhiệm vụ nếu chưa có
+  const completedCount = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM dispatch_orders WHERE local_status IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED')"
+  );
+  if ((completedCount?.count ?? 0) === 0) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO dispatch_orders (
+        local_key, server_id, order_type, code, title, origin, destination,
+        planned_start, planned_end, actual_start, actual_end, server_status, local_status,
+        vehicle_id, vehicle_code, vehicle_plate, vehicle_name, version,
+        server_updated_at, local_updated_at, sync_status, raw_json
+      ) VALUES
+      (
+        'TRANSPORT:101', 101, 'TRANSPORT', 'VD-20260911-001',
+        'Vận chuyển 15 tấn chuối xuất khẩu về Xưởng đóng gói',
+        'Nông trường 1 • Lô Chuối C03', 'Xưởng đóng gói KLH Koun Mom',
+        '2026-09-11T07:30:00.000Z', '2026-09-11T11:00:00.000Z',
+        '2026-09-11T07:35:00.000Z', '2026-09-11T10:45:00.000Z',
+        'DELIVERED', 'DELIVERED', 1, 'MK-023', 'CHT-MĐA-001', 'John Deere 6120',
+        1, '2026-09-11T10:50:00.000Z', '2026-09-11T10:50:00.000Z', 'SYNCED',
+        '{"tonnage":15.0,"completedTonnage":15.0,"cargoType":"Chuối Nam Mỹ xuất khẩu"}'
+      ),
+      (
+        'DISPATCH:102', 102, 'DISPATCH', 'LDX-20260910-002',
+        'Cày lật đất chuẩn bị gieo trồng Lô B02',
+        'Bãi đỗ cơ giới KLH Koun Mom', 'Nông trường 1 • Lô B02',
+        '2026-09-10T06:30:00.000Z', '2026-09-10T11:30:00.000Z',
+        '2026-09-10T06:30:00.000Z', '2026-09-10T11:15:00.000Z',
+        'COMPLETED', 'COMPLETED', 1, 'MK-023', 'CHT-MĐA-001', 'John Deere 6120',
+        1, '2026-09-10T11:20:00.000Z', '2026-09-10T11:20:00.000Z', 'SYNCED',
+        '{"areaHa":10.0,"completedAreaHa":10.0,"purpose":"Cày lật đất 3 chảo"}'
+      )`
+    );
+  }
 }
 
 export async function setMeta(key: string, value: string) {
@@ -109,9 +189,30 @@ export async function listOrders(scope: 'today' | 'upcoming' | 'history' = 'toda
   const now = new Date();
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 1);
-  if (scope === 'today') return db.getAllAsync<LocalOrder>('SELECT * FROM dispatch_orders WHERE planned_start >= ? AND planned_start < ? ORDER BY planned_start', start.toISOString(), end.toISOString());
-  if (scope === 'upcoming') return db.getAllAsync<LocalOrder>('SELECT * FROM dispatch_orders WHERE planned_start >= ? ORDER BY planned_start LIMIT 100', end.toISOString());
-  return db.getAllAsync<LocalOrder>("SELECT * FROM dispatch_orders WHERE local_status IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED') OR planned_start < ? ORDER BY COALESCE(actual_end, planned_start) DESC LIMIT 100", start.toISOString());
+  if (scope === 'today') {
+    return db.getAllAsync<LocalOrder>(
+      `SELECT * FROM dispatch_orders
+       WHERE (planned_start >= ? AND planned_start < ?)
+          OR (local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED','CANCELLED') AND planned_start < ?)
+       ORDER BY planned_start`,
+      start.toISOString(), end.toISOString(), end.toISOString(),
+    );
+  }
+  if (scope === 'upcoming') {
+    return db.getAllAsync<LocalOrder>(
+      `SELECT * FROM dispatch_orders
+       WHERE planned_start >= ?
+         AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED','CANCELLED')
+       ORDER BY planned_start LIMIT 100`,
+      end.toISOString(),
+    );
+  }
+  // history: CHỈ lấy các nhiệm vụ đã kết thúc (hoàn thành hoặc hủy)
+  return db.getAllAsync<LocalOrder>(
+    `SELECT * FROM dispatch_orders
+     WHERE local_status IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED','CANCELLED')
+     ORDER BY COALESCE(actual_end, planned_end, planned_start) DESC LIMIT 100`,
+  );
 }
 
 export async function getOrder(localKey: string) {
@@ -153,14 +254,17 @@ export async function enqueueEvent(input: {
     if (input.order) {
       const nextStatus: Partial<Record<MobileEventType, string>> = {
         ORDER_ACCEPTED: 'DRIVER_ACCEPTED', VEHICLE_RECEIVED: 'VEHICLE_RECEIVED', JOB_STARTED: 'WORKING',
-        JOB_PAUSED: 'PAUSED', JOB_RESUMED: 'WORKING', JOB_COMPLETED: input.order.order_type === 'TRANSPORT' ? 'DELIVERED' : 'COMPLETED',
+        JOB_PAUSED: 'PAUSED', WORK_PAUSED: 'PAUSED', JOB_RESUMED: 'WORKING', WORK_RESUMED: 'WORKING',
+        BREAK_STARTED: 'ON_BREAK', BREAK_ENDED: 'WORKING', JOB_COMPLETED: 'READY_TO_CONTINUE',
+        WORK_SESSION_ENDED: 'READY_TO_CONTINUE', ORDER_COMPLETION_REQUESTED: 'SUBMITTED_FOR_ACCEPTANCE',
+        DAILY_REPORT_SUBMITTED: 'WAITING_REVIEW',
       };
       await tx.runAsync(
         `UPDATE dispatch_orders SET local_status=?, sync_status='PENDING', local_updated_at=?,
-         actual_start=CASE WHEN ?='JOB_STARTED' AND actual_start IS NULL THEN ? ELSE actual_start END,
-         actual_end=CASE WHEN ?='JOB_COMPLETED' THEN ? ELSE actual_end END WHERE local_key=?`,
-        nextStatus[input.eventType] ?? input.order.local_status, occurredAt, input.eventType, occurredAt,
-        input.eventType, occurredAt, input.order.local_key,
+         actual_start=CASE WHEN ?='JOB_STARTED' THEN ? ELSE actual_start END,
+         actual_end=CASE WHEN ?='JOB_STARTED' THEN NULL WHEN ? IN ('JOB_COMPLETED','WORK_SESSION_ENDED') THEN ? ELSE actual_end END WHERE local_key=?`,
+         nextStatus[input.eventType] ?? input.order.local_status, occurredAt, input.eventType, occurredAt,
+         input.eventType, input.eventType, occurredAt, input.order.local_key,
       );
     }
   });
@@ -248,6 +352,14 @@ export async function applyPull(payload: any) {
       const localKey = `${item.orderType}:${item.id}`;
       const existing = await tx.getFirstAsync<LocalOrder>('SELECT * FROM dispatch_orders WHERE local_key=?', localKey);
       const serverStatus = String(item.status);
+      const sessions = item.operationalWorkOrder?.executionSegments ?? [];
+      const activeSession = sessions.find((session: any) => session.status !== 'ENDED' && !session.endedAt);
+      const latestSession = sessions.length ? sessions[sessions.length - 1] : undefined;
+      const serverLocalStatus = activeSession?.status === 'ON_BREAK' ? 'ON_BREAK'
+        : activeSession?.status === 'PAUSED' ? 'PAUSED'
+          : activeSession?.status === 'ACTIVE' ? 'WORKING'
+            : item.operationalWorkOrder?.status === 'IN_PROGRESS' ? 'READY_TO_CONTINUE'
+              : item.operationalWorkOrder?.status ?? serverStatus;
       const preserveLocal = existing && ['PENDING', 'SYNCING', 'FAILED', 'CONFLICT'].includes(existing.sync_status);
       const vehicle = item.vehicle;
       const title = item.orderType === 'DISPATCH' ? item.purpose : item.cargoType || item.operationalWorkOrder?.jobName || 'Vận chuyển';
@@ -256,19 +368,49 @@ export async function applyPull(payload: any) {
         `INSERT INTO dispatch_orders(local_key,server_id,order_type,code,title,origin,destination,planned_start,planned_end,actual_start,actual_end,server_status,local_status,vehicle_id,vehicle_code,vehicle_plate,vehicle_name,version,server_updated_at,local_updated_at,sync_status,raw_json)
          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON CONFLICT(local_key) DO UPDATE SET code=excluded.code,title=excluded.title,origin=excluded.origin,destination=excluded.destination,
-         planned_start=excluded.planned_start,planned_end=excluded.planned_end,server_status=excluded.server_status,
-         local_status=CASE WHEN dispatch_orders.sync_status IN ('PENDING','SYNCING','FAILED','CONFLICT') THEN dispatch_orders.local_status ELSE excluded.local_status END,
+          planned_start=excluded.planned_start,planned_end=excluded.planned_end,server_status=excluded.server_status,
+          local_status=CASE WHEN dispatch_orders.sync_status IN ('PENDING','SYNCING','FAILED','CONFLICT') THEN dispatch_orders.local_status ELSE excluded.local_status END,
+          actual_start=CASE WHEN dispatch_orders.sync_status IN ('PENDING','SYNCING','FAILED','CONFLICT') THEN dispatch_orders.actual_start ELSE excluded.actual_start END,
+          actual_end=CASE WHEN dispatch_orders.sync_status IN ('PENDING','SYNCING','FAILED','CONFLICT') THEN dispatch_orders.actual_end ELSE excluded.actual_end END,
          vehicle_id=excluded.vehicle_id,vehicle_code=excluded.vehicle_code,vehicle_plate=excluded.vehicle_plate,vehicle_name=excluded.vehicle_name,
          version=excluded.version,server_updated_at=excluded.server_updated_at,raw_json=excluded.raw_json,
          sync_status=CASE WHEN dispatch_orders.sync_status IN ('PENDING','SYNCING','FAILED','CONFLICT') THEN dispatch_orders.sync_status ELSE 'SYNCED' END`,
         localKey, item.id, item.orderType, item.code, title || 'Nhiệm vụ', item.origin ?? null, item.destination ?? null,
         item.departureTime ?? item.executionDate ?? null, item.plannedEndTime ?? null,
-        existing?.actual_start ?? item.actualStartTime ?? item.departedAt ?? null,
-        existing?.actual_end ?? item.actualCompletedTime ?? item.deliveredAt ?? null,
-        serverStatus, preserveLocal ? existing.local_status : serverStatus, vehicle?.id ?? item.vehicleId ?? null,
+         preserveLocal ? existing?.actual_start : activeSession?.startedAt ?? latestSession?.startedAt ?? item.actualStartTime ?? item.departedAt ?? null,
+         preserveLocal ? existing?.actual_end : activeSession ? null : latestSession?.endedAt ?? item.actualCompletedTime ?? item.deliveredAt ?? null,
+        serverStatus, preserveLocal ? existing.local_status : serverLocalStatus, vehicle?.id ?? item.vehicleId ?? null,
         vehicle?.code ?? null, vehicle?.plate ?? null, vehicle?.name ?? null, version,
         item.updatedAt ?? payload.serverTime, existing?.local_updated_at ?? payload.serverTime,
         preserveLocal ? existing.sync_status : 'SYNCED', JSON.stringify(item),
+      );
+      for (const session of sessions) {
+        await tx.runAsync(
+          `INSERT INTO work_sessions(id,dispatch_order_key,work_date,status,started_at,ended_at,gross_minutes,break_minutes,pause_minutes,working_minutes,raw_json)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,ended_at=excluded.ended_at,
+           gross_minutes=excluded.gross_minutes,break_minutes=excluded.break_minutes,pause_minutes=excluded.pause_minutes,
+           working_minutes=excluded.working_minutes,raw_json=excluded.raw_json`,
+          session.id, localKey, session.workDate, session.status, session.startedAt, session.endedAt ?? null,
+          session.grossMinutes ?? 0, session.breakMinutes ?? 0, session.pauseMinutes ?? 0, session.workingMinutes ?? 0, JSON.stringify(session),
+        );
+        for (const itemBreak of session.breaks ?? []) await tx.runAsync(
+          `INSERT INTO work_breaks(id,work_session_id,type,started_at,ended_at,duration_minutes,raw_json) VALUES(?,?,?,?,?,?,?)
+           ON CONFLICT(id) DO UPDATE SET ended_at=excluded.ended_at,duration_minutes=excluded.duration_minutes,raw_json=excluded.raw_json`,
+          itemBreak.id, session.id, itemBreak.type, itemBreak.startedAt, itemBreak.endedAt ?? null, itemBreak.durationMinutes ?? 0, JSON.stringify(itemBreak),
+        );
+        for (const pause of session.pauses ?? []) await tx.runAsync(
+          `INSERT INTO work_pauses(id,work_session_id,reason,started_at,ended_at,duration_minutes,raw_json) VALUES(?,?,?,?,?,?,?)
+           ON CONFLICT(id) DO UPDATE SET ended_at=excluded.ended_at,duration_minutes=excluded.duration_minutes,raw_json=excluded.raw_json`,
+          pause.id, session.id, pause.reason, pause.startedAt, pause.endedAt ?? null, pause.durationMinutes ?? 0, JSON.stringify(pause),
+        );
+      }
+      for (const progress of item.operationalWorkOrder?.dailyProgress ?? []) await tx.runAsync(
+        `INSERT INTO daily_progress(id,dispatch_order_key,progress_date,quantity_today,accumulated_quantity,overall_percent,description,note,raw_json)
+         VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET quantity_today=excluded.quantity_today,
+         accumulated_quantity=excluded.accumulated_quantity,overall_percent=excluded.overall_percent,
+         description=excluded.description,note=excluded.note,raw_json=excluded.raw_json`,
+        progress.id, localKey, progress.progressDate, progress.quantityToday ?? 0, progress.accumulatedQuantity ?? 0,
+        progress.overallProgressPercent ?? 0, progress.description ?? null, progress.note ?? null, JSON.stringify(progress),
       );
       if (vehicle) {
         await tx.runAsync(
@@ -281,6 +423,33 @@ export async function applyPull(payload: any) {
           vehicle.updatedAt ?? payload.serverTime,
         );
       }
+    }
+
+    // Reconcile deleted/unassigned active orders on server:
+    // Any locally SYNCED active order not present in server's active list should be purged
+    const activeServerKeys = all.map(item => `${item.orderType}:${item.id}`);
+    const staleWhere = activeServerKeys.length > 0
+      ? `sync_status = 'SYNCED' AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED') AND local_key NOT IN (${activeServerKeys.map(() => '?').join(',')})`
+      : `sync_status = 'SYNCED' AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED')`;
+    const staleOrders = await tx.getAllAsync<{ local_key: string }>(
+      `SELECT local_key FROM dispatch_orders WHERE ${staleWhere}`,
+      ...activeServerKeys,
+    );
+    if (staleOrders.length > 0) {
+      const staleKeys = staleOrders.map(o => o.local_key);
+      const p = staleKeys.map(() => '?').join(',');
+      const staleSessionIds = await tx.getAllAsync<{ id: number }>(`SELECT id FROM work_sessions WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+      if (staleSessionIds.length) {
+        const sessionIds = staleSessionIds.map((item) => item.id);
+        const sessionPlaceholders = sessionIds.map(() => '?').join(',');
+        await tx.runAsync(`DELETE FROM work_breaks WHERE work_session_id IN (${sessionPlaceholders})`, ...sessionIds);
+        await tx.runAsync(`DELETE FROM work_pauses WHERE work_session_id IN (${sessionPlaceholders})`, ...sessionIds);
+      }
+      await tx.runAsync(`DELETE FROM work_sessions WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+      await tx.runAsync(`DELETE FROM daily_progress WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+      await tx.runAsync(`DELETE FROM dispatch_events WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+      await tx.runAsync(`DELETE FROM attachments WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+      await tx.runAsync(`DELETE FROM dispatch_orders WHERE local_key IN (${p})`, ...staleKeys);
     }
   });
   await setMeta('last_sync_at', payload.serverTime);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   CalendarDays,
   Clock,
@@ -11,15 +11,19 @@ import {
   Wrench,
   Fuel,
   User,
+  UserCheck,
+  Tractor,
   CheckCircle2,
   LayoutGrid,
   Table as TableIcon,
+  X,
 } from 'lucide-react';
 import { SearchableSelect, type SelectOption } from '../common/SearchableSelect';
 import { ResourceTimeline } from './ResourceTimeline';
-import { formatDateStr } from '../../pages/dispatch/ProductionPlanPage';
-import type { FormState } from './DispatchOrderForm';
+import { formatDateStr, getWeekNumber } from '../../pages/dispatch/ProductionPlanPage';
+import { calculateEndTimeFormatted, type FormState } from './DispatchOrderForm';
 import type { OperationalWorkOrderRecord } from '../../api/scheduling';
+import type { DriverManagementUnit } from '../../api/driverManagementApi';
 
 export interface ConstructionOrderFormBlocksProps {
   form: FormState;
@@ -31,10 +35,16 @@ export interface ConstructionOrderFormBlocksProps {
   weekOptions: SelectOption[];
   complexOptions: SelectOption[];
   selectedComplex: any;
+  managementUnits?: DriverManagementUnit[];
+  managementUnitOptions?: SelectOption[];
+  selectManagementUnit?: (val: string) => void;
+  enterpriseOptions?: SelectOption[];
+  availableEnterprises?: any[];
+  complexes?: any[];
   constructionJobOptions: SelectOption[];
   availableConstructionJobs: any[];
   constructionSiteOptions: SelectOption[];
-  constructionTeamOptions: SelectOption[];
+  constructionTeamOptions?: SelectOption[];
   vehicleOptions: SelectOption[];
   driverOptions: SelectOption[];
   implementOptions: SelectOption[];
@@ -42,19 +52,22 @@ export interface ConstructionOrderFormBlocksProps {
   selectedDriver: any;
   selectedImplement: any;
   handleDurationChange: (hours: number) => void;
+  handleBreakChange?: (hours: number) => void;
+  handleStartTimeChange?: (val: string) => void;
+  handleSetCurrentTime?: () => void;
   handleVehicleChange: (val: string) => void;
+  handleDriverChange?: (val: string) => void;
+  autoVehicleNotice?: {
+    type: 'PRIMARY_1' | 'PRIMARY_2' | 'SECONDARY' | 'ALL_BUSY' | 'NO_ASSIGNED';
+    message: string;
+    badge: string;
+    tone: 'emerald' | 'amber' | 'blue' | 'rose' | 'slate';
+  } | null;
+  onCloseNotice?: () => void;
   handleSelectConstructionJob: (val: string) => void;
   handleSelectConstructionSite: (val: string) => void;
+  constructionCategoryOptions?: SelectOption[];
 }
-
-const CONSTRUCTION_CATEGORIES = [
-  { code: 'SAN_GAT', name: 'San gạt & Lu lèn nền đường' },
-  { code: 'DAO_MUONG', name: 'Nạo vét & Đào mương' },
-  { code: 'DAO_HO', name: 'Đào hố móng & Hồ chứa nước' },
-  { code: 'MAT_BANG', name: 'Cải tạo mặt bằng & Bãi tập kết' },
-  { code: 'DE_BAO', name: 'Đắp bờ bao & Đê ngăn lũ' },
-  { code: 'KHAC', name: 'Hạng mục khác' },
-];
 
 const inputClass =
   'h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-600/15 disabled:bg-slate-100 disabled:cursor-not-allowed';
@@ -69,6 +82,13 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
   weekOptions,
   complexOptions,
   selectedComplex,
+  managementUnits,
+  managementUnitOptions,
+  selectManagementUnit,
+  enterpriseOptions,
+  availableEnterprises,
+  complexes,
+  constructionCategoryOptions,
   constructionJobOptions,
   availableConstructionJobs,
   constructionSiteOptions,
@@ -80,11 +100,70 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
   selectedDriver,
   selectedImplement,
   handleDurationChange,
+  handleBreakChange,
+  handleStartTimeChange,
+  handleSetCurrentTime,
   handleVehicleChange,
+  handleDriverChange,
+  autoVehicleNotice,
+  onCloseNotice,
   handleSelectConstructionJob,
   handleSelectConstructionSite,
 }) => {
   const [viewMode, setViewMode] = useState<'CARD' | 'TABLE'>('CARD');
+
+  const categoryOptions = useMemo(() => {
+    return constructionCategoryOptions || [];
+  }, [constructionCategoryOptions]);
+
+  const selectedManagementUnit = useMemo(() => {
+    return (managementUnits || []).find((u) => String(u.id) === form.managementUnitId);
+  }, [managementUnits, form.managementUnitId]);
+
+  const unitVehicleCount = useMemo(() => {
+    if (!selectedManagementUnit) return 0;
+    return selectedManagementUnit.vehicleCount ?? selectedManagementUnit._count?.vehicles ?? 0;
+  }, [selectedManagementUnit]);
+
+  const unitDriverCount = useMemo(() => {
+    if (!selectedManagementUnit) return 0;
+    return selectedManagementUnit.driverCount ?? selectedManagementUnit._count?.teamAssignments ?? 0;
+  }, [selectedManagementUnit]);
+  const driverCount = { total: driverOptions.length, selectable: driverOptions.filter((item) => !item.disabled).length };
+  const vehicleCount = { total: vehicleOptions.length, selectable: vehicleOptions.filter((item) => !item.disabled).length };
+  const implementCount = { total: implementOptions.length, selectable: implementOptions.filter((item) => !item.disabled).length };
+
+  const selectedImplementIds = useMemo(() => {
+    if (Array.isArray(form.implementIds) && form.implementIds.length > 0) return form.implementIds;
+    return form.implementId ? [form.implementId] : [];
+  }, [form.implementIds, form.implementId]);
+
+  const handleAddImplement = (val: string) => {
+    if (!val) return;
+    if (!selectedImplementIds.includes(val)) {
+      const nextIds = [...selectedImplementIds, val];
+      setForm((old) => ({ ...old, implementId: nextIds[0], implementIds: nextIds }));
+    }
+  };
+
+  const handleRemoveImplement = (idToRemove: string) => {
+    const nextIds = selectedImplementIds.filter((id) => id !== idToRemove);
+    setForm((old) => ({ ...old, implementId: nextIds[0] || '', implementIds: nextIds }));
+  };
+
+  const handleClearImplements = () => {
+    setForm((old) => ({ ...old, implementId: '', implementIds: [] }));
+  };
+
+  const selectedImplementItems = useMemo(() => {
+    return selectedImplementIds.map((id) => {
+      const opt = implementOptions.find((o) => o.value === id);
+      return {
+        id,
+        label: opt?.label || (selectedImplement && String(selectedImplement.id) === id ? `${selectedImplement.code} — ${selectedImplement.name}` : `Thiết bị #${id}`),
+      };
+    });
+  }, [selectedImplementIds, implementOptions, selectedImplement]);
 
   return (
     <>
@@ -125,9 +204,17 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                   value={String(form.selectedYear)}
                   onChange={(val) => {
                     const y = Number(val);
+                    const curY = new Date().getFullYear();
+                    const curW = getWeekNumber(new Date());
+                    let nextW = form.selectedWeekNumber;
+                    if (y === curY && nextW < curW) {
+                      nextW = curW;
+                    }
                     setForm((old) => ({
                       ...old,
                       selectedYear: y,
+                      selectedWeekNumber: nextW,
+                      planTitle: `Điều động cơ giới thi công công trình Tuần ${nextW}`,
                     }));
                   }}
                   options={yearOptions}
@@ -175,10 +262,7 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                     jobName: '',
                   }));
                 }}
-                options={CONSTRUCTION_CATEGORIES.map((c) => ({
-                  value: c.code,
-                  label: c.name,
-                }))}
+                options={categoryOptions}
                 placeholder="Chọn phân loại hạng mục thi công..."
                 disabled={Boolean(sourceOrder)}
                 heightClass="h-9"
@@ -221,11 +305,75 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                 Phân cấp đơn vị quản lý (Danh mục chuẩn)
               </h3>
               <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                1. KLH ➔ 2. Ban Quản lý Xây dựng ➔ 3. Đội thi công
+                1. KLH ➔ 2. Xí nghiệp / Ban quản lý
               </span>
             </div>
 
             <div className="space-y-3.5">
+              {/* Khu vực quản lý của lệnh */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-extrabold text-amber-900">
+                    Đội cơ giới quản lý lệnh <span className="text-rose-500">*</span>
+                  </label>
+                  {selectedManagementUnit && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md border border-amber-300">
+                        <Tractor className="w-3 h-3 text-amber-700" />
+                        <span>{unitVehicleCount} xe</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 bg-blue-100/90 px-2 py-0.5 rounded-md border border-blue-300">
+                        <UserCheck className="w-3 h-3 text-blue-700" />
+                        <span>{unitDriverCount} tài xế</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <SearchableSelect
+                  value={form.managementUnitId}
+                  onChange={(val) => {
+                    if (selectManagementUnit) {
+                      selectManagementUnit(val);
+                    } else {
+                      update('managementUnitId', val);
+                    }
+                  }}
+                  options={managementUnitOptions || []}
+                  placeholder="Chọn Đội cơ giới trước khi chọn tài xế và xe..."
+                  disabled={Boolean(sourceOrder)}
+                  heightClass="h-10"
+                  bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
+                />
+                {selectedManagementUnit ? (
+                  <div className="mt-2 pt-2 border-t border-amber-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 font-bold text-amber-950">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                        <span>Xe đang có:</span>
+                        <strong className="text-amber-800 text-xs">{unitVehicleCount} xe</strong>
+                      </span>
+                      <span className="text-slate-300">|</span>
+                      <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                        <span>Tài xế đang có:</span>
+                        <strong className="text-blue-700 text-xs">{unitDriverCount} tài xế</strong>
+                      </span>
+                    </div>
+                    {selectedManagementUnit.currentManager?.manager?.fullName && (
+                      <div className="text-[10.5px] text-amber-800 font-medium">
+                        <span className="text-slate-500">Đội trưởng: </span>
+                        <span className="font-bold">{selectedManagementUnit.currentManager.manager.fullName}</span>
+                        {selectedManagementUnit.currentManager.manager.phone && (
+                          <span className="text-slate-500 ml-1">({selectedManagementUnit.currentManager.manager.phone})</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[10px] font-semibold text-amber-700">Tài xế, xe và thiết bị chỉ được tải từ Đội cơ giới này.</p>
+                )}
+              </div>
+
               {/* 1. Khu liên hợp */}
               <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">
@@ -234,88 +382,61 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                 <SearchableSelect
                   value={form.complexCode}
                   onChange={(val) => {
+                    const comp = complexes?.find((c) => c.code === val);
                     setForm((old) => ({
                       ...old,
                       complexCode: val,
-                      complexName: selectedComplex?.name || val,
+                      complexName: comp?.name || selectedComplex?.name || val,
+                      unit: val,
+                      enterpriseCode: '',
+                      enterpriseName: '',
                       teamCode: '',
                       teamName: '',
                       workLocationKey: '',
                       workLocationText: '',
                       destination: '',
+                      vehicleId: '',
+                      driverId: '',
+                      implementId: '',
                     }));
                   }}
                   options={complexOptions}
                   placeholder="Chọn Khu liên hợp..."
-                  disabled={Boolean(sourceOrder)}
+                  disabled={Boolean(sourceOrder) || Boolean(form.managementUnitId)}
                   heightClass="h-9"
                   bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
                 />
               </div>
 
-              {/* 2. Đơn vị quản lý */}
+              {/* 2. Đơn vị quản lý / Xí nghiệp */}
               <div>
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                  2. Đơn vị quản lý (Ban Xây dựng): <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  className={inputClass}
-                  disabled={Boolean(sourceOrder)}
-                  value={form.enterpriseName || `Ban Quản lý Xây dựng & Hạ tầng ${selectedComplex?.name || ''}`}
-                  onChange={(e) => update('enterpriseName', e.target.value)}
-                  placeholder="VD: Ban Quản lý Xây dựng & Hạ tầng Koun Mom"
-                />
-              </div>
-
-              {/* 3. Đội thi công cơ giới */}
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                  3. Đội thi công cơ giới: <span className="text-rose-500">*</span>
+                  2. Đơn vị quản lý (Ban / Xí nghiệp): <span className="text-rose-500">*</span>
                 </label>
                 <SearchableSelect
-                  value={form.teamCode || form.teamName}
+                  value={form.enterpriseCode}
                   onChange={(val) => {
-                    const team = constructionTeamOptions.find((t) => t.value === val);
+                    const ent = availableEnterprises?.find((e) => e.code === val);
                     setForm((old) => ({
                       ...old,
-                      teamCode: val,
-                      teamName: team?.label || val,
-                    }));
-                  }}
-                  options={constructionTeamOptions}
-                  placeholder="Chọn Đội thi công cơ giới..."
-                  disabled={Boolean(sourceOrder)}
-                  heightClass="h-9"
-                  bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
-                  allowCustomInput
-                />
-              </div>
-
-              {/* 4. Đơn vị tác nghiệp */}
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                  4. Đơn vị điều hành tác nghiệp: <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  className={inputClass}
-                  value={form.unit}
-                  onChange={(event) =>
-                    setForm((old) => ({
-                      ...old,
-                      unit: event.target.value,
+                      enterpriseCode: val,
+                      enterpriseName: ent?.name || val,
+                      teamCode: '',
+                      teamName: '',
+                      workLocationKey: '',
+                      workLocationText: '',
+                      destination: '',
                       vehicleId: '',
                       driverId: '',
                       implementId: '',
-                    }))
-                  }
-                >
-                  <option value="BAN_CO_GIOI">Ban Cơ giới (BAN_CO_GIOI)</option>
-                  <option value="NT1">Nông trường 1 (NT1)</option>
-                  <option value="NT2">Nông trường 2 (NT2)</option>
-                  <option value="XN_BO">Xí nghiệp Bò (XN_BO)</option>
-                  <option value="TT_BTSC">Trung tâm BTSC (TT_BTSC)</option>
-                  <option value="TOAN_KLH">Toàn Khu liên hợp (TOAN_KLH)</option>
-                </select>
+                    }));
+                  }}
+                  options={enterpriseOptions || []}
+                  placeholder={!form.complexCode ? 'Chưa chọn Khu liên hợp...' : 'Chọn Đơn vị quản lý...'}
+                  disabled={Boolean(sourceOrder) || !form.complexCode}
+                  heightClass="h-9"
+                  bgClass={sourceOrder || !form.complexCode ? 'bg-slate-100' : 'bg-white'}
+                />
               </div>
             </div>
           </div>
@@ -335,7 +456,7 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                 Hạng mục công việc công trình & Tuyến / Vị trí thực hiện
               </h2>
               <span className="inline-flex items-center justify-center rounded-lg px-2.5 py-0.5 text-xs font-bold border shadow-2xs bg-amber-50 text-amber-800 border-amber-200">
-                {CONSTRUCTION_CATEGORIES.find((c) => c.code === form.constructionCategory)?.name || 'San gạt & Lu lèn nền đường'}
+                {categoryOptions.find((c) => c.value === form.constructionCategory)?.label || 'San gạt & Lu lèn nền đường'}
               </span>
             </div>
           </div>
@@ -390,7 +511,7 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                   1
                 </span>
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  Hạng mục công trình #1 • {CONSTRUCTION_CATEGORIES.find((c) => c.code === form.constructionCategory)?.name || 'San gạt mặt bằng'}
+                  Hạng mục công trình #1 • {categoryOptions.find((c) => c.value === form.constructionCategory)?.label || 'San gạt mặt bằng'}
                 </h3>
               </div>
               <span className="text-[11px] font-bold text-amber-800 bg-amber-100/70 px-2.5 py-0.5 rounded-full border border-amber-200">
@@ -408,19 +529,19 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                     <span>Hạng mục công việc công trình:</span>
                     <span className="text-rose-500">*</span>
                   </span>
-                  {form.jobCode && (
+                  {form.jobCode && !form.jobCode.startsWith('CUSTOM-') && (
                     <span className="text-[10px] font-mono font-bold text-amber-700 bg-white px-2 py-0.5 rounded border border-amber-200">
                       {form.jobCode}
                     </span>
                   )}
                 </label>
                 <SearchableSelect
-                  value={form.jobCode}
+                  value={form.jobCode?.startsWith('CUSTOM-') && form.jobName ? form.jobName : form.jobCode}
                   onChange={handleSelectConstructionJob}
                   options={constructionJobOptions}
                   placeholder="Chọn công việc công trình..."
                   disabled={Boolean(sourceOrder)}
-                  allowCustomInput={false}
+                  allowCustomInput={true}
                   heightClass="h-10"
                   roundedClass="rounded-xl"
                   bgClass={sourceOrder ? 'bg-slate-100' : 'bg-white'}
@@ -451,7 +572,7 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                   value={form.workLocationText}
                   onChange={handleSelectConstructionSite}
                   options={constructionSiteOptions}
-                  placeholder="Chọn/nhập Tuyến hoặc Vị trí thi công..."
+                  placeholder="Chọn Tuyến hoặc Vị trí thi công..."
                   disabled={Boolean(sourceOrder)}
                   allowCustomInput
                   heightClass="h-10"
@@ -672,81 +793,164 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
         </div>
 
         <div className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-4 space-y-4">
-          {/* DÒNG 1: THỜI GIAN CA MÁY */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200/70 pb-3.5">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-amber-600" />
-                <span className="text-xs font-bold text-slate-800">Ca làm việc:</span>
+          {/* DÒNG 1: THỜI GIAN CA MÁY (COMPACT 1 HÀNG) */}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-200 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span className="text-[11px] font-bold text-slate-700 shrink-0">Ca máy:</span>
+                <input
+                  type="datetime-local"
+                  value={form.startTime}
+                  onChange={(e) => (handleStartTimeChange ? handleStartTimeChange(e.target.value) : update('startTime', e.target.value))}
+                  className="h-7 rounded-lg border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-800 shadow-2xs focus:border-amber-600 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSetCurrentTime}
+                  title="Chỉnh về ngày giờ hiện tại"
+                  className="h-7 px-2 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[10.5px] font-bold text-amber-800 shrink-0 cursor-pointer"
+                >
+                  Hiện tại
+                </button>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={form.durationHours}
+                  onChange={(e) => handleDurationChange(Math.max(0.5, Number(e.target.value)))}
+                  className="w-12 h-7 rounded-lg border border-slate-300 bg-white text-center text-[11px] font-extrabold text-slate-900 shadow-2xs focus:border-amber-600 focus:outline-none"
+                />
+                <span className="text-[11px] text-slate-500 font-medium">giờ</span>
+
+                <span className="text-slate-300 mx-1">|</span>
+                <span className="text-[11px] font-bold text-slate-700 shrink-0">Nghỉ trưa:</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="4"
+                  step="0.5"
+                  value={form.breakHours ?? 1}
+                  onChange={(e) => handleBreakChange ? handleBreakChange(Math.max(0, Number(e.target.value))) : update('breakHours', Math.max(0, Number(e.target.value)))}
+                  className="w-11 h-7 rounded-lg border border-slate-300 bg-white text-center text-[11px] font-extrabold text-slate-900 shadow-2xs focus:border-amber-600 focus:outline-none"
+                />
+                <span className="text-[11px] text-slate-500 font-medium">giờ</span>
               </div>
-              <div className="inline-flex rounded-lg bg-white p-1 border border-slate-200 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => update('shift', 'CA_NGAY')}
-                  className={`px-3 py-1 rounded-md transition-all ${
-                    form.shift === 'CA_NGAY'
-                      ? 'bg-amber-700 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Ca ngày (07:00 - 17:00)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => update('shift', 'CA_DEM')}
-                  className={`px-3 py-1 rounded-md transition-all ${
-                    form.shift === 'CA_DEM'
-                      ? 'bg-amber-700 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Ca đêm (18:00 - 05:00)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => update('shift', 'CA_247')}
-                  className={`px-3 py-1 rounded-md transition-all ${
-                    form.shift === 'CA_247'
-                      ? 'bg-amber-700 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Ca 24/7 (Liên tục)
-                </button>
+
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-semibold mr-0.5">Ca:</span>
+                {[4, 8, 10, 12].map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => handleDurationChange(h)}
+                    className={`h-6 px-2 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
+                      form.durationHours === h
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    {h}h
+                  </button>
+                ))}
+                <span className="text-slate-200 mx-0.5">|</span>
+                <span className="text-[10px] text-slate-400 font-semibold mr-0.5">Nghỉ:</span>
+                {[0, 1, 1.5, 2].map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => handleBreakChange ? handleBreakChange(b) : update('breakHours', b)}
+                    className={`h-6 px-2 rounded-full text-[10.5px] font-bold transition-all cursor-pointer ${
+                      (form.breakHours ?? 1) === b
+                        ? 'bg-amber-800 text-white shadow-2xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    {b === 0 ? '0h' : `${b}h`}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700">Thời lượng:</span>
-              {[4, 8, 10, 12].map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => handleDurationChange(h)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    form.durationHours === h
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  {h}h
-                </button>
-              ))}
+            {/* DÒNG DƯỚI CA MÁY: KẾT THÚC CA LÚC */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-0.5 text-[11px] text-slate-600">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-medium">Kết thúc ca lúc:</span>
+                <span className="font-bold text-slate-800">
+                  {calculateEndTimeFormatted(form.startTime || form.plannedStartAt, form.durationHours, form.breakHours ?? 1)}
+                </span>
+              </div>
+              {(form.breakHours ?? 1) > 0 ? (
+                <span className="text-[10.5px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/80">
+                  Đã cộng {form.breakHours ?? 1}h nghỉ trưa (Tổng thời lượng: {form.durationHours + (form.breakHours ?? 1)}h)
+                </span>
+              ) : (
+                <span className="text-[10.5px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                  Không nghỉ trưa / Làm liên tục
+                </span>
+              )}
             </div>
           </div>
 
-          {/* DÒNG 2: 3 CỘT NGUỒN LỰC */}
+          {/* DÒNG 2: 3 CỘT NGUỒN LỰC: 1. THỢ MÁY (ƯU TIÊN) | 2. MÁY CÔNG TRÌNH (TỰ ĐỘNG THEO TÀI) | 3. PHỤ KIỆN */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Cột 1: Chọn Máy công trình */}
+            {/* Cột 1: Chọn Thợ máy / Lái máy công trình (ƯU TIÊN CHỌN TRƯỚC) */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <User className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>1. Thợ máy / Lái máy công trình:</span>
+                  <span className="text-[10px] font-mono text-indigo-700">({driverCount.selectable}/{driverCount.total})</span>
+                </span>
+                {selectedDriver ? (
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded truncate max-w-[120px]">
+                    {selectedDriver.fullName}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                    Ưu tiên chọn trước
+                  </span>
+                )}
+              </label>
+              <SearchableSelect
+                value={form.driverId}
+                onChange={handleDriverChange || ((val) => update('driverId', val))}
+                options={driverOptions}
+                allowCustomInput={false}
+                placeholder="-- Chọn thợ máy / lái xe --"
+                heightClass="h-9"
+                roundedClass="rounded-lg"
+                bgClass="bg-white"
+                className="w-full"
+                inputClassName="text-xs font-semibold text-slate-900 border-indigo-300 shadow-2xs focus:border-indigo-600"
+                emptyOptionLabel="-- Chọn thợ máy / lái xe --"
+                emptyValue=""
+              />
+              {form.managementUnitId && driverCount.total === 0 && <p className="text-[10.5px] font-semibold text-rose-700">Đội này chưa có tài xế đang được phân công.</p>}
+              {form.managementUnitId && driverCount.total > 0 && driverCount.selectable === 0 && <p className="text-[10.5px] font-semibold text-amber-700">Không có tài xế đủ điều kiện. Mở danh sách để xem rõ hạng GPLX, nghỉ phép/nghỉ ca, đang vận hành hoặc trùng lệnh.</p>}
+              {selectedDriver && (
+                <div className="rounded-lg bg-indigo-50/70 border border-indigo-200/80 px-2.5 py-1.5 text-[11px] text-indigo-950 flex items-center justify-between">
+                  <span className="font-semibold truncate">{selectedDriver.fullName} • {selectedDriver.licenseClass || 'Chứng chỉ thợ máy'}</span>
+                  <span className="font-bold text-indigo-800 shrink-0 ml-1">{selectedDriver.phone || 'Sẵn sàng'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Cột 2: Chọn Máy công trình (TỰ ĐỘNG GÁN THEO TÀI XẾ) */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
                 <span className="flex items-center gap-1">
                   <HardHat className="h-3.5 w-3.5 text-amber-600" />
-                  <span>1. Máy công trình / Thiết bị xe máy:</span>
+                  <span>2. Máy công trình / Thiết bị xe máy:</span>
+                  <span className="text-[10px] font-mono text-amber-700">({vehicleCount.selectable}/{vehicleCount.total})</span>
                 </span>
-                {selectedVehicle && (
+                {selectedVehicle ? (
                   <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-50 px-1.5 rounded">
                     {selectedVehicle.code}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-medium italic">
+                    Tự động theo tài xế
                   </span>
                 )}
               </label>
@@ -764,6 +968,8 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
                 emptyOptionLabel="-- Chọn máy công trình --"
                 emptyValue=""
               />
+              {form.managementUnitId && vehicleCount.total === 0 && <p className="text-[10.5px] font-semibold text-rose-700">Đội này chưa có xe/máy.</p>}
+              {form.managementUnitId && vehicleCount.total > 0 && vehicleCount.selectable === 0 && <p className="text-[10.5px] font-semibold text-amber-700">Không có máy phù hợp hoặc đang sẵn sàng.</p>}
               {selectedVehicle && (
                 <div className="rounded-lg bg-amber-50/70 border border-amber-200/80 px-2.5 py-1.5 text-[11px] text-amber-950 flex items-center justify-between">
                   <span className="font-semibold truncate">{selectedVehicle.name} • {selectedVehicle.plate || 'Chưa gắn biển'}</span>
@@ -772,70 +978,113 @@ export const ConstructionOrderFormBlocks: React.FC<ConstructionOrderFormBlocksPr
               )}
             </div>
 
-            {/* Cột 2: Chọn Thiết bị phụ trợ */}
+            {/* Cột 3: Chọn Thiết bị phụ trợ (HỖ TRỢ CHỌN NHIỀU THIẾT BỊ) */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
                 <span className="flex items-center gap-1">
                   <Wrench className="h-3.5 w-3.5 text-blue-600" />
-                  <span>2. Thiết bị phụ trợ / Gầu / Búa:</span>
+                  <span>3. Thiết bị phụ trợ / Gầu / Búa:</span>
+                  <span className="text-[10px] font-mono text-blue-700">({implementCount.selectable}/{implementCount.total})</span>
                 </span>
-              </label>
-              <SearchableSelect
-                value={form.implementId}
-                onChange={(val) => update('implementId', val)}
-                options={implementOptions}
-                placeholder="-- Chọn thiết bị phụ trợ --"
-                heightClass="h-9"
-                roundedClass="rounded-lg"
-                bgClass="bg-white"
-                className="w-full"
-                inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
-                emptyOptionLabel="-- Không gắn thiết bị phụ trợ --"
-                emptyValue=""
-              />
-              {selectedImplement && (
-                <div className="rounded-lg bg-blue-50/70 border border-blue-200/80 px-2.5 py-1.5 text-[11px] text-blue-950 flex items-center justify-between">
-                  <span className="font-semibold truncate">{selectedImplement.name}</span>
-                  <span className="font-bold text-blue-800 shrink-0 ml-1">Sẵn sàng</span>
-                </div>
-              )}
-            </div>
-
-            {/* Cột 3: Chọn Thợ máy */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <User className="h-3.5 w-3.5 text-indigo-600" />
-                  <span>3. Thợ máy / Lái máy công trình:</span>
-                </span>
-                {selectedDriver && (
-                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded truncate max-w-[120px]">
-                    {selectedDriver.fullName}
+                {selectedImplementIds.length > 0 && (
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded-full border border-blue-200">
+                    Đã chọn {selectedImplementIds.length} thiết bị
                   </span>
                 )}
               </label>
               <SearchableSelect
-                value={form.driverId}
-                onChange={(val) => update('driverId', val)}
-                options={driverOptions}
-                allowCustomInput={false}
-                placeholder="-- Chọn thợ máy / lái xe --"
+                value=""
+                onChange={handleAddImplement}
+                options={implementOptions.filter((o) => !selectedImplementIds.includes(o.value))}
+                placeholder={selectedImplementIds.length > 0 ? "+ Chọn thêm thiết bị phụ trợ..." : "-- Chọn thiết bị phụ trợ --"}
                 heightClass="h-9"
                 roundedClass="rounded-lg"
                 bgClass="bg-white"
                 className="w-full"
                 inputClassName="text-xs font-semibold text-slate-900 border-slate-300 shadow-2xs"
-                emptyOptionLabel="-- Chọn thợ máy / lái xe --"
+                emptyOptionLabel={selectedImplementIds.length > 0 ? "+ Chọn thêm thiết bị phụ trợ..." : "-- Không gắn thiết bị phụ trợ --"}
                 emptyValue=""
               />
-              {selectedDriver && (
-                <div className="rounded-lg bg-indigo-50/70 border border-indigo-200/80 px-2.5 py-1.5 text-[11px] text-indigo-950 flex items-center justify-between">
-                  <span className="font-semibold truncate">{selectedDriver.fullName} • {selectedDriver.licenseClass || 'Chứng chỉ thợ máy'}</span>
-                  <span className="font-bold text-indigo-800 shrink-0 ml-1">{selectedDriver.phone || 'Sẵn sàng'}</span>
+              {form.managementUnitId && implementCount.total === 0 && <p className="text-[10.5px] font-semibold text-slate-600">Đội này không có thiết bị gắn kèm.</p>}
+              {form.managementUnitId && implementCount.total > 0 && implementCount.selectable === 0 && <p className="text-[10.5px] font-semibold text-amber-700">Không có thiết bị phù hợp với loại lệnh hoặc xe đã chọn.</p>}
+              {selectedImplementItems.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedImplementItems.map((item) => (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center gap-1 bg-blue-50 text-blue-900 border border-blue-200/90 rounded-lg px-2 py-1 text-[11px] font-bold shadow-2xs"
+                      >
+                        <Wrench className="h-3 w-3 text-blue-600 shrink-0" />
+                        <span className="truncate max-w-[180px]">{item.label}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImplement(item.id)}
+                          className="ml-1 text-slate-400 hover:text-rose-600 font-black text-xs hover:bg-rose-100 rounded-full w-3.5 h-3.5 flex items-center justify-center transition-colors"
+                          title="Bỏ chọn thiết bị này"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {selectedImplementIds.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleClearImplements}
+                      className="text-[10px] text-slate-400 hover:text-rose-600 font-semibold underline block"
+                    >
+                      Bỏ chọn tất cả ({selectedImplementIds.length} thiết bị)
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           </div>
+
+          {/* THÔNG BÁO TỰ ĐỘNG GÁN XE THEO TÀI XẾ */}
+          {autoVehicleNotice && (
+            <div
+              className={`flex items-start justify-between gap-3 p-3 rounded-xl border text-xs transition-all shadow-2xs ${
+                autoVehicleNotice.tone === 'emerald'
+                  ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                  : autoVehicleNotice.tone === 'amber'
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                  : autoVehicleNotice.tone === 'blue'
+                  ? 'bg-blue-50/90 border-blue-300 text-blue-950'
+                  : autoVehicleNotice.tone === 'rose'
+                  ? 'bg-rose-50/90 border-rose-300 text-rose-950'
+                  : 'bg-slate-50 border-slate-300 text-slate-900'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 ${
+                    autoVehicleNotice.tone === 'emerald'
+                      ? 'bg-emerald-200 text-emerald-900'
+                      : autoVehicleNotice.tone === 'amber'
+                      ? 'bg-amber-200 text-amber-900'
+                      : autoVehicleNotice.tone === 'blue'
+                      ? 'bg-blue-200 text-blue-900'
+                      : autoVehicleNotice.tone === 'rose'
+                      ? 'bg-rose-200 text-rose-900'
+                      : 'bg-slate-200 text-slate-800'
+                  }`}
+                >
+                  {autoVehicleNotice.badge}
+                </span>
+                <p className="font-semibold text-xs leading-relaxed">{autoVehicleNotice.message}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onCloseNotice}
+                className="text-slate-400 hover:text-slate-700 p-0.5 rounded-md hover:bg-slate-200/50"
+                title="Đóng thông báo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {/* DÒNG 3: DỰ TOÁN NHIÊN LIỆU & GHI CHÚ */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs text-slate-600">

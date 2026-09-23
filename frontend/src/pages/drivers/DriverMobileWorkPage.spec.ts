@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import type { OperationalWorkOrderRecord } from '../../api/scheduling';
 import { getDriverDelayInfo, nextJourneyAction } from './DriverMobileWorkPage';
 
-const base = { id: 1, unit: 'NT1', assignmentMode: 'FIXED_ASSIGNMENT', plannedStartAt: '2026-09-11T00:00:00Z', plannedEndAt: '2026-09-11T08:00:00Z', version: 1, vehicleAssignments: [], driverAssignments: [], executionSegments: [], evidence: [] } as unknown as OperationalWorkOrderRecord;
+const base = { id: 1, unit: 'KOUN_MOM', assignmentMode: 'FIXED_ASSIGNMENT', plannedStartAt: '2026-09-11T00:00:00Z', plannedEndAt: '2026-09-11T08:00:00Z', version: 1, vehicleAssignments: [], driverAssignments: [], executionSegments: [], evidence: [] } as unknown as OperationalWorkOrderRecord;
 
 describe('driver journey action selection', () => {
   it('keeps dispatch work and depot return as separate steps', () => {

@@ -1,11 +1,13 @@
 import { Body, Controller, Get, Param, ParseEnumPipe, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { WorkshopDocumentType } from '@prisma/client';
+import { Role, WorkshopDocumentType } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { OperationalActor } from '../common/utils/operational-access';
 import {
   ConfirmWorkshopCandidatesDto,
   CreateWorkshopRequestDto,
+  DispatchSosRescueDto,
   UpdateWorkshopDocumentDto,
   UpdateWorkshopRequestDto,
   WorkshopCandidateFilterDto,
@@ -21,6 +23,23 @@ export class WorkshopController {
   @Get('requests')
   findAll(@Query() filter: WorkshopRequestFilterDto, @CurrentUser() actor: OperationalActor) {
     return this.workshop.findAll(filter, actor);
+  }
+
+  @Get('sos/:id/rescue-context')
+  @ApiOperation({ summary: 'Ngữ cảnh GPS của xe phát SOS, xe cứu hộ và danh sách nguồn lực có thể phân công' })
+  rescueContext(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) {
+    return this.workshop.getSosRescueContext(id, actor);
+  }
+
+  @Post('sos/:id/dispatch')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.WORKSHOP_MANAGER)
+  @ApiOperation({ summary: 'Tạo và phân công ngay lệnh cứu hộ chính thức cho một SOS' })
+  dispatchSos(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: DispatchSosRescueDto,
+    @CurrentUser() actor: OperationalActor,
+  ) {
+    return this.workshop.dispatchSosRescue(id, dto, actor);
   }
 
   @Get('requests/summary')

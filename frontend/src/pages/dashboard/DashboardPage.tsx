@@ -14,6 +14,8 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { apiClient } from '../../api/client';
 import { useAppStore } from '../../store/useAppStore';
+import { navigateToAlert } from '../../utils/alertNavigation';
+import { driverManagementApi } from '../../api/driverManagementApi';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const VEHICLE_CATEGORY_LABELS: Record<string, string> = {
@@ -46,8 +48,9 @@ const VEHICLE_STATUS_CONFIG: Record<string, { label: string; tagClass: string }>
   HOAT_DONG: { label: 'Đang hoạt động', tagClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   ACTIVE: { label: 'Đang hoạt động', tagClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   IN_USE: { label: 'Đang hoạt động', tagClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  TAM_DUNG: { label: 'Sẵn sàng / Tạm dừng', tagClass: 'bg-slate-100 text-slate-700 border-slate-200' },
-  IDLE: { label: 'Sẵn sàng / Tạm dừng', tagClass: 'bg-slate-100 text-slate-700 border-slate-200' },
+  CHO_PHAN_CONG: { label: 'Sẵn sàng / Chờ phân công', tagClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  TAM_DUNG: { label: 'Tạm dừng', tagClass: 'bg-slate-100 text-slate-700 border-slate-200' },
+  IDLE: { label: 'Tạm dừng', tagClass: 'bg-slate-100 text-slate-700 border-slate-200' },
   BAO_DUONG: { label: 'Đang bảo dưỡng', tagClass: 'bg-amber-50 text-amber-700 border-amber-200' },
   MAINTENANCE: { label: 'Đang bảo dưỡng', tagClass: 'bg-amber-50 text-amber-700 border-amber-200' },
   SUA_CHUA: { label: 'Đang sửa chữa', tagClass: 'bg-rose-50 text-rose-700 border-rose-200' },
@@ -59,9 +62,10 @@ const VEHICLE_STATUS_CONFIG: Record<string, { label: string; tagClass: string }>
 // Fleet status palette for donut
 const FLEET_STATUS_PALETTE = [
   { key: 'running', label: 'Đang chạy', color: '#007A33' },
-  { key: 'idle', label: 'Sẵn sàng', color: '#64748b' },
+  { key: 'ready', label: 'Sẵn sàng', color: '#10b981' },
   { key: 'maintenance', label: 'Bảo dưỡng', color: '#f59e0b' },
   { key: 'repair', label: 'Sửa chữa', color: '#f43f5e' },
+  { key: 'stopped', label: 'Tạm dừng', color: '#94a3b8' },
 ];
 
 // Order status groups for donut
@@ -158,6 +162,7 @@ const StatRing: React.FC<{
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const DashboardPage: React.FC = () => {
   const selectedKLH = useAppStore((state) => state.selectedKLH);
+  const currentUser = useAppStore((state) => state.currentUser);
   const markAlertRead = useAppStore((state) => state.markAlertRead);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'ALL' | 'LNN' | 'LXD' | 'LVC' | 'LDX'>('ALL');
@@ -174,24 +179,40 @@ export const DashboardPage: React.FC = () => {
   const [vehiclesList, setVehiclesList] = useState<any[]>([]);
   const [driversCount, setDriversCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [managerScopes, setManagerScopes] = useState<any[]>([]);
+  const [managerScopeId, setManagerScopeId] = useState('');
+  const [managerDashboard, setManagerDashboard] = useState<any>(null);
+
+  useEffect(() => {
+    if (currentUser?.role !== 'FARM_MANAGER') return;
+    driverManagementApi.getScopes().then((items) => {
+      const unique = items.filter((item: any, index: number, all: any[]) => item.managementUnitId && all.findIndex((other) => other.managementUnitId === item.managementUnitId) === index);
+      setManagerScopes(unique);
+      if (unique.length === 1) setManagerScopeId(String(unique[0].managementUnitId));
+    }).catch(() => setManagerScopes([]));
+  }, [currentUser?.role]);
+
+  useEffect(() => {
+    if (!managerScopeId) { setManagerDashboard(null); return; }
+    apiClient.get('/dashboard/manager', { params: { managementUnitId: Number(managerScopeId), date: new Date().toISOString().slice(0, 10) } })
+      .then((response) => setManagerDashboard(response.data?.data || response.data))
+      .catch(() => setManagerDashboard(null));
+  }, [managerScopeId]);
 
   const openAlert = async (alert: any) => {
-    if (!alert.isRead) {
-      const response = await apiClient.patch(`/alerts/${alert.id}/read`);
-      const payload = response.data?.data || response.data;
-      markAlertRead(alert.id, payload?.readAt);
-      setAlertsList((items) => items.map((item) => item.id === alert.id ? { ...item, isRead: true, readAt: payload?.readAt } : item));
-    }
-    navigate(`/canh-bao/chua-xu-ly?alertId=${alert.id}`);
+    await navigateToAlert(alert, navigate, markAlertRead, (readAt) => {
+      setAlertsList((items) => items.map((item) => item.id === alert.id ? { ...item, isRead: true, readAt } : item));
+    });
   };
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
       const complexParam = selectedKLH !== 'ALL' ? selectedKLH : undefined;
+      const managementUnitId = managerScopeId ? Number(managerScopeId) : undefined;
       const [overviewRes, liveFleetRes, ordersRes, alertsRes, driversRes] = await Promise.allSettled([
-        apiClient.get('/dashboard/overview', { params: { complexCode: complexParam } }),
-        apiClient.get('/dashboard/live-fleet', { params: { complexCode: complexParam } }),
+        apiClient.get('/dashboard/overview', { params: { complexCode: complexParam, managementUnitId } }),
+        apiClient.get('/dashboard/live-fleet', { params: { complexCode: complexParam, managementUnitId } }),
         apiClient.get('/dispatch-orders', { params: { limit: 100, complexCode: complexParam } }),
         apiClient.get('/alerts', { params: { limit: 50, complexCode: complexParam } }),
         apiClient.get('/users', { params: { role: 'DRIVER' } }),
@@ -275,24 +296,32 @@ export const DashboardPage: React.FC = () => {
     } catch { /* handled via UI state */ } finally { setLoading(false); }
   };
 
-  useEffect(() => { void fetchDashboardData(); }, [selectedKLH]);
+  useEffect(() => { void fetchDashboardData(); }, [selectedKLH, managerScopeId]);
+
+  useEffect(() => {
+    const refresh = () => void fetchDashboardData();
+    window.addEventListener('operational-data-updated', refresh);
+    return () => window.removeEventListener('operational-data-updated', refresh);
+  }, [selectedKLH, managerScopeId]);
 
   // ─── Derived chart data ───────────────────────────────────────────────────
   const kpis = overview?.kpiCards;
   const totalFleet = kpis?.totalFleet?.total ?? vehiclesList.length;
   const runningFleet = kpis?.totalFleet?.running ?? vehiclesList.filter((v) => v.status === 'HOAT_DONG' || v.status === 'ACTIVE' || v.status === 'IN_USE').length;
-  const standbyFleet = kpis?.totalFleet?.standby ?? vehiclesList.filter((v) => v.status === 'TAM_DUNG' || v.status === 'IDLE').length;
+  const readyFleet = kpis?.totalFleet?.ready ?? vehiclesList.filter((v) => v.status === 'CHO_PHAN_CONG' || v.status === 'READY').length;
+  const stoppedFleet = kpis?.totalFleet?.stopped ?? kpis?.totalFleet?.standby ?? vehiclesList.filter((v) => v.status === 'TAM_DUNG' || v.status === 'IDLE').length;
   const maintenanceFleet = kpis?.totalFleet?.maintenance ?? vehiclesList.filter((v) => v.status === 'BAO_DUONG' || v.status === 'MAINTENANCE').length;
   const repairFleet = kpis?.totalFleet?.repair ?? vehiclesList.filter((v) => v.status === 'SUA_CHUA' || v.status === 'REPAIRING').length;
-  const availabilityRate = totalFleet > 0 ? (((runningFleet + standbyFleet) / totalFleet) * 100).toFixed(1) : '0';
+  const availabilityRate = totalFleet > 0 ? (((runningFleet + readyFleet) / totalFleet) * 100).toFixed(1) : '0';
 
   // Donut: Fleet status
   const fleetStatusDonut = useMemo(() => [
     { name: 'Đang chạy', value: runningFleet, fill: '#007A33' },
-    { name: 'Sẵn sàng', value: standbyFleet, fill: '#64748b' },
+    { name: 'Sẵn sàng', value: readyFleet, fill: '#10b981' },
     { name: 'Bảo dưỡng', value: maintenanceFleet, fill: '#f59e0b' },
     { name: 'Sửa chữa', value: repairFleet, fill: '#f43f5e' },
-  ].filter((d) => d.value > 0), [runningFleet, standbyFleet, maintenanceFleet, repairFleet]);
+    { name: 'Tạm dừng', value: stoppedFleet, fill: '#94a3b8' },
+  ].filter((d) => d.value > 0), [runningFleet, readyFleet, maintenanceFleet, repairFleet, stoppedFleet]);
 
   // Bar: Category breakdown (top 10)
   const categoryBarData = useMemo(() => {
@@ -365,6 +394,20 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-5 text-slate-800 antialiased pb-10 font-sans">
+      {currentUser?.role === 'FARM_MANAGER' && (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><h2 className="font-extrabold text-emerald-950">Dashboard Đội trưởng cơ giới</h2><p className="text-xs text-emerald-700">Mỗi lần xem và điều hành đúng một khu vực.</p></div>
+            <select className="h-10 rounded-xl border border-emerald-300 bg-white px-3 text-sm font-bold" value={managerScopeId} onChange={(event) => setManagerScopeId(event.target.value)}>
+              <option value="">{managerScopes.length > 1 ? 'Chọn khu vực quản lý...' : 'Chưa có phạm vi quản lý'}</option>
+              {managerScopes.map((scope: any) => <option key={scope.managementUnitId} value={scope.managementUnitId}>{scope.managementUnit?.code} · {scope.managementUnit?.name}</option>)}
+            </select>
+          </div>
+          {managerDashboard && <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5">{[
+            ['Tài xế', managerDashboard.kpis?.drivers], ['Xe', managerDashboard.kpis?.vehicles], ['Việc hôm nay', managerDashboard.kpis?.todayWork], ['Báo cáo chờ', managerDashboard.kpis?.pendingReports], ['Cảnh báo', managerDashboard.kpis?.alerts],
+          ].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-emerald-100 bg-white p-3"><div className="text-xs text-slate-500">{label}</div><div className="text-xl font-black text-emerald-800">{value ?? 0}</div></div>)}</div>}
+        </section>
+      )}
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -408,7 +451,8 @@ export const DashboardPage: React.FC = () => {
           <div className="text-xs font-semibold text-slate-500 mb-0.5">Tổng phương tiện</div>
           <div className="text-[11px] text-slate-400 leading-snug">
             <span className="text-[#007A33] font-bold">{runningFleet}</span> chạy ·{' '}
-            <span className="text-slate-600 font-bold">{standbyFleet}</span> dừng ·{' '}
+            <span className="text-emerald-700 font-bold">{readyFleet}</span> sẵn sàng ·{' '}
+            <span className="text-slate-500 font-bold">{stoppedFleet}</span> dừng ·{' '}
             <span className="text-amber-600 font-bold">{maintenanceFleet + repairFleet}</span> BTSC
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px]">
@@ -509,7 +553,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="flex-1 space-y-2.5">
                 {FLEET_STATUS_PALETTE.map((p) => {
-                  const val = p.key === 'running' ? runningFleet : p.key === 'idle' ? standbyFleet : p.key === 'maintenance' ? maintenanceFleet : repairFleet;
+                  const val = p.key === 'running' ? runningFleet : p.key === 'ready' ? readyFleet : p.key === 'stopped' ? stoppedFleet : p.key === 'maintenance' ? maintenanceFleet : repairFleet;
                   if (val === 0 && totalFleet > 0) return null;
                   return (
                     <div key={p.key} className="flex items-center justify-between">

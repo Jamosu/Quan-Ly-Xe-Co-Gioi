@@ -19,6 +19,12 @@ export class TransportFilterDto extends PaginationDto {
   @IsEnum(TransportStatus)
   status?: TransportStatus;
 
+  @ApiPropertyOptional({ description: 'Bao gồm cả lệnh đã hủy' })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  includeCancelled?: boolean;
+
   @ApiPropertyOptional({ enum: ReturnDriverStatus, description: 'Trạng thái chiều về' })
   @IsOptional()
   @IsEnum(ReturnDriverStatus)

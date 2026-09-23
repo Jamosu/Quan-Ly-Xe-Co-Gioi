@@ -93,8 +93,12 @@ export class VehicleTypeFilterDto {
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
-  @IsBoolean()
+  @Transform(({ obj, key }) => {
+    const raw = obj ? obj[key] : undefined;
+    if (raw === 'true' || raw === true || raw === 1 || raw === '1') return true;
+    if (raw === 'false' || raw === false || raw === 0 || raw === '0') return false;
+    return undefined;
+  })
   active?: boolean;
 
   @ApiPropertyOptional({ example: 1 })

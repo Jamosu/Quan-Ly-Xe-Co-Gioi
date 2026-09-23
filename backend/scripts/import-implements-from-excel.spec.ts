@@ -1,6 +1,7 @@
 import { EquipmentUsageMode, VehicleCategory } from '@prisma/client';
 import {
   compatibleCategories,
+  deduplicateImplements,
   ExcelImplementRow,
   inferUsageMode,
 } from './import-implements-from-excel';
@@ -40,5 +41,11 @@ describe('workbook implement classification', () => {
   it('blocks unknown equipment until configured', () => {
     const input = row('TB-UNKNOWN', 'Cụm phụ trợ chưa xác định');
     expect(inferUsageMode(input)).toBe(EquipmentUsageMode.UNCLASSIFIED);
+  });
+
+  it('merges identical duplicate source codes without inventing suffixes', () => {
+    const input = row('CHT-GĐH-084', 'Gầu định hình đào mương');
+    expect(deduplicateImplements([input, { ...input }])).toEqual([input]);
+    expect(() => deduplicateImplements([input, { ...input, name: 'Tên khác' }])).toThrow(/nội dung khác nhau/);
   });
 });

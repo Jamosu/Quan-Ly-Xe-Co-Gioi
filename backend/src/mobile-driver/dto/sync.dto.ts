@@ -1,43 +1,63 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, IsArray, IsDateString, IsIn, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+
+const MOBILE_EVENT_TYPES = [
+  'ORDER_ACCEPTED', 'VEHICLE_RECEIVED', 'JOB_STARTED', 'JOB_PAUSED', 'JOB_RESUMED',
+  'PROGRESS_UPDATED', 'INCIDENT_REPORTED', 'PHOTO_ADDED', 'ACCEPTANCE_SUBMITTED',
+  'JOB_COMPLETED', 'BREAK_STARTED', 'BREAK_ENDED', 'WORK_PAUSED', 'WORK_RESUMED',
+  'WORK_SESSION_ENDED', 'ORDER_COMPLETION_REQUESTED',
+  'DAILY_REPORT_DRAFT_SAVED', 'DAILY_REPORT_SUBMITTED',
+  'SCHEDULE_CHANGE_REQUESTED', 'TRANSFER_REQUESTED', 'SOS_CREATED',
+] as const;
 
 export class SyncEventDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @IsUUID()
   eventId: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @IsIn(MOBILE_EVENT_TYPES)
   eventType: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @IsIn(['DISPATCH', 'TRANSPORT', 'FEED'])
   orderType?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   orderId?: number;
 
   @ApiProperty()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   sequenceNumber: number;
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
+  @IsDateString()
   occurredAt: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   baseVersion?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsObject()
   payload?: any;
 
   @ApiPropertyOptional()
@@ -60,6 +80,9 @@ export class SyncPushDto {
 
   @ApiProperty({ type: [SyncEventDto], description: 'Danh sách các sự kiện offline theo thứ tự' })
   @IsArray()
+  @ArrayMaxSize(50, { message: 'Mỗi lần đồng bộ tối đa 50 sự kiện.' })
+  @ValidateNested({ each: true })
+  @Type(() => SyncEventDto)
   events: SyncEventDto[];
 }
 

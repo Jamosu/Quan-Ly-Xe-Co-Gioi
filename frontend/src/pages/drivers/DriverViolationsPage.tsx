@@ -168,6 +168,11 @@ export const DriverViolationsPage: React.FC = () => {
           title={`Chi Tiết Biên Bản: ${selectedViolation.reportCode}`}
           subtitle={`Tài xế: ${selectedViolation.driverName} (${selectedViolation.driverCode})`}
           size="md"
+          footer={
+            <Button variant="outline" size="sm" onClick={() => setSelectedViolation(null)}>
+              Đóng
+            </Button>
+          }
         >
           <div className="space-y-3.5 text-xs text-slate-700">
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
@@ -176,11 +181,6 @@ export const DriverViolationsPage: React.FC = () => {
               <div className="flex justify-between"><span>Hành vi vi phạm:</span> <b className="text-rose-600">{selectedViolation.violationBehavior}</b></div>
               <div className="flex justify-between"><span>Địa điểm:</span> <span>{selectedViolation.location}</span></div>
               <div className="flex justify-between"><span>Hình thức chế tài:</span> <b>{selectedViolation.penaltyAction}</b></div>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button variant="primary" size="sm" onClick={() => setSelectedViolation(null)}>
-                Đóng
-              </Button>
             </div>
           </div>
         </Modal>
@@ -193,15 +193,17 @@ export const DriverViolationsPage: React.FC = () => {
         title="Tra Cứu Lịch Sử Vi Phạm Tài Xế"
         subtitle="Tìm kiếm theo mã nhân viên hoặc họ tên tài xế"
         size="md"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setShowLookupModal(false)}>Hủy</Button>
+            <Button variant="primary" size="sm" onClick={() => setShowLookupModal(false)}>Tra Cứu Ngay</Button>
+          </>
+        }
       >
         <div className="space-y-3 text-xs">
           <div>
             <label className="font-bold text-slate-700 block mb-1">Mã NV hoặc Họ tên lái xe:</label>
             <input type="text" placeholder="Ví dụ: NV-0824 hoặc Nguyễn Văn Minh" className="w-full p-2 border border-slate-200 rounded-xl bg-slate-50 font-bold" />
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" onClick={() => setShowLookupModal(false)}>Hủy</Button>
-            <Button variant="primary" size="sm" onClick={() => setShowLookupModal(false)}>Tra Cứu Ngay</Button>
           </div>
         </div>
       </Modal>

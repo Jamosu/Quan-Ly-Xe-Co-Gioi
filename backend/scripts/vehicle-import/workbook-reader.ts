@@ -46,6 +46,7 @@ interface SheetConfig {
   sourcePriority: number;
   columns: Partial<Record<VehicleField, number>>;
   roleDescription: string;
+  sourceKind?: 'VEHICLE' | 'EQUIPMENT' | 'GENERAL';
   specialize?: (row: unknown[], record: Record<string, unknown>) => void;
 }
 
@@ -72,39 +73,45 @@ const SHEET_CONFIGS: SheetConfig[] = [
     columns: { code: 1, name: 2, assignedUnitCode: 3, manufacturer: 4, origin: 5, manufactureYear: 6, modelName: 7, powerHp: 8, frameNumber: 9, engineNumber: 10, fuelQuotaRate: 11, contractStatus: 12 },
   },
   {
-    sheetName: '02 MM KLH', headerRow: 2, firstDataRow: 3, sourcePriority: 90,
+    sheetName: '02 MM KLH', headerRow: 2, firstDataRow: 3, sourcePriority: 120,
     roleDescription: 'Hồ sơ MMTB KLH',
     columns: { code: 2, oldCode: 3, bravoCode: 4, plate: 5, purchaseCondition: 6, name: 7, vehicleSubtype: 8, assignedUnitCode: 9, allocationDate: 10, conditionStatus: 11, transferHistory: 13, manufacturer: 14, origin: 15, manufactureYear: 16, modelName: 17, powerHp: 18, frameNumber: 19, engineNumber: 20, fuelQuotaRate: 21, fuelTankCapacity: 22, supplier: 23, notes: 24, imageUrl: 25 },
   },
   {
     sheetName: '02 1 NHOM XE MAY', headerRow: 2, firstDataRow: 3, sourcePriority: 100,
+    sourceKind: 'VEHICLE',
     roleDescription: 'Nhóm xe máy có mã tài sản',
     columns: { code: 2, oldCode: 3, bravoCode: 4, plate: 5, assetCode: 6, name: 7, vehicleSubtype: 8, assignedUnitCode: 9, allocationDate: 10, conditionStatus: 11, transferHistory: 13, manufacturer: 14, origin: 15, manufactureYear: 16, modelName: 17, powerHp: 18, frameNumber: 19, engineNumber: 20 },
   },
   {
     sheetName: '03 THIET BI', headerRow: 2, firstDataRow: 3, sourcePriority: 85,
+    sourceKind: 'EQUIPMENT',
     roleDescription: 'Thiết bị MMTB',
     columns: { code: 2, oldCode: 3, assetCode: 4, purchaseCondition: 5, name: 6, assignedUnitCode: 8, allocationDate: 9, conditionStatus: 11, transferHistory: 12, notes: 13, manufacturer: 14, modelName: 15, origin: 16, manufactureYear: 17, technicalSpecs: 18, frameNumber: 19, fuelQuotaRate: 20, productivity: 21, imageUrl: 22 },
   },
   {
     sheetName: 'XE MAY CG AGRI', headerRow: 2, firstDataRow: 4, sourcePriority: 80,
+    sourceKind: 'VEHICLE',
     roleDescription: 'Dữ liệu vận hành xe máy Cơ giới AGRI',
     columns: { name: 2, modelName: 4, powerHp: 8, fuelQuotaRate: 9, engineNumber: 10, frameNumber: 11, plate: 12, code: 13, manufactureYear: 14, allocationDate: 15, odoKm: 16, purchaseCondition: 21, assignedUnitCode: 22, assetCode: 26, companyOwner: 27, notes: 28 },
     specialize: vehicleCondition,
   },
   {
     sheetName: 'TB CG AGRI', headerRow: 2, firstDataRow: 4, sourcePriority: 80,
+    sourceKind: 'EQUIPMENT',
     roleDescription: 'Thiết bị Cơ giới AGRI',
     columns: { name: 3, fuelQuotaRate: 8, productivity: 9, code: 10, purchaseCondition: 14, assignedUnitCode: 15, assetCode: 19, companyOwner: 20, notes: 21 },
     specialize: equipmentCondition,
   },
   {
     sheetName: '04 XMA', headerRow: 2, firstDataRow: 3, sourcePriority: 82,
+    sourceKind: 'VEHICLE',
     roleDescription: 'Xe máy hai bánh',
     columns: { code: 2, oldCode: 3, assetCode: 4, name: 5, assignedUnitCode: 6, allocationDate: 7, conditionStatus: 8, notes: 9, manufacturer: 10, origin: 11, manufactureYear: 12, modelName: 13, powerHp: 14, frameNumber: 15, engineNumber: 16, fuelQuotaRate: 17, productivity: 18, imageUrl: 20 },
   },
   {
     sheetName: '03 1 NHOM TB', headerRow: 2, firstDataRow: 3, sourcePriority: 92,
+    sourceKind: 'EQUIPMENT',
     roleDescription: 'Nhóm thiết bị chi tiết',
     columns: { code: 2, oldCode: 3, assetCode: 4, purchaseCondition: 5, name: 6, vehicleSubtype: 7, assignedUnitCode: 8, allocationDate: 9, conditionStatus: 11, transferHistory: 12, notes: 13, manufacturer: 14, modelName: 15, origin: 16, manufactureYear: 17, technicalSpecs: 18, frameNumber: 19, fuelQuotaRate: 20 },
   },
@@ -115,16 +122,19 @@ const SHEET_CONFIGS: SheetConfig[] = [
   },
   {
     sheetName: '05 MPC', headerRow: 2, firstDataRow: 3, sourcePriority: 84,
+    sourceKind: 'VEHICLE',
     roleDescription: 'Máy phát cỏ',
     columns: { code: 2, oldCode: 3, assetCode: 4, name: 5, assignedUnitCode: 6, allocationDate: 7, conditionStatus: 8, notes: 9, manufacturer: 10, origin: 11, manufactureYear: 12, modelName: 13, powerHp: 14, frameNumber: 15, engineNumber: 16, fuelQuotaRate: 17, imageUrl: 18 },
   },
   {
     sheetName: '07 MFD', headerRow: 2, firstDataRow: 3, sourcePriority: 84,
+    sourceKind: 'VEHICLE',
     roleDescription: 'Máy phát điện',
     columns: { code: 2, oldCode: 3, assetCode: 4, name: 5, frameNumber: 6, assignedUnitCode: 7, modelName: 8, manufacturer: 9, manufactureYear: 10, origin: 11, powerHp: 12, fuelQuotaRate: 13, allocationDate: 14, conditionStatus: 15, notes: 16, currentLocationName: 17 },
   },
   {
     sheetName: '06 MCG MKH', headerRow: 2, firstDataRow: 3, sourcePriority: 84,
+    sourceKind: 'VEHICLE',
     roleDescription: 'Máy cưa gỗ / máy khác',
     columns: { code: 2, oldCode: 3, assetCode: 4, name: 5, assignedUnitCode: 6, allocationDate: 7, conditionStatus: 8, notes: 9, manufacturer: 10, origin: 11, manufactureYear: 12, modelName: 13, powerHp: 14, frameNumber: 15, engineNumber: 16, fuelQuotaRate: 17, imageUrl: 18 },
   },
@@ -135,6 +145,7 @@ const SHEET_CONFIGS: SheetConfig[] = [
   },
   {
     sheetName: 'THIET BI DIEN NUOC', headerRow: 2, firstDataRow: 3, sourcePriority: 82,
+    sourceKind: 'EQUIPMENT',
     roleDescription: 'Thiết bị điện nước',
     columns: { code: 2, oldCode: 3, assetCode: 4, name: 5, frameNumber: 6, assignedUnitCode: 7, modelName: 8, manufacturer: 9, manufactureYear: 10, origin: 11, powerHp: 12, fuelQuotaRate: 13, allocationDate: 14, conditionStatus: 15, notes: 16, currentLocationName: 17 },
   },
@@ -145,6 +156,7 @@ const SHEET_CONFIGS: SheetConfig[] = [
   },
   {
     sheetName: '03 1 TB SXCN', headerRow: 2, firstDataRow: 3, sourcePriority: 86,
+    sourceKind: 'EQUIPMENT',
     roleDescription: 'Thiết bị sản xuất chăn nuôi',
     columns: { code: 2, oldCode: 3, bravoCode: 4, assetCode: 5, name: 6, assignedUnitCode: 7, allocationDate: 8, conditionStatus: 10, transferHistory: 11, notes: 12, manufacturer: 13, origin: 14, manufactureYear: 15, technicalSpecs: 16, frameNumber: 17 },
   },
@@ -152,6 +164,19 @@ const SHEET_CONFIGS: SheetConfig[] = [
 
 const CONFIG_BY_SHEET = new Map(SHEET_CONFIGS.map((item) => [item.sheetName, item]));
 const REFERENCE_SHEETS = new Set(['01 TH', 'THONG SO']);
+
+export type WorkbookSourceClass = 'VEHICLE' | 'EQUIPMENT' | 'GENERAL' | 'CONFLICT';
+
+export function classifyWorkbookSources(sourceSheets: string[]): WorkbookSourceClass {
+  const kinds = new Set(
+    sourceSheets
+      .map((sheet) => CONFIG_BY_SHEET.get(normalizeSheetName(sheet))?.sourceKind || 'GENERAL'),
+  );
+  if (kinds.has('VEHICLE') && kinds.has('EQUIPMENT')) return 'CONFLICT';
+  if (kinds.has('VEHICLE')) return 'VEHICLE';
+  if (kinds.has('EQUIPMENT')) return 'EQUIPMENT';
+  return 'GENERAL';
+}
 
 function cell(row: unknown[], column?: number): unknown {
   return column ? row[column - 1] : undefined;
@@ -289,7 +314,9 @@ export function readVehicleWorkbook(workbookPath: string): ParsedWorkbook {
       sheet: sheetName,
       nonEmptyRows,
       parsedRows: sheetRecords.length,
-      role: config ? 'VEHICLE_SOURCE' : REFERENCE_SHEETS.has(normalizedName) ? 'REFERENCE' : 'IGNORED',
+      role: config
+        ? config.sourceKind === 'EQUIPMENT' ? 'EQUIPMENT_SOURCE' : 'VEHICLE_SOURCE'
+        : REFERENCE_SHEETS.has(normalizedName) ? 'REFERENCE' : 'IGNORED',
     });
   }
 

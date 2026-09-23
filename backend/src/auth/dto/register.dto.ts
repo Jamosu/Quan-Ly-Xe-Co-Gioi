@@ -8,7 +8,7 @@ export class RegisterDto {
   @IsString()
   username: string;
 
-  @ApiProperty({ example: '123456', description: 'Mật khẩu' })
+  @ApiProperty({ example: 'Thaco@1234$', description: 'Mật khẩu' })
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
   @IsString()
   @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
@@ -28,7 +28,7 @@ export class RegisterDto {
   @IsEnum(Role)
   role: Role;
 
-  @ApiProperty({ enum: Unit, default: Unit.NT1, description: 'Đơn vị công tác' })
+  @ApiProperty({ enum: Unit, default: Unit.KOUN_MOM, description: 'Đơn vị công tác' })
   @IsEnum(Unit)
   unit: Unit;
 

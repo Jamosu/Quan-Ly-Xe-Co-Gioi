@@ -1,12 +1,20 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
   MaintenanceAlertTier,
+  AlertCategory,
+  AlertSeverity,
+  CatalogType,
+  OperationalEntityType,
   OperationalLocationType,
   Prisma,
+  Role,
+  Unit,
+  WorkOrderStatus,
   VehicleStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,10 +24,72 @@ import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleFilterDto } from './dto/vehicle-filter.dto';
 import { FleetHistoryFilterDto } from './dto/fleet-history-filter.dto';
 import { MaintenanceService } from '../maintenance/maintenance.service';
+import { OperationalActor } from '../common/utils/operational-access';
+import { assertManagementUnitAccess, scopedManagementUnitIds } from '../common/utils/management-scope';
+import { canonicalizeMasterDataValues } from '../common/utils/master-data-normalization';
+import { normalizeMasterDataKey } from '../common/utils/master-data-normalization';
+import {
+  isLiquidatedAssignedUnit,
+  LIQUIDATED_ASSIGNED_UNIT,
+  liquidatedVehicleWhere,
+} from '../common/utils/vehicle-lifecycle';
+
+export const isMovingLongEnough = (speedKmH: number | null | undefined, movingSince: Date | null | undefined, now: Date) =>
+  speedKmH !== null && speedKmH !== undefined && speedKmH > 5 && !!movingSince && now.getTime() - movingSince.getTime() >= 60_000;
+
+export const summarizeVehicleCounts = (counts: { vehicles: number; activeVehicles: number }) => ({
+  total: counts.vehicles,
+  active: counts.activeVehicles,
+});
 
 @Injectable()
 export class VehiclesService {
   constructor(private prisma: PrismaService, private readonly maintenance: MaintenanceService) {}
+
+  private async canonicalCatalogValue(type: CatalogType, value?: string | null): Promise<string | null | undefined> {
+    if (value === undefined || value === null) return value;
+    const name = value.normalize('NFC').trim().replace(/\s+/g, ' ');
+    const normalizedKey = normalizeMasterDataKey(name);
+    if (!normalizedKey) return null;
+    const existing = await this.prisma.catalogItem.findUnique({
+      where: { type_normalizedKey: { type, normalizedKey } },
+      select: { name: true },
+    });
+    if (existing) return existing.name;
+    const id = `${type}-${Buffer.from(normalizedKey).toString('base64url').slice(0, 48)}`;
+    const item = await this.prisma.catalogItem.upsert({
+      where: { id },
+      update: {},
+      create: { id, code: id, name, normalizedKey, type },
+      select: { name: true },
+    });
+    return item.name;
+  }
+
+  private async canonicalVehicleReferences(dto: Pick<CreateVehicleDto, 'origin' | 'purchaseCondition' | 'supplier' | 'companyOwner' | 'assignedUnitCode' | 'currentLocationName'>) {
+    const [origin, purchaseCondition, supplier, companyOwner, units, locations] = await Promise.all([
+      this.canonicalCatalogValue(CatalogType.VEHICLE_ORIGIN, dto.origin),
+      this.canonicalCatalogValue(CatalogType.PURCHASE_CONDITION, dto.purchaseCondition),
+      this.canonicalCatalogValue(CatalogType.SUPPLIER, dto.supplier),
+      this.canonicalCatalogValue(CatalogType.COMPANY_OWNER, dto.companyOwner),
+      dto.assignedUnitCode ? this.prisma.driverManagementUnit.findMany({ where: { status: 'ACTIVE' }, select: { name: true, code: true } }) : [],
+      dto.currentLocationName ? this.prisma.operationalLocation.findMany({ where: { active: true }, select: { name: true } }) : [],
+    ]);
+    const assignedUnitCode = dto.assignedUnitCode === undefined ? undefined : dto.assignedUnitCode === null ? null
+      : canonicalizeMasterDataValues([dto.assignedUnitCode], units.flatMap((item) => [item.name, item.code]))[0] || null;
+    const currentLocationName = dto.currentLocationName === undefined ? undefined : dto.currentLocationName === null ? null
+      : canonicalizeMasterDataValues([dto.currentLocationName], locations.map((item) => item.name))[0] || null;
+    return { origin, purchaseCondition, supplier, companyOwner, assignedUnitCode, currentLocationName };
+  }
+
+  private async vehicleScope(actor: OperationalActor): Promise<Prisma.VehicleWhereInput> {
+    if (actor.role === Role.SUPER_ADMIN || actor.role === Role.DISPATCHER) return {};
+    if (actor.role === Role.DRIVER) {
+      return { OR: [{ defaultDriverId: actor.id }, { secondaryDriverId: actor.id }, { assignedUsers: { some: { id: actor.id } } }] };
+    }
+    const allowedIds = await scopedManagementUnitIds(this.prisma, actor);
+    return { managementUnitId: { in: allowedIds ?? [] } };
+  }
 
   private async resolveHomeDepotId(dto: {
     homeDepotId?: number;
@@ -67,7 +137,8 @@ export class VehiclesService {
     return MaintenanceAlertTier.GREEN;
   }
 
-  async create(dto: CreateVehicleDto) {
+  async create(dto: CreateVehicleDto, actor: OperationalActor) {
+    await assertManagementUnitAccess(this.prisma, actor, dto.managementUnitId);
     const orConditions: Prisma.VehicleWhereInput[] = [{ code: dto.code }];
     if (dto.plate) {
       orConditions.push({ plate: dto.plate });
@@ -88,6 +159,7 @@ export class VehiclesService {
     const hoursSinceLastService = dto.hoursSinceLastService || 0;
     const alertTier = this.calculateAlertTier(hoursSinceLastService);
     const homeDepotId = await this.resolveHomeDepotId(dto);
+    const canonicalReferences = await this.canonicalVehicleReferences(dto);
 
     // Auto-resolve manufacturerRefId if only manufacturer name is passed
     let manufacturerRefId = dto.manufacturerRefId;
@@ -112,10 +184,12 @@ export class VehiclesService {
     const created = await this.prisma.vehicle.create({
       data: {
         ...dto,
+        ...canonicalReferences,
         manufacturerRefId,
         modelRefId,
         homeDepotId,
         alertTier,
+        lastGpsUpdate: dto.lastGpsUpdate ? new Date(dto.lastGpsUpdate) : new Date(),
       },
       include: {
         defaultDriver: {
@@ -132,12 +206,14 @@ export class VehiclesService {
     return created;
   }
 
-  async findAll(filter: VehicleFilterDto) {
+  async findAll(filter: VehicleFilterDto, actor: OperationalActor) {
     const {
       page = 1,
       limit = 20,
       search,
       complexCode,
+      managementUnitId,
+      managerUserId,
       regionCode,
       assignedUnitCode,
       currentLocationName,
@@ -158,10 +234,45 @@ export class VehiclesService {
       operationalDomain,
       isAssignable,
       hasGps,
+      hasDriver,
     } = filter;
     const skip = (page - 1) * limit;
 
     const where: Prisma.VehicleWhereInput = {};
+    if (managementUnitId) await assertManagementUnitAccess(this.prisma, actor, managementUnitId);
+    Object.assign(where, managementUnitId ? { managementUnitId } : await this.vehicleScope(actor));
+    if (managerUserId) {
+      if (managerUserId === -1) {
+        const now = new Date();
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ managerName: null }, { managerName: '' }] },
+          {
+            OR: [
+              { managementUnitId: null },
+              { managementUnit: { managerAssignments: { none: { managerType: 'PRIMARY', effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } } } },
+            ],
+          },
+        ];
+      } else {
+        const now = new Date();
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          {
+            managementUnit: {
+              managerAssignments: {
+                some: {
+                  managerUserId,
+                  managerType: 'PRIMARY',
+                  effectiveFrom: { lte: now },
+                  OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+                },
+              },
+            },
+          },
+        ];
+      }
+    }
 
     if (complexCode && complexCode !== 'ALL') where.complexCode = complexCode;
     if (category) where.category = category;
@@ -175,20 +286,120 @@ export class VehiclesService {
       };
     }
     if (unit) where.unit = unit;
-    if (regionCode) where.regionCode = regionCode;
-    if (assignedUnitCode) where.assignedUnitCode = { contains: assignedUnitCode };
-    if (currentLocationName) where.currentLocationName = { contains: currentLocationName };
+    if (regionCode) {
+      if (regionCode === '__UNASSIGNED__' || regionCode === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ regionCode: null }, { regionCode: '' }] },
+        ];
+      } else {
+        where.regionCode = regionCode;
+      }
+    }
+    if (assignedUnitCode) {
+      if (assignedUnitCode === '__UNASSIGNED__' || assignedUnitCode === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { managementUnitId: null },
+        ];
+      } else {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { managementUnit: { name: assignedUnitCode } },
+        ];
+      }
+    }
+    if (currentLocationName) {
+      if (currentLocationName === '__UNASSIGNED__' || currentLocationName === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { homeDepotId: null },
+        ];
+      } else {
+        where.homeDepot = { name: currentLocationName };
+      }
+    }
     if (bravoCode) where.bravoCode = { contains: bravoCode };
     if (manufacturerRefId) where.manufacturerRefId = manufacturerRefId;
-    else if (manufacturer) where.manufacturer = { contains: manufacturer };
+    else if (manufacturer) {
+      if (manufacturer === '__UNASSIGNED__' || manufacturer === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ manufacturer: null }, { manufacturer: '' }] },
+        ];
+      } else {
+        where.manufacturer = { contains: manufacturer };
+      }
+    }
     if (modelRefId) where.modelRefId = modelRefId;
-    else if (modelName) where.modelName = { contains: modelName };
-    if (origin) where.origin = { contains: origin };
-    if (manufactureYear) where.manufactureYear = manufactureYear;
-    if (status) where.status = status;
-    if (alertTier) where.alertTier = alertTier;
+    else if (modelName) {
+      if (modelName === '__UNASSIGNED__' || modelName === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ modelName: null }, { modelName: '' }] },
+        ];
+      } else {
+        where.modelName = { contains: modelName };
+      }
+    }
+    if (origin) {
+      if (origin === '__UNASSIGNED__' || origin === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ origin: null }, { origin: '' }] },
+        ];
+      } else {
+        where.origin = { contains: origin };
+      }
+    }
+    if (manufactureYear) {
+      if (manufactureYear === -1) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ manufactureYear: null }, { manufactureYear: 0 }] },
+        ];
+      } else {
+        where.manufactureYear = manufactureYear;
+      }
+    }
+    if (status === 'LIQUIDATED') {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { status: VehicleStatus.TAM_DUNG },
+        liquidatedVehicleWhere,
+      ];
+    } else if (status === VehicleStatus.TAM_DUNG) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { status: VehicleStatus.TAM_DUNG },
+        { NOT: liquidatedVehicleWhere },
+      ];
+    } else if (status) {
+      if (status === 'HOAT_DONG' || status === 'SAN_SANG' || status === 'READY') {
+        where.status = { in: [VehicleStatus.HOAT_DONG, VehicleStatus.CHO_PHAN_CONG] };
+      } else if (Object.values(VehicleStatus).includes(status as VehicleStatus)) {
+        where.status = status as VehicleStatus;
+      }
+    }
     if (hasGps === true) where.gpsImei = { not: null };
     if (hasGps === false) where.gpsImei = null;
+    if (hasDriver === true) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        {
+          OR: [
+            { defaultDriverId: { not: null } },
+            { managerName: { not: null } },
+          ],
+        },
+      ];
+    } else if (hasDriver === false) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { defaultDriverId: null },
+        { OR: [{ managerName: null }, { managerName: '' }] },
+      ];
+    }
 
     if (search && search.trim()) {
       const q = search.trim();
@@ -232,6 +443,21 @@ export class VehiclesService {
             select: { id: true, fullName: true, phone: true },
           },
           homeDepot: true,
+          managementUnit: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              complexCode: true,
+              mainDepot: true,
+              managerAssignments: {
+                where: { managerType: 'PRIMARY', effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] },
+                select: { manager: { select: { id: true, fullName: true, phone: true } } },
+                orderBy: { effectiveFrom: 'desc' },
+                take: 1,
+              },
+            },
+          },
         }
       : {
           vehicleType: {
@@ -265,6 +491,21 @@ export class VehiclesService {
             select: { id: true, fullName: true, phone: true },
           },
           homeDepot: true,
+          managementUnit: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              complexCode: true,
+              mainDepot: true,
+              managerAssignments: {
+                where: { managerType: 'PRIMARY', effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] },
+                select: { manager: { select: { id: true, fullName: true, phone: true } } },
+                orderBy: { effectiveFrom: 'desc' },
+                take: 1,
+              },
+            },
+          },
           currentImplements: {
             select: {
               id: true,
@@ -304,14 +545,19 @@ export class VehiclesService {
     };
   }
 
-  async findAssignments(filter: VehicleFilterDto) {
+  async findAssignments(filter: VehicleFilterDto, actor: OperationalActor) {
     const page = filter.page ?? 1;
     const limit = filter.limit ?? 4000;
     const skip = (page - 1) * limit;
 
     const where: Prisma.VehicleWhereInput = {};
+    if (filter.managementUnitId) await assertManagementUnitAccess(this.prisma, actor, filter.managementUnitId);
+    Object.assign(where, filter.managementUnitId ? { managementUnitId: filter.managementUnitId } : await this.vehicleScope(actor));
     if (filter.complexCode && filter.complexCode !== 'ALL') {
       where.complexCode = filter.complexCode;
+    }
+    if (filter.isAssignable !== undefined) {
+      where.vehicleType = { isAssignable: filter.isAssignable };
     }
 
     const [total, items] = await Promise.all([
@@ -330,6 +576,7 @@ export class VehiclesService {
           complexCode: true,
           regionCode: true,
           assignedUnitCode: true,
+          managementUnitId: true,
           allocationDate: true,
           transferHistory: true,
           notes: true,
@@ -359,7 +606,7 @@ export class VehiclesService {
     };
   }
 
-  async getFilterOptions(filter?: VehicleFilterDto) {
+  async getFilterOptions(filter: VehicleFilterDto | undefined, actor: OperationalActor) {
     const nonNull = { not: null };
     const VALID_COUNTRIES = new Set([
       'VIỆT NAM', 'NHẬT BẢN', 'HÀN QUỐC', 'TRUNG QUỐC', 'MỸ', 'ĐỨC', 'THỔ NHĨ KỲ', 'ẤN ĐỘ',
@@ -367,39 +614,166 @@ export class VehiclesService {
       'PHÁP', 'TÂY BAN NHA', 'THỤY ĐIỂN', 'CANADA', 'BA LAN', 'INDONESIA', 'MALAYSIA',
     ]);
 
-    // Build base where condition from current active filters
-    const baseWhere: Prisma.VehicleWhereInput = {};
-    if (filter) {
-      if (filter.complexCode && filter.complexCode !== 'ALL') baseWhere.complexCode = filter.complexCode;
-      if (filter.category) baseWhere.category = filter.category;
-      if (filter.assetGroup) baseWhere.assetGroup = filter.assetGroup;
-      if (filter.vehicleTypeId) baseWhere.vehicleTypeId = filter.vehicleTypeId;
+    const actorScope = await this.vehicleScope(actor);
+
+    // Helper to build scoped where condition while omitting a specific dimension (for self-filtering)
+    const buildFilterWhere = (omitField?: string): Prisma.VehicleWhereInput => {
+      const where: Prisma.VehicleWhereInput = { ...actorScope };
+      if (!filter) return where;
+      if (omitField !== 'complexCode' && filter.complexCode && filter.complexCode !== 'ALL') where.complexCode = filter.complexCode;
+      if (omitField !== 'category' && filter.category) where.category = filter.category;
+      if (omitField !== 'assetGroup' && filter.assetGroup) where.assetGroup = filter.assetGroup;
+      if (omitField !== 'vehicleTypeId' && filter.vehicleTypeId) where.vehicleTypeId = filter.vehicleTypeId;
       if (filter.vehicleTypeCode || filter.operationalDomain || filter.isAssignable !== undefined) {
-        baseWhere.vehicleType = {
+        where.vehicleType = {
           ...(filter.vehicleTypeCode ? { code: filter.vehicleTypeCode } : {}),
           ...(filter.operationalDomain ? { operationalDomain: filter.operationalDomain } : {}),
           ...(filter.isAssignable !== undefined ? { isAssignable: filter.isAssignable } : {}),
         };
       }
-      if (filter.unit) baseWhere.unit = filter.unit;
-      if (filter.regionCode) baseWhere.regionCode = filter.regionCode;
-      if (filter.assignedUnitCode) baseWhere.assignedUnitCode = { contains: filter.assignedUnitCode };
-      if (filter.currentLocationName) baseWhere.currentLocationName = { contains: filter.currentLocationName };
-      if (filter.bravoCode) baseWhere.bravoCode = { contains: filter.bravoCode };
-      if (filter.manufacturerRefId) baseWhere.manufacturerRefId = filter.manufacturerRefId;
-      else if (filter.manufacturer) baseWhere.manufacturer = { contains: filter.manufacturer };
-      if (filter.modelRefId) baseWhere.modelRefId = filter.modelRefId;
-      else if (filter.modelName) baseWhere.modelName = { contains: filter.modelName };
-      if (filter.origin) baseWhere.origin = filter.origin;
-      if (filter.status) baseWhere.status = filter.status;
-      if (filter.alertTier) baseWhere.alertTier = filter.alertTier;
-      if (filter.hasGps === true) baseWhere.gpsImei = { not: null };
-      if (filter.hasGps === false) baseWhere.gpsImei = null;
-    }
+      if (omitField !== 'unit' && filter.unit) where.unit = filter.unit;
+      if (omitField !== 'regionCode' && filter.regionCode) {
+        if (filter.regionCode === '__UNASSIGNED__' || filter.regionCode === 'UNASSIGNED') {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { OR: [{ regionCode: null }, { regionCode: '' }] },
+          ];
+        } else {
+          where.regionCode = filter.regionCode;
+        }
+      }
+      if (omitField !== 'assignedUnitCode' && filter.assignedUnitCode) {
+        if (filter.assignedUnitCode === '__UNASSIGNED__' || filter.assignedUnitCode === 'UNASSIGNED') {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { managementUnitId: null },
+          ];
+        } else {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { managementUnit: { name: filter.assignedUnitCode } },
+          ];
+        }
+      }
+      if (omitField !== 'currentLocationName' && filter.currentLocationName) {
+        if (filter.currentLocationName === '__UNASSIGNED__' || filter.currentLocationName === 'UNASSIGNED') {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { homeDepotId: null },
+          ];
+        } else {
+          where.homeDepot = { name: filter.currentLocationName };
+        }
+      }
+      if (omitField !== 'bravoCode' && filter.bravoCode) where.bravoCode = { contains: filter.bravoCode };
+      if (omitField !== 'manufacturer' && filter.manufacturerRefId) where.manufacturerRefId = filter.manufacturerRefId;
+      else if (omitField !== 'manufacturer' && filter.manufacturer) {
+        if (filter.manufacturer === '__UNASSIGNED__' || filter.manufacturer === 'UNASSIGNED') {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { OR: [{ manufacturer: null }, { manufacturer: '' }] },
+          ];
+        } else {
+          where.manufacturer = { contains: filter.manufacturer };
+        }
+      }
+      if (omitField !== 'model' && filter.modelRefId) where.modelRefId = filter.modelRefId;
+      else if (omitField !== 'model' && filter.modelName) {
+        if (filter.modelName === '__UNASSIGNED__' || filter.modelName === 'UNASSIGNED') {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { OR: [{ modelName: null }, { modelName: '' }] },
+          ];
+        } else {
+          where.modelName = { contains: filter.modelName };
+        }
+      }
+      if (omitField !== 'origin' && filter.origin) {
+        if (filter.origin === '__UNASSIGNED__' || filter.origin === 'UNASSIGNED') {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { OR: [{ origin: null }, { origin: '' }] },
+          ];
+        } else {
+          where.origin = filter.origin;
+        }
+      }
+      if (omitField !== 'manufactureYear' && filter.manufactureYear) {
+        if (filter.manufactureYear === -1) {
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { OR: [{ manufactureYear: null }, { manufactureYear: 0 }] },
+          ];
+        } else {
+          where.manufactureYear = filter.manufactureYear;
+        }
+      }
+      if (omitField !== 'status' && filter.status) {
+        if (filter.status === 'HOAT_DONG' || filter.status === 'SAN_SANG' || filter.status === 'READY') {
+          where.status = { in: [VehicleStatus.HOAT_DONG, VehicleStatus.CHO_PHAN_CONG] };
+        } else if (Object.values(VehicleStatus).includes(filter.status as VehicleStatus)) {
+          where.status = filter.status as VehicleStatus;
+        }
+      }
+      if (omitField !== 'alertTier' && filter.alertTier) where.alertTier = filter.alertTier;
+      if (omitField !== 'manager' && filter.managerUserId) {
+        if (filter.managerUserId === -1) {
+          const now = new Date();
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            { OR: [{ managerName: null }, { managerName: '' }] },
+            {
+              OR: [
+                { managementUnitId: null },
+                { managementUnit: { managerAssignments: { none: { managerType: 'PRIMARY', effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] } } } },
+              ],
+            },
+          ];
+        } else {
+          const now = new Date();
+          where.AND = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            {
+              managementUnit: {
+                managerAssignments: {
+                  some: {
+                    managerUserId: filter.managerUserId,
+                    managerType: 'PRIMARY',
+                    effectiveFrom: { lte: now },
+                    OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+                  },
+                },
+              },
+            },
+          ];
+        }
+      }
+      if (filter.hasGps === true) where.gpsImei = { not: null };
+      if (filter.hasGps === false) where.gpsImei = null;
+      if (filter.hasDriver === true) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ defaultDriverId: { not: null } }, { managerName: { not: null } }] },
+        ];
+      } else if (filter.hasDriver === false) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { defaultDriverId: null },
+          { OR: [{ managerName: null }, { managerName: '' }] },
+        ];
+      }
+      return where;
+    };
 
-    // Exclude self-filter so user can select another option in that dimension
-    const { manufactureYear: _my, ...whereForYears } = baseWhere;
-    const { origin: _orig, ...whereForOrigins } = baseWhere;
+    const baseWhere = buildFilterWhere();
+    const whereForYears = buildFilterWhere('manufactureYear');
+    const whereForOrigins = buildFilterWhere('origin');
+    const whereForUnits = buildFilterWhere('assignedUnitCode');
+    const whereForLocations = buildFilterWhere('currentLocationName');
+    const whereForManagers = buildFilterWhere('manager');
+    const whereForManufacturers = buildFilterWhere('manufacturer');
+    const whereForModels = buildFilterWhere('model');
+    const whereForRegions = buildFilterWhere('regionCode');
 
     const [
       complexes,
@@ -415,47 +789,57 @@ export class VehiclesService {
       purchaseConditionList,
       supplierList,
       ownerList,
+      catalogUnits,
+      catalogLocations,
+      referenceCatalogs,
+      managerAssignments,
+      unassignedUnitCount,
+      unassignedLocationCount,
+      unassignedManagerCount,
+      unassignedManufacturerCount,
+      unassignedModelCount,
+      unassignedOriginCount,
+      unassignedYearCount,
+      unassignedRegionCount,
     ] = await Promise.all([
-      this.prisma.vehicle.findMany({
-        where: { complexCode: { not: '' } },
-        select: { complexCode: true },
-        distinct: ['complexCode'],
+      this.prisma.vehicle.groupBy({
+        by: ['complexCode'],
+        _count: { id: true },
+        where: { ...baseWhere, complexCode: { not: '' } },
         orderBy: { complexCode: 'asc' },
       }),
-      this.prisma.vehicle.findMany({
+      this.prisma.vehicle.groupBy({
+        by: ['regionCode'],
+        _count: { id: true },
         where: {
-          ...(baseWhere.complexCode ? { complexCode: baseWhere.complexCode } : {}),
+          ...baseWhere,
           regionCode: nonNull,
         },
-        select: { regionCode: true },
-        distinct: ['regionCode'],
         orderBy: { regionCode: 'asc' },
       }),
-      this.prisma.vehicle.findMany({
+      this.prisma.driverManagementUnit.findMany({
         where: {
-          ...(baseWhere.complexCode ? { complexCode: baseWhere.complexCode } : {}),
-          assignedUnitCode: nonNull,
+          status: 'ACTIVE',
+          vehicles: { some: whereForUnits },
         },
-        select: { assignedUnitCode: true },
-        distinct: ['assignedUnitCode'],
-        orderBy: { assignedUnitCode: 'asc' },
+        select: { name: true, _count: { select: { vehicles: { where: whereForUnits } } } },
+        orderBy: { name: 'asc' },
       }),
-      this.prisma.vehicle.findMany({
+      this.prisma.operationalLocation.findMany({
         where: {
-          ...(baseWhere.complexCode ? { complexCode: baseWhere.complexCode } : {}),
-          currentLocationName: { not: null, notIn: [''] },
+          active: true,
+          depotVehicles: { some: whereForLocations },
         },
-        select: { currentLocationName: true },
-        distinct: ['currentLocationName'],
-        orderBy: { currentLocationName: 'asc' },
+        select: { name: true, _count: { select: { depotVehicles: { where: whereForLocations } } } },
+        orderBy: { name: 'asc' },
       }),
-      this.prisma.vehicle.findMany({
+      this.prisma.vehicle.groupBy({
+        by: ['assetGroup'],
+        _count: { id: true },
         where: {
-          ...(baseWhere.complexCode ? { complexCode: baseWhere.complexCode } : {}),
+          ...baseWhere,
           assetGroup: nonNull,
         },
-        select: { assetGroup: true },
-        distinct: ['assetGroup'],
         orderBy: { assetGroup: 'asc' },
       }),
       // Only origins that have vehicles matching the current query
@@ -479,7 +863,13 @@ export class VehiclesService {
         orderBy: { manufactureYear: 'desc' },
       }),
       this.prisma.vehicleType.findMany({
-        where: { active: true },
+        where: {
+          active: true,
+          ...(filter?.isAssignable !== undefined ? { isAssignable: filter.isAssignable } : {}),
+          ...(filter?.operationalDomain ? { operationalDomain: filter.operationalDomain } : {}),
+          ...(filter?.assetGroup ? { assetGroup: filter.assetGroup } : {}),
+          vehicles: { some: baseWhere },
+        },
         select: {
           id: true,
           code: true,
@@ -531,29 +921,178 @@ export class VehiclesService {
         distinct: ['companyOwner'],
         orderBy: { companyOwner: 'asc' },
       }),
+      this.prisma.driverManagementUnit.findMany({
+        where: {
+          status: 'ACTIVE',
+          ...(filter?.complexCode && filter.complexCode !== 'ALL' ? { complexCode: filter.complexCode } : {}),
+        },
+        select: { name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.operationalLocation.findMany({
+        where: {
+          active: true,
+          ...(filter?.complexCode && filter.complexCode !== 'ALL' ? { complexCode: filter.complexCode } : {}),
+        },
+        select: { name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.catalogItem.findMany({
+        where: {
+          status: 'HOAT_DONG',
+          type: { in: [CatalogType.VEHICLE_ORIGIN, CatalogType.PURCHASE_CONDITION, CatalogType.SUPPLIER, CatalogType.COMPANY_OWNER] },
+        },
+        select: { type: true, name: true },
+      }),
+      this.prisma.managementUnitManagerAssignment.findMany({
+        where: {
+          managerType: 'PRIMARY',
+          effectiveFrom: { lte: new Date() },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
+          managementUnit: { vehicles: { some: baseWhere } },
+        },
+        select: {
+          manager: { select: { id: true, fullName: true, phone: true } },
+          managementUnit: { select: { _count: { select: { vehicles: { where: baseWhere } } } } },
+        },
+      }),
+      // Unassigned counts for various dimensions
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForUnits,
+          managementUnitId: null,
+          NOT: liquidatedVehicleWhere,
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForLocations,
+          homeDepotId: null,
+          NOT: liquidatedVehicleWhere,
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForManagers,
+          NOT: liquidatedVehicleWhere,
+          AND: [
+            ...(Array.isArray(whereForManagers.AND) ? whereForManagers.AND : whereForManagers.AND ? [whereForManagers.AND] : []),
+            { OR: [{ managerName: null }, { managerName: '' }] },
+            {
+              OR: [
+                { managementUnitId: null },
+                { managementUnit: { managerAssignments: { none: { managerType: 'PRIMARY', effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] } } } },
+              ],
+            },
+          ],
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForManufacturers,
+          NOT: liquidatedVehicleWhere,
+          OR: [{ manufacturer: null }, { manufacturer: '' }],
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForModels,
+          NOT: liquidatedVehicleWhere,
+          OR: [{ modelName: null }, { modelName: '' }],
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForOrigins,
+          NOT: liquidatedVehicleWhere,
+          OR: [{ origin: null }, { origin: '' }],
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForYears,
+          NOT: liquidatedVehicleWhere,
+          OR: [{ manufactureYear: null }, { manufactureYear: 0 }],
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...whereForRegions,
+          NOT: liquidatedVehicleWhere,
+          OR: [{ regionCode: null }, { regionCode: '' }],
+        },
+      }),
     ]);
 
-    const sanitizeStringList = (items: Array<{ [key: string]: string | null | undefined }>, key: string) =>
-      [...new Set(items.map((item) => item[key]?.trim()).filter((v): v is string => Boolean(v)))];
+    const sanitizeStringList = (
+      items: Array<{ [key: string]: string | null | undefined }>,
+      key: string,
+      catalogLabels: string[] = [],
+    ) => canonicalizeMasterDataValues(items.map((item) => item[key]), catalogLabels);
 
     const standardConditions = ['Mua mới 100%', 'Đã qua sử dụng (ĐQSD)', 'Điều chuyển nội bộ', 'Thuê ngoài'];
     const dbConditions = sanitizeStringList(purchaseConditionList, 'purchaseCondition');
-    const allConditions = [...new Set([...standardConditions, ...dbConditions])];
+    const allConditions = canonicalizeMasterDataValues(
+      [...standardConditions, ...dbConditions],
+      referenceCatalogs.filter((item) => item.type === CatalogType.PURCHASE_CONDITION).map((item) => item.name),
+    );
 
     const standardSuppliers = ['THACO AGRI', 'THACO INDUSTRIES', 'CATERPILLAR VN', 'KOBELCO VN', 'KOMATSU VN', 'TÂN PHÁT', 'LOVOL', 'PHƯỚC LỘC', 'CƯỜNG CƠ GIỚI'];
     const dbSuppliers = sanitizeStringList(supplierList, 'supplier');
-    const allSuppliers = [...new Set([...standardSuppliers, ...dbSuppliers])];
+    const allSuppliers = canonicalizeMasterDataValues(
+      [...standardSuppliers, ...dbSuppliers],
+      referenceCatalogs.filter((item) => item.type === CatalogType.SUPPLIER).map((item) => item.name),
+    );
 
     const standardOwners = ['THACO AGRI', 'CÔNG TY CP NÔNG NGHIỆP DP', 'CÔNG TY TNHH BÒ AD', 'CÔNG TY CP NÔNG NGHIỆP LP', 'DP', 'ADM', 'LP'];
     const dbOwners = sanitizeStringList(ownerList, 'companyOwner');
-    const allOwners = [...new Set([...standardOwners, ...dbOwners])];
+    const allOwners = canonicalizeMasterDataValues(
+      [...standardOwners, ...dbOwners],
+      referenceCatalogs.filter((item) => item.type === CatalogType.COMPANY_OWNER).map((item) => item.name),
+    );
+    const managers = [...managerAssignments.reduce((map, assignment) => {
+      const current = map.get(assignment.manager.id) || {
+        id: assignment.manager.id,
+        name: assignment.manager.fullName,
+        phone: assignment.manager.phone,
+        vehicleCount: 0,
+      };
+      current.vehicleCount += assignment.managementUnit._count.vehicles;
+      map.set(current.id, current);
+      return map;
+    }, new Map<number, { id: number; name: string; phone: string | null; vehicleCount: number }>()).values()]
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+    const unitCounts = Object.fromEntries(assignedUnits.map((unit) => [unit.name, unit._count.vehicles]));
+    unitCounts['__UNASSIGNED__'] = unassignedUnitCount;
+
+    const locationCounts = Object.fromEntries(locations.map((location) => [location.name, location._count.depotVehicles]));
+    locationCounts['__UNASSIGNED__'] = unassignedLocationCount;
+
+    const regionCounts = Object.fromEntries(regions.filter((r) => r.regionCode).map((r) => [r.regionCode!, r._count.id]));
+    regionCounts['__UNASSIGNED__'] = unassignedRegionCount;
 
     return {
-      complexes: sanitizeStringList(complexes, 'complexCode'),
-      regions: sanitizeStringList(regions, 'regionCode'),
-      assignedUnits: sanitizeStringList(assignedUnits, 'assignedUnitCode'),
-      locations: sanitizeStringList(locations, 'currentLocationName'),
-      assetGroups: sanitizeStringList(assetGroups, 'assetGroup'),
+      complexes: complexes.filter((item) => item.complexCode).map((item) => item.complexCode),
+      regions: regions.filter((item) => item.regionCode).map((item) => item.regionCode!),
+      assignedUnits: assignedUnits.map((item) => item.name),
+      locations: locations.map((item) => item.name),
+      assetGroups: assetGroups.filter((item) => item.assetGroup).map((item) => item.assetGroup!),
+      complexCounts: Object.fromEntries(complexes.filter((c) => c.complexCode).map((c) => [c.complexCode, c._count.id])),
+      regionCounts,
+      unitCounts,
+      locationCounts,
+      assetGroupCounts: Object.fromEntries(assetGroups.filter((g) => g.assetGroup).map((g) => [g.assetGroup!, g._count.id])),
+      unassignedCounts: {
+        assignedUnit: unassignedUnitCount,
+        currentLocation: unassignedLocationCount,
+        manager: unassignedManagerCount,
+        manufacturer: unassignedManufacturerCount,
+        model: unassignedModelCount,
+        origin: unassignedOriginCount,
+        manufactureYear: unassignedYearCount,
+        region: unassignedRegionCount,
+      },
       vehicleTypes: vehicleTypes.map(({ _count, ...item }) => ({
         ...item,
         vehicleCount: _count.vehicles,
@@ -567,12 +1106,13 @@ export class VehiclesService {
         ...item,
         vehicleCount: _count.vehicles,
       })),
-      origins: originGroups
-        .filter((item) => item.origin && VALID_COUNTRIES.has(item.origin.toUpperCase()) && item._count.id > 0)
-        .map((item) => ({
-          name: item.origin!.trim(),
-          vehicleCount: item._count.id,
-        })),
+      origins: canonicalizeMasterDataValues(
+        originGroups.filter((item) => item.origin && VALID_COUNTRIES.has(item.origin.toUpperCase()) && item._count.id > 0).map((item) => item.origin),
+        referenceCatalogs.filter((item) => item.type === CatalogType.VEHICLE_ORIGIN).map((item) => item.name),
+      ).map((name) => ({
+        name,
+        vehicleCount: originGroups.filter((item) => normalizeMasterDataKey(item.origin) === normalizeMasterDataKey(name)).reduce((sum, item) => sum + item._count.id, 0),
+      })),
       manufactureYears: yearGroups
         .filter((item) => typeof item.manufactureYear === 'number' && item.manufactureYear > 0 && item._count.id > 0)
         .map((item) => ({
@@ -584,17 +1124,20 @@ export class VehiclesService {
       purchaseConditions: allConditions,
       suppliers: allSuppliers,
       companyOwners: allOwners,
+      managers,
     };
   }
 
-  async findOne(id: number) {
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id },
+  async findOne(id: number, actor?: OperationalActor) {
+    const scope = actor ? await this.vehicleScope(actor) : {};
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, ...scope },
       include: {
         vehicleType: true,
         manufacturerRef: true,
         modelRef: true,
         homeDepot: true,
+        managementUnit: true,
         defaultDriver: {
           select: { id: true, fullName: true, phone: true, avatarUrl: true },
         },
@@ -632,12 +1175,23 @@ export class VehiclesService {
     if (!vehicle) {
       throw new NotFoundException(`Không tìm thấy phương tiện #${id}`);
     }
-
     return vehicle;
   }
 
-  async update(id: number, dto: UpdateVehicleDto) {
-    await this.findOne(id);
+  async update(id: number, dto: UpdateVehicleDto, actor: OperationalActor) {
+    const current = await this.findOne(id, actor);
+    const targetManagementUnitId = dto.managementUnitId ?? current.managementUnitId;
+    if (targetManagementUnitId) await assertManagementUnitAccess(this.prisma, actor, targetManagementUnitId);
+    if (isLiquidatedAssignedUnit(current.assignedUnitCode)) {
+      const reactivates =
+        (dto.status !== undefined && dto.status !== VehicleStatus.TAM_DUNG) ||
+        dto.managementUnitId !== undefined ||
+        dto.defaultDriverId !== undefined ||
+        (dto.assignedUnitCode !== undefined && !isLiquidatedAssignedUnit(dto.assignedUnitCode));
+      if (reactivates) {
+        throw new BadRequestException('Xe đã loại biên/thanh lý chỉ được chỉnh sửa thông tin hồ sơ, không được đưa lại vào vận hành.');
+      }
+    }
 
     let alertTier: MaintenanceAlertTier | undefined = undefined;
     if (dto.hoursSinceLastService !== undefined) {
@@ -645,6 +1199,7 @@ export class VehiclesService {
     }
 
     const homeDepotId = await this.resolveHomeDepotId(dto);
+    const canonicalReferences = await this.canonicalVehicleReferences(dto);
 
     let manufacturerRefId = dto.manufacturerRefId;
     if (!manufacturerRefId && dto.manufacturer) {
@@ -668,6 +1223,7 @@ export class VehiclesService {
       where: { id },
       data: {
         ...dto,
+        ...canonicalReferences,
         ...(manufacturerRefId ? { manufacturerRefId } : {}),
         ...(modelRefId ? { modelRefId } : {}),
         ...(homeDepotId ? { homeDepotId } : {}),
@@ -693,6 +1249,9 @@ export class VehiclesService {
     if (!vehicle) {
       throw new NotFoundException(`Không tìm thấy phương tiện #${id}`);
     }
+    if (isLiquidatedAssignedUnit(vehicle.assignedUnitCode)) {
+      throw new BadRequestException('Xe đã loại biên/thanh lý không nhận dữ liệu vận hành mới.');
+    }
 
     const addedHours = dto.addedMachineHours || 0;
     const addedKm = dto.addedOdoKm || 0;
@@ -701,6 +1260,13 @@ export class VehiclesService {
     const newServiceHours = vehicle.hoursSinceLastService + addedHours;
     const newOdoKm = vehicle.odoKm + addedKm;
     const newAlertTier = this.calculateAlertTier(newServiceHours);
+    const now = new Date();
+    const speedProvided = dto.currentSpeedKmH !== undefined;
+    const movingSince = speedProvided
+      ? dto.currentSpeedKmH! > 5
+        ? (vehicle.currentSpeedKmH !== null && vehicle.currentSpeedKmH > 5 ? vehicle.movingSince ?? now : now)
+        : null
+      : vehicle.movingSince;
 
     const updated = await this.prisma.vehicle.update({
       where: { id },
@@ -712,27 +1278,99 @@ export class VehiclesService {
         currentLat: dto.currentLat ?? vehicle.currentLat,
         currentLng: dto.currentLng ?? vehicle.currentLng,
         currentLocationName: dto.currentLocationName ?? vehicle.currentLocationName,
+        currentSpeedKmH: dto.currentSpeedKmH ?? vehicle.currentSpeedKmH,
+        movingSince,
         status: dto.status ?? vehicle.status,
-        lastGpsUpdate: new Date(),
+        lastGpsUpdate: now,
       },
     });
+    if (speedProvided) await this.reconcileNoActiveOrderAlert(updated, now);
     await this.maintenance.refreshVehicleOccurrences(id);
     return updated;
   }
 
-  async getStatistics(filter?: VehicleFilterDto) {
-    const where: Prisma.VehicleWhereInput = {};
+  private async reconcileNoActiveOrderAlert(vehicle: { id: number; code: string; plate: string | null; managementUnitId: number | null; currentSpeedKmH: number | null; movingSince: Date | null; currentLocationName: string | null; complexCode: string; unit: Unit }, now: Date) {
+    const dedupeKey = `GPS:NO_ACTIVE_ORDER:${vehicle.id}`;
+    const movingLongEnough = isMovingLongEnough(vehicle.currentSpeedKmH, vehicle.movingSince, now);
+    if (!movingLongEnough || !vehicle.managementUnitId) {
+      await this.prisma.alertEvent.updateMany({ where: { dedupeKey }, data: { status: 'RESOLVED', resolvedAt: now, dedupeKey: null } });
+      return;
+    }
+    const activeWork = await this.prisma.workVehicleAssignment.findFirst({
+      where: { vehicleId: vehicle.id, status: { in: ['ASSIGNED', 'ACCEPTED'] }, workOrder: { status: { in: [WorkOrderStatus.ASSIGNED, WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS] } } },
+      select: { id: true },
+    });
+    if (activeWork) {
+      await this.prisma.alertEvent.updateMany({ where: { dedupeKey }, data: { status: 'RESOLVED', resolvedAt: now, dedupeKey: null } });
+      return;
+    }
+    const manager = await this.prisma.managementUnitManagerAssignment.findFirst({
+      where: { managementUnitId: vehicle.managementUnitId, managerType: 'PRIMARY', effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+      include: { manager: { select: { id: true, code: true, fullName: true, phone: true } } },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    await this.prisma.alertEvent.upsert({
+      where: { dedupeKey },
+      create: { dedupeKey, sourceType: 'VEHICLE_TELEMETRY', sourceId: String(vehicle.id), category: AlertCategory.GPS, alertType: 'NO_ACTIVE_ORDER', severity: AlertSeverity.WARNING, title: 'Xe di chuyển không có lệnh', message: 'Xe đang hoạt động nhưng không có lệnh điều xe hợp lệ.', location: vehicle.currentLocationName, metricValue: vehicle.currentSpeedKmH, metricUnit: 'km/h', complexCode: vehicle.complexCode, unit: vehicle.unit, managementUnitId: vehicle.managementUnitId, vehicleId: vehicle.id, targetUrl: `/doi-xe/ho-so-xe?vehicleId=${vehicle.id}`, metadataJson: { manager: manager?.manager ?? null } },
+      update: { status: 'OPEN', resolvedAt: null, message: 'Xe đang hoạt động nhưng không có lệnh điều xe hợp lệ.', location: vehicle.currentLocationName, metricValue: vehicle.currentSpeedKmH, managementUnitId: vehicle.managementUnitId, metadataJson: { manager: manager?.manager ?? null }, occurredAt: now },
+    });
+  }
+
+  async lookup(query: string, managementUnitId: number | undefined, actor: OperationalActor) {
+    const q = query.trim();
+    if (!q) throw new BadRequestException('Vui lòng nhập mã MMTB, biển số hoặc mã nội bộ.');
+    if (managementUnitId) await assertManagementUnitAccess(this.prisma, actor, managementUnitId);
+    const scope = managementUnitId ? { managementUnitId } : await this.vehicleScope(actor);
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: {
+        ...scope,
+        OR: [{ code: { contains: q } }, { plate: { contains: q } }, { oldCode: { contains: q } }, { bravoCode: { contains: q } }],
+      },
+      include: {
+        managementUnit: { include: { managerAssignments: { where: { managerType: 'PRIMARY', effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, include: { manager: { select: { id: true, code: true, fullName: true, phone: true } } }, orderBy: { effectiveFrom: 'desc' }, take: 1 } } },
+        defaultDriver: { select: { id: true, code: true, fullName: true, phone: true } },
+        workAssignments: { where: { status: { in: ['ASSIGNED', 'ACCEPTED'] }, workOrder: { status: { in: [WorkOrderStatus.ASSIGNED, WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS] } } }, include: { workOrder: { include: { driverAssignments: { where: { status: { in: ['ASSIGNED', 'ACCEPTED'] } }, include: { driver: { include: { user: { select: { id: true, code: true, fullName: true, phone: true } } } } }, take: 1 }, dispatchOrder: true } } }, take: 1, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!vehicle) throw new NotFoundException('Không tìm thấy xe trong phạm vi được quản lý.');
+    const active = vehicle.workAssignments[0]?.workOrder || null;
+    return { ...vehicle, directManager: vehicle.managementUnit?.managerAssignments[0]?.manager || null, activeOrder: active, activeDriver: active?.driverAssignments[0]?.driver.user || vehicle.defaultDriver, gpsStatus: vehicle.lastGpsUpdate ? 'AVAILABLE' : 'NO_DATA' };
+  }
+
+  async getStatistics(filter: VehicleFilterDto | undefined, actor: OperationalActor) {
+    const where: Prisma.VehicleWhereInput = await this.vehicleScope(actor);
     if (filter?.assetGroup && filter.assetGroup !== 'ALL') {
       where.assetGroup = filter.assetGroup;
     }
     if (filter?.assignedUnitCode && filter.assignedUnitCode !== 'ALL') {
-      where.assignedUnitCode = { contains: filter.assignedUnitCode };
+      if (filter.assignedUnitCode === '__UNASSIGNED__' || filter.assignedUnitCode === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          {
+            OR: [
+              { assignedUnitCode: null },
+              { assignedUnitCode: '' },
+              { assignedUnitCode: 'Chưa phân bổ' },
+              { managementUnitId: null },
+            ],
+          },
+        ];
+      } else {
+        where.assignedUnitCode = { contains: filter.assignedUnitCode };
+      }
     }
     if (filter?.complexCode && filter.complexCode !== 'ALL') {
       where.complexCode = filter.complexCode;
     }
     if (filter?.regionCode && filter.regionCode !== 'ALL') {
-      where.regionCode = filter.regionCode;
+      if (filter.regionCode === '__UNASSIGNED__' || filter.regionCode === 'UNASSIGNED') {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: [{ regionCode: null }, { regionCode: '' }] },
+        ];
+      } else {
+        where.regionCode = filter.regionCode;
+      }
     }
     if (filter?.category) {
       where.category = filter.category;
@@ -746,11 +1384,50 @@ export class VehiclesService {
     }
     if (filter?.hasGps === true) where.gpsImei = { not: null };
     if (filter?.hasGps === false) where.gpsImei = null;
+    if (filter?.managerUserId) {
+      if (filter.managerUserId === -1) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { defaultDriverId: null },
+          { OR: [{ managerName: null }, { managerName: '' }] },
+        ];
+      } else {
+        const now = new Date();
+        where.managementUnit = {
+          managerAssignments: {
+            some: {
+              managerUserId: filter.managerUserId,
+              managerType: 'PRIMARY',
+              effectiveFrom: { lte: now },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+            },
+          },
+        };
+      }
+    }
+    if (filter?.hasDriver === true) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        {
+          OR: [
+            { defaultDriverId: { not: null } },
+            { managerName: { not: null } },
+          ],
+        },
+      ];
+    } else if (filter?.hasDriver === false) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { defaultDriverId: null },
+        { OR: [{ managerName: null }, { managerName: '' }] },
+      ];
+    }
 
     const [
       total,
       running,
       standby,
+      liquidated,
       maintenance,
       repair,
       waitingDispatch,
@@ -759,10 +1436,13 @@ export class VehiclesService {
       greenAlertCount,
       gpsAttached,
       unassignedUnit,
+      unassignedDriver,
+      vehicleGroups,
     ] = await Promise.all([
       this.prisma.vehicle.count({ where }),
       this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.HOAT_DONG } }),
-      this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.TAM_DUNG } }),
+      this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.TAM_DUNG, NOT: liquidatedVehicleWhere } }),
+      this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.TAM_DUNG, ...liquidatedVehicleWhere } }),
       this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.BAO_DUONG } }),
       this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.SUA_CHUA } }),
       this.prisma.vehicle.count({ where: { ...where, status: VehicleStatus.CHO_PHAN_CONG } }),
@@ -773,23 +1453,60 @@ export class VehiclesService {
       this.prisma.vehicle.count({
         where: {
           ...where,
-          OR: [{ assignedUnitCode: null }, { assignedUnitCode: '' }],
+          managementUnitId: null,
+          NOT: liquidatedVehicleWhere,
         },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          ...where,
+          defaultDriverId: null,
+          NOT: liquidatedVehicleWhere,
+          OR: [{ managerName: null }, { managerName: '' }],
+        },
+      }),
+      this.prisma.vehicle.groupBy({
+        by: ['assetGroup'],
+        where: { ...where, assetGroup: { not: null } },
+        _count: { _all: true },
       }),
     ]);
 
-    const availabilityRate = total > 0 ? (((running + waitingDispatch + standby) / total) * 100).toFixed(1) : '0';
-    const assignedUnit = total - unassignedUnit;
+    const combined = summarizeVehicleCounts({
+      vehicles: total,
+      activeVehicles: running + waitingDispatch + standby,
+    });
+    const totalEquipment = combined.total;
+    const activeEquipment = combined.active;
+    const operationalTotal = totalEquipment - liquidated;
+    const availabilityRate = operationalTotal > 0 ? ((activeEquipment / operationalTotal) * 100).toFixed(1) : '0';
+    const assignedUnit = operationalTotal - unassignedUnit;
+    const ALLOWED_FLEET_GROUPS = new Set(['MAY_CONG_TRINH', 'MAY_NONG_NGHIEP', 'XE_VAN_TAI_CONG_VU']);
+    const assetGroupCounts = Object.fromEntries(
+      vehicleGroups
+        .filter((group) => filter?.isAssignable !== true || ALLOWED_FLEET_GROUPS.has(group.assetGroup!))
+        .map((group) => [group.assetGroup!, group._count._all]),
+    );
 
     return {
       totalVehicles: total,
+      totalImplements: 0,
+      totalEquipment,
       running,
       standby,
+      liquidated,
       maintenance,
       repair,
       waitingDispatch,
       unassignedUnit,
+      unassignedDriver,
       assignedUnit,
+      unassignedImplement: 0,
+      unassignedEquipment: unassignedUnit,
+      activeEquipment,
+      equipmentMaintenance: maintenance,
+      equipmentRepair: repair,
+      assetGroupCounts,
       gpsAttached,
       availabilityRate: `${availabilityRate}%`,
       maintenanceAlerts: {
@@ -800,9 +1517,65 @@ export class VehiclesService {
     };
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.vehicle.delete({ where: { id } });
+  async archive(id: number, reason: string, actor: OperationalActor) {
+    const current = await this.findOne(id, actor);
+    if (
+      current.status === VehicleStatus.TAM_DUNG &&
+      isLiquidatedAssignedUnit(current.assignedUnitCode) &&
+      current.managementUnitId === null &&
+      current.defaultDriverId === null &&
+      current.secondaryDriverId === null
+    ) {
+      return current;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.vehicle.update({
+        where: { id },
+        data: {
+          status: VehicleStatus.TAM_DUNG,
+          assignedUnitCode: LIQUIDATED_ASSIGNED_UNIT,
+          managementUnitId: null,
+          defaultDriverId: null,
+          secondaryDriverId: null,
+          currentSpeedKmH: 0,
+          movingSince: null,
+        },
+        include: {
+          vehicleType: true,
+          manufacturerRef: true,
+          modelRef: true,
+          homeDepot: true,
+          managementUnit: true,
+          defaultDriver: { select: { id: true, fullName: true, phone: true } },
+          currentImplements: true,
+        },
+      });
+      await tx.operationalAuditLog.create({
+        data: {
+          entityType: OperationalEntityType.VEHICLE,
+          entityId: id,
+          actorId: actor.id,
+          action: 'ARCHIVE_LIQUIDATED',
+          oldValue: {
+            status: current.status,
+            assignedUnitCode: current.assignedUnitCode,
+            managementUnitId: current.managementUnitId,
+            defaultDriverId: current.defaultDriverId,
+            secondaryDriverId: current.secondaryDriverId,
+          },
+          newValue: {
+            status: VehicleStatus.TAM_DUNG,
+            assignedUnitCode: LIQUIDATED_ASSIGNED_UNIT,
+            managementUnitId: null,
+            defaultDriverId: null,
+            secondaryDriverId: null,
+          },
+          reason: reason.trim(),
+        },
+      });
+      return updated;
+    });
   }
 
   async generateNextCode(category?: string, vehicleTypeId?: number, unit?: string) {
@@ -1014,15 +1787,21 @@ export class VehiclesService {
     let updatedVehicles = 0;
 
     if (catalogType === 'units') {
-      const res = await this.prisma.vehicle.updateMany({
-        where: { assignedUnitCode: { in: cleanSources } },
-        data: { assignedUnitCode: cleanTarget },
-      });
-      updatedVehicles = res.count;
+      const [vehicles, implementsResult] = await this.prisma.$transaction([
+        this.prisma.vehicle.updateMany({ where: { assignedUnitCode: { in: cleanSources } }, data: { assignedUnitCode: cleanTarget } }),
+        this.prisma.agriculturalImplement.updateMany({ where: { assignedUnitCode: { in: cleanSources } }, data: { assignedUnitCode: cleanTarget } }),
+      ]);
+      updatedVehicles = vehicles.count + implementsResult.count;
     } else if (catalogType === 'locations') {
+      const [vehicles, implementsResult] = await this.prisma.$transaction([
+        this.prisma.vehicle.updateMany({ where: { currentLocationName: { in: cleanSources } }, data: { currentLocationName: cleanTarget } }),
+        this.prisma.agriculturalImplement.updateMany({ where: { gatheringLocation: { in: cleanSources } }, data: { gatheringLocation: cleanTarget } }),
+      ]);
+      updatedVehicles = vehicles.count + implementsResult.count;
+    } else if (catalogType === 'origins') {
       const res = await this.prisma.vehicle.updateMany({
-        where: { currentLocationName: { in: cleanSources } },
-        data: { currentLocationName: cleanTarget },
+        where: { origin: { in: cleanSources } },
+        data: { origin: cleanTarget },
       });
       updatedVehicles = res.count;
     } else if (catalogType === 'purchaseConditions') {
@@ -1087,6 +1866,28 @@ export class VehiclesService {
           where: { id: { in: sourceIdsFiltered } },
         });
       }
+    }
+
+    const referenceTypeByCatalog: Record<string, CatalogType | undefined> = {
+      origins: CatalogType.VEHICLE_ORIGIN,
+      purchaseConditions: CatalogType.PURCHASE_CONDITION,
+      suppliers: CatalogType.SUPPLIER,
+    };
+    const referenceType = referenceTypeByCatalog[catalogType];
+    if (referenceType) {
+      const normalizedKey = normalizeMasterDataKey(cleanTarget);
+      const id = `${referenceType}-${Buffer.from(normalizedKey).toString('base64url').slice(0, 48)}`;
+      await this.prisma.$transaction([
+        this.prisma.catalogItem.upsert({
+          where: { id },
+          update: { name: cleanTarget, normalizedKey, status: 'HOAT_DONG' },
+          create: { id, code: id, name: cleanTarget, normalizedKey, type: referenceType },
+        }),
+        this.prisma.catalogItem.updateMany({
+          where: { type: referenceType, name: { in: cleanSources } },
+          data: { status: 'TAM_DUNG' },
+        }),
+      ]);
     }
 
     return { updatedVehicles, removedItems: cleanSources.length };

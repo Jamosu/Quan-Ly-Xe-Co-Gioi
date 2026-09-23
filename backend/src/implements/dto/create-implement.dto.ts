@@ -18,7 +18,7 @@ export class CreateImplementDto {
   @IsEnum(ImplementCategory)
   category: ImplementCategory;
 
-  @ApiPropertyOptional({ enum: Unit, default: Unit.BAN_CO_GIOI })
+  @ApiPropertyOptional({ enum: Unit, default: Unit.KOUN_MOM })
   @IsOptional()
   @IsEnum(Unit)
   unit?: Unit;
@@ -62,6 +62,11 @@ export class CreateImplementDto {
   @IsOptional()
   @IsString()
   sourceGroup?: string;
+
+  @ApiPropertyOptional({ example: 'CGTC DP', description: 'Đơn vị sử dụng theo workbook' })
+  @IsOptional()
+  @IsString()
+  assignedUnitCode?: string;
 
   @ApiPropertyOptional({ type: [Number], description: 'Các VehicleType được phép gắn thiết bị này' })
   @IsOptional()

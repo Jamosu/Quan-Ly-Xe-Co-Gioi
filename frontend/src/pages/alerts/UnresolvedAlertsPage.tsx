@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { AlertOctagon, AlertTriangle, CheckCircle2, Clock, Info, RefreshCw } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertOctagon, AlertTriangle, CheckCircle2, Clock, ExternalLink, Eye, Info, RefreshCw } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -9,12 +9,9 @@ import { Column, DataTable } from '../../components/data-display/DataTable';
 import { KPIGrid } from '../../components/data-display/KPIGrid';
 import { StatCard } from '../../components/data-display/StatCard';
 import { AlertItem, useAppStore } from '../../store/useAppStore';
+import { ALERT_CATEGORY_LABELS, compareOperationalAlerts, navigateToAlert } from '../../utils/alertNavigation';
 
-const severityRank: Record<string, number> = { CRITICAL: 0, WARNING: 1, INFO: 2 };
-const categoryLabels: Record<string, string> = {
-  SOS: 'SOS', MAINTENANCE: 'Bảo dưỡng', EQUIPMENT: 'Thiết bị', DISPATCH: 'Điều xe',
-  FUEL: 'Nhiên liệu', GPS: 'GPS', COMPLIANCE: 'Hồ sơ tài xế', SYSTEM: 'Hệ thống',
-};
+const categoryLabels = ALERT_CATEGORY_LABELS;
 
 const unwrap = (response: any) => response.data?.data || response.data || {};
 
@@ -27,6 +24,7 @@ export const UnresolvedAlertsPage: React.FC = () => {
   const [category, setCategory] = useState('');
   const [reason, setReason] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -53,15 +51,9 @@ export const UnresolvedAlertsPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [fetchAlerts]);
 
-  const alerts = useMemo(() => [...items].sort((a, b) => {
-    const read = Number(Boolean(a.isRead)) - Number(Boolean(b.isRead));
-    if (read) return read;
-    const severity = severityRank[a.severity] - severityRank[b.severity];
-    if (severity) return severity;
-    return new Date(b.occurredAt || b.createdAt).getTime() - new Date(a.occurredAt || a.createdAt).getTime();
-  }), [items]);
+  const alerts = useMemo(() => [...items].sort(compareOperationalAlerts), [items]);
 
-  const openAlert = useCallback(async (alert: AlertItem) => {
+  const openDetails = useCallback(async (alert: AlertItem) => {
     let opened = alert;
     if (!alert.isRead) {
       const receipt = unwrap(await apiClient.patch(`/alerts/${alert.id}/read`));
@@ -77,8 +69,16 @@ export const UnresolvedAlertsPage: React.FC = () => {
   useEffect(() => {
     const alertId = searchParams.get('alertId');
     const target = alertId ? alerts.find((item) => String(item.id) === alertId) : undefined;
-    if (target && String(selected?.id) !== alertId) void openAlert(target);
-  }, [alerts, openAlert, searchParams, selected?.id]);
+    if (target && String(selected?.id) !== alertId) void openDetails(target);
+  }, [alerts, openDetails, searchParams, selected?.id]);
+
+  const openTarget = useCallback(async (alert: AlertItem) => {
+    await navigateToAlert(alert, navigate, markAlertRead, (readAt) => {
+      setItems((current) => current.map((item) => String(item.id) === String(alert.id)
+        ? { ...item, isRead: true, readAt }
+        : item));
+    });
+  }, [markAlertRead, navigate]);
 
   const closeModal = () => {
     setSelected(null);
@@ -116,7 +116,7 @@ export const UnresolvedAlertsPage: React.FC = () => {
         ? <Badge variant="red" dot>Khẩn cấp</Badge>
         : row.severity === 'WARNING' ? <Badge variant="amber" dot>Cảnh báo</Badge> : <Badge variant="blue">Thông tin</Badge>,
     },
-    { key: 'category', title: 'PHÂN HỆ', render: (row) => <span className="font-semibold">{categoryLabels[row.category || ''] || row.category || 'Khác'}</span> },
+    { key: 'category', title: 'PHÂN HỆ', render: (row) => <Badge variant={row.category === 'SOS' ? 'red' : 'gray'}>{categoryLabels[row.category || ''] || row.category || 'Khác'}</Badge> },
     {
       key: 'title', title: 'NỘI DUNG', render: (row) => (
         <div className={row.isRead ? 'opacity-65' : ''}>
@@ -141,6 +141,18 @@ export const UnresolvedAlertsPage: React.FC = () => {
     {
       key: 'status', title: 'XỬ LÝ', render: (row) => (
         <Badge variant={row.status === 'IN_PROGRESS' ? 'amber' : 'gray'}>{row.status === 'IN_PROGRESS' ? 'Đang xử lý' : 'Đang mở'}</Badge>
+      ),
+    },
+    {
+      key: 'actions', title: 'THAO TÁC', align: 'right', render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
+          <button type="button" onClick={() => void openDetails(row)} title="Xem chi tiết và cập nhật trạng thái" className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900">
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => void openTarget(row)} title="Đi tới màn hình xử lý" className="rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 hover:bg-emerald-100">
+            <ExternalLink className="h-3.5 w-3.5" />
+          </button>
+        </div>
       ),
     },
   ];
@@ -176,7 +188,7 @@ export const UnresolvedAlertsPage: React.FC = () => {
         <StatCard label="Thông tin" value={alerts.filter((a) => a.severity === 'INFO').length} subValue="Nhắc nhở vận hành" icon={<Info className="h-5 w-5" />} iconBgColor="bg-sky-50" iconColor="text-sky-600" />
       </KPIGrid>
 
-      <DataTable title="Cảnh báo đang mở" subtitle="Sắp xếp: Chưa xem → Khẩn cấp/Cảnh báo/Thông tin → mới nhất" columns={columns} data={alerts} isLoading={loading} onRowClick={(row) => void openAlert(row)} />
+      <DataTable title="Cảnh báo đang mở" subtitle="Sắp xếp: Chưa xem → Cứu hộ SOS → Khẩn cấp/Cảnh báo/Thông tin → mới nhất" columns={columns} data={alerts} isLoading={loading} onRowClick={(row) => void openTarget(row)} />
 
       {selected && (
         <Modal isOpen onClose={closeModal} title={selected.title} subtitle={`${categoryLabels[selected.category || ''] || selected.category || 'Cảnh báo'} · ${selected.isRead ? 'Đã xem' : 'Chưa xem'}`} size="md">
@@ -190,6 +202,7 @@ export const UnresolvedAlertsPage: React.FC = () => {
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Nhập lý do/kết luận bắt buộc khi đóng hoặc bỏ qua..." className="w-full rounded-xl border border-slate-200 p-3" />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" onClick={closeModal}>Đóng cửa sổ</Button>
+              <Button variant="outline" size="sm" icon={<ExternalLink className="h-3.5 w-3.5" />} onClick={() => void openTarget(selected)}>Đi tới xử lý</Button>
               {selected.status !== 'IN_PROGRESS' && <Button variant="outline" size="sm" onClick={() => void changeStatus('IN_PROGRESS')}>Bắt đầu xử lý</Button>}
               <Button variant="outline" size="sm" onClick={() => void changeStatus('DISMISSED')} disabled={!reason.trim()}>Bỏ qua</Button>
               <Button variant="primary" size="sm" onClick={() => void changeStatus('RESOLVED')} disabled={!reason.trim()}>Hoàn tất xử lý</Button>
