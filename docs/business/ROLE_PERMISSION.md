@@ -21,3 +21,13 @@ Production has one public demonstration account for each of the three web person
 ### Gap
 
 Role authorization does not itself prove row-level unit isolation. Check `management-scope` utilities and the target service.
+
+### Role 3: mechanical and area manager (2026-09-23)
+
+**DOCUMENTED BEHAVIOR:** `FARM_MANAGER` has an explicit management-unit scope and manages drivers and vehicles only inside that scope. The vehicle-to-unit assignment page is reserved for system and all-KLH managers.
+
+**IMPLEMENTED BEHAVIOR:** The public `quanly.kounmom` sample account is scoped to the active `CG-KM-CGTC-DP` team, which has vehicles and assigned drivers in both local and production databases. Fleet, driver list/profile, and manager dashboard queries use that management-unit scope. Active vehicle-to-driver assignments are included in driver visibility because production currently has no `DriverManagementAssignment` rows. The vehicle-to-unit assignment navigation and API are blocked for `FARM_MANAGER`.
+
+**GAP:** Production driver management assignments have not yet been backfilled. The number of visible drivers can therefore differ between local and production even with the same team scope.
+
+**RECOMMENDED CHANGE:** Backfill driver management assignments only after validating each driver's owning team against the actual active vehicle assignments; keep the scoped vehicle-assignment fallback until then.
