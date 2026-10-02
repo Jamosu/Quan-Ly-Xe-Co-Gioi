@@ -14,11 +14,11 @@ const labels: Record<string, string> = {
 };
 
 export const statusLabel = (status: string) => labels[status] ?? status;
-export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+export const StatusBadge: React.FC<{ status: string; size?: 'sm' | 'md' }> = ({ status, size = 'sm' }) => {
   const variant = status.includes('COMPLETED') || status === 'CLOSED' || status === 'CONFIRMED' ? 'blue' :
     status.includes('REJECT') || status.includes('CANCEL') || status === 'OVERDUE' ? 'red' :
     ['WORKING', 'IN_PROGRESS', 'IN_TRANSIT', 'APPROVED', 'ACCEPTED'].includes(status) ? 'green' : 'amber';
-  return <Badge variant={variant}>{statusLabel(status)}</Badge>;
+  return <Badge variant={variant} size={size}>{statusLabel(status)}</Badge>;
 };
 
 export interface ViewOption<T extends string> {

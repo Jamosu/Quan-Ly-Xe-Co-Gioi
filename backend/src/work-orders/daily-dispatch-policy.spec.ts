@@ -5,8 +5,8 @@ describe('daily dispatch timing policy', () => {
   const at = (time: string) => new Date(`2026-09-17T${time}:00+07:00`);
 
   it('adds both working and break minutes without shifting for a late acceptance', () => {
-    expect(calculateScheduledEnd(at('07:00'), 480, 120)).toEqual(at('17:00'));
-    expect(classifyShiftAcceptance(at('07:00'), at('07:13'), 15)).toEqual({ status: DispatchAcceptStatus.WITHIN_GRACE, delayMinutes: 13 });
+    expect(calculateScheduledEnd(at('09:00'), 420, 60)).toEqual(at('17:00'));
+    expect(classifyShiftAcceptance(at('09:00'), at('09:12'), 15)).toEqual({ status: DispatchAcceptStatus.WITHIN_GRACE, delayMinutes: 12 });
   });
 
   it('classifies the shift acceptance boundary', () => {

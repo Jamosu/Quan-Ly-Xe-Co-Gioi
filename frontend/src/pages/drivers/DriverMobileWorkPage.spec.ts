@@ -25,8 +25,8 @@ describe('driver late-order warning', () => {
     expect(getDriverDelayInfo({ ...base, status: 'ASSIGNED', type: 'DISPATCH' } as OperationalWorkOrderRecord, now)).toMatchObject({ delayMinutes: 1_920, phase: 'WAITING_ACCEPTANCE' });
   });
 
-  it('changes the warning after the driver accepts and clears it after departure', () => {
-    expect(getDriverDelayInfo({ ...base, status: 'DRIVER_ACCEPTED', type: 'DISPATCH' } as OperationalWorkOrderRecord, now)).toMatchObject({ phase: 'WAITING_DEPARTURE' });
+  it('clears the warning as soon as the driver accepts', () => {
+    expect(getDriverDelayInfo({ ...base, status: 'DRIVER_ACCEPTED', type: 'DISPATCH' } as OperationalWorkOrderRecord, now)).toBeNull();
     expect(getDriverDelayInfo({ ...base, status: 'IN_PROGRESS', type: 'DISPATCH' } as OperationalWorkOrderRecord, now)).toBeNull();
   });
 

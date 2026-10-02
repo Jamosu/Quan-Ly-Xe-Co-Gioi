@@ -16,6 +16,7 @@ import { UpdateReturnCargoDto } from './dto/update-return-cargo.dto';
 import { UpdateTransportItemDto } from './dto/update-transport-item.dto';
 import { UpdateTransportOrderDto } from './dto/update-transport-order.dto';
 import { UpdateTransportTelemetryDto } from './dto/update-transport-telemetry.dto';
+import { ProxyProgressDto } from '../dispatch-orders/dto/proxy-progress.dto';
 import { TransportService } from './transport.service';
 
 @ApiTags('Transport & Logistics')
@@ -79,43 +80,47 @@ export class TransportController {
   assign(@Param('id', ParseIntPipe) id: number, @Body() dto: AssignTransportDto, @CurrentUser() actor?: OperationalActor) { return this.service.assign(id, dto, actor); }
 
   @Post(':id/driver-accept')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   driverAccept(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.driverAccept(id, actor); }
 
+  @Post(':id/proxy-progress')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  proxyProgress(@Param('id', ParseIntPipe) id: number, @Body() dto: ProxyProgressDto, @CurrentUser() actor?: OperationalActor) { return this.service.proxyProgress(id, dto, actor); }
+
   @Post(':id/at-pickup')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   atPickup(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.atPickup(id, actor); }
 
   @Post(':id/loading')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   loading(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.loading(id, actor); }
 
   @Post(':id/depart')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   depart(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.depart(id, actor); }
 
   @Post(':id/in-transit')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   inTransit(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.inTransit(id, actor); }
 
   @Post(':id/at-delivery')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   atDelivery(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.atDelivery(id, actor); }
 
   @Post(':id/unloading')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   unloading(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.unloading(id, actor); }
 
   @Post(':id/deliver')
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   deliver(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.deliver(id, actor); }
 
   @Post(':id/accept')
-  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   accept(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.accept(id, actor); }
 
   @Post(':id/complete')
-  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   complete(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.complete(id, actor); }
 
   @Patch(':id/return-cargo')

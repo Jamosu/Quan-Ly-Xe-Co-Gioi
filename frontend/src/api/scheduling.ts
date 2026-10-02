@@ -132,7 +132,7 @@ export interface OperationalWorkOrderRecord {
     isLate: true;
     delayMinutes: number;
     thresholdMinutes: number;
-    phase: 'WAITING_ACCEPTANCE' | 'WAITING_DEPARTURE';
+    phase: 'WAITING_ACCEPTANCE';
   } | null;
   workLocation?: OperationalLocation;
   requestedVehicleType?: { id: number; code: string; name: string };

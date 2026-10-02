@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, ClipboardCheck, Clock, Timer, Tractor, Truck, UserCheck, Wrench, AlertTriangle, Plus, Trash2, Fuel, Info } from 'lucide-react';
 import { Button } from '../common/Button';
@@ -77,6 +77,10 @@ export interface WorkflowActionPanelProps {
   taskName: string;
   vehicleCode?: string;
   driverName?: string;
+  receivedPhaseLabel?: string;
+  receivedPhaseDescription?: string;
+  progressActionLabel?: string;
+  progressStatusLabel?: string;
   implementName?: string;
   initialStartTime?: string;
   initialDurationHours?: number;
@@ -108,7 +112,9 @@ export interface WorkflowActionPanelProps {
     }>,
   ) => void | Promise<void>;
   onReceive?: () => void | Promise<void>;
+  onProgressAction?: () => void | Promise<void>;
   onComplete?: () => void | Promise<void>;
+  submitLabel?: string;
 }
 
 export const getVehicleFuelQuotaRate = (
@@ -287,6 +293,10 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
   taskName,
   vehicleCode,
   driverName,
+  receivedPhaseLabel,
+  receivedPhaseDescription,
+  progressActionLabel,
+  progressStatusLabel,
   implementName,
   initialStartTime,
   initialDurationHours = 8,
@@ -301,7 +311,9 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
   onVehicleScheduleChange,
   onApprove,
   onReceive,
+  onProgressAction,
   onComplete,
+  submitLabel,
 }) => {
   const [databaseVehicles, setDatabaseVehicles] = useState<DatabaseVehicle[]>([]);
   const [databaseDrivers, setDatabaseDrivers] = useState<DatabaseDriver[]>([]);
@@ -439,21 +451,43 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
     }
   }, [currentOrderId, step, vehicleCode, driverName, implementName, estimatedVehiclesCount, initialAssignedVehicles, initialStartTime, initialDurationHours, kind]);
 
-  // Lần mở đầu tải ngay; chỉ debounce các lần người dùng thay đổi khung giờ.
+  const scheduleStart = assignedTeam[0]?.startTime;
+  const scheduleDuration = assignedTeam[0]?.durationHours;
+  const scheduleVehicleCode = assignedTeam[0]?.vehicleCode;
+
+  const databaseVehiclesRef = useRef(databaseVehicles);
   useEffect(() => {
-    const scheduleStart = assignedTeam[0]?.startTime;
-    const scheduleDuration = assignedTeam[0]?.durationHours;
-    const scheduleVehicleCode = assignedTeam[0]?.vehicleCode;
-    const scheduleVehicleId = vehicles.find((item) => item.code === scheduleVehicleCode || item.plate === scheduleVehicleCode)?.id;
+    databaseVehiclesRef.current = databaseVehicles;
+  }, [databaseVehicles]);
+
+  const lastAvailabilityFetchKeyRef = useRef<string>('');
+
+  // Lần mở đầu tải ngay; chỉ debounce các lần người dùng thay đổi khung giờ hoặc phương tiện.
+  useEffect(() => {
     if (step !== 'PENDING' || !scheduleStart || !scheduleDuration || scheduleDuration <= 0) return;
+
+    const scheduleVehicleId = databaseVehiclesRef.current.find(
+      (item) => item.code === scheduleVehicleCode || item.plate === scheduleVehicleCode
+    )?.id;
+
+    const fetchKey = `${step}__${scheduleStart}__${scheduleDuration}__${scheduleVehicleCode || ''}__${scheduleVehicleId || ''}`;
+    if (lastAvailabilityFetchKeyRef.current === fetchKey && resourcesLoadedRef.current) {
+      return;
+    }
+
     if (firstAvailabilityLoadRef.current) {
       firstAvailabilityLoadRef.current = false;
+      lastAvailabilityFetchKeyRef.current = fetchKey;
       void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration, scheduleVehicleId);
       return;
     }
-    const timer = setTimeout(() => void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration, scheduleVehicleId), 250);
+
+    const timer = setTimeout(() => {
+      lastAvailabilityFetchKeyRef.current = fetchKey;
+      void fetchAvailabilityForSchedule(scheduleStart, scheduleDuration, scheduleVehicleId);
+    }, 250);
     return () => clearTimeout(timer);
-  }, [assignedTeam, step, vehicles, fetchAvailabilityForSchedule]);
+  }, [step, scheduleStart, scheduleDuration, scheduleVehicleCode, fetchAvailabilityForSchedule]);
 
   // Helper lấy danh sách toàn bộ các lệnh đang có (từ props, API và localStorage)
   const getAllOrdersList = useCallback(() => {
@@ -1054,7 +1088,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
             : step === 'APPROVED'
             ? '🚚 Bước 2/3: Đã phân công - Chờ nhận ca'
             : step === 'RECEIVED'
-            ? '⚡ Bước 3/3: Đang thi công ngoài hiện trường'
+            ? (receivedPhaseLabel || '✓ Tài xế đã nhận lệnh · Chờ đến điểm làm việc')
             : '✅ Đã hoàn thành & Nghiệm thu'}
         </span>
       </div>
@@ -1336,7 +1370,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
               <Button
                 size="sm"
                 disabled={
-                  loadingResources || fetchingAvailability || approving ||
+                  loadingResources || approving ||
                   assignedTeam.length === 0 ||
                   assignedTeam.some((m) => !m.vehicleCode || !m.driverName || !m.startTime || m.durationHours <= 0 || (getImplementRequirement(m.vehicleCode) === 'REQUIRED' && m.implementNames.length === 0) || selectedVehicleBlocked(m.vehicleCode, m.startTime, m.durationHours) || selectedDriverBlocked(m.driverName, m.startTime, m.durationHours) || selectedImplementsBlocked(m.implementNames, m.startTime, m.durationHours))
                 }
@@ -1344,7 +1378,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
                 className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-2xs cursor-pointer"
                 onClick={approve}
               >
-                {approving ? 'Đang phê duyệt...' : 'Phê duyệt & Phát hành lệnh'}
+                {approving ? 'Đang xử lý...' : submitLabel ?? 'Phê duyệt & Phát hành lệnh'}
               </Button>
             </div>
           </div>
@@ -1353,23 +1387,28 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
 
       {/* Các bước tiếp theo trong quy trình */}
       {step === 'APPROVED' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-          <div>
-            <p className="text-xs font-bold text-slate-800">
-              Lệnh đã được duyệt và chuyển thông báo đến ứng dụng di động của lái xe / thợ máy.
-            </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Tài xế bấm nút bên phải để xác nhận tiếp nhận lệnh điều xe vào ca.
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-blue-50/70 p-3.5 rounded-xl border border-blue-200">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                <Clock className="w-3 h-3" /> Đã phân công · Chờ xác nhận
+              </span>
+              <p className="text-xs font-bold text-slate-800">
+                {driverName ? `Tài xế/thợ máy: ${driverName}` : 'Đang chờ tài xế tiếp nhận'}
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-600">
+              Tài xế tiếp nhận trên ứng dụng di động. Quản lý / Điều độ viên có thể nhấn xác nhận thay tài xế nếu không dùng app hoặc mất sóng.
             </p>
           </div>
           {onReceive ? (
             <Button
-              size="md"
+              size="sm"
               icon={<UserCheck className="h-4 w-4" />}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs"
               onClick={onReceive}
             >
-              Tài xế xác nhận nhận việc
+              Xác nhận nhận việc thay tài xế
             </Button>
           ) : (
             <span className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-800">
@@ -1383,13 +1422,22 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
           <div>
             <p className="text-xs font-bold text-slate-800">
-              Phương tiện đang hoạt động trên lô thửa / tuyến đường theo kế hoạch.
+              {receivedPhaseLabel || 'Tài xế đã nhận lệnh · Chờ đến điểm làm việc'}
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Khi hoàn thành khối lượng ca, cán bộ kỹ thuật nông trường bấm nghiệm thu để đóng lệnh.
+              {receivedPhaseDescription || 'Tiến độ tiếp theo được cập nhật khi tài xế đến điểm làm việc và bắt đầu thực hiện.'}
             </p>
           </div>
-          {onComplete ? (
+          {onProgressAction ? (
+            <Button
+              size="md"
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs"
+              onClick={onProgressAction}
+            >
+              {progressActionLabel || 'Cập nhật bước tiếp theo'}
+            </Button>
+          ) : onComplete ? (
             <Button
               size="md"
               icon={<CheckCircle2 className="h-4 w-4" />}
@@ -1400,7 +1448,7 @@ export const WorkflowActionPanel: React.FC<WorkflowActionPanelProps> = ({
             </Button>
           ) : (
             <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-800">
-              Nghiệm thu tại hàng đợi sau khi tài xế hoàn tất ca
+              {progressStatusLabel || 'Cập nhật tiến độ trên ứng dụng tài xế'}
             </span>
           )}
         </div>

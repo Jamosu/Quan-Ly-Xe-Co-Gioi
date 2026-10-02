@@ -71,7 +71,7 @@ export class MobileDriverService {
       this.prisma.dispatchOrder.findMany({
         where: {
           driverId,
-          status: { in: [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE, DispatchStatus.WORKING, DispatchStatus.SHIFT_FINISHED, DispatchStatus.WAITING_REPORT, DispatchStatus.WAITING_REVIEW, DispatchStatus.RETURNING_TO_DEPOT] },
+          status: { in: [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE, DispatchStatus.WORKING, DispatchStatus.SHIFT_FINISHED, DispatchStatus.WAITING_REPORT, DispatchStatus.WAITING_REVIEW, DispatchStatus.RETURNING_TO_DEPOT, DispatchStatus.COMPLETED] },
         },
         include: {
           vehicle: true,
@@ -80,12 +80,16 @@ export class MobileDriverService {
             include: {
               executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 },
               dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 },
+              journeyLegs: { orderBy: { sequence: 'asc' } },
+              events: { include: { actor: { select: { id: true, fullName: true, role: true } } }, orderBy: { occurredAt: 'desc' }, take: 30 },
             },
           },
           workTask: {
             include: {
               executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 },
               dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 },
+              journeyLegs: { orderBy: { sequence: 'asc' } },
+              events: { include: { actor: { select: { id: true, fullName: true, role: true } } }, orderBy: { occurredAt: 'desc' }, take: 30 },
             },
           },
           dailyReport: { include: { submittedBy: { select: { id: true, fullName: true } } } },
@@ -246,6 +250,8 @@ export class MobileDriverService {
 
   async syncPull(driverId: number, since?: string) {
     const changedAfter = since && !Number.isNaN(new Date(since).getTime()) ? new Date(since) : undefined;
+    const historyDays = Math.max(1, Number(process.env.MOBILE_HISTORY_DAYS || 30));
+    const historyStart = new Date(Date.now() - historyDays * 86_400_000);
     const driver = await this.prisma.user.findUnique({
       where: { id: driverId },
       select: {
@@ -266,18 +272,42 @@ export class MobileDriverService {
       this.prisma.dispatchOrder.findMany({
         where: {
           driverId,
-          ...(changedAfter ? {
-            OR: [
-              { updatedAt: { gte: changedAfter } },
-              { dailyReport: { is: { updatedAt: { gte: changedAfter } } } },
-            ],
-          } : {}),
+          OR: [
+            // Always return all active orders currently assigned to the driver
+            {
+              status: {
+                in: [
+                  DispatchStatus.ASSIGNED,
+                  DispatchStatus.DRIVER_ACCEPTED,
+                  DispatchStatus.DEPARTED,
+                  DispatchStatus.AT_WORKSITE,
+                  DispatchStatus.WORKING,
+                  DispatchStatus.SHIFT_FINISHED,
+                  DispatchStatus.WAITING_REPORT,
+                  DispatchStatus.WAITING_REVIEW,
+                  DispatchStatus.RETURNING_TO_DEPOT,
+                ],
+              },
+            },
+            // For historical completed or cancelled orders, return delta if changedAfter is present
+            ...(changedAfter
+              ? [
+                  {
+                    status: { in: [DispatchStatus.COMPLETED, DispatchStatus.CANCELLED] },
+                    OR: [
+                      { updatedAt: { gte: changedAfter } },
+                      { dailyReport: { is: { updatedAt: { gte: changedAfter } } } },
+                    ],
+                  },
+                ]
+              : [{ status: { in: [DispatchStatus.COMPLETED, DispatchStatus.CANCELLED] }, departureTime: { gte: historyStart } }]),
+          ],
         },
         include: {
           vehicle: true,
           requester: { select: { id: true, fullName: true, phone: true } },
-          operationalWorkOrder: { include: { executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' } }, dailyProgress: { orderBy: { progressDate: 'desc' } } } },
-          workTask: { include: { executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' } }, dailyProgress: { orderBy: { progressDate: 'desc' } } } },
+          operationalWorkOrder: { include: { executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 }, dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 }, journeyLegs: { orderBy: { sequence: 'asc' } }, events: { include: { actor: { select: { id: true, fullName: true, role: true } } }, orderBy: { occurredAt: 'desc' }, take: 30 } } },
+          workTask: { include: { executionSegments: { where: { driverId }, include: { breaks: true, pauses: true }, orderBy: { startedAt: 'desc' }, take: 10 }, dailyProgress: { orderBy: { progressDate: 'desc' }, take: 30 }, journeyLegs: { orderBy: { sequence: 'asc' } }, events: { include: { actor: { select: { id: true, fullName: true, role: true } } }, orderBy: { occurredAt: 'desc' }, take: 30 } } },
           dailyReport: { include: { submittedBy: { select: { id: true, fullName: true } } } },
         },
         orderBy: { departureTime: 'asc' },
@@ -285,7 +315,32 @@ export class MobileDriverService {
       this.prisma.transportOrder.findMany({
         where: {
           driverId,
-          ...(since ? { updatedAt: { gte: new Date(since) } } : {}),
+          OR: [
+            {
+              status: {
+                in: [
+                  TransportStatus.ASSIGNED,
+                  TransportStatus.DRIVER_ACCEPTED,
+                  TransportStatus.AT_PICKUP,
+                  TransportStatus.LOADING,
+                  TransportStatus.DEPARTED,
+                  TransportStatus.IN_TRANSIT,
+                  TransportStatus.AT_DELIVERY,
+                  TransportStatus.UNLOADING,
+                  TransportStatus.RETURNING_TO_DEPOT,
+                  TransportStatus.AT_DEPOT,
+                ],
+              },
+            },
+            ...(since
+              ? [
+                  {
+                    status: { in: [TransportStatus.COMPLETED, TransportStatus.CANCELLED] },
+                    updatedAt: { gte: new Date(since) },
+                  },
+                ]
+              : [{ status: { in: [TransportStatus.COMPLETED, TransportStatus.CANCELLED] }, departureTime: { gte: historyStart } }]),
+          ],
         },
         include: {
           vehicle: true,
@@ -326,6 +381,16 @@ export class MobileDriverService {
     const kpi = await this.getMyKpi(driverId);
     const alerts = await this.getDriverAlerts(driverId);
 
+    const mappedDispatch = dispatchOrders.map((item) => ({ ...item, operationalWorkOrder: item.workTask ?? item.operationalWorkOrder }));
+    const activeOrderKeys = [
+      ...mappedDispatch
+        .filter((o) => !['COMPLETED', 'CANCELLED', 'CLOSED'].includes(o.status))
+        .map((o) => `DISPATCH:${o.id}`),
+      ...transportOrders
+        .filter((o) => !['COMPLETED', 'CANCELLED', 'DELIVERED'].includes(o.status))
+        .map((o) => `TRANSPORT:${o.id}`),
+    ];
+
     return {
       driver: driver
         ? {
@@ -333,12 +398,14 @@ export class MobileDriverService {
             klhName: 'KLH KOUN MOM',
           }
         : null,
-      dispatchOrders: dispatchOrders.map((item) => ({ ...item, operationalWorkOrder: item.workTask ?? item.operationalWorkOrder })),
+      dispatchOrders: mappedDispatch,
       transportOrders,
       feedTrips,
       vehicles,
       kpi,
       alerts,
+      activeOrderKeys,
+      isFullSync: !since,
       serverTime: new Date().toISOString(),
     };
   }

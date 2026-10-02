@@ -20,8 +20,35 @@ export class DashboardController {
   })
   @ApiQuery({ name: 'unit', enum: Unit, required: false })
   @ApiQuery({ name: 'complexCode', type: String, required: false })
-  async getOverview(@Query('unit') unit: Unit | undefined, @Query('complexCode') complexCode: string | undefined, @Query('managementUnitId') managementUnitId: string | undefined, @CurrentUser() actor: OperationalActor) {
-    return this.dashboardService.getExecutiveOverview(unit, complexCode, managementUnitId ? Number(managementUnitId) : undefined, actor);
+  @ApiQuery({ name: 'startDate', type: String, required: false })
+  @ApiQuery({ name: 'endDate', type: String, required: false })
+  @ApiQuery({ name: 'year', type: Number, required: false })
+  @ApiQuery({ name: 'weekNumber', type: Number, required: false })
+  @ApiQuery({ name: 'month', type: Number, required: false })
+  async getOverview(
+    @Query('unit') unit: Unit | undefined,
+    @Query('complexCode') complexCode: string | undefined,
+    @Query('managementUnitId') managementUnitId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Query('year') year: string | undefined,
+    @Query('weekNumber') weekNumber: string | undefined,
+    @Query('month') month: string | undefined,
+    @CurrentUser() actor: OperationalActor,
+  ) {
+    return this.dashboardService.getExecutiveOverview(
+      unit,
+      complexCode,
+      managementUnitId ? Number(managementUnitId) : undefined,
+      actor,
+      {
+        startDate,
+        endDate,
+        year: year ? Number(year) : undefined,
+        weekNumber: weekNumber ? Number(weekNumber) : undefined,
+        month: month ? Number(month) : undefined,
+      },
+    );
   }
 
   @Get('live-fleet')

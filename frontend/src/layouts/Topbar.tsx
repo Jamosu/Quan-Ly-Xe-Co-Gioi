@@ -128,9 +128,10 @@ export const Topbar: React.FC = () => {
     navigate('/login');
   };
 
-  const getRoleBadge = (role?: string) => {
+  const getRoleBadge = (role?: string, code?: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
+        if (code?.startsWith('QLTH-')) return { label: 'Nhân sự quản lý', color: 'bg-blue-100 text-blue-800' };
         return { label: 'Admin', color: 'bg-purple-100 text-purple-800' };
       case 'DISPATCHER':
         return { label: 'Người quản lý', color: 'bg-blue-100 text-blue-800' };
@@ -146,7 +147,7 @@ export const Topbar: React.FC = () => {
     }
   };
 
-  const roleInfo = getRoleBadge(currentUser?.role);
+  const roleInfo = getRoleBadge(currentUser?.role, currentUser?.code);
   const displayName = currentUser?.fullName || currentUser?.username || 'Người dùng';
   const displayEmail = currentUser?.email || `${currentUser?.username || 'user'}@thacoagri.com.vn`;
   const initials = displayName

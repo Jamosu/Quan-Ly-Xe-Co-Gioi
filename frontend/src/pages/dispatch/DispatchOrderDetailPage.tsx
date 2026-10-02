@@ -21,9 +21,9 @@ import {
   CheckSquare,
   Sparkles,
   CalendarClock,
-  PhoneCall,
   ShieldAlert,
   XCircle,
+  UserCheck,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { operationsApi } from '../../api/operations';
@@ -42,10 +42,35 @@ import {
 } from './DispatchOrdersPage';
 import { useAppStore } from '../../store/useAppStore';
 
+type ProxyProgressAction = 'ARRIVE_WORKSITE' | 'START_WORK' | 'COMPLETE_WORK' | 'ACCEPT_QUANTITY' | 'RETURN_TO_DEPOT' | 'ARRIVE_DEPOT';
+const PROXY_PROGRESS_BY_STATUS: Record<string, { action: ProxyProgressAction; label: string; nextStatus: string }> = {
+  // Lệnh cơ giới sản xuất (Nông nghiệp / Công trình)
+  DRIVER_ACCEPTED: { action: 'ARRIVE_WORKSITE', label: 'Ghi nhận đã đến điểm làm việc', nextStatus: 'AT_WORKSITE' },
+  DEPARTED: { action: 'ARRIVE_WORKSITE', label: 'Ghi nhận đã đến điểm làm việc', nextStatus: 'AT_WORKSITE' },
+  AT_WORKSITE: { action: 'START_WORK', label: 'Ghi nhận bắt đầu làm việc', nextStatus: 'WORKING' },
+  WORKING: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu khối lượng ca máy', nextStatus: 'ACCEPTED' },
+  DANG_THI_CONG: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu khối lượng ca máy', nextStatus: 'ACCEPTED' },
+  COMPLETED: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu khối lượng ca máy', nextStatus: 'ACCEPTED' },
+  WAITING_REVIEW: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu khối lượng ca máy', nextStatus: 'ACCEPTED' },
+  WAITING_REPORT: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu khối lượng ca máy', nextStatus: 'ACCEPTED' },
+  SHIFT_FINISHED: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu khối lượng ca máy', nextStatus: 'ACCEPTED' },
+  ACCEPTED: { action: 'RETURN_TO_DEPOT', label: 'Ghi nhận xe đang trở về bãi', nextStatus: 'RETURNING_TO_DEPOT' },
+  RETURNING_TO_DEPOT: { action: 'ARRIVE_DEPOT', label: 'Xác nhận xe đã về bãi & Đóng lệnh', nextStatus: 'CLOSED' },
+
+  // Lệnh vận chuyển nội bộ (Transport)
+  AT_PICKUP: { action: 'START_WORK', label: 'Ghi nhận bắt đầu bốc hàng & Vận chuyển', nextStatus: 'IN_TRANSIT' },
+  LOADING: { action: 'START_WORK', label: 'Ghi nhận hoàn tất bốc hàng & Xuất phát', nextStatus: 'IN_TRANSIT' },
+  IN_TRANSIT: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu giao nhận hàng hóa', nextStatus: 'ACCEPTED' },
+  AT_DELIVERY: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu giao nhận hàng hóa', nextStatus: 'ACCEPTED' },
+  UNLOADING: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu giao nhận hàng hóa', nextStatus: 'ACCEPTED' },
+  DELIVERED: { action: 'ACCEPT_QUANTITY', label: 'Nghiệm thu giao nhận hàng hóa', nextStatus: 'ACCEPTED' },
+};
+
 export const DispatchOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const currentUser = useAppStore((state) => state.currentUser);
 
   // Nhận order ban đầu từ router state (nếu có từ trang danh sách) để hiển thị 0ms latency
   const routerOrder = (location.state as any)?.order ?? null;
@@ -81,6 +106,9 @@ export const DispatchOrderDetailPage: React.FC = () => {
   const [actionSaving, setActionSaving] = useState(false);
   const [actionError, setActionError] = useState('');
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [proxyProgressOpen, setProxyProgressOpen] = useState(false);
+  const [proxyProgressReason, setProxyProgressReason] = useState('Tài xế báo qua điện thoại/bộ đàm; quản lý ghi nhận thay');
+  const [proxyActualQuantity, setProxyActualQuantity] = useState('');
 
   // Tải dữ liệu chi tiết của lệnh điều xe từ API
   const fetchOrder = useCallback(async (isSilent = false) => {
@@ -318,9 +346,9 @@ export const DispatchOrderDetailPage: React.FC = () => {
   // Tính trạng thái quy trình làm việc
   const workflowStep = useMemo((): DemoWorkflowStep => {
     if (!order?.status) return 'PENDING';
-    if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(order.status)) return 'COMPLETED';
-    if (['DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(order.status)) return 'RECEIVED';
-    if (['ASSIGNED', 'DA_NHAN'].includes(order.status)) return 'APPROVED';
+    if (['CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(order.status)) return 'COMPLETED';
+    if (['DRIVER_ACCEPTED', 'DEPARTED', 'AT_WORKSITE', 'WORKING', 'COMPLETED', 'ACCEPTED', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'DA_NHAN'].includes(order.status)) return 'RECEIVED';
+    if (['ASSIGNED', 'DA_DUYET'].includes(order.status)) return 'APPROVED';
     return 'PENDING';
   }, [order?.status]);
 
@@ -469,6 +497,103 @@ export const DispatchOrderDetailPage: React.FC = () => {
     }
   };
 
+  // Xử lý xác nhận nhận việc thay tài xế (dành cho Admin / Quản lý đội xe)
+  const [proxyAcceptOpen, setProxyAcceptOpen] = useState(false);
+  const [proxyAcceptReason, setProxyAcceptReason] = useState('Tài xế đã nhận lệnh trực tiếp/qua bộ đàm');
+
+  const handleOpenProxyAccept = () => {
+    if (!order) return;
+    setProxyAcceptReason('Tài xế đã nhận lệnh trực tiếp/qua bộ đàm');
+    setActionError('');
+    setProxyAcceptOpen(true);
+  };
+
+  const handleConfirmProxyAccept = async () => {
+    if (!order) return;
+    setActionSaving(true);
+    setActionError('');
+    try {
+      if (order.orderCategory === 'VAN_CHUYEN') {
+        const realId = order.id > 200_000 ? order.id - 200_000 : order.id;
+        await operationsApi.driverAcceptTransport(realId, { reason: proxyAcceptReason });
+      } else {
+        await operationsApi.driverAcceptDispatch(order.id, { reason: proxyAcceptReason });
+      }
+      updateOrderView({
+        status: 'DRIVER_ACCEPTED',
+      });
+      useAppStore.getState().setHeaderAlert({
+        type: 'success',
+        message: `Đã xác nhận nhận việc thay tài xế ${order.driver?.fullName || ''} cho lệnh ${order.code} thành công!`,
+      });
+      setProxyAcceptOpen(false);
+    } catch (err: any) {
+      console.error('Xác nhận nhận việc thay tài xế thất bại:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Không thể xác nhận nhận việc thay tài xế.';
+      setActionError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleOpenProxyProgressModal = (config?: { action: ProxyProgressAction; label: string; nextStatus: string }) => {
+    if (!order) return;
+    const targetConfig = config || PROXY_PROGRESS_BY_STATUS[order.status];
+    if (!targetConfig) return;
+    setProxyProgressReason('Tài xế báo qua điện thoại/bộ đàm; quản lý ghi nhận thay');
+    setProxyActualQuantity(order.workVolumeTarget ? String(order.workVolumeTarget) : '');
+    setActionError('');
+    setProxyProgressOpen(true);
+  };
+
+  const handleConfirmProxyProgress = async () => {
+    if (!order) return;
+    const config = PROXY_PROGRESS_BY_STATUS[order.status];
+    if (!config) return;
+    if (!proxyProgressReason.trim()) {
+      setActionError('Vui lòng nhập phương thức liên hệ hoặc lý do ghi nhận thay tài xế.');
+      return;
+    }
+    if (config.action === 'ACCEPT_QUANTITY' && proxyActualQuantity === '') {
+      setActionError('Vui lòng nhập khối lượng thực tế để nghiệm thu.');
+      return;
+    }
+    setActionSaving(true);
+    setActionError('');
+    try {
+      let updated: any;
+      if (order.orderCategory === 'VAN_CHUYEN') {
+        const realId = order.id > 200_000 ? order.id - 200_000 : order.id;
+        updated = await operationsApi.proxyProgressTransport(realId, {
+          action: config.action,
+          reason: proxyProgressReason.trim(),
+          ...(config.action === 'ACCEPT_QUANTITY' ? {
+            actualQuantity: proxyActualQuantity ? Number(proxyActualQuantity) : (order.workVolumeTarget ? Number(order.workVolumeTarget) : undefined),
+            unit: order.workVolumeUnit || 'Tấn',
+          } : {}),
+        });
+      } else {
+        updated = await operationsApi.proxyProgressDispatch(order.id, {
+          action: config.action,
+          reason: proxyProgressReason.trim(),
+          ...(config.action === 'ACCEPT_QUANTITY' ? {
+            actualQuantity: proxyActualQuantity ? Number(proxyActualQuantity) : (order.workVolumeTarget ? Number(order.workVolumeTarget) : undefined),
+            unit: order.workVolumeUnit || 'ha',
+          } : {}),
+        });
+      }
+      updateOrderView({ ...updated, status: config.nextStatus } as Partial<ExtendedDispatchOrder>);
+      setProxyProgressOpen(false);
+      useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã ${config.label.toLowerCase()} thay tài xế và cập nhật trạng thái!` });
+      await fetchOrder(true);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể ghi nhận tiến độ thay tài xế.';
+      setActionError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
   // Badge hiển thị danh mục lệnh
   const renderCategoryBadge = (cat?: ExtendedDispatchOrder['orderCategory']) => {
     switch (cat) {
@@ -512,11 +637,37 @@ export const DispatchOrderDetailPage: React.FC = () => {
     );
   }
 
-  // Xử lý quay về đúng danh sách lệnh trước đó
+  // Xử lý quay về đúng danh sách lệnh trước đó (giữ nguyên số trang và bộ lọc)
   const handleBack = () => {
-    const fromPath = (location.state as any)?.from;
+    const fromPath = (location.state as any)?.from || sessionStorage.getItem('dispatch_last_from_path');
+    const targetOrderId = id || order?.id;
+    const targetOrderCode = order?.code;
+
+    if (targetOrderId) sessionStorage.setItem('dispatch_last_order_id', String(targetOrderId));
+    if (targetOrderCode) sessionStorage.setItem('dispatch_last_order_code', String(targetOrderCode));
+
+    const navState = {
+      lastOrderId: targetOrderId,
+      lastOrderCode: targetOrderCode,
+    };
+
     if (fromPath && typeof fromPath === 'string') {
-      navigate(fromPath);
+      navigate(fromPath, { state: navState });
+      return;
+    }
+
+    let defaultPath = '/lenh-dieu-xe/danh-sach';
+    if (order?.orderCategory === 'CONG_TRINH') {
+      defaultPath = '/lenh-dieu-xe/lenh-cong-trinh';
+    } else if (order?.orderCategory === 'VAN_CHUYEN') {
+      defaultPath = '/lenh-dieu-xe/lenh-noi-bo';
+    } else if (order?.orderCategory === 'NONG_NGHIEP') {
+      defaultPath = '/lenh-dieu-xe/lenh-nong-nghiep';
+    }
+
+    const savedPage = sessionStorage.getItem(`dispatch_page_${defaultPath}`);
+    if (savedPage && Number(savedPage) > 1) {
+      navigate(`${defaultPath}?page=${savedPage}`, { state: navState });
       return;
     }
 
@@ -525,15 +676,7 @@ export const DispatchOrderDetailPage: React.FC = () => {
       return;
     }
 
-    if (order?.orderCategory === 'CONG_TRINH') {
-      navigate('/lenh-dieu-xe/lenh-cong-trinh');
-    } else if (order?.orderCategory === 'VAN_CHUYEN') {
-      navigate('/lenh-dieu-xe/lenh-noi-bo');
-    } else if (order?.orderCategory === 'NONG_NGHIEP') {
-      navigate('/lenh-dieu-xe/lenh-nong-nghiep');
-    } else {
-      navigate('/lenh-dieu-xe/danh-sach');
-    }
+    navigate(defaultPath, { state: navState });
   };
 
   if (error || !order) {
@@ -552,6 +695,98 @@ export const DispatchOrderDetailPage: React.FC = () => {
     ? Math.max(0.5, (new Date(order.plannedEndTime).getTime() - new Date(order.departureTime).getTime()) / 3_600_000)
     : 8;
   const createdBy = order.createdBy || order.requester;
+  const initialAssignedVehicles = order.vehicle?.code ? [order.vehicle.code] : [];
+  const isTransport = order.orderCategory === 'VAN_CHUYEN';
+  const isCompletedOrClosed = ['CLOSED', 'COMPLETED', 'HOAN_THANH'].includes(order.status);
+
+  // 1. Tạo lệnh: Luôn đạt (reached: true)
+
+  // 2. Tài xế nhận lệnh: Đạt khi đã nhận lệnh hoặc đã chuyển sang bất kỳ bước nào sau đó
+  const received = Boolean(order.driverAcceptedAt) || [
+    'DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'AT_WORKSITE', 'WORKING', 'DANG_THI_CONG',
+    'SHIFT_FINISHED', 'WAITING_REPORT', 'WAITING_REVIEW', 'COMPLETED', 'ACCEPTED',
+    'RETURNING_TO_DEPOT', 'CLOSED', 'HOAN_THANH',
+    'AT_PICKUP', 'LOADING', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED',
+  ].includes(order.status);
+
+  // 3. Đến điểm làm việc: Đạt khi đã đến điểm giao việc/bãi bốc hàng hoặc đã qua giai đoạn đó
+  const atWorksite = Boolean(order.actualDepartureTime) || [
+    'AT_WORKSITE', 'WORKING', 'DANG_THI_CONG', 'SHIFT_FINISHED', 'WAITING_REPORT',
+    'WAITING_REVIEW', 'COMPLETED', 'ACCEPTED', 'RETURNING_TO_DEPOT', 'CLOSED', 'HOAN_THANH',
+    'AT_PICKUP', 'LOADING', 'DEPARTED', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED',
+  ].includes(order.status);
+
+  // 4. Làm việc: Đạt khi máy/xe đang làm việc hoặc đã xong việc/vận chuyển
+  const working = Boolean(order.actualStartTime) || [
+    'WORKING', 'DANG_THI_CONG', 'SHIFT_FINISHED', 'WAITING_REPORT', 'WAITING_REVIEW',
+    'COMPLETED', 'ACCEPTED', 'RETURNING_TO_DEPOT', 'CLOSED', 'HOAN_THANH',
+    'LOADING', 'IN_TRANSIT', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED',
+  ].includes(order.status);
+
+  // 5. Nghiệm thu: Đạt khi đã nghiệm thu xong (hoặc vận chuyển/lệnh đã hoàn tất đóng)
+  const accepted = Boolean(order.acceptedAt) || [
+    'ACCEPTED', 'RETURNING_TO_DEPOT', 'CLOSED', 'HOAN_THANH',
+  ].includes(order.status) || (isTransport && isCompletedOrClosed);
+
+  // 6. Trở về bãi: Đạt khi đang hoặc đã trở về bãi tập kết / hoàn tất
+  const returning = ['RETURNING_TO_DEPOT', 'CLOSED', 'HOAN_THANH'].includes(order.status) || (isTransport && isCompletedOrClosed);
+
+  const proxyProgressConfig = PROXY_PROGRESS_BY_STATUS[order.status];
+  const canProxyAct = ['SUPER_ADMIN', 'DISPATCHER', 'FARM_MANAGER'].includes(currentUser?.role || '');
+  const canProxyProgress = canProxyAct;
+
+  // Xác định giai đoạn đang chờ thực hiện kế tiếp (0-indexed: 0=Tạo, 1=Nhận lệnh, 2=Đến nơi, 3=Làm việc, 4=Nghiệm thu, 5=Về bãi)
+  const currentActiveStageIndex = useMemo(() => {
+    if (order.status === 'CANCELLED') return -1;
+    if (!received) return 1; // 2. Tài xế nhận lệnh
+    if (!atWorksite) return 2; // 3. Đến điểm làm việc
+    if (!working) return 3; // 4. Làm việc
+    if (!accepted) return 4; // 5. Nghiệm thu
+    if (!returning || order.status === 'RETURNING_TO_DEPOT') return 5; // 6. Trở về bãi
+    return -1; // Tất cả 6 giai đoạn đều đã hoàn thành
+  }, [order.status, received, atWorksite, working, accepted, returning]);
+
+  const handleTriggerActiveStageAction = () => {
+    if (!order || !canProxyAct) return;
+    if (['ASSIGNED', 'CHO_PHAN_CONG'].includes(order.status)) {
+      handleOpenProxyAccept();
+    } else if (proxyProgressConfig) {
+      handleOpenProxyProgressModal(proxyProgressConfig);
+    }
+  };
+
+  const progressStages: Array<{ label: string; detail: string; reached: boolean }> = [
+    {
+      label: 'Tạo lệnh',
+      detail: order.createdAt ? formatDateTime(order.createdAt) : 'Đã tạo',
+      reached: true,
+    },
+    {
+      label: 'Tài xế nhận lệnh',
+      detail: order.driverAcceptedAt ? formatDateTime(order.driverAcceptedAt) : (received ? 'Đã nhận việc' : 'Chờ tài xế nhận'),
+      reached: received,
+    },
+    {
+      label: 'Đến điểm làm việc',
+      detail: atWorksite ? (order.actualDepartureTime ? formatDateTime(order.actualDepartureTime) : 'Đã đến vị trí') : 'Chưa đến vị trí',
+      reached: atWorksite,
+    },
+    {
+      label: 'Làm việc',
+      detail: working ? (order.actualStartTime ? formatDateTime(order.actualStartTime) : (accepted || returning ? 'Đã hoàn thành' : (isTransport && order.status === 'IN_TRANSIT' ? 'Đang vận chuyển' : 'Đang làm việc'))) : 'Chưa bắt đầu',
+      reached: working,
+    },
+    {
+      label: 'Nghiệm thu',
+      detail: accepted ? (order.acceptedAt ? formatDateTime(order.acceptedAt) : 'Đã nghiệm thu') : (['COMPLETED', 'WAITING_REVIEW', 'WAITING_REPORT', 'DELIVERED', 'SHIFT_FINISHED'].includes(order.status) ? 'Chờ nghiệm thu' : 'Chưa nghiệm thu'),
+      reached: accepted,
+    },
+    {
+      label: 'Trở về bãi',
+      detail: returning ? (order.status === 'RETURNING_TO_DEPOT' ? 'Đang trở về bãi' : 'Đã về bãi / Hoàn tất') : 'Chưa trở về',
+      reached: returning,
+    },
+  ];
 
   return (
     <div className="space-y-6 pb-20">
@@ -577,10 +812,10 @@ export const DispatchOrderDetailPage: React.FC = () => {
               </h1>
               {renderCategoryBadge(order.orderCategory)}
               <StatusBadge status={order.status} />
-              {order.isDelayed && (
+              {order.isDelayed && !order.driverAcceptedAt && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
                   <AlertTriangle className="h-3 w-3 text-red-600" />
-                  <span>Trễ hạn xuất phát</span>
+                  <span>Quá 15 phút chưa nhận lệnh</span>
                 </span>
               )}
             </div>
@@ -592,6 +827,31 @@ export const DispatchOrderDetailPage: React.FC = () => {
 
         {/* CÁC NÚT THAO TÁC NGHIỆP VỤ CHÍNH */}
         <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+
+          {['ASSIGNED', 'CHO_PHAN_CONG'].includes(order.status) && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<UserCheck className="h-4 w-4 text-blue-600" />}
+              onClick={handleOpenProxyAccept}
+              className="text-blue-700 border-blue-300 bg-blue-50/80 hover:bg-blue-100 font-bold shadow-xs"
+            >
+              Xác nhận nhận việc giùm tài xế
+            </Button>
+          )}
+
+          {canProxyAct && proxyProgressConfig && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Sparkles className="h-4 w-4 text-indigo-600" />}
+              onClick={() => handleOpenProxyProgressModal()}
+              className="text-indigo-800 border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 font-bold shadow-xs"
+              title="Quản lý thực hiện bước tiếp theo thay tài xế"
+            >
+              {proxyProgressConfig.label} (thay tài xế)
+            </Button>
+          )}
 
           {['PENDING_APPROVAL', 'APPROVED', 'ASSIGNED', 'CHO_DUYET', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN', 'DRAFT'].includes(order.status) && (
             <Button
@@ -683,84 +943,55 @@ export const DispatchOrderDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. THANH TIẾN TRÌNH THỰC THI LỆNH (MINI PIPELINE STEPPER) */}
-      <div className="bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-          {/* Bước 1 */}
-          <div className="flex items-center gap-2 p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-200 min-w-0">
-            <div className="h-5 w-5 rounded-full bg-emerald-600 text-white font-black text-[11px] flex items-center justify-center shrink-0">
-              ✓
-            </div>
-            <div className="truncate">
-              <span className="font-bold text-slate-900 block truncate">1. Nguồn lệnh</span>
-              <span className="text-[10px] text-slate-500 truncate block">{order.planCode ? `KH: ${order.planCode}` : 'Tạo trực tiếp'}</span>
-            </div>
-          </div>
+      {/* 2. THANH TIẾN TRÌNH THỰC THI LỆNH (6 GIAI ĐOẠN - CÓ THỂ BẤM THAY TÀI XẾ) */}
+      <div className="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-xs">
+          {progressStages.map((stage, index) => {
+            const isCurrentActive = index === currentActiveStageIndex;
+            const canClickToAdvance = canProxyAct && isCurrentActive && order.status !== 'CANCELLED';
 
-          {/* Bước 2 */}
-          <div className={`flex items-center gap-2 p-1.5 rounded-lg border min-w-0 ${
-            order.vehicle
-              ? 'bg-emerald-50/70 border-emerald-200'
-              : 'bg-amber-50 border-amber-300 ring-1 ring-amber-200'
-          }`}>
-            <div className={`h-5 w-5 rounded-full font-black text-[11px] flex items-center justify-center shrink-0 ${
-              order.vehicle
-                ? 'bg-emerald-600 text-white'
-                : 'bg-amber-500 text-white animate-pulse'
-            }`}>
-              {order.vehicle ? '✓' : '2'}
-            </div>
-            <div className="truncate">
-              <span className="font-bold text-slate-900 block truncate">2. Giao xe & Thợ lái</span>
-              <span className="text-[10px] text-slate-600 truncate block">
-                {order.vehicle?.code
-                  ? `Xe ${order.vehicle.code}`
-                  : 'Chờ điều phối'}
-              </span>
-            </div>
-          </div>
-
-          {/* Bước 3 */}
-          <div className={`flex items-center gap-2 p-1.5 rounded-lg border min-w-0 ${
-            ['DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status)
-              ? 'bg-emerald-50/70 border-emerald-200'
-              : 'bg-slate-50 border-slate-200 text-slate-500'
-          }`}>
-            <div className={`h-5 w-5 rounded-full font-black text-[11px] flex items-center justify-center shrink-0 ${
-              ['DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status)
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-200 text-slate-600'
-            }`}>
-              {['DRIVER_ACCEPTED', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status) ? '✓' : '3'}
-            </div>
-            <div className="truncate">
-              <span className="font-bold text-slate-900 block truncate">3. Tác nghiệp tại lô</span>
-              <span className="text-[10px] text-slate-500 truncate block">
-                {order.departureTime ? formatDateTime(order.departureTime) : 'Theo kế hoạch'}
-              </span>
-            </div>
-          </div>
-
-          {/* Bước 4 */}
-          <div className={`flex items-center gap-2 p-1.5 rounded-lg border min-w-0 ${
-            ['COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status)
-              ? 'bg-emerald-50/70 border-emerald-200'
-              : 'bg-slate-50 border-slate-200 text-slate-500'
-          }`}>
-            <div className={`h-5 w-5 rounded-full font-black text-[11px] flex items-center justify-center shrink-0 ${
-              ['COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status)
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-200 text-slate-600'
-            }`}>
-              {['COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status) ? '✓' : '4'}
-            </div>
-            <div className="truncate">
-              <span className="font-bold text-slate-900 block truncate">4. Nghiệm thu đóng ca</span>
-              <span className="text-[10px] text-slate-500 truncate block">
-                {['COMPLETED', 'CLOSED', 'ACCEPTED'].includes(order.status) ? 'Đã hoàn tất' : 'Chờ xong ca'}
-              </span>
-            </div>
-          </div>
+            return (
+              <div
+                key={stage.label}
+                onClick={canClickToAdvance ? handleTriggerActiveStageAction : undefined}
+                className={`flex min-w-0 flex-col rounded-lg border p-2 transition select-none ${
+                  stage.reached
+                    ? 'border-emerald-200 bg-emerald-50/70'
+                    : isCurrentActive
+                    ? 'border-indigo-400 bg-indigo-50/80 ring-2 ring-indigo-500/30 shadow-xs'
+                    : 'border-slate-200 bg-slate-50 text-slate-500'
+                } ${canClickToAdvance ? 'cursor-pointer hover:border-indigo-500 hover:bg-indigo-100/80 hover:shadow-sm' : ''}`}
+                title={canClickToAdvance ? `Bấm để thực hiện giai đoạn ${stage.label} thay tài xế` : undefined}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <div
+                    className={`h-6 w-6 rounded-full font-black text-[11px] flex items-center justify-center shrink-0 ${
+                      stage.reached
+                        ? 'bg-emerald-600 text-white'
+                        : isCurrentActive
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {stage.reached ? '✓' : index + 1}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`font-bold block truncate ${isCurrentActive ? 'text-indigo-950 font-black' : 'text-slate-900'}`}>
+                        {index + 1}. {stage.label}
+                      </span>
+                      {canClickToAdvance && (
+                        <span className="text-[9px] font-black text-indigo-700 bg-indigo-100 px-1 py-0.2 rounded shrink-0">
+                          Bấm thay
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 truncate block">{stage.detail}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -883,9 +1114,36 @@ export const DispatchOrderDetailPage: React.FC = () => {
           taskName={order.purpose}
           vehicleCode={order.vehicle?.code}
           driverName={order.driver?.fullName}
+          receivedPhaseLabel={order.status === 'RETURNING_TO_DEPOT'
+            ? '↩ Bước 6/6: Tài xế đang trở về bãi'
+            : order.status === 'ACCEPTED'
+              ? '✓ Bước 5/6: Đã nghiệm thu khối lượng'
+              : ['COMPLETED', 'WAITING_REVIEW', 'DELIVERED'].includes(order.status)
+                ? 'Bước 5/6: Chờ nghiệm thu khối lượng'
+              : ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'AT_DELIVERY', 'UNLOADING'].includes(order.status)
+                ? (isTransport ? '⚡ Bước 4/6: Đang vận chuyển hàng' : '⚡ Bước 4/6: Đang làm việc')
+                : ['AT_WORKSITE', 'AT_PICKUP', 'LOADING'].includes(order.status)
+                  ? (isTransport ? '📍 Bước 3/6: Đã đến điểm nhận hàng' : '📍 Bước 3/6: Đã đến điểm làm việc')
+                  : '✓ Bước 2/6: Tài xế đã nhận việc'}
+          receivedPhaseDescription={order.status === 'DRIVER_ACCEPTED'
+            ? (isTransport ? 'Tài xế đã tiếp nhận vận đơn; chuẩn bị di chuyển đến điểm bốc hàng.' : 'Chưa ghi nhận tài xế đến điểm làm việc hoặc bắt đầu thực hiện.')
+            : ['AT_WORKSITE', 'AT_PICKUP', 'LOADING'].includes(order.status)
+              ? (isTransport ? 'Xe đã đến điểm bốc hàng; có thể ghi nhận xuất phát vận chuyển.' : 'Tài xế đã báo đến đúng điểm làm việc; có thể ghi nhận bắt đầu thực hiện.')
+              : ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'AT_DELIVERY', 'UNLOADING'].includes(order.status)
+                ? (isTransport ? 'Hàng đang trên đường vận chuyển hoặc đã đến điểm giao; có thể ghi nhận nghiệm thu giao hàng.' : 'Tài xế đang thực hiện công việc; khi hoàn tất, nhập khối lượng để nghiệm thu.')
+                : ['COMPLETED', 'WAITING_REVIEW', 'DELIVERED'].includes(order.status)
+                  ? 'Công việc/chuyến hàng đã hoàn tất; quản lý nhập khối lượng thực tế để nghiệm thu.'
+                  : order.status === 'ACCEPTED'
+                    ? 'Khối lượng đã được nghiệm thu; ghi nhận tài xế bắt đầu trở về bãi.'
+                    : order.status === 'RETURNING_TO_DEPOT'
+                      ? 'Tài xế đang trên đường trở về bãi sau khi hoàn thành công việc.'
+                      : undefined}
+          progressActionLabel={canProxyAct && proxyProgressConfig ? `${proxyProgressConfig.label} (thay tài xế)` : undefined}
+          progressStatusLabel={order.status === 'RETURNING_TO_DEPOT' ? 'Đã ghi nhận bước 6/6' : undefined}
+          onProgressAction={canProxyAct && proxyProgressConfig ? () => handleOpenProxyProgressModal() : undefined}
           implementName={order.implement?.name}
           estimatedVehiclesCount={1}
-          initialAssignedVehicles={order.vehicle?.code ? [order.vehicle.code] : []}
+          initialAssignedVehicles={initialAssignedVehicles}
           currentOrderId={order.id}
           recommendationWorkOrderId={order.operationalWorkOrder?.id}
           initialStartTime={order.departureTime}
@@ -894,6 +1152,7 @@ export const DispatchOrderDetailPage: React.FC = () => {
           complexCode={(order as any).complexCode || (order as any).productionOrder?.plan?.complexCode || 'KOUN_MOM'}
           managementUnitId={(order as any).operationalWorkOrder?.managementUnitId}
           onVehicleScheduleChange={handleVehicleScheduleChange}
+          onReceive={canProxyAct ? handleOpenProxyAccept : undefined}
           onApprove={async (vehicle, driver, schedule, implement, team) => {
             try {
               const payload = {
@@ -949,6 +1208,34 @@ export const DispatchOrderDetailPage: React.FC = () => {
       </div>
 
       {/* ===================== MODAL: DỜI LỊCH LỆNH ĐIỀU XE ===================== */}
+      <Modal
+        isOpen={proxyProgressOpen}
+        onClose={() => { setProxyProgressOpen(false); setActionError(''); }}
+        title={`${proxyProgressConfig?.label || 'Ghi nhận tiến độ'}: ${order.code}`}
+        size="md"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sky-900">
+            Thao tác được lưu với tài khoản <b>{currentUser?.fullName}</b> và lý do ghi nhận thay tài xế.
+          </div>
+          {proxyProgressConfig?.action === 'ACCEPT_QUANTITY' && (
+            <label className="block">
+              <span className="mb-1 block font-bold text-slate-700">Khối lượng nghiệm thu thực tế ({order.workVolumeUnit || 'ha'}) *</span>
+              <input type="number" min="0" step="0.01" value={proxyActualQuantity} onChange={(event) => setProxyActualQuantity(event.target.value)} className="w-full rounded-xl border border-slate-300 p-2" />
+            </label>
+          )}
+          <label className="block">
+            <span className="mb-1 block font-bold text-slate-700">Phương thức liên hệ / lý do *</span>
+            <textarea rows={3} value={proxyProgressReason} onChange={(event) => setProxyProgressReason(event.target.value)} className="w-full rounded-xl border border-slate-300 p-2" />
+          </label>
+          {actionError && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700">{actionError}</p>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="outline" onClick={() => setProxyProgressOpen(false)}>Hủy</Button>
+            <Button onClick={() => void handleConfirmProxyProgress()} disabled={actionSaving}>{actionSaving ? 'Đang lưu...' : 'Xác nhận ghi nhận thay'}</Button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal
         isOpen={rescheduleOpen}
         onClose={() => { setRescheduleOpen(false); setActionError(''); }}
@@ -1308,6 +1595,195 @@ export const DispatchOrderDetailPage: React.FC = () => {
               In phiếu ngay
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ===================== MODAL: XÁC NHẬN NHẬN VIỆC THAY TÀI XẾ ===================== */}
+      <Modal
+        isOpen={proxyAcceptOpen}
+        onClose={() => { setProxyAcceptOpen(false); setActionError(''); }}
+        title={`Xác nhận tiếp nhận ca thay tài xế: ${order.code}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => setProxyAcceptOpen(false)} disabled={actionSaving}>
+              Đóng
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+              icon={<UserCheck className="h-4 w-4" />}
+              onClick={() => void handleConfirmProxyAccept()}
+              disabled={actionSaving}
+            >
+              {actionSaving ? 'Đang xác nhận...' : 'Xác nhận vào ca'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="rounded-xl bg-blue-50/70 border border-blue-200 p-3.5 text-blue-900 leading-relaxed">
+            <div className="font-bold flex items-center gap-1.5 mb-1 text-blue-800">
+              <UserCheck className="h-4 w-4 text-blue-600" />
+              <span>Xác nhận tiếp nhận lệnh thay lái xe / thợ máy</span>
+            </div>
+            Dành cho <b>Quản trị viên & Quản lý đội xe cơ giới</b> xác nhận thay khi tài xế đã tiếp nhận nhiệm vụ trực tiếp ngoài hiện trường nhưng không có kết nối 4G hoặc thiết bị di động. Lệnh sẽ chuyển sang trạng thái <b>Đã tiếp nhận</b>.
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-slate-700">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Mã lệnh:</span>
+              <span className="font-mono font-bold text-primary">{order.code}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Tài xế phân công:</span>
+              <span className="font-bold text-slate-900">{order.driver?.fullName || 'Chưa gán'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Phương tiện / Đầu máy:</span>
+              <span className="font-bold text-slate-900 font-mono">{order.vehicle?.code || 'Chưa gán'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Kế hoạch xuất phát:</span>
+              <span className="font-semibold text-slate-800">{formatDateTime(order.departureTime)}</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block font-bold text-slate-800">
+              Nguyên nhân xác nhận thay <span className="text-rose-600">*</span>
+            </label>
+            <select
+              value={proxyAcceptReason}
+              onChange={(e) => setProxyAcceptReason(e.target.value)}
+              className="w-full h-9 text-xs border border-slate-300 rounded-lg px-2.5 bg-white mb-2 focus:ring-1 focus:ring-primary focus:outline-none"
+            >
+              <option value="Tài xế đã nhận lệnh trực tiếp/qua bộ đàm">Tài xế đã nhận lệnh trực tiếp/qua bộ đàm</option>
+              <option value="Khu vực lô thửa mất sóng 4G/không có kết nối mạng">Khu vực lô thửa mất sóng 4G/không có kết nối mạng</option>
+              <option value="Điện thoại tài xế hết pin/hỏng thiết bị">Điện thoại tài xế hết pin/hỏng thiết bị</option>
+              <option value="Tài xế chưa cài app/không sử dụng smartphone">Tài xế chưa cài app/không sử dụng smartphone</option>
+              <option value="Khác (nhập chi tiết)">Khác (nhập chi tiết)</option>
+            </select>
+            {proxyAcceptReason.startsWith('Khác') && (
+              <input
+                type="text"
+                placeholder="Nhập lý do cụ thể..."
+                className="w-full h-8 text-xs border border-slate-300 rounded-lg px-2.5 mt-1"
+                onChange={(e) => setProxyAcceptReason(e.target.value)}
+              />
+            )}
+          </div>
+
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-medium">
+              {actionError}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ===================== MODAL: GHI NHẬN TIẾN ĐỘ THAY TÀI XẾ (6 GIAI ĐOẠN) ===================== */}
+      <Modal
+        isOpen={proxyProgressOpen}
+        onClose={() => { setProxyProgressOpen(false); setActionError(''); }}
+        title={`Ghi nhận tiến độ thay tài xế: ${proxyProgressConfig?.label || 'Chuyển bước'}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => setProxyProgressOpen(false)} disabled={actionSaving}>
+              Đóng
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+              icon={<UserCheck className="h-4 w-4" />}
+              onClick={() => void handleConfirmProxyProgress()}
+              disabled={actionSaving}
+            >
+              {actionSaving ? 'Đang ghi nhận...' : 'Xác nhận ghi nhận thay'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="rounded-xl bg-indigo-50/70 border border-indigo-200 p-3.5 text-indigo-900 leading-relaxed">
+            <div className="font-bold flex items-center gap-1.5 mb-1 text-indigo-800">
+              <Sparkles className="h-4 w-4 text-indigo-600" />
+              <span>Ghi nhận bước tiếp theo trong quy trình 6 giai đoạn</span>
+            </div>
+            Dành cho <b>Quản trị viên & Quản lý đội cơ giới</b> ghi nhận tiến độ thay lái xe/thợ máy khi tài xế báo qua bộ đàm, điện thoại hoặc khu vực không có sóng 4G. Lệnh sẽ chuyển sang trạng thái <b>{proxyProgressConfig?.nextStatus}</b>.
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-slate-700">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Mã lệnh:</span>
+              <span className="font-mono font-bold text-primary">{order.code}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Tài xế thực hiện:</span>
+              <span className="font-bold text-slate-900">{order.driver?.fullName || 'Chưa gán'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Phương tiện / Đầu máy:</span>
+              <span className="font-bold text-slate-900 font-mono">{order.vehicle?.code || 'Chưa gán'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Bước thực hiện:</span>
+              <span className="font-bold text-indigo-700">{proxyProgressConfig?.label}</span>
+            </div>
+          </div>
+
+          {proxyProgressConfig?.action === 'ACCEPT_QUANTITY' && (
+            <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-2">
+              <label className="block font-bold text-emerald-900">
+                Khối lượng thực tế hoàn thành ({order.workVolumeUnit || (order.orderCategory === 'VAN_CHUYEN' ? 'Tấn' : 'Ha')}) <span className="text-rose-600">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={proxyActualQuantity}
+                  onChange={(e) => setProxyActualQuantity(e.target.value)}
+                  placeholder={`Giao khoán: ${order.workVolumeTarget || 0}`}
+                  className="w-full h-9 text-xs border border-emerald-300 rounded-lg px-2.5 bg-white font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                />
+                <span className="text-xs font-bold text-emerald-800 shrink-0">{order.workVolumeUnit || (order.orderCategory === 'VAN_CHUYEN' ? 'Tấn' : 'Ha')}</span>
+              </div>
+              <p className="text-[11px] text-emerald-700">
+                Chỉ tiêu giao khoán: <b>{order.workVolumeTarget ?? 'Chưa đặt'} {order.workVolumeUnit || ''}</b>
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1.5 block font-bold text-slate-800">
+              Phương thức xác nhận / Lý do ghi nhận thay <span className="text-rose-600">*</span>
+            </label>
+            <select
+              value={proxyProgressReason}
+              onChange={(e) => setProxyProgressReason(e.target.value)}
+              className="w-full h-9 text-xs border border-slate-300 rounded-lg px-2.5 bg-white mb-2 focus:ring-1 focus:ring-primary focus:outline-none"
+            >
+              <option value="Tài xế báo qua điện thoại/bộ đàm; quản lý ghi nhận thay">Tài xế báo qua điện thoại/bộ đàm; quản lý ghi nhận thay</option>
+              <option value="Khu vực tác nghiệp mất sóng 4G/không có kết nối mạng">Khu vực tác nghiệp mất sóng 4G/không có kết nối mạng</option>
+              <option value="Điện thoại tài xế hết pin/sự cố thiết bị di động">Điện thoại tài xế hết pin/sự cố thiết bị di động</option>
+              <option value="Quản lý/Điều độ viên trực tiếp nghiệm thu và giám sát ngoài hiện trường">Quản lý/Điều độ viên trực tiếp nghiệm thu và giám sát ngoài hiện trường</option>
+              <option value="Khác (nhập chi tiết)">Khác (nhập chi tiết)</option>
+            </select>
+            {proxyProgressReason.startsWith('Khác') && (
+              <input
+                type="text"
+                placeholder="Nhập lý do cụ thể..."
+                className="w-full h-8 text-xs border border-slate-300 rounded-lg px-2.5 mt-1"
+                onChange={(e) => setProxyProgressReason(e.target.value)}
+              />
+            )}
+          </div>
+
+          {actionError && (
+            <div className="p-2.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-medium">
+              {actionError}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

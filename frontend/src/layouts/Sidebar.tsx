@@ -116,7 +116,7 @@ export const Sidebar: React.FC = () => {
         { label: 'Xe cơ giới', path: '/doi-xe/ho-so-xe' },
         { label: 'Thiết bị phụ trợ xe', path: '/doi-xe/thiet-bi' },
         { label: 'Máy phụ trợ & Khác', path: '/doi-xe/tai-san-khac' },
-        { label: 'Phân bổ xe đơn vị', path: '/doi-xe/phan-xe' },
+        ...(currentUser?.role === 'FARM_MANAGER' ? [] : [{ label: 'Phân bổ xe đơn vị', path: '/doi-xe/phan-xe' }]),
         { label: 'Thiết bị GPS & Cảm biến', path: '/doi-xe/gps-cam-bien' },
         { label: 'Lịch sử biến động xe', path: '/doi-xe/lich-su' },
         { label: 'Nhật ký cứu hộ SOS', path: '/doi-xe/quan-li-sos' },

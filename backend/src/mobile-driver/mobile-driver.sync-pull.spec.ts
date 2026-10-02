@@ -20,10 +20,15 @@ describe('MobileDriverService syncPull', () => {
     expect(dispatchOrder.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         driverId: 5,
-        OR: [
-          { updatedAt: { gte: new Date(since) } },
-          { dailyReport: { is: { updatedAt: { gte: new Date(since) } } } },
-        ],
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            status: { in: ['COMPLETED', 'CANCELLED'] },
+            OR: [
+              { updatedAt: { gte: new Date(since) } },
+              { dailyReport: { is: { updatedAt: { gte: new Date(since) } } } },
+            ],
+          }),
+        ]),
       }),
       include: expect.objectContaining({
         dailyReport: { include: { submittedBy: { select: { id: true, fullName: true } } } },

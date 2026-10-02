@@ -55,6 +55,7 @@ export class VehiclesController {
   }
 
   @Get('assignments')
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: 'Lấy danh sách xe rút gọn phục vụ phân bổ theo đơn vị' })
   async findAssignments(@Query() filter: VehicleFilterDto, @CurrentUser() actor: OperationalActor) {
     return this.vehiclesService.findAssignments(filter, actor);

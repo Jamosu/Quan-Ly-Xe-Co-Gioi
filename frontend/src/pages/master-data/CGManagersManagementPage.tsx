@@ -163,9 +163,9 @@ export const CGManagersManagementPage: React.FC = () => {
         catalogsApi.getCatalogs('REGION', 'CATALOG_REGION_DATA'),
         driverManagementApi.getUnits({ level: 'OWNER', status: 'ACTIVE' }),
         driverManagementApi.getUnits({ level: 'TEAM', status: 'ACTIVE' }),
-        schedulingApi.locations({ type: 'DEPOT' }),
-        driverManagementApi.getManagers({ includeHistory: true }),
-        apiService.getUsers({ role: 'FARM_MANAGER' }),
+        schedulingApi.locations({ type: 'DEPOT' }).catch(() => []),
+        driverManagementApi.getManagers({ includeHistory: true }).catch(() => []),
+        apiService.getUsers({ role: 'FARM_MANAGER' }).catch(() => []),
         apiService.getEmployees().catch(() => []),
       ]);
       const resolvedComplexes = Array.isArray(complexData) && complexData.length > 0 ? complexData : [];

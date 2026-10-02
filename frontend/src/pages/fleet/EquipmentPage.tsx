@@ -294,6 +294,7 @@ export const EquipmentPage: React.FC<EquipmentPageProps> = ({ assetScope = 'ALL'
   const categoryParam = searchParams.get('category');
   const [selectedCategory, setSelectedCategory] = useState(categoryParam || ALL);
   const globalKLH = useAppStore((state) => state.selectedKLH);
+  const isAreaManager = useAppStore((state) => state.currentUser?.role === 'FARM_MANAGER');
   const [selectedComplex, setSelectedComplex] = useState(globalKLH || ALL);
 
   useEffect(() => {
@@ -1670,7 +1671,7 @@ export const EquipmentPage: React.FC<EquipmentPageProps> = ({ assetScope = 'ALL'
 
 
       {/* ═══ ROW 1: TRẠNG THÁI VẬN HÀNH & GIÁM SÁT (6 THẺ ĐỒNG BỘ) ═══ */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isOtherAssets ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-3`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isOtherAssets ? 'lg:grid-cols-4' : isAreaManager ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3`}>
         {/* Row 1 - Card 1: Tất cả thiết bị & Nông cụ */}
         <button
           type="button"
@@ -1814,8 +1815,8 @@ export const EquipmentPage: React.FC<EquipmentPageProps> = ({ assetScope = 'ALL'
           </div>
         </button>
 
-        {!isOtherAssets && <>
         {/* Row 1 - Card 6: Thiếu đơn vị sử dụng */}
+        {!isOtherAssets && !isAreaManager && (
         <button
           type="button"
           onClick={() => navigate('/doi-xe/phan-xe')}
@@ -1835,7 +1836,7 @@ export const EquipmentPage: React.FC<EquipmentPageProps> = ({ assetScope = 'ALL'
             Thiết bị chờ phân bổ →
           </div>
         </button>
-        </>}
+        )}
       </div>
 
       {/* ═══ LĨNH VỰC PHỤ TRỢ ĐA NGÀNH: NÔNG NGHIỆP • CÔNG TRÌNH • VẬN CHUYỂN ═══ */}

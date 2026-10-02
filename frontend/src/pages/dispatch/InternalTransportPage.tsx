@@ -144,7 +144,33 @@ export const InternalTransportPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [orders, setOrders] = useState<TransportOrderRecord[]>([]);
   const [selected, setSelected] = useState<TransportOrderRecord | null>(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState<number>(() => {
+    const qPage = new URLSearchParams(location.search).get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) return Number(qPage);
+    const saved = sessionStorage.getItem(`dispatch_page_${location.pathname}`);
+    if (saved && !isNaN(Number(saved)) && Number(saved) > 0) return Number(saved);
+    return 1;
+  });
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setPage(newPage);
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(newPage));
+    const nextParams = new URLSearchParams(location.search);
+    if (newPage > 1) {
+      nextParams.set('page', String(newPage));
+    } else {
+      nextParams.delete('page');
+    }
+    const qStr = nextParams.toString();
+    navigate(qStr ? `?${qStr}` : location.pathname, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    const qPage = new URLSearchParams(location.search).get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) {
+      setPage(Number(qPage));
+    }
+  }, [location.search]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -274,10 +300,26 @@ export const InternalTransportPage: React.FC = () => {
       };
     }
 
+    const currentParams = new URLSearchParams(location.search);
+    if (page > 1) {
+      currentParams.set('page', String(page));
+    }
+    const fromPath = `${location.pathname}${currentParams.toString() ? `?${currentParams.toString()}` : ''}`;
+    const scrollPos = window.pageYOffset || document.documentElement.scrollTop || 0;
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(page));
+    sessionStorage.setItem('dispatch_last_order_id', String(targetId));
+    sessionStorage.setItem('dispatch_last_order_code', String(order.code));
+    sessionStorage.setItem('dispatch_scroll_pos', String(scrollPos));
+    sessionStorage.setItem('dispatch_last_from_path', fromPath);
+
     navigate(`/lenh-dieu-xe/chi-tiet/${targetId}`, {
       state: {
         order: targetOrder,
-        from: location.pathname + location.search,
+        from: fromPath,
+        page,
+        lastOrderId: targetId,
+        lastOrderCode: order.code,
+        scrollPos,
       },
     });
   };
@@ -633,6 +675,42 @@ export const InternalTransportPage: React.FC = () => {
     });
   }, [orders, search, selectedCargo, selectedVehicle, statusFilter, selectedStatus, weekFrom, weekTo, availableWeeks, selectedDate, selectedKLH, sortOrder]);
 
+  // Khi quay lại từ trang chi tiết: Giữ đúng trang hiện tại và làm nổi bật dòng vận đơn vừa thao tác (không tự động cuộn màn hình)
+  useEffect(() => {
+    if (loading) return;
+
+    const lastOrderId = sessionStorage.getItem('dispatch_last_order_id') || (location.state as any)?.lastOrderId;
+    const lastOrderCode = sessionStorage.getItem('dispatch_last_order_code') || (location.state as any)?.lastOrderCode;
+
+    if (!lastOrderId && !lastOrderCode) return;
+
+    let attempts = 0;
+    const maxAttempts = 15;
+    const interval = setInterval(() => {
+      attempts++;
+      const el = (lastOrderId ? document.getElementById(`datatable-row-${lastOrderId}`) : null)
+        || (lastOrderCode ? document.querySelector(`[data-order-code="${lastOrderCode}"]`) : null);
+
+      if (el) {
+        clearInterval(interval);
+        el.classList.add('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        setTimeout(() => {
+          el.classList.remove('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        }, 3500);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      }
+    }, 80);
+
+    return () => clearInterval(interval);
+  }, [loading, filteredOrders, page, location.state]);
+
   // Danh sách các chuyến đã hoàn tất
   const completedOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -802,30 +880,30 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'code',
       title: 'Mã lệnh & Phân loại',
-      width: '200px',
+      width: '118px',
       sortable: true,
       render: (row) => (
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1 flex-wrap">
             <button
               type="button"
               onClick={() => handleOpenTransportOrder(row)}
-              className="font-mono font-bold text-primary hover:underline block text-left text-xs cursor-pointer"
+              className="font-mono font-bold text-primary hover:underline block text-left text-[11px] cursor-pointer tracking-tight"
             >
               {row.code}
             </button>
           </div>
           {row.planCode && (
-            <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
+            <div className="text-[9px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1 py-0.2 rounded inline-flex items-center gap-0.5 truncate max-w-[110px]" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
               <span className="text-slate-500 font-medium">KH:</span>
-              <span className="font-bold">{row.planCode}</span>
+              <span className="font-bold truncate">{row.planCode}</span>
             </div>
           )}
-          <div className="flex items-center gap-1">
-            <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-bold text-blue-700">
-              <Truck className="h-3 w-3 text-blue-600" /> Vận chuyển nội bộ
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="inline-flex items-center gap-0.5 rounded bg-blue-50 border border-blue-200 px-1 py-0.5 text-[10px] font-bold text-blue-700">
+              <Truck className="h-2.5 w-2.5 text-blue-600 shrink-0" /> Vận chuyển
             </span>
-            <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+            <span className={`inline-block text-[9px] font-semibold px-1 py-0.2 rounded border ${
               row.routeType === 'TWO_WAY'
                 ? 'bg-purple-50 text-purple-700 border-purple-200'
                 : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -839,19 +917,19 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'departureTime',
       title: 'Thời gian thực hiện',
-      width: '155px',
+      width: '92px',
       sortable: true,
       render: (row) => {
         const dStr = row.executionDate || row.departureTime;
         const d = dStr ? new Date(dStr) : null;
         return (
-          <div className="text-xs">
-            <div className="font-bold text-slate-900 flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5 text-slate-400" />
-              {d && !isNaN(d.getTime()) ? d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+          <div className="text-xs space-y-0.5">
+            <div className="font-bold text-slate-800 flex items-center gap-1 text-[10.5px] whitespace-nowrap">
+              <Calendar className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+              {d && !isNaN(d.getTime()) ? d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '—'}
             </div>
-            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-              <Clock className="h-3 w-3 text-slate-400" />
+            <div className="text-[10px] text-slate-500 font-medium flex items-center gap-0.5 whitespace-nowrap">
+              <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
               {extractHourString(row.departureTime)}
               {row.plannedEndTime && ` ➔ ${extractHourString(row.plannedEndTime)}`}
             </div>
@@ -862,29 +940,31 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'purpose',
       title: 'Nhiệm vụ & Khối lượng',
-      width: '200px',
+      width: '125px',
       render: (row) => {
         const rowItems = Array.isArray(row.items) ? row.items : [];
         return (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <div className="flex items-center gap-1 flex-wrap">
-              <b className="font-bold text-slate-900 text-xs leading-snug">{row.cargoType || 'Vận chuyển hàng hóa nội bộ'}</b>
+              <b className="font-bold text-slate-900 text-xs leading-snug line-clamp-2" title={row.cargoType || 'Vận chuyển hàng hóa nội bộ'}>
+                {row.cargoType || 'Vận chuyển hàng hóa nội bộ'}
+              </b>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || 'KOUN_MOM'}</span>
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 flex-wrap">
+              <span className="font-medium text-slate-700 bg-slate-100 px-1 py-0.2 rounded text-[9.5px]">{row.unit || 'KOUN_MOM'}</span>
               {(row.tonnage || row.palletCount) && (
-                <span className="font-bold text-emerald-700">
+                <span className="font-bold text-emerald-700 whitespace-nowrap">
                   🎯 {row.tonnage || row.palletCount} {row.palletCount ? 'Pallet' : 'Tấn'}
                 </span>
               )}
             </div>
             {rowItems.length > 0 && (
-              <div className="text-[10.5px] text-slate-600 line-clamp-1" title={rowItems.map(i => `${i.cargoName} (${i.plannedQuantity} ${i.unitOfMeasure})`).join(', ')}>
-                📦 {rowItems[0]?.cargoName} ({rowItems[0]?.plannedQuantity} {rowItems[0]?.unitOfMeasure}) {rowItems.length > 1 ? `+${rowItems.length - 1} mục` : ''}
+              <div className="text-[9.5px] text-slate-600 truncate max-w-[115px]" title={rowItems.map(i => `${i.cargoName} (${i.plannedQuantity} ${i.unitOfMeasure})`).join(', ')}>
+                📦 {rowItems[0]?.cargoName} ({rowItems[0]?.plannedQuantity} {rowItems[0]?.unitOfMeasure}) {rowItems.length > 1 ? `+${rowItems.length - 1}` : ''}
               </div>
             )}
             {row.notes && (
-              <div className="text-[10.5px] text-slate-500 italic line-clamp-1" title={`Ghi chú: ${row.notes}`}>
+              <div className="text-[9.5px] text-slate-500 italic truncate max-w-[115px]" title={`Ghi chú: ${row.notes}`}>
                 📝 {row.notes}
               </div>
             )}
@@ -895,17 +975,19 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'vehicle',
       title: 'Phương tiện & Thiết bị',
-      width: '120px',
+      width: '88px',
       render: (row) => {
         const hasVehicle = Boolean(row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle);
         return (
-          <div className="text-xs space-y-0.5 max-w-[115px]">
-            <div className={`font-bold flex items-center gap-1.5 ${!hasVehicle ? 'text-red-700' : 'text-slate-900'}`}>
-              <Truck className={`h-3.5 w-3.5 shrink-0 ${!hasVehicle ? 'text-red-500' : 'text-slate-500'}`} />
-              <span className="truncate">{row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || 'Chưa gán xe'}</span>
+          <div className="text-xs space-y-0.5">
+            <div className={`font-bold flex items-center gap-1 truncate ${!hasVehicle ? 'text-red-700' : 'text-slate-900'}`}>
+              <Truck className={`h-3 w-3 shrink-0 ${!hasVehicle ? 'text-red-500' : 'text-slate-500'}`} />
+              <span className="truncate text-xs" title={row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || 'Chưa gán xe'}>
+                {row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle || 'Chưa gán xe'}
+              </span>
             </div>
             {(row.containerNumber || row.legacyTrailer || row.trailer?.code) && (
-              <div className="text-[10px] font-mono text-slate-700 truncate bg-amber-50 px-1 rounded border border-amber-200" title={row.containerNumber || row.legacyTrailer || row.trailer?.code}>
+              <div className="text-[9px] font-mono text-slate-700 truncate bg-amber-50 px-1 rounded border border-amber-200" title={row.containerNumber || row.legacyTrailer || row.trailer?.code}>
                 Moóc: {row.containerNumber || row.legacyTrailer || row.trailer?.code}
               </div>
             )}
@@ -916,19 +998,21 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'driver',
       title: 'Lái xe / Thợ máy',
-      width: '135px',
+      width: '88px',
       render: (row) => {
         const d1 = row.driver?.fullName || row.legacyDriver;
         const d2 = row.secondaryDriverName;
         return (
-          <div className="text-xs">
-            <div className={`font-bold flex items-center gap-1 ${!d1 ? 'text-red-700' : 'text-slate-800'}`}>
-              <User className={`h-3.5 w-3.5 shrink-0 ${!d1 ? 'text-red-500' : 'text-slate-400'}`} />
-              <span className="truncate">{d1 || 'Chưa gán tài xế'}</span>
+          <div className="text-xs space-y-0.5">
+            <div className={`font-bold flex items-center gap-1 truncate ${!d1 ? 'text-red-700' : 'text-slate-800'}`}>
+              <User className={`h-3 w-3 shrink-0 ${!d1 ? 'text-red-500' : 'text-slate-400'}`} />
+              <span className="truncate text-xs" title={d1 || 'Chưa gán tài xế'}>
+                {d1 || 'Chưa gán tài xế'}
+              </span>
             </div>
             {d2 && (
-              <div className="text-[10px] text-indigo-700 font-medium mt-0.5 flex items-center gap-1 truncate">
-                <Users className="h-3 w-3 text-indigo-500 shrink-0" />
+              <div className="text-[9.5px] text-indigo-700 font-medium flex items-center gap-1 truncate" title={`Phụ: ${d2}`}>
+                <Users className="h-2.5 w-2.5 text-indigo-500 shrink-0" />
                 <span className="truncate">Phụ: {d2}</span>
               </div>
             )}
@@ -939,17 +1023,17 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'route',
       title: 'Lộ trình / Vị trí',
-      width: '260px',
+      width: '105px',
       render: (row) => {
         const p1 = row.items[0]?.pickupLocation || row.origin || 'Kho vật tư trung tâm';
         const d1 = row.items[0]?.deliveryLocation || row.destination || 'Điểm giao hàng';
         return (
-          <div className="text-xs space-y-0.5 min-w-[200px]">
-            <div className="flex items-start gap-1 text-slate-600">
-              <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-              <span className="font-medium text-slate-700 leading-snug">{p1}</span>
+          <div className="text-xs space-y-0.5">
+            <div className="flex items-center gap-1 text-slate-600 truncate text-[10.5px]" title={p1}>
+              <MapPin className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+              <span className="truncate">{p1}</span>
             </div>
-            <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
+            <div className="text-xs font-bold text-slate-900 pl-3 leading-snug truncate" title={d1}>
               ➔ {d1}
             </div>
           </div>
@@ -959,28 +1043,28 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'status',
       title: 'Trạng thái',
-      width: '135px',
+      width: '92px',
       render: (row) => {
         const hasVehicle = Boolean(row.vehicle?.plate || row.vehicle?.code || row.legacyVehicle);
         const hasDriver = Boolean(row.driver?.fullName || row.legacyDriver);
         return (
-          <div className="space-y-1">
-            <StatusBadge status={row.status} />
+          <div className="space-y-0.5">
+            <StatusBadge status={row.status} size="sm" />
             {(!hasVehicle || !hasDriver) && ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(row.status) && (
-              <div className="flex flex-wrap gap-1">
-                {!hasVehicle && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu xe</span>}
-                {!hasDriver && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu tài xế</span>}
+              <div className="flex flex-wrap gap-0.5">
+                {!hasVehicle && <span className="rounded bg-red-50 px-1 py-0.2 text-[8.5px] font-bold text-red-700">Thiếu xe</span>}
+                {!hasDriver && <span className="rounded bg-red-50 px-1 py-0.2 text-[8.5px] font-bold text-red-700">Thiếu tài</span>}
               </div>
             )}
             {row.isRouteDeviated && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
-                <AlertTriangle className="h-3 w-3 shrink-0" /> Lệch tuyến
+              <span className="inline-flex items-center gap-0.5 text-[8.5px] font-bold text-red-700 bg-red-50 border border-red-200 px-1 py-0.2 rounded">
+                <AlertTriangle className="h-2.5 w-2.5 shrink-0" /> Lệch tuyến
               </span>
             )}
             {row.plannedFuelLiters && (
-              <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
-                <span>Định mức: <b>{row.plannedFuelLiters}L</b></span>
+              <div className="text-[9.5px] text-slate-500 font-medium flex items-center gap-0.5">
+                <Fuel className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                <span>ĐM: <b>{row.plannedFuelLiters}L</b></span>
               </div>
             )}
           </div>
@@ -990,7 +1074,7 @@ export const InternalTransportPage: React.FC = () => {
     {
       key: 'user',
       title: 'User',
-      width: '70px',
+      width: '42px',
       align: 'center',
       render: (row) => (
         <AuditUserPopover
@@ -1006,18 +1090,12 @@ export const InternalTransportPage: React.FC = () => {
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '140px',
+      width: '74px',
       render: (row) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => handleOpenTransportOrder(row)}
-            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 transition-colors border border-emerald-200"
-            title="Lệnh điều xe vận chuyển"
-          >
-            <Truck className="w-3.5 h-3.5" />
-          </button>
+        <div className="flex flex-col items-center justify-center gap-0.5 py-0.5" onClick={(e) => e.stopPropagation()}>
+          {/* Hàng 1: 3 tác vụ chính */}
           <TableRowActions
+            className="gap-0.5"
             onView={() => handleOpenTransportOrder(row)}
             onEdit={() => handleOpenTransportOrder(row)}
             onDelete={() => {
@@ -1026,6 +1104,17 @@ export const InternalTransportPage: React.FC = () => {
               }
             }}
           />
+          {/* Hàng 2: Tác vụ phụ */}
+          <div className="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleOpenTransportOrder(row)}
+              className="p-0.5 rounded text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
+              title="Lệnh điều xe vận chuyển"
+            >
+              <Truck className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       ),
     },
@@ -1846,10 +1935,11 @@ export const InternalTransportPage: React.FC = () => {
           onRowClick={handleOpenTransportOrder}
           controlledPage={page}
           totalItems={filteredOrders.length}
-          onPageChange={setPage}
+          onPageChange={handlePageChange}
           useGlobalFilters={false}
           showSearch={false}
           showExport={false}
+          compact={true}
         />
       ) : view === 'scheduler' ? (
         /* GIAO DIỆN SCHEDULER LỊCH CHẠY THEO XE VẬN CHUYỂN NỘI BỘ 24 TIẾNG */

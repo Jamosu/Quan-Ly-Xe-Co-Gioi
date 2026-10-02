@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, AreaChart, Area
@@ -8,7 +8,7 @@ import {
   Tractor, Truck, Wrench, AlertTriangle, Fuel, MapPin, Clock,
   CheckCircle2, Users, Search, ExternalLink, RefreshCw, Eye,
   ClipboardList, Activity, TrendingUp, ShieldAlert, BarChart3,
-  Radio, Wifi, WifiOff,
+  Radio, Wifi, WifiOff, Calendar, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Filter,
 } from 'lucide-react';
 import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
@@ -16,6 +16,14 @@ import { apiClient } from '../../api/client';
 import { useAppStore } from '../../store/useAppStore';
 import { navigateToAlert } from '../../utils/alertNavigation';
 import { driverManagementApi } from '../../api/driverManagementApi';
+import {
+  getWeeksOfYear,
+  getWeekNumber,
+  toDateKey,
+  formatDateStr,
+} from '../dispatch/ProductionPlanPage';
+
+export type DashboardTimeMode = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | 'ALL';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const VEHICLE_CATEGORY_LABELS: Record<string, string> = {
@@ -129,6 +137,9 @@ interface DashboardOrderRow {
   driverName: string; driverPhone: string; origin: string; destination: string;
   purpose: string; departureTime: string; plannedEndTime: string;
   status: string; statusLabel: string; statusClass: string;
+  rawDepartureTime?: string;
+  rawPlannedEndTime?: string;
+  rawCreatedAt?: string;
 }
 
 // ─── Stat Ring Component ──────────────────────────────────────────────────────
@@ -172,6 +183,265 @@ export const DashboardPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<DashboardOrderRow | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
 
+  // Time filtering state
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [timeMode, setTimeMode] = useState<DashboardTimeMode>(() => {
+    const param = searchParams.get('timeMode');
+    if (param && ['DAY', 'WEEK', 'MONTH', 'YEAR', 'ALL'].includes(param)) {
+      return param as DashboardTimeMode;
+    }
+    return 'WEEK';
+  });
+
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return searchParams.get('date') || toDateKey(new Date());
+  });
+
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const param = searchParams.get('year');
+    return param ? parseInt(param, 10) : new Date().getFullYear();
+  });
+
+  const [selectedWeek, setSelectedWeek] = useState<number>(() => {
+    const param = searchParams.get('week');
+    return param ? parseInt(param, 10) : getWeekNumber(new Date());
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    const param = searchParams.get('month');
+    return param ? parseInt(param, 10) : (new Date().getMonth() + 1);
+  });
+
+  const updateUrlParams = (
+    mode: DashboardTimeMode,
+    d: string,
+    y: number,
+    w: number,
+    m: number,
+  ) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('timeMode', mode);
+    if (mode === 'DAY') {
+      next.set('date', d);
+      next.delete('week');
+      next.delete('month');
+      next.delete('year');
+    } else if (mode === 'WEEK') {
+      next.set('year', String(y));
+      next.set('week', String(w));
+      next.delete('date');
+      next.delete('month');
+    } else if (mode === 'MONTH') {
+      next.set('year', String(y));
+      next.set('month', String(m));
+      next.delete('date');
+      next.delete('week');
+    } else if (mode === 'YEAR') {
+      next.set('year', String(y));
+      next.delete('date');
+      next.delete('week');
+      next.delete('month');
+    } else if (mode === 'ALL') {
+      next.delete('date');
+      next.delete('week');
+      next.delete('month');
+      next.delete('year');
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const activeRange = useMemo(() => {
+    const now = new Date();
+    const nowKey = toDateKey(now);
+
+    if (timeMode === 'DAY') {
+      const d = selectedDate ? new Date(`${selectedDate}T00:00:00`) : new Date();
+      const start = new Date(d);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(d);
+      end.setHours(23, 59, 59, 999);
+
+      const isToday = selectedDate === nowKey;
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const isYesterday = selectedDate === toDateKey(yesterday);
+      const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+      const dayName = dayNames[d.getDay()] || '';
+
+      return {
+        mode: 'DAY' as const,
+        start,
+        end,
+        startDateKey: selectedDate,
+        endDateKey: selectedDate,
+        label: isToday ? `Hôm nay · ${formatDateStr(d)}` : isYesterday ? `Hôm qua · ${formatDateStr(d)}` : `${dayName} · ${formatDateStr(d)}`,
+        subLabel: `00:00 – 23:59 ngày ${formatDateStr(d)}`,
+        isCurrent: isToday,
+      };
+    }
+
+    if (timeMode === 'WEEK') {
+      const jan4 = new Date(selectedYear, 0, 4);
+      const dayNr = (jan4.getDay() + 6) % 7;
+      const startMonday = new Date(jan4);
+      startMonday.setDate(jan4.getDate() - dayNr);
+      startMonday.setHours(0, 0, 0, 0);
+      const monday = new Date(startMonday);
+      monday.setDate(startMonday.getDate() + (selectedWeek - 1) * 7);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      const isCurrentWeek = selectedYear === now.getFullYear() && selectedWeek === getWeekNumber(now);
+      const isLastWeek = selectedYear === now.getFullYear() && selectedWeek === (getWeekNumber(now) - 1);
+
+      return {
+        mode: 'WEEK' as const,
+        start: monday,
+        end: sunday,
+        startDateKey: toDateKey(monday),
+        endDateKey: toDateKey(sunday),
+        label: `Tuần ${selectedWeek} / ${selectedYear}${isCurrentWeek ? ' (Tuần này)' : isLastWeek ? ' (Tuần trước)' : ''}`,
+        subLabel: `${formatDateStr(monday)} – ${formatDateStr(sunday)}`,
+        isCurrent: isCurrentWeek,
+      };
+    }
+
+    if (timeMode === 'MONTH') {
+      const start = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const end = new Date(selectedYear, selectedMonth - 1, lastDay, 23, 59, 59, 999);
+      const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === (now.getMonth() + 1);
+      const isLastMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth();
+
+      return {
+        mode: 'MONTH' as const,
+        start,
+        end,
+        startDateKey: toDateKey(start),
+        endDateKey: toDateKey(end),
+        label: `Tháng ${String(selectedMonth).padStart(2, '0')}/${selectedYear}${isCurrentMonth ? ' (Tháng này)' : isLastMonth ? ' (Tháng trước)' : ''}`,
+        subLabel: `01/${String(selectedMonth).padStart(2, '0')} – ${lastDay}/${String(selectedMonth).padStart(2, '0')}/${selectedYear}`,
+        isCurrent: isCurrentMonth,
+      };
+    }
+
+    if (timeMode === 'YEAR') {
+      const start = new Date(selectedYear, 0, 1, 0, 0, 0, 0);
+      const end = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
+      const isCurrentYear = selectedYear === now.getFullYear();
+
+      return {
+        mode: 'YEAR' as const,
+        start,
+        end,
+        startDateKey: `${selectedYear}-01-01`,
+        endDateKey: `${selectedYear}-12-31`,
+        label: `Năm ${selectedYear}${isCurrentYear ? ' (Năm nay)' : ''}`,
+        subLabel: `01/01/${selectedYear} – 31/12/${selectedYear}`,
+        isCurrent: isCurrentYear,
+      };
+    }
+
+    // ALL
+    return {
+      mode: 'ALL' as const,
+      start: null,
+      end: null,
+      startDateKey: undefined,
+      endDateKey: undefined,
+      label: 'Toàn bộ thời gian',
+      subLabel: 'Tích lũy lịch sử toàn hệ thống',
+      isCurrent: true,
+    };
+  }, [timeMode, selectedDate, selectedYear, selectedWeek, selectedMonth]);
+
+  const weekOptions = useMemo(() => getWeeksOfYear(selectedYear), [selectedYear]);
+
+  const handlePrevPeriod = () => {
+    if (timeMode === 'DAY') {
+      const d = new Date(`${selectedDate}T00:00:00`);
+      d.setDate(d.getDate() - 1);
+      const newD = toDateKey(d);
+      setSelectedDate(newD);
+      updateUrlParams('DAY', newD, selectedYear, selectedWeek, selectedMonth);
+    } else if (timeMode === 'WEEK') {
+      let nextW = selectedWeek - 1;
+      let nextY = selectedYear;
+      if (nextW < 1) {
+        nextW = 52;
+        nextY -= 1;
+      }
+      setSelectedWeek(nextW);
+      setSelectedYear(nextY);
+      updateUrlParams('WEEK', selectedDate, nextY, nextW, selectedMonth);
+    } else if (timeMode === 'MONTH') {
+      let nextM = selectedMonth - 1;
+      let nextY = selectedYear;
+      if (nextM < 1) {
+        nextM = 12;
+        nextY -= 1;
+      }
+      setSelectedMonth(nextM);
+      setSelectedYear(nextY);
+      updateUrlParams('MONTH', selectedDate, nextY, selectedWeek, nextM);
+    } else if (timeMode === 'YEAR') {
+      const nextY = selectedYear - 1;
+      setSelectedYear(nextY);
+      updateUrlParams('YEAR', selectedDate, nextY, selectedWeek, selectedMonth);
+    }
+  };
+
+  const handleNextPeriod = () => {
+    if (timeMode === 'DAY') {
+      const d = new Date(`${selectedDate}T00:00:00`);
+      d.setDate(d.getDate() + 1);
+      const newD = toDateKey(d);
+      setSelectedDate(newD);
+      updateUrlParams('DAY', newD, selectedYear, selectedWeek, selectedMonth);
+    } else if (timeMode === 'WEEK') {
+      let nextW = selectedWeek + 1;
+      let nextY = selectedYear;
+      if (nextW > 52) {
+        nextW = 1;
+        nextY += 1;
+      }
+      setSelectedWeek(nextW);
+      setSelectedYear(nextY);
+      updateUrlParams('WEEK', selectedDate, nextY, nextW, selectedMonth);
+    } else if (timeMode === 'MONTH') {
+      let nextM = selectedMonth + 1;
+      let nextY = selectedYear;
+      if (nextM > 12) {
+        nextM = 1;
+        nextY += 1;
+      }
+      setSelectedMonth(nextM);
+      setSelectedYear(nextY);
+      updateUrlParams('MONTH', selectedDate, nextY, selectedWeek, nextM);
+    } else if (timeMode === 'YEAR') {
+      const nextY = selectedYear + 1;
+      setSelectedYear(nextY);
+      updateUrlParams('YEAR', selectedDate, nextY, selectedWeek, selectedMonth);
+    }
+  };
+
+  const handleCurrentPeriod = () => {
+    const now = new Date();
+    const curDate = toDateKey(now);
+    const curYear = now.getFullYear();
+    const curWeek = getWeekNumber(now);
+    const curMonth = now.getMonth() + 1;
+
+    setSelectedDate(curDate);
+    setSelectedYear(curYear);
+    setSelectedWeek(curWeek);
+    setSelectedMonth(curMonth);
+
+    updateUrlParams(timeMode, curDate, curYear, curWeek, curMonth);
+  };
+
   // Data state
   const [overview, setOverview] = useState<any>(null);
   const [ordersList, setOrdersList] = useState<DashboardOrderRow[]>([]);
@@ -183,12 +453,65 @@ export const DashboardPage: React.FC = () => {
   const [managerScopeId, setManagerScopeId] = useState('');
   const [managerDashboard, setManagerDashboard] = useState<any>(null);
 
+  // Danh sách năm khả dụng: lấy năm 2025 làm mốc, tự động cộng tiếp theo thời gian thực và quét các năm có trong CSDL/dữ liệu thực tế
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>();
+    const BASE_YEAR = 2025;
+    const currentYear = new Date().getFullYear();
+
+    // Mốc cố định từ 2025 đến năm hiện tại
+    const maxHorizonYear = Math.max(BASE_YEAR, currentYear);
+    for (let y = BASE_YEAR; y <= maxHorizonYear; y++) {
+      yearsSet.add(y);
+    }
+
+    // Đảm bảo năm đang được chọn luôn có trong danh sách
+    if (selectedYear) {
+      yearsSet.add(selectedYear);
+    }
+
+    // Quét năm thực tế từ danh sách lệnh điều xe
+    ordersList.forEach((order) => {
+      const dates = [order.rawDepartureTime, order.rawPlannedEndTime, order.rawCreatedAt];
+      dates.forEach((d) => {
+        if (d) {
+          const yr = new Date(d).getFullYear();
+          if (!isNaN(yr) && yr >= 2020 && yr <= 2100) {
+            yearsSet.add(yr);
+          }
+        }
+      });
+    });
+
+    // Quét năm thực tế từ danh sách cảnh báo
+    alertsList.forEach((alert) => {
+      const d = alert.createdAt || alert.timestamp;
+      if (d) {
+        const yr = new Date(d).getFullYear();
+        if (!isNaN(yr) && yr >= 2020 && yr <= 2100) {
+          yearsSet.add(yr);
+        }
+      }
+    });
+
+    // Tạo dải năm liên tục từ năm nhỏ nhất đến năm lớn nhất
+    const allYears = Array.from(yearsSet);
+    const minYear = Math.min(...allYears);
+    const maxYear = Math.max(...allYears);
+    const result: number[] = [];
+    for (let y = minYear; y <= maxYear; y++) {
+      result.push(y);
+    }
+
+    return result.sort((a, b) => a - b);
+  }, [ordersList, alertsList, selectedYear]);
+
   useEffect(() => {
     if (currentUser?.role !== 'FARM_MANAGER') return;
     driverManagementApi.getScopes().then((items) => {
-      const unique = items.filter((item: any, index: number, all: any[]) => item.managementUnitId && all.findIndex((other) => other.managementUnitId === item.managementUnitId) === index);
+      const unique = items.filter((item: any, index: number, all: any[]) => all.findIndex((other) => other.complexCode === item.complexCode && other.managementUnitId === item.managementUnitId) === index);
       setManagerScopes(unique);
-      if (unique.length === 1) setManagerScopeId(String(unique[0].managementUnitId));
+      if (unique.length === 1 && unique[0].managementUnitId) setManagerScopeId(String(unique[0].managementUnitId));
     }).catch(() => setManagerScopes([]));
   }, [currentUser?.role]);
 
@@ -210,11 +533,27 @@ export const DashboardPage: React.FC = () => {
     try {
       const complexParam = selectedKLH !== 'ALL' ? selectedKLH : undefined;
       const managementUnitId = managerScopeId ? Number(managerScopeId) : undefined;
+
+      const timeParams: Record<string, any> = {};
+      if (timeMode !== 'ALL') {
+        if (timeMode === 'DAY') {
+          timeParams.startDate = activeRange.startDateKey;
+          timeParams.endDate = activeRange.endDateKey;
+        } else if (timeMode === 'WEEK') {
+          timeParams.year = selectedYear;
+          timeParams.weekNumber = selectedWeek;
+        } else if (timeMode === 'MONTH') {
+          timeParams.year = selectedYear;
+          timeParams.month = selectedMonth;
+        } else if (timeMode === 'YEAR') {
+          timeParams.year = selectedYear;
+        }
+      }
       const [overviewRes, liveFleetRes, ordersRes, alertsRes, driversRes] = await Promise.allSettled([
-        apiClient.get('/dashboard/overview', { params: { complexCode: complexParam, managementUnitId } }),
+        apiClient.get('/dashboard/overview', { params: { complexCode: complexParam, managementUnitId, ...timeParams } }),
         apiClient.get('/dashboard/live-fleet', { params: { complexCode: complexParam, managementUnitId } }),
-        apiClient.get('/dispatch-orders', { params: { limit: 100, complexCode: complexParam } }),
-        apiClient.get('/alerts', { params: { limit: 50, complexCode: complexParam } }),
+        apiClient.get('/dispatch-orders', { params: { limit: 200, complexCode: complexParam } }),
+        apiClient.get('/alerts', { params: { limit: 100, complexCode: complexParam } }),
         apiClient.get('/users', { params: { role: 'DRIVER' } }),
       ]);
 
@@ -277,6 +616,9 @@ export const DashboardPage: React.FC = () => {
               departureTime: o.departureTime ? new Date(o.departureTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : 'Chưa định giờ',
               plannedEndTime: o.plannedEndTime ? new Date(o.plannedEndTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—',
               status: o.status, statusLabel: stConfig.label, statusClass: stConfig.tagClass,
+              rawDepartureTime: o.departureTime,
+              rawPlannedEndTime: o.plannedEndTime,
+              rawCreatedAt: o.createdAt,
             };
           }));
         }
@@ -296,7 +638,7 @@ export const DashboardPage: React.FC = () => {
     } catch { /* handled via UI state */ } finally { setLoading(false); }
   };
 
-  useEffect(() => { void fetchDashboardData(); }, [selectedKLH, managerScopeId]);
+  useEffect(() => { void fetchDashboardData(); }, [selectedKLH, managerScopeId, timeMode, selectedDate, selectedYear, selectedWeek, selectedMonth]);
 
   useEffect(() => {
     const refresh = () => void fetchDashboardData();
@@ -340,20 +682,54 @@ export const DashboardPage: React.FC = () => {
       .slice(0, 10);
   }, [vehiclesList]);
 
+  // Derived period filtered data
+  const periodOrders = useMemo(() => {
+    if (timeMode === 'ALL' || !activeRange.start || !activeRange.end) return ordersList;
+    const startMs = activeRange.start.getTime();
+    const endMs = activeRange.end.getTime();
+
+    return ordersList.filter((order) => {
+      const depMs = order.rawDepartureTime ? new Date(order.rawDepartureTime).getTime() : NaN;
+      const endOrderMs = order.rawPlannedEndTime ? new Date(order.rawPlannedEndTime).getTime() : depMs;
+      const createdMs = order.rawCreatedAt ? new Date(order.rawCreatedAt).getTime() : NaN;
+
+      if (!isNaN(depMs)) {
+        const orderEnd = !isNaN(endOrderMs) ? endOrderMs : depMs;
+        return depMs <= endMs && orderEnd >= startMs;
+      }
+      if (!isNaN(createdMs)) {
+        return createdMs >= startMs && createdMs <= endMs;
+      }
+      return true;
+    });
+  }, [ordersList, timeMode, activeRange]);
+
+  const periodAlerts = useMemo(() => {
+    if (timeMode === 'ALL' || !activeRange.start || !activeRange.end) return alertsList;
+    const startMs = activeRange.start.getTime();
+    const endMs = activeRange.end.getTime();
+
+    return alertsList.filter((alert) => {
+      const alertTime = alert.createdAt ? new Date(alert.createdAt).getTime() : alert.timestamp ? new Date(alert.timestamp).getTime() : NaN;
+      if (isNaN(alertTime)) return true;
+      return alertTime >= startMs && alertTime <= endMs;
+    });
+  }, [alertsList, timeMode, activeRange]);
+
   // Donut: Order status groups
   const orderStatusDonut = useMemo(() => ORDER_GROUPS.map((g) => ({
-    name: g.label, value: ordersList.filter((o) => g.statuses.includes(o.status)).length, fill: g.color,
-  })).filter((d) => d.value > 0), [ordersList]);
+    name: g.label, value: periodOrders.filter((o) => g.statuses.includes(o.status)).length, fill: g.color,
+  })).filter((d) => d.value > 0), [periodOrders]);
 
   // Bar: Alert severity
   const alertSeverityBar = useMemo(() => {
     const count: Record<string, number> = {};
-    alertsList.forEach((a) => { const s = a.severity || 'INFO'; count[s] = (count[s] || 0) + 1; });
+    periodAlerts.forEach((a) => { const s = a.severity || 'INFO'; count[s] = (count[s] || 0) + 1; });
     return ALERT_SEVERITY_PALETTE.map((p) => ({ name: p.label, value: count[p.key] || 0, fill: p.color })).filter((d) => d.value > 0);
-  }, [alertsList]);
+  }, [periodAlerts]);
 
   // Filtered orders
-  const filteredOrders = useMemo(() => ordersList.filter((order) => {
+  const filteredOrders = useMemo(() => periodOrders.filter((order) => {
     if (activeTab === 'LNN' && order.orderType !== 'LNN') return false;
     if (activeTab === 'LXD' && order.orderType !== 'LXD') return false;
     if (activeTab === 'LVC' && order.orderType !== 'LVC') return false;
@@ -365,7 +741,7 @@ export const DashboardPage: React.FC = () => {
         || order.purpose.toLowerCase().includes(q);
     }
     return true;
-  }), [ordersList, activeTab, searchKeyword]);
+  }), [periodOrders, activeTab, searchKeyword]);
 
   // Derived GPS vehicles
   const vehiclesWithGps = useMemo(() => vehiclesList.filter((v) => Boolean(v.gpsImei && String(v.gpsImei).trim() !== '')), [vehiclesList]);
@@ -391,16 +767,17 @@ export const DashboardPage: React.FC = () => {
   }, [vehiclesList, gpsFilter, vehicleSearch]);
 
   const titleForKLH = selectedKLH === 'KOUN_MOM' ? 'KLH Koun Mom' : selectedKLH === 'SNOUL' ? 'KLH Snoul' : selectedKLH === 'NAM_LAO' ? 'KLH Nam Lào' : selectedKLH;
+  const hasComplexScope = managerScopes.some((scope) => !scope.managementUnitId);
 
   return (
     <div className="space-y-5 text-slate-800 antialiased pb-10 font-sans">
       {currentUser?.role === 'FARM_MANAGER' && (
         <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><h2 className="font-extrabold text-emerald-950">Dashboard Đội trưởng cơ giới</h2><p className="text-xs text-emerald-700">Mỗi lần xem và điều hành đúng một khu vực.</p></div>
+            <div><h2 className="font-extrabold text-emerald-950">Dashboard Đội trưởng cơ giới</h2><p className="text-xs text-emerald-700">{hasComplexScope ? 'Phạm vi quản lý toàn khu liên hợp.' : 'Mỗi lần xem và điều hành đúng một khu vực.'}</p></div>
             <select className="h-10 rounded-xl border border-emerald-300 bg-white px-3 text-sm font-bold" value={managerScopeId} onChange={(event) => setManagerScopeId(event.target.value)}>
-              <option value="">{managerScopes.length > 1 ? 'Chọn khu vực quản lý...' : 'Chưa có phạm vi quản lý'}</option>
-              {managerScopes.map((scope: any) => <option key={scope.managementUnitId} value={scope.managementUnitId}>{scope.managementUnit?.code} · {scope.managementUnit?.name}</option>)}
+              <option value="">{hasComplexScope ? `Toàn bộ ${titleForKLH}` : managerScopes.length > 1 ? 'Chọn khu vực quản lý...' : 'Chưa có phạm vi quản lý'}</option>
+              {managerScopes.filter((scope) => scope.managementUnitId).map((scope: any) => <option key={scope.managementUnitId} value={scope.managementUnitId}>{scope.managementUnit?.code} · {scope.managementUnit?.name}</option>)}
             </select>
           </div>
           {managerDashboard && <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5">{[
@@ -435,6 +812,295 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Time Filter Bar (Bộ lọc thời gian: Ngày / Tuần / Tháng / Năm / Tất cả) ───────── */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-xs">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5">
+          {/* Mode Selector Tabs */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mr-1 shrink-0">
+              <Calendar className="w-4 h-4 text-[#007A33]" />
+              <span>Thời gian:</span>
+            </div>
+            <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/70">
+              {(['DAY', 'WEEK', 'MONTH', 'YEAR', 'ALL'] as DashboardTimeMode[]).map((mode) => {
+                const modeLabels: Record<DashboardTimeMode, string> = {
+                  DAY: 'Ngày',
+                  WEEK: 'Tuần',
+                  MONTH: 'Tháng',
+                  YEAR: 'Năm',
+                  ALL: 'Tất cả',
+                };
+                const isActive = timeMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setTimeMode(mode);
+                      updateUrlParams(mode, selectedDate, selectedYear, selectedWeek, selectedMonth);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#007A33] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    {modeLabels[mode]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Contextual Period Controls */}
+          {timeMode !== 'ALL' ? (
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              {/* Prev Button */}
+              <button
+                type="button"
+                onClick={handlePrevPeriod}
+                title="Kỳ trước"
+                className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-colors cursor-pointer shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Mode-specific Pickers */}
+              {timeMode === 'DAY' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setSelectedDate(e.target.value);
+                        updateUrlParams('DAY', e.target.value, selectedYear, selectedWeek, selectedMonth);
+                      }
+                    }}
+                    className="h-9 px-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#007A33]/20 focus:border-[#007A33] transition-all cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nowKey = toDateKey(new Date());
+                      setSelectedDate(nowKey);
+                      updateUrlParams('DAY', nowKey, selectedYear, selectedWeek, selectedMonth);
+                    }}
+                    className={`h-9 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      selectedDate === toDateKey(new Date())
+                        ? 'bg-emerald-50 text-[#007A33] border-emerald-300'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const y = new Date();
+                      y.setDate(y.getDate() - 1);
+                      const yKey = toDateKey(y);
+                      setSelectedDate(yKey);
+                      updateUrlParams('DAY', yKey, selectedYear, selectedWeek, selectedMonth);
+                    }}
+                    className="h-9 px-2.5 rounded-xl text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    Hôm qua
+                  </button>
+                </div>
+              )}
+
+              {timeMode === 'WEEK' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      setSelectedYear(y);
+                      updateUrlParams('WEEK', selectedDate, y, selectedWeek, selectedMonth);
+                    }}
+                    className="h-9 px-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs focus:outline-none focus:border-[#007A33]"
+                  >
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>Năm {y}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedWeek}
+                    onChange={(e) => {
+                      const w = Number(e.target.value);
+                      setSelectedWeek(w);
+                      updateUrlParams('WEEK', selectedDate, selectedYear, w, selectedMonth);
+                    }}
+                    className="h-9 px-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer max-w-[280px] shadow-2xs focus:outline-none focus:border-[#007A33]"
+                  >
+                    {weekOptions.map((opt) => (
+                      <option key={opt.weekNumber} value={opt.weekNumber}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const w = getWeekNumber(new Date());
+                      const y = new Date().getFullYear();
+                      setSelectedWeek(w);
+                      setSelectedYear(y);
+                      updateUrlParams('WEEK', selectedDate, y, w, selectedMonth);
+                    }}
+                    className={`h-9 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      selectedWeek === getWeekNumber(new Date()) && selectedYear === new Date().getFullYear()
+                        ? 'bg-emerald-50 text-[#007A33] border-emerald-300'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Tuần này
+                  </button>
+                </div>
+              )}
+
+              {timeMode === 'MONTH' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      setSelectedYear(y);
+                      updateUrlParams('MONTH', selectedDate, y, selectedWeek, selectedMonth);
+                    }}
+                    className="h-9 px-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs focus:outline-none focus:border-[#007A33]"
+                  >
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>Năm {y}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      const m = Number(e.target.value);
+                      setSelectedMonth(m);
+                      updateUrlParams('MONTH', selectedDate, selectedYear, selectedWeek, m);
+                    }}
+                    className="h-9 px-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs focus:outline-none focus:border-[#007A33]"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <option key={m} value={m}>Tháng {m < 10 ? '0' + m : m}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const m = new Date().getMonth() + 1;
+                      const y = new Date().getFullYear();
+                      setSelectedMonth(m);
+                      setSelectedYear(y);
+                      updateUrlParams('MONTH', selectedDate, y, selectedWeek, m);
+                    }}
+                    className={`h-9 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      selectedMonth === (new Date().getMonth() + 1) && selectedYear === new Date().getFullYear()
+                        ? 'bg-emerald-50 text-[#007A33] border-emerald-300'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Tháng này
+                  </button>
+                </div>
+              )}
+
+              {timeMode === 'YEAR' && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      setSelectedYear(y);
+                      updateUrlParams('YEAR', selectedDate, y, selectedWeek, selectedMonth);
+                    }}
+                    className="h-9 px-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs focus:outline-none focus:border-[#007A33]"
+                  >
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>Năm {y}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const y = new Date().getFullYear();
+                      setSelectedYear(y);
+                      updateUrlParams('YEAR', selectedDate, y, selectedWeek, selectedMonth);
+                    }}
+                    className={`h-9 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      selectedYear === new Date().getFullYear()
+                        ? 'bg-emerald-50 text-[#007A33] border-emerald-300'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Năm nay
+                  </button>
+                </div>
+              )}
+
+              {/* Next Button */}
+              <button
+                type="button"
+                onClick={handleNextPeriod}
+                title="Kỳ sau"
+                className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-colors cursor-pointer shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              {/* Quick Snap Back to Current (if viewing past/future) */}
+              {!activeRange.isCurrent && (
+                <button
+                  type="button"
+                  onClick={handleCurrentPeriod}
+                  title="Quay lại thời gian hiện tại"
+                  className="h-9 px-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Về hiện tại</span>
+                </button>
+              )}
+
+              {/* Current Active Range Summary Badge */}
+              <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-slate-200">
+                <div className="text-right">
+                  <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 justify-end">
+                    <Calendar className="w-4 h-4 text-[#007A33]" />
+                    <span>{activeRange.label}</span>
+                  </div>
+                  <div className="text-[11px] font-medium text-slate-500">{activeRange.subLabel}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl">
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-medium">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Hiển thị toàn bộ lịch sử vận hành tích lũy</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeMode('WEEK');
+                  updateUrlParams('WEEK', selectedDate, new Date().getFullYear(), getWeekNumber(new Date()), selectedMonth);
+                }}
+                className="text-xs font-bold text-[#007A33] hover:underline cursor-pointer ml-2"
+              >
+                Về tuần này →
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── KPI Cards Row ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Tổng phương tiện */}
@@ -461,7 +1127,7 @@ export const DashboardPage: React.FC = () => {
               Đã lắp GPS: <b className="text-slate-800">{vehiclesWithGps.length}</b>
             </span>
             <span className="text-slate-400">
-              Chưa có GPS: <b className="text-amber-700">{vehiclesWithoutGps.length}</b>
+              Điều động trong kỳ: <b className="text-[#007A33]">{new Set(periodOrders.map((o) => o.plateNumber).filter((p) => p && p !== 'Chưa gán')).size} xe</b>
             </span>
           </div>
         </div>
@@ -473,16 +1139,16 @@ export const DashboardPage: React.FC = () => {
               <ClipboardList className="w-5 h-5 text-blue-600" />
             </div>
             <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-              {ordersList.length > 0
-                ? `${((ordersList.filter((o) => o.status === 'COMPLETED').length / ordersList.length) * 100).toFixed(0)}% hoàn thành`
+              {periodOrders.length > 0
+                ? `${((periodOrders.filter((o) => o.status === 'COMPLETED').length / periodOrders.length) * 100).toFixed(0)}% hoàn thành`
                 : '—'}
             </span>
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight mb-1">{ordersList.length}</div>
+          <div className="text-3xl font-black text-slate-900 tracking-tight mb-1">{periodOrders.length}</div>
           <div className="text-xs font-semibold text-slate-500 mb-0.5">Lệnh điều xe</div>
           <div className="text-[11px] text-slate-400 leading-snug">
-            <span className="text-[#007A33] font-bold">{ordersList.filter((o) => ['WORKING', 'DEPARTED', 'AT_WORKSITE'].includes(o.status)).length}</span> đang chạy ·{' '}
-            <span className="text-amber-600 font-bold">{ordersList.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(o.status)).length}</span> chờ xử lý
+            <span className="text-[#007A33] font-bold">{periodOrders.filter((o) => ['WORKING', 'DEPARTED', 'AT_WORKSITE', 'DRIVER_ACCEPTED'].includes(o.status)).length}</span> đang chạy ·{' '}
+            <span className="text-amber-600 font-bold">{periodOrders.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'ASSIGNED'].includes(o.status)).length}</span> chờ xử lý
           </div>
         </div>
 
@@ -493,7 +1159,7 @@ export const DashboardPage: React.FC = () => {
               <Users className="w-5 h-5 text-purple-600" />
             </div>
             <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-              {ordersList.filter((o) => ['WORKING', 'DEPARTED'].includes(o.status)).length} đang vận hành
+              {periodOrders.filter((o) => ['WORKING', 'DEPARTED', 'AT_WORKSITE', 'DRIVER_ACCEPTED'].includes(o.status)).length} đang vận hành
             </span>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight mb-1">{driversCount}</div>
@@ -502,22 +1168,65 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* KPI 4: Cảnh báo */}
-        <div className={`bg-white border rounded-2xl p-5 shadow-xs hover:shadow-md transition-all group ${alertsList.length > 0 ? 'border-rose-200/80' : 'border-slate-200/80'}`}>
+        <div className={`bg-white border rounded-2xl p-5 shadow-xs hover:shadow-md transition-all group ${periodAlerts.length > 0 ? 'border-rose-200/80' : 'border-slate-200/80'}`}>
           <div className="flex items-start justify-between mb-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${alertsList.length > 0 ? 'bg-rose-50 border border-rose-100 group-hover:bg-rose-100' : 'bg-emerald-50 border border-emerald-100 group-hover:bg-emerald-100'}`}>
-              <AlertTriangle className={`w-5 h-5 ${alertsList.length > 0 ? 'text-rose-600' : 'text-emerald-600'}`} />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${periodAlerts.length > 0 ? 'bg-rose-50 border border-rose-100 group-hover:bg-rose-100' : 'bg-emerald-50 border border-emerald-100 group-hover:bg-emerald-100'}`}>
+              <AlertTriangle className={`w-5 h-5 ${periodAlerts.length > 0 ? 'text-rose-600' : 'text-emerald-600'}`} />
             </div>
-            <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${alertsList.length > 0 ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
-              {alertsList.length > 0 ? `${alertsList.filter((a) => a.severity === 'CRITICAL' || a.severity === 'RED').length} nghiêm trọng` : 'An toàn'}
+            <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${periodAlerts.length > 0 ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
+              {periodAlerts.length > 0 ? `${periodAlerts.filter((a) => a.severity === 'CRITICAL' || a.severity === 'RED').length} nghiêm trọng` : 'An toàn'}
             </span>
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight mb-1">{alertsList.length}</div>
-          <div className="text-xs font-semibold text-slate-500 mb-0.5">Cảnh báo hệ thống</div>
+          <div className="text-3xl font-black text-slate-900 tracking-tight mb-1">{periodAlerts.length}</div>
+          <div className="text-xs font-semibold text-slate-500 mb-0.5">Cảnh báo trong kỳ</div>
           <div className="text-[11px] text-slate-400">
-            {alertsList.length > 0 ? 'Cần kiểm tra và xử lý' : 'Không có cảnh báo tồn đọng'}
+            {periodAlerts.length > 0 ? 'Cần kiểm tra và xử lý' : 'Không có cảnh báo tồn đọng'}
           </div>
         </div>
       </div>
+
+      {overview?.kpiCards?.agriculturalProgress && (overview.kpiCards.agriculturalProgress.totalPlans > 0 || overview.kpiCards.agriculturalProgress.targetAreaHa > 0) && (
+        <div className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-2xl p-4 sm:p-5 shadow-xs border border-emerald-800/40">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
+                <TrendingUp className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                  Tiến độ Kế hoạch Sản xuất Nông nghiệp trong kỳ
+                  <span className="text-[11px] font-semibold text-emerald-200 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
+                    {activeRange.label}
+                  </span>
+                </h3>
+                <p className="text-xs text-emerald-200/80 mt-0.5">
+                  Tổng hợp diện tích cơ giới hóa, làm đất và định mức nhiên liệu theo dữ liệu kế hoạch
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center shrink-0">
+              <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="text-[11px] text-emerald-200 font-medium">Kế hoạch</div>
+                <div className="text-base font-black text-white mt-0.5">
+                  {overview.kpiCards.agriculturalProgress.completedPlans} / {overview.kpiCards.agriculturalProgress.totalPlans}
+                </div>
+              </div>
+              <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="text-[11px] text-emerald-200 font-medium">Diện tích (Ha)</div>
+                <div className="text-base font-black text-emerald-400 mt-0.5">
+                  {Number(overview.kpiCards.agriculturalProgress.completedAreaHa || 0).toFixed(1)} / {Number(overview.kpiCards.agriculturalProgress.targetAreaHa || 0).toFixed(1)}
+                </div>
+              </div>
+              <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="text-[11px] text-emerald-200 font-medium">Tỷ lệ hoàn thành</div>
+                <div className="text-base font-black text-amber-300 mt-0.5">
+                  {overview.kpiCards.agriculturalProgress.progressPercent}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Charts Row 1: Fleet Donut + Order Donut + Alert Bar ─────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -583,7 +1292,7 @@ export const DashboardPage: React.FC = () => {
                 <TrendingUp className="w-4 h-4 text-blue-600" />
                 Trạng thái Lệnh điều xe
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Tổng {ordersList.length} lệnh trong hệ thống</p>
+              <p className="text-xs text-slate-500 mt-0.5">{periodOrders.length} lệnh trong kỳ ({activeRange.label})</p>
             </div>
             <NavLink to="/lenh-dieu-xe/danh-sach" className="text-xs font-bold text-[#007A33] hover:underline flex items-center gap-1">
               Chi tiết <ExternalLink className="w-3 h-3" />
@@ -612,7 +1321,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="flex-1 space-y-2.5">
                 {ORDER_GROUPS.map((g) => {
-                  const val = ordersList.filter((o) => g.statuses.includes(o.status)).length;
+                  const val = periodOrders.filter((o) => g.statuses.includes(o.status)).length;
                   if (val === 0) return null;
                   return (
                     <div key={g.key} className="flex items-center justify-between">
@@ -622,7 +1331,7 @@ export const DashboardPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${ordersList.length > 0 ? (val / ordersList.length) * 100 : 0}%`, backgroundColor: g.color }} />
+                          <div className="h-full rounded-full transition-all" style={{ width: `${periodOrders.length > 0 ? (val / periodOrders.length) * 100 : 0}%`, backgroundColor: g.color }} />
                         </div>
                         <span className="text-xs font-black text-slate-900 w-5 text-right">{val}</span>
                       </div>
@@ -642,14 +1351,14 @@ export const DashboardPage: React.FC = () => {
                 <ShieldAlert className="w-4 h-4 text-rose-600" />
                 Cảnh báo theo mức độ
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">{alertsList.length} cảnh báo từ hệ thống</p>
+              <p className="text-xs text-slate-500 mt-0.5">{periodAlerts.length} cảnh báo trong kỳ ({activeRange.label})</p>
             </div>
             <NavLink to="/canh-bao/chua-xu-ly" className="text-xs font-bold text-[#007A33] hover:underline flex items-center gap-1">
               Xem tất cả <ExternalLink className="w-3 h-3" />
             </NavLink>
           </div>
 
-          {alertsList.length === 0 ? (
+          {periodAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <CheckCircle2 className="w-8 h-8 text-emerald-400" />
               <p className="text-xs text-slate-500 font-semibold">Không có cảnh báo tồn đọng</p>
@@ -663,7 +1372,7 @@ export const DashboardPage: React.FC = () => {
                   <div className="flex-1 h-5 bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
                     <div
                       className="h-full rounded-lg flex items-center justify-end pr-2 transition-all"
-                      style={{ width: `${alertsList.length > 0 ? Math.max((b.value / alertsList.length) * 100, 12) : 0}%`, backgroundColor: b.fill }}
+                      style={{ width: `${periodAlerts.length > 0 ? Math.max((b.value / periodAlerts.length) * 100, 12) : 0}%`, backgroundColor: b.fill }}
                     >
                       <span className="text-[10px] font-black text-white">{b.value}</span>
                     </div>
@@ -671,7 +1380,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               ))}
               <div className="mt-3 divide-y divide-slate-100 max-h-[120px] overflow-y-auto">
-                {alertsList.slice(0, 3).map((alert, idx) => {
+                {periodAlerts.slice(0, 3).map((alert, idx) => {
                   const isCrit = alert.severity === 'CRITICAL' || alert.severity === 'RED';
                   return (
                     <div key={alert.id || idx} onClick={() => void openAlert(alert)} className="py-2 flex items-start gap-2 cursor-pointer hover:bg-slate-50">
@@ -891,18 +1600,18 @@ export const DashboardPage: React.FC = () => {
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600" /> Cảnh báo chưa xử lý
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">{alertsList.length} cảnh báo từ hệ thống</p>
+              <p className="text-xs text-slate-500 mt-0.5">{periodAlerts.length} cảnh báo trong kỳ ({activeRange.label})</p>
             </div>
             <NavLink to="/canh-bao/chua-xu-ly" className="text-xs font-bold text-[#007A33] hover:underline">Xem tất cả</NavLink>
           </div>
 
           <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[360px]">
-            {alertsList.length === 0 ? (
+            {periodAlerts.length === 0 ? (
               <div className="py-16 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-300" />
                 Không có cảnh báo nào
               </div>
-            ) : alertsList.slice(0, 6).map((alert, idx) => {
+            ) : periodAlerts.slice(0, 6).map((alert, idx) => {
               const isCrit = alert.severity === 'CRITICAL' || alert.severity === 'RED';
               const isWarn = alert.severity === 'WARNING' || alert.severity === 'AMBER';
               return (
@@ -935,7 +1644,7 @@ export const DashboardPage: React.FC = () => {
                 <span>📋</span> Danh sách Lệnh điều xe & Vận chuyển
               </h2>
               <span className="text-xs font-bold bg-emerald-50 text-[#007A33] border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                {ordersList.length} lệnh
+                {periodOrders.length} lệnh trong kỳ
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">Tiến độ ca làm việc, lộ trình và trạng thái vận hành</p>
@@ -943,11 +1652,11 @@ export const DashboardPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             {([
-              ['ALL', 'Tất cả', ordersList.length],
-              ['LNN', '🌾 Nông nghiệp', ordersList.filter((o) => o.orderType === 'LNN').length],
-              ['LXD', '🏗️ Xây dựng', ordersList.filter((o) => o.orderType === 'LXD').length],
-              ['LVC', '🚛 Vận chuyển', ordersList.filter((o) => o.orderType === 'LVC').length],
-              ['LDX', '🔧 Điều động', ordersList.filter((o) => o.orderType === 'LDX').length],
+              ['ALL', 'Tất cả', periodOrders.length],
+              ['LNN', '🌾 Nông nghiệp', periodOrders.filter((o) => o.orderType === 'LNN').length],
+              ['LXD', '🏗️ Xây dựng', periodOrders.filter((o) => o.orderType === 'LXD').length],
+              ['LVC', '🚛 Vận chuyển', periodOrders.filter((o) => o.orderType === 'LVC').length],
+              ['LDX', '🔧 Điều động', periodOrders.filter((o) => o.orderType === 'LDX').length],
             ] as [string, string, number][]).map(([tab, label, count]) => (
               <button
                 key={tab}

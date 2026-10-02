@@ -1,5 +1,6 @@
-import { DriverEmploymentStatus, DriverLicenseClass, DriverShiftStatus, ImplementRequirement, ImplementStatus, Role, TechnicalCondition, VehicleOperationalDomain, VehicleStatus } from '@prisma/client';
+import { DispatchStatus, DriverEmploymentStatus, DriverLicenseClass, DriverShiftStatus, ImplementRequirement, ImplementStatus, Role, TechnicalCondition, VehicleOperationalDomain, VehicleStatus } from '@prisma/client';
 import { DispatchOrdersService } from './dispatch-orders.service';
+import { ProxyDispatchProgressAction } from './dto/proxy-progress.dto';
 
 describe('DispatchOrdersService resource validation', () => {
   it('loads drivers and implements from the selected TEAM', async () => {
@@ -182,7 +183,7 @@ describe('DispatchOrdersService resource validation', () => {
 });
 
 describe('DispatchOrdersService operator attention summary', () => {
-  it('separates orders awaiting management action from assigned orders delayed at departure', async () => {
+  it('stops the 15-minute warning after the driver accepts the order', async () => {
     const prisma = {
       dispatchOrder: {
         findMany: jest.fn().mockResolvedValue([
@@ -200,10 +201,10 @@ describe('DispatchOrdersService operator attention summary', () => {
     expect(summary).toMatchObject({
       totalAttention: 2,
       pendingAction: 2,
-      totalOverdue: 3,
+      totalOverdue: 2,
       lateAwaitingAssignment: 1,
       lateAssigned: 1,
-      lateAccepted: 1,
+      lateAccepted: 0,
       awaitingApproval: 1,
       missingVehicle: 1,
       missingDriver: 2,
@@ -213,7 +214,51 @@ describe('DispatchOrdersService operator attention summary', () => {
       expect.objectContaining({ id: 3, attentionType: 'DEPARTURE_DELAY' }),
     ]));
     expect(prisma.dispatchOrder.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ actualDepartureTime: null }),
+      where: expect.objectContaining({ driverAcceptedAt: null }),
     }));
+  });
+});
+
+describe('DispatchOrdersService manager proxy progress', () => {
+  it('records accepted quantity in the daily report and audit transition', async () => {
+    const prisma = { operationalWorkOrder: { findUnique: jest.fn().mockResolvedValue({ completedQuantity: 0, targetQuantity: 25.5 }) } };
+    const workOrders = { submitDailyReport: jest.fn(), acceptDailyReport: jest.fn() };
+    const service = new DispatchOrdersService(prisma as never, workOrders as never);
+    jest.spyOn(service, 'findOne').mockResolvedValue({ id: 7, workOrderId: 17, status: DispatchStatus.COMPLETED } as never);
+
+    await service.proxyProgress(7, {
+      action: ProxyDispatchProgressAction.ACCEPT_QUANTITY,
+      reason: 'Tài xế báo qua bộ đàm',
+      actualQuantity: 25.5,
+      unit: 'ha',
+    }, { id: 1, role: Role.SUPER_ADMIN } as never);
+
+    expect(workOrders.submitDailyReport).toHaveBeenCalledWith(17, expect.objectContaining({ dispatchOrderId: 7, quantityToday: 25.5, unit: 'ha', workCompleted: true, managerReason: 'Tài xế báo qua bộ đàm' }), expect.objectContaining({ id: 1 }));
+    expect(workOrders.acceptDailyReport).toHaveBeenCalledWith(17, 7, { reason: 'Tài xế báo qua bộ đàm' }, expect.objectContaining({ id: 1 }), true);
+  });
+
+  it('completes active work before accepting manager-entered quantity', async () => {
+    const prisma = { operationalWorkOrder: { findUnique: jest.fn().mockResolvedValue({ completedQuantity: 8, targetQuantity: 20 }) } };
+    const workOrders = { submitDailyReport: jest.fn(), acceptDailyReport: jest.fn() };
+    const service = new DispatchOrdersService(prisma as never, workOrders as never);
+    jest.spyOn(service, 'findOne').mockResolvedValue({ id: 7, workOrderId: 17, status: DispatchStatus.WORKING } as never);
+
+    await service.proxyProgress(7, {
+      action: ProxyDispatchProgressAction.ACCEPT_QUANTITY,
+      reason: 'Quản lý xác nhận tại hiện trường',
+      actualQuantity: 12,
+      unit: 'ha',
+    }, { id: 1, role: Role.FARM_MANAGER } as never);
+
+    expect(workOrders.submitDailyReport).toHaveBeenCalledWith(17, expect.objectContaining({ quantityToday: 12, workCompleted: true }), expect.anything());
+    expect(workOrders.acceptDailyReport).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires an actual quantity for manager acceptance', async () => {
+    const service = new DispatchOrdersService({} as never);
+    await expect(service.proxyProgress(7, {
+      action: ProxyDispatchProgressAction.ACCEPT_QUANTITY,
+      reason: 'Tài xế báo qua điện thoại',
+    }, { id: 1, role: Role.SUPER_ADMIN } as never)).rejects.toThrow('khối lượng thực tế');
   });
 });

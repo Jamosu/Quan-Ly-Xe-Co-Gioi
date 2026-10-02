@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { friendlyApiError, loginDriver } from '../api';
+import { API_BASE_URL, friendlyApiError, loginDriver } from '../api';
 import { initialPull } from '../syncEngine';
 import { colors, shadow } from '../theme';
 import { useAppStore } from '../store';
@@ -85,11 +85,11 @@ export function LoginScreen() {
               <Text style={styles.sampleLabel}>Gợi ý tài khoản test nhanh:</Text>
               <View style={styles.chipRow}>
                 <TouchableOpacity
-                  style={[styles.chip, username === 'minh.nv' && styles.chipActive]}
-                  onPress={() => fillSample('minh.nv')}
+                  style={[styles.chip, (username === 'minh.nv' || username === 'km.tx001') && styles.chipActive]}
+                  onPress={() => fillSample('km.tx001')}
                 >
-                  <Text style={[styles.chipText, username === 'minh.nv' && styles.chipTextActive]}>
-                    minh.nv (Nguyễn Văn Minh)
+                  <Text style={[styles.chipText, (username === 'minh.nv' || username === 'km.tx001') && styles.chipTextActive]}>
+                    km.tx001 (Nguyễn Văn Minh)
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -190,6 +190,13 @@ export function LoginScreen() {
                 </>
               )}
             </TouchableOpacity>
+
+            {/* Server indicator */}
+            <View style={{ marginTop: 16, alignItems: 'center' }}>
+              <Text style={{ fontSize: 11, color: '#94A3B8' }}>
+                Máy chủ kết nối: <Text style={{ fontWeight: 'bold', color: '#64748B' }}>{API_BASE_URL}</Text>
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

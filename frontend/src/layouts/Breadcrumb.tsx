@@ -89,7 +89,16 @@ export const Breadcrumb: React.FC = () => {
 
       {pathSegments.map((segment, index) => {
         const path = `/${pathSegments.slice(0, index + 1).join('/')}`;
-        const targetPath = path === '/lenh-dieu-xe/chi-tiet' ? '/lenh-dieu-xe/danh-sach' : path;
+        let targetPath = path;
+        if (path === '/lenh-dieu-xe/chi-tiet' || (path === '/lenh-dieu-xe' && location.pathname.includes('/chi-tiet/'))) {
+          const lastFrom = sessionStorage.getItem('dispatch_last_from_path');
+          if (lastFrom) {
+            targetPath = lastFrom;
+          } else {
+            const saved = sessionStorage.getItem('dispatch_page_/lenh-dieu-xe/danh-sach');
+            targetPath = saved && Number(saved) > 1 ? `/lenh-dieu-xe/danh-sach?page=${saved}` : '/lenh-dieu-xe/danh-sach';
+          }
+        }
         const isLast = index === pathSegments.length - 1;
         const name = PATH_NAMES[segment] || segment;
 

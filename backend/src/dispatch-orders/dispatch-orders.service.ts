@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
-import { AlertCategory, AlertSeverity, DispatchSourceType, DispatchStatus, DriverEmploymentStatus, DriverKpiEventType, DriverShiftStatus, EquipmentUsageMode, ImplementRequirement, ImplementStatus, OperationalEntityType, PlanType, Prisma, Role, TechnicalCondition, TransportStatus, VehicleOperationalDomain, VehicleStatus, WorkAssignmentMode, WorkAssignmentStatus, WorkOrderCategory, WorkOrderStatus, WorkOrderType } from '@prisma/client';
+import { AlertCategory, AlertSeverity, AlertStatus, DispatchSourceType, DispatchStatus, DriverEmploymentStatus, DriverKpiEventType, DriverShiftStatus, EquipmentUsageMode, ImplementRequirement, ImplementStatus, OperationalEntityType, PlanType, Prisma, Role, TechnicalCondition, TransportStatus, VehicleOperationalDomain, VehicleStatus, WorkAssignmentMode, WorkAssignmentStatus, WorkOrderCategory, WorkOrderStatus, WorkOrderType } from '@prisma/client';
 import { assertOperationalAccess, OperationalActor, scopedUnit } from '../common/utils/operational-access';
 import { DISPATCH_DELAY_SCAN_INTERVAL_MS, DISPATCH_FIRST_DELAY_MINUTES, DISPATCH_REOPEN_TOTAL_MINUTES } from '../common/constants/dispatch-delay-policy';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +10,9 @@ import { DispatchFilterDto } from './dto/dispatch-filter.dto';
 import { UpdateDispatchOrderDto } from './dto/update-dispatch-order.dto';
 import { BatchRescheduleDispatchDto, RescheduleDispatchDto } from './dto/reschedule-dispatch.dto';
 import { RetroactiveCompleteDto } from './dto/retroactive-complete.dto';
+import { ProxyDispatchProgressAction, ProxyProgressDto } from './dto/proxy-progress.dto';
 import { WorkOrdersService } from '../work-orders/work-orders.service';
+import { JourneyAction } from '../work-orders/dto/work-order-actions.dto';
 import { AlertsService } from '../alerts/alerts.service';
 import { assertManagementUnitAccess, scopedManagementUnitIds } from '../common/utils/management-scope';
 import { isLiquidatedAssignedUnit, liquidatedVehicleWhere } from '../common/utils/vehicle-lifecycle';
@@ -77,11 +79,11 @@ const dispatchInclude = (now = new Date()) => ({
 const ACTIVE_DISPATCH = [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE, DispatchStatus.WORKING, DispatchStatus.RETURNING_TO_DEPOT];
 const ACTIVE_TRANSPORT = [TransportStatus.ASSIGNED, TransportStatus.DRIVER_ACCEPTED, TransportStatus.AT_PICKUP, TransportStatus.LOADING, TransportStatus.DEPARTED, TransportStatus.IN_TRANSIT, TransportStatus.AT_DELIVERY, TransportStatus.UNLOADING, TransportStatus.RETURNING_TO_DEPOT, TransportStatus.AT_DEPOT];
 const DISPATCH_MANAGEMENT_ATTENTION_STATUSES: DispatchStatus[] = [DispatchStatus.DRAFT, DispatchStatus.PENDING_APPROVAL, DispatchStatus.APPROVED];
-const DISPATCH_DEPARTURE_DELAY_STATUSES: DispatchStatus[] = [DispatchStatus.APPROVED, DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED];
+const DISPATCH_ACCEPTANCE_DELAY_STATUSES: DispatchStatus[] = [DispatchStatus.APPROVED, DispatchStatus.ASSIGNED];
 const DISPATCH_AWAITING_APPROVAL_STATUSES: DispatchStatus[] = [DispatchStatus.DRAFT, DispatchStatus.PENDING_APPROVAL];
 const DISPATCH_SUMMARY_STATUSES: DispatchStatus[] = Array.from(new Set([
   ...DISPATCH_MANAGEMENT_ATTENTION_STATUSES,
-  ...DISPATCH_DEPARTURE_DELAY_STATUSES,
+  ...DISPATCH_ACCEPTANCE_DELAY_STATUSES,
 ]));
 
 @Injectable()
@@ -95,11 +97,11 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    void this.checkDelayedOrders().catch((error) => {
+    void this.runDelayMaintenance().catch((error) => {
       console.error('[DispatchDelayWorker] Không thể quét lệnh trễ khi khởi động:', error);
     });
     this.delayScanTimer = setInterval(() => {
-      void this.checkDelayedOrders().catch((error) => {
+      void this.runDelayMaintenance().catch((error) => {
         console.error('[DispatchDelayWorker] Không thể quét lệnh trễ:', error);
       });
     }, DISPATCH_DELAY_SCAN_INTERVAL_MS);
@@ -110,11 +112,45 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
     if (this.delayScanTimer) clearInterval(this.delayScanTimer);
   }
 
+  private async runDelayMaintenance() {
+    await this.repairAcceptedDelayState();
+    return this.checkDelayedOrders();
+  }
+
+  /** Tự sửa dữ liệu cũ do worker từng tiếp tục tính trễ sau khi tài xế đã nhận lệnh. */
+  private async repairAcceptedDelayState() {
+    const staleOrders = await this.prisma.dispatchOrder.findMany({
+      where: { driverAcceptedAt: { not: null }, isDelayed: true },
+      select: { id: true },
+    });
+    if (!staleOrders.length) return 0;
+    const ids = staleOrders.map((order) => order.id);
+    const sourceIds = ids.map(String);
+    return this.prisma.$transaction(async (tx) => {
+      const repaired = await tx.dispatchOrder.updateMany({
+        where: { id: { in: ids }, driverAcceptedAt: { not: null }, isDelayed: true },
+        data: { isDelayed: false },
+      });
+      await tx.alertEvent.updateMany({
+        where: {
+          sourceType: 'DispatchOrder',
+          sourceId: { in: sourceIds },
+          category: AlertCategory.DISPATCH,
+          alertType: { in: ['DELAYED_DEPARTURE', 'DELAYED_ACCEPTANCE'] },
+          status: { in: [AlertStatus.OPEN, AlertStatus.IN_PROGRESS] },
+        },
+        data: { status: AlertStatus.RESOLVED, resolvedAt: new Date(), dedupeKey: null },
+      });
+      return repaired.count;
+    });
+  }
+
   private presentOrder(order: any) {
     const vehicleUnit = order.vehicle?.managementUnit;
     const driverUnit = order.driver?.driverProfile?.managementAssignments?.[0]?.managementUnit;
     return {
       ...order,
+      isDelayed: order.driverAcceptedAt ? false : order.isDelayed,
       cancellationReason: order.rejectionReason || order.operationalWorkOrder?.cancellationReason || undefined,
       createdBy: order.requester,
       vehicle: order.vehicle && {
@@ -207,7 +243,7 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
     const enriched = items.map((o) => ({
       ...this.presentOrder(o),
       needsAttention: !!o.departureTime && o.departureTime < now && !o.actualDepartureTime && DISPATCH_MANAGEMENT_ATTENTION_STATUSES.includes(o.status),
-      isOverdue: o.isDelayed || (!!o.departureTime && o.departureTime <= departureDelayThreshold && !o.actualDepartureTime && DISPATCH_DEPARTURE_DELAY_STATUSES.includes(o.status)),
+      isOverdue: !o.driverAcceptedAt && (o.isDelayed || (!!o.departureTime && o.departureTime <= departureDelayThreshold && DISPATCH_ACCEPTANCE_DELAY_STATUSES.includes(o.status))),
     }));
     return { items: enriched, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
@@ -481,18 +517,26 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
   private async transition(id: number, actor: OperationalActor | undefined, from: DispatchStatus[], to: DispatchStatus, reason?: string) {
     const order = await this.findOne(id, actor);
     if (!from.includes(order.status)) throw new BadRequestException(`Không thể chuyển lệnh từ ${order.status} sang ${to}.`);
-    if (to === DispatchStatus.DRIVER_ACCEPTED && actor && actor.id !== order.driverId) throw new BadRequestException('Chỉ tài xế được giao mới được xác nhận lệnh.');
+    const isProxyDriverAccept = to === DispatchStatus.DRIVER_ACCEPTED && !!actor && actor.id !== order.driverId;
+    if (isProxyDriverAccept) {
+      const isManager = ([Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER] as Role[]).includes(actor.role);
+      if (!isManager) throw new BadRequestException('Chỉ tài xế được giao hoặc Quản trị viên/Quản lý đội cơ giới mới được xác nhận lệnh.');
+    }
+    const proxyReason = isProxyDriverAccept
+      ? (reason || `Quản lý/Điều độ viên (${actor.role} #${actor.id}) xác nhận tiếp nhận lệnh thay tài xế`)
+      : reason;
     const now = new Date();
     const data: Prisma.DispatchOrderUpdateInput = { status: to };
     if (to === DispatchStatus.PENDING_APPROVAL) data.submittedAt = now;
     if (to === DispatchStatus.APPROVED && actor) { data.approvedAt = now; data.approvedBy = { connect: { id: actor.id } }; }
     if (to === DispatchStatus.REJECTED) data.rejectionReason = reason;
-    if (to === DispatchStatus.DRIVER_ACCEPTED) data.driverAcceptedAt = now;
+    if (to === DispatchStatus.DRIVER_ACCEPTED) { data.driverAcceptedAt = now; data.isDelayed = false; }
     if (to === DispatchStatus.DEPARTED) data.actualDepartureTime = now;
     if (to === DispatchStatus.WORKING) data.actualStartTime = now;
-    if (to === DispatchStatus.COMPLETED) { data.actualCompletedTime = now; data.returnTime = now; }
+    if (to === DispatchStatus.COMPLETED) data.actualCompletedTime = now;
     if (to === DispatchStatus.ACCEPTED && actor) { data.acceptedAt = now; data.acceptedBy = { connect: { id: actor.id } }; }
     if (to === DispatchStatus.CLOSED) data.closedAt = now;
+    if (to === DispatchStatus.CLOSED) data.returnTime = now;
     if (to === DispatchStatus.CANCELLED) {
       data.cancelledAt = now;
       if (reason) data.rejectionReason = reason;
@@ -500,12 +544,25 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
     const actorId = actor?.id ?? order.requesterId ?? 1;
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.dispatchOrder.update({ where: { id }, data });
+      if (to === DispatchStatus.DRIVER_ACCEPTED) {
+        await this.alerts?.resolveByDedupeKey(`DISPATCH:DELAYED:${id}`, tx);
+      }
       if (to === DispatchStatus.WORKING && order.vehicleId) await tx.vehicle.update({ where: { id: order.vehicleId }, data: { status: VehicleStatus.HOAT_DONG } });
       if (to === DispatchStatus.COMPLETED || to === DispatchStatus.CANCELLED) {
         if (order.vehicleId) await tx.vehicle.update({ where: { id: order.vehicleId }, data: { status: VehicleStatus.CHO_PHAN_CONG } });
         if (order.driverId) await tx.user.update({ where: { id: order.driverId }, data: { currentShiftStatus: DriverShiftStatus.SAN_SANG } });
       }
-      await tx.operationalAuditLog.create({ data: { entityType: OperationalEntityType.DISPATCH_ORDER, entityId: id, actorId, action: `${order.status}_TO_${to}`, oldValue: { status: order.status }, newValue: { status: to }, reason } });
+      await tx.operationalAuditLog.create({
+        data: {
+          entityType: OperationalEntityType.DISPATCH_ORDER,
+          entityId: id,
+          actorId,
+          action: isProxyDriverAccept ? `${order.status}_TO_${to}_PROXY` : `${order.status}_TO_${to}`,
+          oldValue: { status: order.status },
+          newValue: { status: to, proxyConfirmed: isProxyDriverAccept ? true : undefined },
+          reason: proxyReason,
+        },
+      });
       if (order.operationalWorkOrder) {
         const workStatus: Partial<Record<DispatchStatus, WorkOrderStatus>> = {
           PENDING_APPROVAL: WorkOrderStatus.PENDING_APPROVAL, APPROVED: WorkOrderStatus.APPROVED,
@@ -523,6 +580,23 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
               ...(to === DispatchStatus.CANCELLED ? { cancelledAt: now, cancellationReason: reason } : {}),
             },
           });
+          if (to === DispatchStatus.DRIVER_ACCEPTED) {
+            await tx.workDriverAssignment.updateMany({
+              where: { workOrderId: order.operationalWorkOrder.id, status: WorkAssignmentStatus.ASSIGNED },
+              data: { status: WorkAssignmentStatus.ACCEPTED, acceptedAt: now },
+            });
+            await tx.workOrderEvent.create({
+              data: {
+                workOrderId: order.operationalWorkOrder.id,
+                actorId,
+                action: isProxyDriverAccept ? 'PROXY_DRIVER_ACCEPT' : 'DRIVER_ACCEPT',
+                oldStatus: order.operationalWorkOrder.status,
+                newStatus: WorkOrderStatus.DRIVER_ACCEPTED,
+                reason: proxyReason,
+                occurredAt: now,
+              },
+            });
+          }
           if (to === DispatchStatus.CANCELLED) {
             await tx.workVehicleAssignment.updateMany({
               where: { workOrderId: order.operationalWorkOrder.id, status: { in: [WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED] } },
@@ -553,26 +627,93 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
   submit(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.DRAFT, DispatchStatus.REJECTED], DispatchStatus.PENDING_APPROVAL); }
   approve(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.PENDING_APPROVAL], DispatchStatus.APPROVED); }
   reject(id: number, actor: OperationalActor, reason?: string) { if (!reason) throw new BadRequestException('Từ chối lệnh phải có lý do.'); return this.transition(id, actor, [DispatchStatus.PENDING_APPROVAL], DispatchStatus.REJECTED, reason); }
-  driverAccept(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.ASSIGNED], DispatchStatus.DRIVER_ACCEPTED); }
+  driverAccept(id: number, actor?: OperationalActor, reason?: string) { return this.transition(id, actor, [DispatchStatus.ASSIGNED], DispatchStatus.DRIVER_ACCEPTED, reason); }
   depart(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.DRIVER_ACCEPTED], DispatchStatus.DEPARTED); }
-  start(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.DEPARTED], DispatchStatus.WORKING); }
+  start(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE], DispatchStatus.WORKING); }
   complete(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.WORKING], DispatchStatus.COMPLETED); }
   accept(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.COMPLETED], DispatchStatus.ACCEPTED); }
   close(id: number, actor: OperationalActor) { return this.transition(id, actor, [DispatchStatus.ACCEPTED], DispatchStatus.CLOSED); }
+
+  async proxyProgress(id: number, dto: ProxyProgressDto, actor: OperationalActor) {
+    if (!dto.reason?.trim()) throw new BadRequestException('Ghi nhận thay tài xế phải có lý do hoặc phương thức liên hệ.');
+    if (dto.action === ProxyDispatchProgressAction.ACCEPT_QUANTITY && dto.actualQuantity === undefined) {
+      throw new BadRequestException('Nghiệm thu thay tài xế phải nhập khối lượng thực tế.');
+    }
+    const reason = dto.reason.trim();
+    const current = await this.findOne(id, actor);
+    const workOrderId = current.workOrderId ?? current.operationalWorkOrder?.id;
+
+    if (workOrderId && this.workOrders) {
+      try {
+        if (dto.action === ProxyDispatchProgressAction.ACCEPT_QUANTITY) {
+          const work = await this.prisma.operationalWorkOrder.findUnique({ where: { id: workOrderId }, select: { completedQuantity: true, targetQuantity: true } });
+          if (work) {
+            const workCompleted = work.targetQuantity > 0 && work.completedQuantity + dto.actualQuantity! + 1e-9 >= work.targetQuantity;
+            await this.workOrders.submitDailyReport(workOrderId, {
+              dispatchOrderId: id,
+              quantityToday: dto.actualQuantity,
+              unit: dto.unit,
+              note: `Quản lý ghi nhận thay: ${reason}`,
+              workCompleted,
+              managerReason: reason,
+            }, actor);
+            await this.workOrders.acceptDailyReport(workOrderId, id, { reason }, actor, true);
+            return this.findOne(id, actor);
+          }
+        } else {
+          const journeyActions: Partial<Record<ProxyDispatchProgressAction, JourneyAction>> = {
+            ARRIVE_WORKSITE: JourneyAction.ARRIVE_WORKSITE,
+            START_WORK: JourneyAction.START_WORK,
+            COMPLETE_WORK: JourneyAction.FINISH_WORK,
+            RETURN_TO_DEPOT: JourneyAction.RETURN_TO_DEPOT,
+            ARRIVE_DEPOT: JourneyAction.ARRIVE_DEPOT,
+          };
+          const journeyAction = journeyActions[dto.action];
+          if (journeyAction) {
+            await this.workOrders.journeyAction(workOrderId, journeyAction, {}, actor, reason);
+            return this.findOne(id, actor);
+          }
+        }
+      } catch (err) {
+        // Fallback to direct transition below if workOrder event transition failed
+      }
+    }
+
+    // Direct transition fallback (for ad-hoc orders without workOrder or on state mismatch)
+    if (dto.action === ProxyDispatchProgressAction.ARRIVE_WORKSITE) {
+      return this.transition(id, actor, [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED], DispatchStatus.AT_WORKSITE, reason);
+    }
+    if (dto.action === ProxyDispatchProgressAction.START_WORK) {
+      return this.transition(id, actor, [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED, DispatchStatus.DEPARTED, DispatchStatus.AT_WORKSITE], DispatchStatus.WORKING, reason);
+    }
+    if (dto.action === ProxyDispatchProgressAction.COMPLETE_WORK) {
+      return this.transition(id, actor, [DispatchStatus.WORKING], DispatchStatus.COMPLETED, reason);
+    }
+    if (dto.action === ProxyDispatchProgressAction.ACCEPT_QUANTITY) {
+      return this.transition(id, actor, [DispatchStatus.WORKING, DispatchStatus.COMPLETED], DispatchStatus.ACCEPTED, reason);
+    }
+    if (dto.action === ProxyDispatchProgressAction.RETURN_TO_DEPOT) {
+      return this.transition(id, actor, [DispatchStatus.ACCEPTED], DispatchStatus.RETURNING_TO_DEPOT, reason);
+    }
+    if (dto.action === ProxyDispatchProgressAction.ARRIVE_DEPOT) {
+      return this.transition(id, actor, [DispatchStatus.RETURNING_TO_DEPOT, DispatchStatus.ACCEPTED], DispatchStatus.CLOSED, reason);
+    }
+    throw new BadRequestException('Bước tiến độ không hợp lệ.');
+  }
   cancel(id: number, actor?: OperationalActor, reason?: string) { return this.transition(id, actor, [DispatchStatus.DRAFT, DispatchStatus.PENDING_APPROVAL, DispatchStatus.APPROVED, DispatchStatus.ASSIGNED], DispatchStatus.CANCELLED, reason); }
 
   async checkDelayedOrders(now = new Date()) {
     const warningThreshold = new Date(now.getTime() - DISPATCH_FIRST_DELAY_MINUTES * 60_000);
     const reopenThreshold = new Date(now.getTime() - DISPATCH_REOPEN_TOTAL_MINUTES * 60_000);
-    const activeStatuses = [DispatchStatus.APPROVED, DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED];
-    const reopenableStatuses = [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED];
-    const reopenReason = `Hệ thống thu hồi phân công cũ và đưa lệnh vào danh sách mở: lệnh chưa xuất phát sau ${DISPATCH_REOPEN_TOTAL_MINUTES} phút (đã cảnh báo lúc ${DISPATCH_FIRST_DELAY_MINUTES} phút).`;
+    const activeStatuses = [DispatchStatus.APPROVED, DispatchStatus.ASSIGNED];
+    const reopenableStatuses = [DispatchStatus.ASSIGNED];
+    const reopenReason = `Hệ thống thu hồi phân công cũ và đưa lệnh vào danh sách mở: tài xế chưa nhận lệnh sau ${DISPATCH_REOPEN_TOTAL_MINUTES} phút (đã cảnh báo lúc ${DISPATCH_FIRST_DELAY_MINUTES} phút).`;
 
     const ordersToReopen = await this.prisma.dispatchOrder.findMany({
       where: {
         status: { in: reopenableStatuses },
         departureTime: { lte: reopenThreshold },
-        actualDepartureTime: null,
+        driverAcceptedAt: null,
         operationalWorkOrder: { is: { status: { not: WorkOrderStatus.OPEN_FOR_CLAIM } } },
       },
       select: {
@@ -593,7 +734,7 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
     for (const order of ordersToReopen) {
       const reopened = await this.prisma.$transaction(async (tx) => {
         const result = await tx.dispatchOrder.updateMany({
-          where: { id: order.id, status: { in: reopenableStatuses }, actualDepartureTime: null },
+          where: { id: order.id, status: { in: reopenableStatuses }, driverAcceptedAt: null },
           data: {
             status: DispatchStatus.APPROVED,
             vehicleId: null,
@@ -691,7 +832,7 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
         vehicleId: { not: null },
         driverId: { not: null },
         departureTime: { lte: warningThreshold },
-        actualDepartureTime: null,
+        driverAcceptedAt: null,
         isDelayed: false,
       },
       select: {
@@ -711,11 +852,11 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
     for (const order of warningOrders) {
       const warned = await this.prisma.$transaction(async (tx) => {
         const result = await tx.dispatchOrder.updateMany({
-          where: { id: order.id, status: { in: activeStatuses }, vehicleId: { not: null }, driverId: { not: null }, actualDepartureTime: null, isDelayed: false },
+          where: { id: order.id, status: { in: activeStatuses }, vehicleId: { not: null }, driverId: { not: null }, driverAcceptedAt: null, isDelayed: false },
           data: { isDelayed: true },
         });
         if (!result.count) return false;
-        const reason = `Lệnh chưa xuất phát sau ${DISPATCH_FIRST_DELAY_MINUTES} phút.`;
+        const reason = `Tài xế chưa nhận lệnh sau ${DISPATCH_FIRST_DELAY_MINUTES} phút.`;
         await tx.operationalAuditLog.create({
           data: {
             entityType: OperationalEntityType.DISPATCH_ORDER,
@@ -733,9 +874,9 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
           sourceType: 'DispatchOrder',
           sourceId: String(order.id),
           category: AlertCategory.DISPATCH,
-          alertType: 'DELAYED_DEPARTURE',
+          alertType: 'DELAYED_ACCEPTANCE',
           severity: AlertSeverity.WARNING,
-          title: `Lệnh ${order.code} trễ giờ xuất phát`,
+          title: `Lệnh ${order.code} trễ xác nhận tiếp nhận`,
           message: reason,
           location: order.destination,
           thresholdValue: DISPATCH_FIRST_DELAY_MINUTES,
@@ -900,7 +1041,7 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
       ...(unit ? { unit } : {}),
       status: { in: DISPATCH_SUMMARY_STATUSES },
       departureTime: { lt: now },
-      actualDepartureTime: null,
+      driverAcceptedAt: null,
     };
     const attentionOrders = await this.prisma.dispatchOrder.findMany({
       where: whereBase,
@@ -908,7 +1049,7 @@ export class DispatchOrdersService implements OnModuleInit, OnModuleDestroy {
       select: { id: true, code: true, status: true, departureTime: true, vehicleId: true, driverId: true },
     });
     const managementAttentionOrders = attentionOrders.filter((order) => DISPATCH_MANAGEMENT_ATTENTION_STATUSES.includes(order.status));
-    const delayedDepartureOrders = attentionOrders.filter((order) => DISPATCH_DEPARTURE_DELAY_STATUSES.includes(order.status) && !!order.departureTime && order.departureTime <= departureDelayThreshold);
+    const delayedDepartureOrders = attentionOrders.filter((order) => DISPATCH_ACCEPTANCE_DELAY_STATUSES.includes(order.status) && !!order.departureTime && order.departureTime <= departureDelayThreshold);
     const statusCounts = new Map<DispatchStatus, number>();
     attentionOrders.forEach((order) => statusCounts.set(order.status, (statusCounts.get(order.status) ?? 0) + 1));
     return {

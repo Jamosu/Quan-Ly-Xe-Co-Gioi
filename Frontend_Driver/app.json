@@ -62,7 +62,7 @@
       "expo-asset"
     ],
     "extra": {
-      "apiBaseUrl": "http://10.23.2.228:3001/api"
+      "apiBaseUrl": "http://10.23.2.206:3001/api"
     }
   }
 }

@@ -138,8 +138,11 @@ export class TransportService {
 
   private async transition(id: number, actor: OperationalActor, from: TransportStatus[], to: TransportStatus, reason?: string) {
     const order = await this.findOne(id, actor);
-    if (!from.includes(order.status)) throw new BadRequestException(`Không thể chuyển vận đơn từ ${order.status} sang ${to}.`);
-    if (to === TransportStatus.DRIVER_ACCEPTED && actor.id !== order.driverId) throw new BadRequestException('Chỉ tài xế được giao mới được xác nhận vận đơn.');
+    const isProxyDriverAccept = to === TransportStatus.DRIVER_ACCEPTED && actor.id !== order.driverId;
+    if (isProxyDriverAccept) {
+      const isManager = ([Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER] as Role[]).includes(actor.role);
+      if (!isManager) throw new BadRequestException('Chỉ tài xế được giao hoặc Quản trị viên/Quản lý đội cơ giới mới được xác nhận vận đơn.');
+    }
     if (to === TransportStatus.PENDING_APPROVAL && !order.items.length) throw new BadRequestException('Vận đơn phải có ít nhất một dòng hàng trước khi trình duyệt.');
     const now = new Date();
     const data: Prisma.TransportOrderUpdateInput = { status: to };
@@ -173,15 +176,32 @@ export class TransportService {
   submit(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DRAFT], TransportStatus.PENDING_APPROVAL); }
   approve(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.PENDING_APPROVAL], TransportStatus.APPROVED); }
   driverAccept(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.ASSIGNED], TransportStatus.DRIVER_ACCEPTED); }
-  atPickup(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DRIVER_ACCEPTED], TransportStatus.AT_PICKUP); }
-  loading(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.AT_PICKUP], TransportStatus.LOADING); }
-  depart(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.LOADING], TransportStatus.DEPARTED); }
-  inTransit(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DEPARTED], TransportStatus.IN_TRANSIT); }
-  atDelivery(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.IN_TRANSIT], TransportStatus.AT_DELIVERY); }
-  unloading(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.AT_DELIVERY], TransportStatus.UNLOADING); }
-  deliver(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.UNLOADING], TransportStatus.DELIVERED); }
-  accept(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DELIVERED], TransportStatus.ACCEPTED); }
-  complete(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.ACCEPTED], TransportStatus.COMPLETED); }
+  atPickup(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.ASSIGNED, TransportStatus.DRIVER_ACCEPTED], TransportStatus.AT_PICKUP); }
+  loading(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DRIVER_ACCEPTED, TransportStatus.AT_PICKUP], TransportStatus.LOADING); }
+  depart(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DRIVER_ACCEPTED, TransportStatus.AT_PICKUP, TransportStatus.LOADING], TransportStatus.DEPARTED); }
+  inTransit(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.ASSIGNED, TransportStatus.DRIVER_ACCEPTED, TransportStatus.AT_PICKUP, TransportStatus.LOADING, TransportStatus.DEPARTED], TransportStatus.IN_TRANSIT); }
+  atDelivery(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.DEPARTED, TransportStatus.IN_TRANSIT], TransportStatus.AT_DELIVERY); }
+  unloading(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.IN_TRANSIT, TransportStatus.AT_DELIVERY], TransportStatus.UNLOADING); }
+  deliver(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.IN_TRANSIT, TransportStatus.AT_DELIVERY, TransportStatus.UNLOADING], TransportStatus.DELIVERED); }
+  accept(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.IN_TRANSIT, TransportStatus.AT_DELIVERY, TransportStatus.UNLOADING, TransportStatus.DELIVERED], TransportStatus.ACCEPTED); }
+  complete(id: number, actor: OperationalActor) { return this.transition(id, actor, [TransportStatus.IN_TRANSIT, TransportStatus.DELIVERED, TransportStatus.ACCEPTED], TransportStatus.COMPLETED); }
+
+  async proxyProgress(id: number, dto: { action: string; reason?: string; actualQuantity?: number; unit?: string }, actor?: OperationalActor) {
+    const reason = dto.reason?.trim() || 'Quản lý ghi nhận thay tài xế';
+    if (dto.action === 'ARRIVE_WORKSITE') {
+      return this.transition(id, actor!, [TransportStatus.ASSIGNED, TransportStatus.DRIVER_ACCEPTED, TransportStatus.AT_PICKUP], TransportStatus.AT_PICKUP, reason);
+    }
+    if (dto.action === 'START_WORK') {
+      return this.transition(id, actor!, [TransportStatus.ASSIGNED, TransportStatus.DRIVER_ACCEPTED, TransportStatus.AT_PICKUP, TransportStatus.LOADING, TransportStatus.DEPARTED], TransportStatus.IN_TRANSIT, reason);
+    }
+    if (dto.action === 'COMPLETE_WORK' || dto.action === 'ACCEPT_QUANTITY') {
+      return this.transition(id, actor!, [TransportStatus.IN_TRANSIT, TransportStatus.AT_DELIVERY, TransportStatus.UNLOADING, TransportStatus.DELIVERED], TransportStatus.ACCEPTED, reason);
+    }
+    if (dto.action === 'RETURN_TO_DEPOT' || dto.action === 'ARRIVE_DEPOT') {
+      return this.transition(id, actor!, [TransportStatus.ACCEPTED, TransportStatus.DELIVERED, TransportStatus.IN_TRANSIT], TransportStatus.COMPLETED, reason);
+    }
+    throw new BadRequestException('Hành động ghi nhận thay không hợp lệ.');
+  }
 
   availableResources(query: AvailableResourcesDto, actor: OperationalActor) { return this.dispatchService.availableResources(query, actor); }
   async scheduler(query: SchedulerFilterDto, actor: OperationalActor) { const unit = scopedUnit(actor); return this.prisma.transportOrder.findMany({ where: { ...(unit ? { unit } : {}), departureTime: { lt: query.end }, plannedEndTime: { gt: query.start } }, include: transportInclude, orderBy: { departureTime: 'asc' } }); }

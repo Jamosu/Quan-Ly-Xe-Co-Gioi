@@ -49,15 +49,16 @@ export class UsersController {
     @Query('role') role?: Role,
     @Query('unit') unit?: Unit,
     @Query('search') search?: string,
+    @CurrentUser() actor?: OperationalActor,
   ) {
-    return this.usersService.findAll(role, unit, search);
+    return this.usersService.findAll(role, unit, search, actor);
   }
 
   @Get('drivers')
   @ApiOperation({ summary: 'Lấy danh sách tất cả tài xế' })
   @ApiQuery({ name: 'unit', enum: Unit, required: false })
-  async findDrivers(@Query('unit') unit?: Unit) {
-    return this.usersService.findDrivers(unit);
+  async findDrivers(@Query('unit') unit?: Unit, @CurrentUser() actor?: OperationalActor) {
+    return this.usersService.findDrivers(unit, actor);
   }
 
   @Get('drivers/profiles')
@@ -107,8 +108,8 @@ export class UsersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Xem chi tiết thông tin nhân sự' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: OperationalActor) {
+    return this.usersService.findOne(id, actor);
   }
 
   @Patch(':id')

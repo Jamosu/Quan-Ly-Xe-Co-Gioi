@@ -281,9 +281,10 @@ export const UsersManagementPage: React.FC = () => {
     roleCategory: 'DRIVER' as UserRoleCategory,
     klh: 'KLH Koun Mom' as 'KLH Koun Mom' | 'KLH Snoul' | 'KLH Nam Lào',
     workUnit: 'Nông trường 1',
-    password: '123',
+    password: '',
     licenseClass: 'C',
   });
+  const [createUserError, setCreateUserError] = useState('');
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -296,7 +297,10 @@ export const UsersManagementPage: React.FC = () => {
           let roleCategory: UserRoleCategory = 'DRIVER';
           let roleName = 'Tài xế cơ giới';
 
-          if (role === 'SUPER_ADMIN' || u.username === 'admin') {
+          if (role === 'SUPER_ADMIN' && String(u.code || '').startsWith('QLTH-')) {
+            roleCategory = 'GENERAL_MANAGER';
+            roleName = 'Nhân sự quản lý toàn hệ thống';
+          } else if (role === 'SUPER_ADMIN' || u.username === 'admin') {
             roleCategory = 'ADMIN';
             roleName = 'Quản trị viên (Admin)';
           } else if (role === 'DISPATCHER') {
@@ -467,29 +471,40 @@ export const UsersManagementPage: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.username || !newUser.fullName) return;
+    if (newUser.password.length < 6) {
+      setCreateUserError('Mật khẩu khởi tạo phải có ít nhất 6 ký tự.');
+      return;
+    }
+    setCreateUserError('');
 
     const roleMap: Record<string, string> = {
       ADMIN: 'SUPER_ADMIN',
-      GENERAL_MANAGER: 'DISPATCHER',
+      GENERAL_MANAGER: 'SUPER_ADMIN',
       MANAGER: 'FARM_MANAGER',
       DRIVER: 'DRIVER',
     };
 
     try {
       await apiClient.post('/users', {
+        ...(newUser.roleCategory === 'GENERAL_MANAGER' ? { code: `QLTH-${Date.now().toString().slice(-8)}` } : {}),
         username: newUser.username,
         fullName: newUser.fullName,
         phone: newUser.phone,
         password: newUser.password,
         role: roleMap[newUser.roleCategory],
-        unit: 'TOAN_KLH',
+        unit: newUser.roleCategory === 'ADMIN' || newUser.roleCategory === 'GENERAL_MANAGER'
+          ? 'TOAN_KLH'
+          : newUser.klh === 'KLH Snoul' ? 'SNOUL' : newUser.klh === 'KLH Nam Lào' ? 'NAM_LAO' : 'KOUN_MOM',
         isActive: true,
       });
-    } catch (err) {
-      // Proceed with optimistic update
+    } catch (err: any) {
+      const message = err?.response?.data?.message;
+      setCreateUserError(Array.isArray(message) ? message.join(', ') : message || 'Không tạo được tài khoản.');
+      return;
     }
 
-    const assignedKlh = newUser.roleCategory === 'ADMIN' ? 'Toàn bộ 3 Khu Liên Hợp' : (newUser.klh as any);
+    const assignedKlh = newUser.roleCategory === 'ADMIN' || newUser.roleCategory === 'GENERAL_MANAGER'
+      ? 'Toàn bộ 3 Khu Liên Hợp' : (newUser.klh as any);
 
     const createdRecord: SystemUserRecord = {
       id: `USR-${Date.now().toString().slice(-4)}`,
@@ -526,7 +541,7 @@ export const UsersManagementPage: React.FC = () => {
       roleCategory: 'DRIVER',
       klh: 'KLH Koun Mom',
       workUnit: 'KLH Koun Mom',
-      password: '123',
+      password: '',
       licenseClass: 'C',
     });
   };
@@ -1159,7 +1174,7 @@ export const UsersManagementPage: React.FC = () => {
             <select
               value={newUser.klh}
               onChange={(e) => setNewUser({ ...newUser, klh: e.target.value as any })}
-              disabled={newUser.roleCategory === 'ADMIN'}
+              disabled={newUser.roleCategory === 'ADMIN' || newUser.roleCategory === 'GENERAL_MANAGER'}
               className="w-full p-2 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-800 disabled:opacity-50"
             >
               <option value="KLH Koun Mom">KLH Koun Mom (Tỉnh Ratanakiri, Campuchia)</option>
@@ -1208,12 +1223,16 @@ export const UsersManagementPage: React.FC = () => {
               <label className="font-bold text-slate-700 block mb-1">Mật khẩu khởi tạo:</label>
               <input
                 type="text"
+                required
+                minLength={6}
                 value={newUser.password}
                 onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                 className="w-full p-2 border border-slate-200 rounded-xl bg-slate-50 font-mono font-bold"
               />
             </div>
           </div>
+
+          {createUserError && <p className="text-xs font-semibold text-rose-700">{createUserError}</p>}
 
           {newUser.roleCategory === 'DRIVER' && (
             <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">

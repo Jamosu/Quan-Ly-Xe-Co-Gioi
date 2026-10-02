@@ -41,21 +41,21 @@ export class DriverManagementService {
     return scope.complexCode === complexCode && (!scope.managementUnitId || scope.managementUnitId === managementUnitId);
   }
 
-  private async assertRead(actor: OperationalActor, complexCode: string, managementUnitId?: number) {
+  private async assertRead(actor: OperationalActor, complexCode: string, managementUnitId?: number, teamUnitId?: number | null) {
     if (actor.role !== Role.FARM_MANAGER) return;
     const scopes = (await this.scopes(actor))?.filter((scope) => scope.complexCode === complexCode) ?? [];
-    if (!scopes.some((scope) => this.scopeMatches(scope, complexCode, managementUnitId))) {
+    if (!scopes.some((scope) => this.scopeMatches(scope, complexCode, managementUnitId) || (teamUnitId && this.scopeMatches(scope, complexCode, teamUnitId)))) {
       throw new ForbiddenException('Đơn vị nằm ngoài phạm vi quản lý được cấp.');
     }
   }
 
-  private async assertManage(actor: OperationalActor, complexCode: string, managementUnitId?: number, permission: 'catalog' | 'assign' = 'catalog') {
+  private async assertManage(actor: OperationalActor, complexCode: string, managementUnitId?: number, permission: 'catalog' | 'assign' = 'catalog', teamUnitId?: number | null) {
     if (actor.role === Role.SUPER_ADMIN) return;
     if (actor.role !== Role.FARM_MANAGER) throw new ForbiddenException('Bạn không có quyền quản trị danh mục hồ sơ tài xế.');
     const scopes = (await this.scopes(actor))?.filter((scope) => scope.complexCode === complexCode) ?? [];
     const allowed = scopes.some((scope) =>
       (permission === 'catalog' ? scope.canManageCatalog : scope.canAssignDrivers) &&
-      this.scopeMatches(scope, complexCode, managementUnitId),
+      (this.scopeMatches(scope, complexCode, managementUnitId) || (teamUnitId && this.scopeMatches(scope, complexCode, teamUnitId))),
     );
     if (!allowed) throw new ForbiddenException('Đơn vị nằm ngoài phạm vi quản lý được cấp.');
   }
@@ -81,7 +81,7 @@ export class DriverManagementService {
         level: filter.level,
         unitType: filter.unitType,
         status: filter.status,
-        ...(search ? { OR: [{ code: { contains: search } }, { name: { contains: search } }] } : {}),
+        ...(search ? { AND: [{ OR: [{ code: { contains: search } }, { name: { contains: search } }] }] } : {}),
       },
       include: {
         parent: { select: { id: true, code: true, name: true } },
@@ -435,7 +435,7 @@ export class DriverManagementService {
         throw new BadRequestException('Đội/Tổ không hợp lệ hoặc không trực thuộc đơn vị đã chọn.');
       }
     }
-    await this.assertManage(actor, owner.complexCode, owner.id, 'assign');
+    await this.assertManage(actor, owner.complexCode, owner.id, 'assign', dto.teamUnitId);
     const profile = await this.prisma.driverProfile.findUnique({ where: { userId: dto.driverId } });
     if (!profile) throw new NotFoundException('Không tìm thấy hồ sơ tài xế.');
     const effectiveFrom = dto.effectiveFrom ? new Date(dto.effectiveFrom) : new Date();
@@ -450,7 +450,7 @@ export class DriverManagementService {
 
   async assignmentHistory(driverId: number, actor: OperationalActor) {
     const current = await this.prisma.driverManagementAssignment.findFirst({ where: { driverId }, include: { managementUnit: true }, orderBy: { effectiveFrom: 'desc' } });
-    if (current) await this.assertRead(actor, current.managementUnit.complexCode, current.managementUnitId);
+    if (current) await this.assertRead(actor, current.managementUnit.complexCode, current.managementUnitId, current.teamUnitId);
     return this.prisma.driverManagementAssignment.findMany({ where: { driverId }, include: { managementUnit: true, teamUnit: true, assignedBy: { select: { id: true, code: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } });
   }
 

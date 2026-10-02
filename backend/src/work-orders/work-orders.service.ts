@@ -94,26 +94,38 @@ const aggregateInclude = {
   requestedVehicleType: true,
 } satisfies Prisma.OperationalWorkOrderInclude;
 
+const managerListInclude = {
+  dailyDispatchOrders: {
+    include: {
+      dailyReport: { include: { submittedBy: { select: { id: true, fullName: true } } } },
+      vehicle: true,
+      driver: { select: { id: true, code: true, fullName: true } },
+      implement: true,
+    },
+    orderBy: { scheduledStartAt: 'asc' },
+  },
+} satisfies Prisma.OperationalWorkOrderInclude;
+
 type Tx = Prisma.TransactionClient;
 export interface DriverDelayAlert {
   isLate: true;
   delayMinutes: number;
   thresholdMinutes: number;
-  phase: 'WAITING_ACCEPTANCE' | 'WAITING_DEPARTURE';
+  phase: 'WAITING_ACCEPTANCE';
 }
 
 export const buildDriverDelayAlert = (
   order: { status: WorkOrderStatus; plannedStartAt: Date },
   now = new Date(),
 ): DriverDelayAlert | null => {
-  if (order.status !== WorkOrderStatus.ASSIGNED && order.status !== WorkOrderStatus.DRIVER_ACCEPTED) return null;
+  if (order.status !== WorkOrderStatus.ASSIGNED) return null;
   const delayMinutes = Math.floor((now.getTime() - order.plannedStartAt.getTime()) / 60_000);
   if (delayMinutes < DISPATCH_FIRST_DELAY_MINUTES) return null;
   return {
     isLate: true,
     delayMinutes,
     thresholdMinutes: DISPATCH_FIRST_DELAY_MINUTES,
-    phase: order.status === WorkOrderStatus.ASSIGNED ? 'WAITING_ACCEPTANCE' : 'WAITING_DEPARTURE',
+    phase: 'WAITING_ACCEPTANCE',
   };
 };
 
@@ -418,17 +430,32 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     if (status && Object.values(WorkOrderStatus).includes(status as WorkOrderStatus)) where.status = status as WorkOrderStatus;
     if (type && Object.values(WorkOrderType).includes(type as WorkOrderType)) where.type = type as WorkOrderType;
     if (actor.role === Role.DRIVER) {
-      where.unit = actor.unit;
-      where.status = { in: [WorkOrderStatus.OPEN_FOR_CLAIM, WorkOrderStatus.ASSIGNED, WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.REWORK_REQUIRED] };
+      if (!status) {
+        where.status = {
+          in: [
+            WorkOrderStatus.OPEN_FOR_CLAIM,
+            WorkOrderStatus.ASSIGNED,
+            WorkOrderStatus.DRIVER_ACCEPTED,
+            WorkOrderStatus.IN_PROGRESS,
+            WorkOrderStatus.SUBMITTED_FOR_ACCEPTANCE,
+            WorkOrderStatus.ACCEPTED,
+            WorkOrderStatus.REWORK_REQUIRED,
+          ],
+        };
+      }
       where.OR = [
-        { assignmentMode: WorkAssignmentMode.OPEN_ASSIGNMENT, status: WorkOrderStatus.OPEN_FOR_CLAIM },
-        { driverAssignments: { some: { driverId: actor.id, status: { in: [WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED] } } } },
+        { assignmentMode: WorkAssignmentMode.OPEN_ASSIGNMENT, status: WorkOrderStatus.OPEN_FOR_CLAIM, unit: actor.unit },
+        { driverAssignments: { some: { driverId: actor.id, status: { in: [WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED, WorkAssignmentStatus.COMPLETED] } } } },
       ];
     } else {
       const managementUnitIds = await scopedManagementUnitIds(this.prisma, actor);
       if (managementUnitIds) where.managementUnitId = { in: managementUnitIds };
     }
-    const items = await this.prisma.operationalWorkOrder.findMany({ where, include: aggregateInclude, orderBy: [{ plannedStartAt: 'asc' }, { id: 'asc' }] });
+    const items = await this.prisma.operationalWorkOrder.findMany({
+      where,
+      include: actor.role === Role.DRIVER ? aggregateInclude : managerListInclude,
+      orderBy: [{ plannedStartAt: 'asc' }, { id: 'asc' }],
+    });
     const now = new Date();
     const enrichedItems = items.map((item) => ({ ...item, driverDelay: buildDriverDelayAlert(item, now) }));
     return { items: enrichedItems, pagination: { total: items.length, page: 1, limit: items.length, totalPages: 1 } };
@@ -437,10 +464,10 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
   async findOne(id: number, actor: OperationalActor) {
     const order = await this.prisma.operationalWorkOrder.findUnique({ where: { id }, include: aggregateInclude });
     if (!order) throw new NotFoundException(`Không tìm thấy công việc #${id}.`);
-    const activeDriver = order.driverAssignments.find((item) => new Set<WorkAssignmentStatus>([WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED]).has(item.status));
+    const isAssignedDriver = order.driverAssignments.some((item) => item.driverId === actor.id);
     if (actor.role === Role.DRIVER) {
       const canSeeOpen = order.assignmentMode === WorkAssignmentMode.OPEN_ASSIGNMENT && order.status === WorkOrderStatus.OPEN_FOR_CLAIM && actor.unit === order.unit;
-      if (activeDriver?.driverId !== actor.id && !canSeeOpen) throw new ForbiddenException('Tài xế không được truy cập công việc này.');
+      if (!isAssignedDriver && !canSeeOpen) throw new ForbiddenException('Tài xế không được truy cập công việc này.');
     } else {
       if (!order.managementUnitId && actor.role !== Role.SUPER_ADMIN) throw new ForbiddenException('Công việc cũ chưa được đối soát khu vực, chỉ quản trị viên được truy cập.');
       if (order.managementUnitId) await assertManagementUnitAccess(this.prisma, actor, order.managementUnitId);
@@ -812,7 +839,11 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       await assertManagementUnitAccess(tx, actor, order.managementUnitId);
       const managementUnitIds = await resourceManagementUnitIds(tx, order.managementUnitId);
       this.assertVersion(order.version, dto.expectedVersion);
-      if (!new Set<WorkOrderStatus>([WorkOrderStatus.APPROVED, WorkOrderStatus.OPEN_FOR_CLAIM, WorkOrderStatus.ASSIGNED, WorkOrderStatus.REWORK_REQUIRED]).has(order.status)) {
+      const activeReassignment = new Set<WorkOrderStatus>([WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS]).has(order.status);
+      if (activeReassignment && await tx.workExecutionSegment.findFirst({ where: { workOrderId: id, endedAt: null }, select: { id: true } })) {
+        throw new BadRequestException('Lệnh còn phiên thực hiện đang mở; phải kết thúc hoặc bàn giao phiên trước khi điều chuyển.');
+      }
+      if (!new Set<WorkOrderStatus>([WorkOrderStatus.APPROVED, WorkOrderStatus.OPEN_FOR_CLAIM, WorkOrderStatus.ASSIGNED, WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.REWORK_REQUIRED]).has(order.status)) {
         throw new BadRequestException(`Không thể phân công từ trạng thái ${order.status}.`);
       }
       const startAt = dto.plannedStartAt ?? order.plannedStartAt;
@@ -973,16 +1004,22 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async driverAccept(id: number, actor: OperationalActor) {
-    if (actor.role !== Role.DRIVER) throw new ForbiddenException('Chỉ tài xế được xác nhận nhận lệnh.');
+  async driverAccept(id: number, actor: OperationalActor, reason?: string) {
+    const isManager = ([Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER] as Role[]).includes(actor.role);
+    if (actor.role !== Role.DRIVER && !isManager) throw new ForbiddenException('Chỉ tài xế hoặc Quản lý/Điều độ được xác nhận nhận lệnh.');
     return this.prisma.$transaction(async (tx) => {
       const order = await this.lockOrder(tx, id);
       const assignment = await this.activeDriverAssignment(tx, id);
-      if (!assignment || assignment.driverId !== actor.id) throw new ForbiddenException('Lệnh không được giao cho tài xế hiện tại.');
+      if (isManager) {
+        this.assertProxyManagementRole(actor);
+        assertOperationalAccess(actor, order.unit);
+      }
+      if (!isManager && (!assignment || assignment.driverId !== actor.id)) throw new ForbiddenException('Lệnh không được giao cho tài xế hiện tại.');
       if (order.status !== WorkOrderStatus.ASSIGNED) throw new BadRequestException(`Không thể nhận lệnh từ trạng thái ${order.status}.`);
       const now = new Date();
+      const targetDriverId = assignment?.driverId ?? actor.id;
       const dispatch = await tx.dispatchOrder?.findFirst?.({
-        where: { workOrderId: id, driverId: actor.id, status: DispatchStatus.ASSIGNED },
+        where: { workOrderId: id, ...(assignment?.driverId ? { driverId: assignment.driverId } : {}), status: DispatchStatus.ASSIGNED },
         orderBy: { scheduledStartAt: 'desc' },
       });
       const scheduledStartAt = dispatch?.scheduledStartAt ?? dispatch?.departureTime ?? order.plannedStartAt;
@@ -990,20 +1027,22 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       const acceptance = classifyShiftAcceptance(scheduledStartAt, now, acceptGraceMinutes);
       const acceptDelayMinutes = acceptance.delayMinutes;
       const acceptStatus = acceptance.status;
-      await tx.workDriverAssignment.update({ where: { id: assignment.id }, data: { status: WorkAssignmentStatus.ACCEPTED, acceptedAt: now } });
-      await tx.driverKpiEvent.create({ data: { driverId: actor.id, workOrderId: id, type: DriverKpiEventType.ACCEPTED } });
-      await tx.driverKpiEvent.create({ data: { driverId: actor.id, workOrderId: id, type: DriverKpiEventType.SHIFT_ACCEPTANCE, decision: acceptStatus === DispatchAcceptStatus.LATE ? KpiDecision.UNDECIDED : KpiDecision.EXEMPT, payload: { dispatchOrderId: dispatch?.id, acceptStatus, acceptDelayMinutes, acceptGraceMinutes } } });
+      if (assignment) {
+        await tx.workDriverAssignment.update({ where: { id: assignment.id }, data: { status: WorkAssignmentStatus.ACCEPTED, acceptedAt: now } });
+      }
+      await tx.driverKpiEvent.create({ data: { driverId: targetDriverId, workOrderId: id, type: DriverKpiEventType.ACCEPTED } });
+      await tx.driverKpiEvent.create({ data: { driverId: targetDriverId, workOrderId: id, type: DriverKpiEventType.SHIFT_ACCEPTANCE, decision: acceptStatus === DispatchAcceptStatus.LATE ? KpiDecision.UNDECIDED : KpiDecision.EXEMPT, payload: { dispatchOrderId: dispatch?.id, acceptStatus, acceptDelayMinutes, acceptGraceMinutes, proxyActorId: isManager ? actor.id : undefined } } });
       if (dispatch) {
-        await tx.dispatchOrder.update({ where: { id: dispatch.id }, data: { status: DispatchStatus.DRIVER_ACCEPTED, driverAcceptedAt: now, acceptStatus, acceptDelayMinutes } });
+        await tx.dispatchOrder.update({ where: { id: dispatch.id }, data: { status: DispatchStatus.DRIVER_ACCEPTED, driverAcceptedAt: now, acceptStatus, acceptDelayMinutes, isDelayed: false } });
       }
       if (dispatch && acceptStatus === DispatchAcceptStatus.LATE) {
         await this.createAlert(tx, {
           dedupeKey: `DISPATCH_ACCEPT_LATE:${dispatch.id}`,
           alertType: 'DISPATCH_ACCEPT_LATE',
           title: 'Tài xế nhận ca trễ',
-          message: `Tài xế nhận lệnh ${dispatch.code} trễ ${acceptDelayMinutes} phút.`,
+          message: `Tài xế nhận lệnh ${dispatch.code} trễ ${acceptDelayMinutes} phút${isManager ? ` (Quản lý ${actor.role} #${actor.id} xác nhận thay)` : ''}.`,
           unit: order.unit,
-          driverId: actor.id,
+          driverId: targetDriverId,
           sourceId: String(dispatch.id),
           metricValue: acceptDelayMinutes,
           thresholdValue: acceptGraceMinutes,
@@ -1011,7 +1050,8 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       }
       await tx.operationalWorkOrder.update({ where: { id }, data: { status: WorkOrderStatus.DRIVER_ACCEPTED, version: { increment: 1 } } });
       await this.syncLegacyStatus(tx, order, WorkOrderStatus.DRIVER_ACCEPTED);
-      await this.event(tx, id, actor.id, 'DRIVER_ACCEPT', order.status, WorkOrderStatus.DRIVER_ACCEPTED, undefined, { dispatchOrderId: dispatch?.id, acceptStatus, acceptDelayMinutes, acceptGraceMinutes });
+      const eventReason = reason || (isManager ? `Quản lý/Điều độ viên (${actor.role} #${actor.id}) xác nhận tiếp nhận lệnh thay tài xế` : undefined);
+      await this.event(tx, id, actor.id, isManager ? 'PROXY_DRIVER_ACCEPT' : 'DRIVER_ACCEPT', order.status, WorkOrderStatus.DRIVER_ACCEPTED, eventReason, { dispatchOrderId: dispatch?.id, acceptStatus, acceptDelayMinutes, acceptGraceMinutes, isProxy: isManager });
       return tx.operationalWorkOrder.findUnique({ where: { id }, include: aggregateInclude });
     });
   }
@@ -1035,7 +1075,15 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     const current = await this.findOne(id, actor);
     const vehicleId = dto.vehicleId ?? current.vehicleAssignments.find((item) => new Set<WorkAssignmentStatus>([WorkAssignmentStatus.ASSIGNED, WorkAssignmentStatus.ACCEPTED]).has(item.status))?.vehicleId;
     if (!vehicleId) throw new BadRequestException('Không xác định được xe để tái phân công.');
-    return this.assign(id, { vehicleId, driverId: dto.driverId, assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT, expectedVersion: dto.expectedVersion, reason: dto.reason }, actor);
+    return this.assign(id, {
+      vehicleId,
+      driverId: dto.driverId,
+      assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT,
+      plannedStartAt: dto.plannedStartAt,
+      plannedEndAt: dto.plannedEndAt,
+      expectedVersion: dto.expectedVersion,
+      reason: dto.reason,
+    }, actor);
   }
 
   async startExecution(id: number, dto: StartExecutionDto, actor: OperationalActor) {
@@ -1177,6 +1225,9 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       const order = await this.lockOrder(tx, id);
       const segment = await tx.workExecutionSegment.findFirst({ where: { workOrderId: id, driverId: actor.id, status: { not: WorkSessionStatus.ENDED } }, orderBy: { startedAt: 'desc' } });
       if (!segment) throw new BadRequestException('Không có đoạn thực hiện đang mở của tài xế.');
+      if (!segment.workDate || this.dateOnly(segment.workDate).getTime() !== this.dateOnly(new Date()).getTime()) {
+        throw new BadRequestException('Phiên làm việc thuộc ngày trước. Quản lý phải đối soát phiên cũ trước khi giao lệnh ngày mới.');
+      }
       await this.lockResourceRows(tx, segment.vehicleId, actor.id);
       if (segment.status !== WorkSessionStatus.ACTIVE) throw new BadRequestException('Phải kết thúc nghỉ hoặc tạm dừng trước khi kết thúc ngày làm việc.');
       const progress = await tx.workDailyProgress.findUnique({ where: { workOrderId_progressDate: { workOrderId: id, progressDate: segment.workDate } } });
@@ -1212,18 +1263,38 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       if (!dispatch || dispatch.workOrderId !== id || !dispatch.driverId) throw new NotFoundException('Không tìm thấy lệnh ngày thuộc công việc này.');
       const isManager = actor.role !== Role.DRIVER;
       if (isManager) {
-        this.assertManagementRole(actor, order.type);
+        this.assertProxyManagementRole(actor);
         assertOperationalAccess(actor, order.unit);
         if (!dto.managerReason?.trim()) throw new BadRequestException('Đội trưởng nhập hộ phải ghi rõ lý do.');
       } else if (dispatch.driverId !== actor.id) {
         throw new ForbiddenException('Tài xế không phụ trách lệnh ngày này.');
       }
       const now = new Date();
-      if (!isManager && dispatch.reportOpenAt && now < dispatch.reportOpenAt) throw new BadRequestException('Chưa đến thời gian mở báo cáo cuối ngày.');
+      const reportableStatuses = new Set<DispatchStatus>([
+        DispatchStatus.AT_WORKSITE, DispatchStatus.WORKING, DispatchStatus.SHIFT_FINISHED,
+        DispatchStatus.WAITING_REPORT, DispatchStatus.WAITING_REVIEW,
+        DispatchStatus.RETURNING_TO_DEPOT, DispatchStatus.COMPLETED,
+      ]);
+      if (!isManager && !reportableStatuses.has(dispatch.status)) {
+        throw new BadRequestException('Chỉ được lập báo cáo ngày sau khi tài xế đã đến điểm làm việc.');
+      }
       if (dto.endOdoKm !== undefined && dto.startOdoKm !== undefined && dto.endOdoKm < dto.startOdoKm) throw new BadRequestException('ODO cuối ca không được nhỏ hơn ODO đầu ca.');
       if (dto.endMachineHours !== undefined && dto.startMachineHours !== undefined && dto.endMachineHours < dto.startMachineHours) throw new BadRequestException('Giờ máy cuối ca không được nhỏ hơn giờ máy đầu ca.');
       if (dispatch.dailyReport && new Set<DailyReportStatus>([DailyReportStatus.ACCEPTED, DailyReportStatus.SUBMITTED_BY_MANAGER]).has(dispatch.dailyReport.status) && actor.role === Role.DRIVER) {
         throw new BadRequestException('Báo cáo đã được khóa sau khi đội trưởng xử lý.');
+      }
+      const remainingQuantity = Math.max(0, Number((order.targetQuantity - order.completedQuantity).toFixed(6)));
+      if (dto.quantityToday !== undefined && order.targetQuantity > 0 && dto.quantityToday > remainingQuantity + 1e-9) {
+        throw new BadRequestException(`Khối lượng hôm nay tối đa ${remainingQuantity} ${order.targetUnit ?? ''}; không nhập phần trăm vào trường khối lượng.`);
+      }
+      if (submit && !isManager) {
+        if (dto.quantityToday === undefined) throw new BadRequestException('Báo cáo ngày phải có khối lượng thực hiện.');
+        if (!dto.note?.trim()) throw new BadRequestException('Báo cáo ngày phải mô tả công việc đã thực hiện.');
+        if (!dto.evidenceUrls?.length) throw new BadRequestException('Báo cáo ngày phải có ít nhất một ảnh minh chứng.');
+        const projectedQuantity = order.completedQuantity + dto.quantityToday;
+        if (dto.workCompleted && order.targetQuantity > 0 && projectedQuantity + 1e-9 < order.targetQuantity) {
+          throw new BadRequestException(`Chưa đủ khối lượng kế hoạch (${projectedQuantity}/${order.targetQuantity} ${order.targetUnit ?? ''}).`);
+        }
       }
       const deadline = dispatch.reportDeadlineAt ?? dispatch.scheduledEndAt ?? dispatch.plannedEndTime;
       const reportTiming = submit && deadline ? classifyDailyReportSubmission(deadline, now) : null;
@@ -1261,7 +1332,6 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
         update: data,
       });
       if (submit) {
-        await tx.dispatchOrder.update({ where: { id: dispatch.id }, data: { status: DispatchStatus.WAITING_REVIEW } });
         await tx.driverKpiEvent.create({ data: { driverId: dispatch.driverId, workOrderId: id, type: DriverKpiEventType.DAILY_REPORT, decision: status === DailyReportStatus.SUBMITTED_ON_TIME || status === DailyReportStatus.SUBMITTED_BY_MANAGER ? KpiDecision.EXEMPT : KpiDecision.UNDECIDED, quantity: dto.quantityToday ?? 0, payload: { dispatchOrderId: dispatch.id, reportId: report.id, status, reportDelayMinutes, submittedByType: data.submittedByType } } });
       }
       await this.event(tx, id, actor.id, submit ? (isManager ? 'DAILY_REPORT_SUBMIT_BY_MANAGER' : 'DAILY_REPORT_SUBMIT') : 'DAILY_REPORT_DRAFT', order.status, order.status, dto.managerReason ?? dto.note, { dispatchOrderId: dispatch.id, reportId: report.id, status });
@@ -1284,34 +1354,58 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async acceptDailyReport(id: number, dispatchOrderId: number, dto: DailyReportReviewDto, actor: OperationalActor) {
+  async acceptDailyReport(id: number, dispatchOrderId: number, dto: DailyReportReviewDto, actor: OperationalActor, proxyEntry = false) {
     return this.prisma.$transaction(async (tx) => {
       const order = await this.lockOrder(tx, id);
-      this.assertAcceptanceRole(actor, order.type);
+      if (proxyEntry) this.assertProxyManagementRole(actor);
+      else this.assertAcceptanceRole(actor, order.type);
       assertOperationalAccess(actor, order.unit);
       const report = await tx.dailyReport.findUnique({ where: { dispatchOrderId } });
       if (!report || report.workOrderId !== id) throw new NotFoundException('Không tìm thấy báo cáo ngày.');
       if (!new Set<DailyReportStatus>([DailyReportStatus.SUBMITTED_ON_TIME, DailyReportStatus.LATE, DailyReportStatus.SUBMITTED_BY_MANAGER]).has(report.status)) throw new BadRequestException('Báo cáo chưa sẵn sàng để nghiệm thu.');
       const now = new Date();
-      await tx.dailyReport.update({ where: { id: report.id }, data: { status: DailyReportStatus.ACCEPTED, reviewedAt: now } });
-      await tx.dispatchOrder.update({ where: { id: dispatchOrderId }, data: { status: DispatchStatus.ACCEPTED, acceptedAt: now, acceptedById: actor.id } });
+      const dispatch = await tx.dispatchOrder.findUnique({ where: { id: dispatchOrderId } });
+      if (!dispatch) throw new NotFoundException('Không tìm thấy lệnh ngày.');
+      const remainingQuantity = Math.max(0, Number((order.targetQuantity - order.completedQuantity).toFixed(6)));
+      if (order.targetQuantity > 0 && report.quantityToday > remainingQuantity + 1e-9) {
+        throw new BadRequestException(`Khối lượng báo cáo vượt phần còn lại ${remainingQuantity} ${order.targetUnit ?? ''}. Yêu cầu tài xế sửa báo cáo.`);
+      }
       const completedQuantity = order.completedQuantity + report.quantityToday;
+      if (report.workCompleted && order.targetQuantity > 0 && completedQuantity + 1e-9 < order.targetQuantity) {
+        throw new BadRequestException(`Chưa đủ khối lượng kế hoạch (${completedQuantity}/${order.targetQuantity} ${order.targetUnit ?? ''}).`);
+      }
+      const arrivedDepot = dispatch.status === DispatchStatus.COMPLETED || dispatch.status === DispatchStatus.CLOSED || Boolean(dispatch.returnTime);
+      await tx.dailyReport.update({ where: { id: report.id }, data: { status: DailyReportStatus.ACCEPTED, reviewedAt: now } });
+      await tx.dispatchOrder.update({
+        where: { id: dispatchOrderId },
+        data: {
+          status: report.workCompleted && arrivedDepot
+            ? DispatchStatus.CLOSED
+            : new Set<DispatchStatus>([DispatchStatus.RETURNING_TO_DEPOT, DispatchStatus.COMPLETED]).has(dispatch.status)
+              ? dispatch.status
+              : DispatchStatus.ACCEPTED,
+          acceptedAt: now,
+          acceptedById: actor.id,
+          ...(report.workCompleted && arrivedDepot ? { closedAt: now } : {}),
+        },
+      });
       const workData: Prisma.OperationalWorkOrderUpdateInput = { completedQuantity, version: { increment: 1 } };
       if (report.workCompleted) {
-        workData.status = WorkOrderStatus.ACCEPTED;
+        workData.status = arrivedDepot ? WorkOrderStatus.CLOSED : WorkOrderStatus.ACCEPTED;
         workData.actualCompletedAt = now;
         workData.completionReportedBy = { connect: { id: report.originalDriverId } };
         workData.completionApprovedBy = { connect: { id: actor.id } };
         workData.completionApprovedAt = now;
-        workData.closedAt = now;
+        if (arrivedDepot) workData.closedAt = now;
         if (dto.delayReason) workData.delayReason = dto.delayReason;
         if (dto.delayReasonNote) workData.delayReasonNote = dto.delayReasonNote;
         await tx.workAcceptance.create({ data: { workOrderId: id, status: WorkAcceptanceStatus.APPROVED, submittedAt: report.reportSubmittedAt ?? now, reviewedById: actor.id, reviewedAt: now, reason: dto.reason } });
       }
       await tx.operationalWorkOrder.update({ where: { id }, data: workData });
       await tx.driverKpiEvent.create({ data: { driverId: report.originalDriverId, workOrderId: id, type: DriverKpiEventType.WORK_PROGRESS, decision: KpiDecision.UNDECIDED, quantity: report.quantityToday, payload: { dispatchOrderId, reportId: report.id, accepted: true, workCompleted: report.workCompleted, delayReason: dto.delayReason } } });
-      if (report.workCompleted) await this.releaseResourcesIfPossible(tx, id);
-      await this.event(tx, id, actor.id, 'DAILY_REPORT_ACCEPTED', order.status, report.workCompleted ? WorkOrderStatus.ACCEPTED : order.status, dto.reason, { dispatchOrderId, reportId: report.id, quantity: report.quantityToday, completedQuantity, workCompleted: report.workCompleted });
+      if (report.workCompleted && arrivedDepot) await this.releaseResourcesIfPossible(tx, id);
+      const nextStatus = report.workCompleted ? (arrivedDepot ? WorkOrderStatus.CLOSED : WorkOrderStatus.ACCEPTED) : order.status;
+      await this.event(tx, id, actor.id, 'DAILY_REPORT_ACCEPTED', order.status, nextStatus, dto.reason, { dispatchOrderId, reportId: report.id, quantity: report.quantityToday, completedQuantity, workCompleted: report.workCompleted, arrivedDepot });
       return tx.operationalWorkOrder.findUnique({ where: { id }, include: aggregateInclude });
     });
   }
@@ -1323,7 +1417,12 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     if (current.type !== WorkOrderType.DISPATCH) throw new BadRequestException('Tiếp tục ngày sau hiện chỉ áp dụng cho lệnh điều xe.');
     const previous = current.dailyDispatchOrders.find((item) => item.id === dto.previousDispatchOrderId);
     if (!previous) throw new NotFoundException('Không tìm thấy lệnh ngày trước.');
-    if (!previous.dailyReport || previous.dailyReport.status !== DailyReportStatus.ACCEPTED || previous.dailyReport.workCompleted) throw new BadRequestException('Chỉ được tiếp tục từ báo cáo đã nghiệm thu và công việc chưa hoàn thành.');
+    const acceptedIncomplete = previous.dailyReport?.status === DailyReportStatus.ACCEPTED && !previous.dailyReport.workCompleted;
+    const unresolvedBacklog = dto.reassignUnresolved === true
+      && !previous.dailyReport?.workCompleted
+      && (!previous.dailyReport || new Set<DailyReportStatus>([DailyReportStatus.NOT_OPEN, DailyReportStatus.DRAFT, DailyReportStatus.MISSING, DailyReportStatus.REVISION_REQUESTED]).has(previous.dailyReport.status));
+    if (!acceptedIncomplete && !unresolvedBacklog) throw new BadRequestException('Chỉ được tiếp tục từ báo cáo đã nghiệm thu hoặc điều chuyển lệnh tồn đọng chưa hoàn tất.');
+    if (unresolvedBacklog && !dto.notes?.trim()) throw new BadRequestException('Điều chuyển lệnh tồn đọng phải ghi rõ lý do.');
     if (dto.scheduledStartAt <= (previous.scheduledStartAt ?? previous.departureTime ?? new Date(0))) throw new BadRequestException('Ngày tiếp tục phải sau ngày của lệnh trước.');
     const vehicleId = dto.vehicleId ?? previous.vehicleId;
     const driverId = dto.driverId ?? previous.driverId;
@@ -1333,6 +1432,10 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     const scheduledEndAt = calculateScheduledEnd(dto.scheduledStartAt, workDurationMinutes, breakDurationMinutes);
     await this.availability.assertResourcesAvailable({ startAt: dto.scheduledStartAt, endAt: scheduledEndAt, unit: current.unit, category: current.category, vehicleId, driverId, excludeWorkOrderId: id }, actor);
     return this.prisma.$transaction(async (tx) => {
+      if (unresolvedBacklog) {
+        const openSegment = await tx.workExecutionSegment.findFirst({ where: { workOrderId: id, endedAt: null }, select: { id: true } });
+        if (openSegment) throw new BadRequestException('Phải kết thúc hoặc bàn giao phiên làm việc đang mở trước khi điều chuyển.');
+      }
       await this.lockResourceRows(tx, vehicleId, driverId, dto.implementId ?? previous.implementId ?? undefined);
       const existing = await tx.dispatchOrder.findUnique({ where: { previousDispatchOrderId: previous.id } });
       if (existing) return tx.operationalWorkOrder.findUnique({ where: { id }, include: aggregateInclude });
@@ -1348,8 +1451,9 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       await tx.workDriverAssignment.create({ data: { workOrderId: id, driverId, status: WorkAssignmentStatus.ASSIGNED, startAt: dto.scheduledStartAt, endAt: scheduledEndAt, assignedById: actor.id } });
       await tx.operationalWorkOrder.update({ where: { id }, data: { status: WorkOrderStatus.ASSIGNED, plannedStartAt: dto.scheduledStartAt, plannedEndAt: scheduledEndAt, version: { increment: 1 } } });
       await tx.driverKpiEvent.create({ data: { driverId, workOrderId: id, type: DriverKpiEventType.ASSIGNED, payload: { dispatchOrderId: dispatch.id, previousDispatchOrderId: previous.id } } });
-      await this.event(tx, id, actor.id, 'CONTINUE_NEXT_DAY', current.status, WorkOrderStatus.ASSIGNED, dto.notes, { dispatchOrderId: dispatch.id, previousDispatchOrderId: previous.id, vehicleId, driverId });
-      await this.createAlert(tx, { dedupeKey: `DISPATCH_NEXT_DAY:${dispatch.id}`, alertType: 'DISPATCH_NEXT_DAY', title: 'Lệnh ngày mai đã được giao', message: `Lệnh ${dispatch.code} đã được giao.`, unit: current.unit, driverId, sourceId: String(dispatch.id) });
+      const action = unresolvedBacklog ? 'REASSIGN_BACKLOG' : 'CONTINUE_NEXT_DAY';
+      await this.event(tx, id, actor.id, action, current.status, WorkOrderStatus.ASSIGNED, dto.notes, { dispatchOrderId: dispatch.id, previousDispatchOrderId: previous.id, vehicleId, driverId });
+      await this.createAlert(tx, { dedupeKey: `${action}:${dispatch.id}`, alertType: action, title: unresolvedBacklog ? 'Lệnh tồn đọng đã được điều chuyển' : 'Lệnh ngày mai đã được giao', message: `Lệnh ${dispatch.code} đã được giao.`, unit: current.unit, driverId, sourceId: String(dispatch.id) });
       return tx.operationalWorkOrder.findUnique({ where: { id }, include: aggregateInclude });
     });
   }
@@ -1538,22 +1642,27 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async journeyAction(id: number, action: JourneyAction, dto: JourneyActionDto, actor: OperationalActor) {
+  async journeyAction(id: number, action: JourneyAction, dto: JourneyActionDto, actor: OperationalActor, proxyReason?: string) {
     let operationVehicleId: number | undefined;
     await this.prisma.$transaction(async (tx) => {
       const order = await this.lockOrder(tx, id);
-      if (actor.role !== Role.DRIVER) throw new ForbiddenException('Chỉ tài xế được thao tác hành trình.');
+      const isProxy = actor.role !== Role.DRIVER;
+      if (isProxy) {
+        this.assertProxyManagementRole(actor);
+        assertOperationalAccess(actor, order.unit);
+        if (!proxyReason?.trim()) throw new BadRequestException('Ghi nhận thay tài xế phải có lý do hoặc phương thức liên hệ.');
+      }
       const driverAssignment = await this.activeDriverAssignment(tx, id);
       const vehicleAssignment = await this.activeVehicleAssignment(tx, id);
-      if (!driverAssignment || driverAssignment.driverId !== actor.id || !vehicleAssignment) throw new ForbiddenException('Phân công tài xế hoặc xe không hợp lệ.');
+      if (!driverAssignment || (!isProxy && driverAssignment.driverId !== actor.id) || !vehicleAssignment) throw new ForbiddenException('Phân công tài xế hoặc xe không hợp lệ.');
       operationVehicleId = vehicleAssignment.vehicleId;
-      if (!new Set<WorkOrderStatus>([WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.REWORK_REQUIRED]).has(order.status)) {
+      if (!new Set<WorkOrderStatus>([WorkOrderStatus.DRIVER_ACCEPTED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.REWORK_REQUIRED, WorkOrderStatus.ACCEPTED]).has(order.status)) {
         throw new BadRequestException(`Không thể cập nhật hành trình từ trạng thái ${order.status}.`);
       }
 
       const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleAssignment.vehicleId }, include: { homeDepot: true } });
       if (!vehicle) throw new NotFoundException('Không tìm thấy xe được phân công.');
-      await this.validateJourneyEvidence(tx, id, vehicle.gpsImei, action, dto.evidenceId);
+      if (!isProxy) await this.validateJourneyEvidence(tx, id, vehicle.gpsImei, action, dto.evidenceId);
       if (dto.evidenceId && dto.lat !== undefined && dto.lng !== undefined) {
         await tx.workEvidence.update({ where: { id: dto.evidenceId }, data: { lat: dto.lat, lng: dto.lng, locationStatus: EvidenceLocationStatus.GPS_RECORDED } });
       }
@@ -1572,9 +1681,18 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
       } else {
         throw new BadRequestException('Luồng hành trình chi tiết chưa áp dụng cho chuyến tiếp liệu.');
       }
-      await tx.operationalWorkOrder.update({ where: { id }, data: { status: WorkOrderStatus.IN_PROGRESS, version: { increment: 1 } } });
+      const nextWorkStatus = action === JourneyAction.ARRIVE_DEPOT && order.status === WorkOrderStatus.ACCEPTED
+        ? WorkOrderStatus.CLOSED
+        : order.status === WorkOrderStatus.ACCEPTED
+          ? WorkOrderStatus.ACCEPTED
+          : WorkOrderStatus.IN_PROGRESS;
+      await tx.operationalWorkOrder.update({
+        where: { id },
+        data: { status: nextWorkStatus, version: { increment: 1 }, ...(nextWorkStatus === WorkOrderStatus.CLOSED ? { closedAt: now } : {}) },
+      });
+      if (action === JourneyAction.ARRIVE_DEPOT) await this.releaseResourcesIfPossible(tx, id);
       const updatedWorkOrder = await tx.operationalWorkOrder.findUnique({ where: { id }, select: { status: true } });
-      await this.event(tx, id, actor.id, `JOURNEY_${action}`, order.status, updatedWorkOrder?.status, undefined, { legId: activeLeg.id, evidenceId: dto.evidenceId, lat: dto.lat, lng: dto.lng });
+      await this.event(tx, id, actor.id, isProxy ? `PROXY_JOURNEY_${action}` : `JOURNEY_${action}`, order.status, updatedWorkOrder?.status, proxyReason, { legId: activeLeg.id, evidenceId: dto.evidenceId, lat: dto.lat, lng: dto.lng, targetDriverId: driverAssignment.driverId, isProxy });
     });
     const bdc1 = operationVehicleId && new Set<JourneyAction>([JourneyAction.DEPART_TO_WORK, JourneyAction.ARRIVE_PICKUP]).has(action)
       ? await this.maintenance?.ensureBdc1ForOperation(operationVehicleId, actor.id)
@@ -1646,27 +1764,36 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     await tx.user.update({ where: { id: driverAssignment.driverId }, data: { currentShiftStatus: DriverShiftStatus.DANG_VAN_HANH } });
   }
 
-  private async applyDispatchJourneyAction(tx: Tx, order: { id: number; dispatchOrderId: number | null }, leg: { id: number; status: JourneyLegStatus }, action: JourneyAction, dto: JourneyActionDto, now: Date, vehicleId: number, driverId: number) {
+  private async applyDispatchJourneyAction(tx: Tx, order: { id: number; dispatchOrderId: number | null; status: WorkOrderStatus }, leg: { id: number; status: JourneyLegStatus }, action: JourneyAction, dto: JourneyActionDto, now: Date, vehicleId: number, driverId: number) {
     if (!order.dispatchOrderId) throw new BadRequestException('Công việc không liên kết lệnh điều xe.');
     if (action === JourneyAction.DEPART_TO_WORK && leg.status === JourneyLegStatus.PLANNED) {
       await tx.workJourneyLeg.update({ where: { id: leg.id }, data: { status: JourneyLegStatus.EN_ROUTE_TO_PICKUP, startedAt: now } });
       await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.DEPARTED, actualDepartureTime: now } });
-    } else if (action === JourneyAction.ARRIVE_WORKSITE && leg.status === JourneyLegStatus.EN_ROUTE_TO_PICKUP) {
-      await tx.workJourneyLeg.update({ where: { id: leg.id }, data: { status: JourneyLegStatus.AT_DELIVERY, deliveryAt: now } });
-      await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.AT_WORKSITE } });
+    } else if (action === JourneyAction.ARRIVE_WORKSITE && new Set<JourneyLegStatus>([JourneyLegStatus.PLANNED, JourneyLegStatus.EN_ROUTE_TO_PICKUP]).has(leg.status)) {
+      await tx.workJourneyLeg.update({ where: { id: leg.id }, data: { status: JourneyLegStatus.AT_DELIVERY, deliveryAt: now, ...(leg.status === JourneyLegStatus.PLANNED ? { startedAt: now } : {}) } });
+      await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.AT_WORKSITE, ...(leg.status === JourneyLegStatus.PLANNED ? { actualDepartureTime: now } : {}) } });
     } else if (action === JourneyAction.START_WORK && leg.status === JourneyLegStatus.AT_DELIVERY) {
       await tx.workJourneyLeg.update({ where: { id: leg.id }, data: { status: JourneyLegStatus.WORKING } });
       await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.WORKING, actualStartTime: now } });
     } else if (action === JourneyAction.FINISH_WORK && leg.status === JourneyLegStatus.WORKING) {
       await tx.workJourneyLeg.update({ where: { id: leg.id }, data: { status: JourneyLegStatus.COMPLETED, completedAt: now } });
-      await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { actualCompletedTime: now } });
+      await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.SHIFT_FINISHED, actualCompletedTime: now } });
     } else if (action === JourneyAction.RETURN_TO_DEPOT && leg.status === JourneyLegStatus.COMPLETED) {
       const reposition = await this.createRepositionLeg(tx, order.id, vehicleId);
       await tx.workJourneyLeg.update({ where: { id: reposition.id }, data: { status: JourneyLegStatus.RETURNING_TO_DEPOT, startedAt: now } });
       await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.RETURNING_TO_DEPOT } });
     } else if (action === JourneyAction.ARRIVE_DEPOT && leg.status === JourneyLegStatus.RETURNING_TO_DEPOT) {
       await tx.workJourneyLeg.update({ where: { id: leg.id }, data: { status: JourneyLegStatus.AT_DEPOT, completedAt: now } });
-      await tx.dispatchOrder.update({ where: { id: order.dispatchOrderId }, data: { status: DispatchStatus.COMPLETED, returnTime: now } });
+      const acceptedReport = await tx.dailyReport.findUnique({ where: { dispatchOrderId: order.dispatchOrderId }, select: { status: true, workCompleted: true } });
+      const closesAtDepot = order.status === WorkOrderStatus.ACCEPTED && acceptedReport?.status === DailyReportStatus.ACCEPTED && acceptedReport.workCompleted;
+      await tx.dispatchOrder.update({
+        where: { id: order.dispatchOrderId },
+        data: {
+          status: closesAtDepot ? DispatchStatus.CLOSED : DispatchStatus.COMPLETED,
+          returnTime: now,
+          ...(closesAtDepot ? { closedAt: now } : {}),
+        },
+      });
       await this.completeJourneyAtDepot(tx, order.id, dto, now, vehicleId);
     } else throw new BadRequestException(`Thao tác ${action} không hợp lệ tại trạng thái ${leg.status}.`);
   }
@@ -1906,6 +2033,12 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     throw new ForbiddenException('Vai trò hiện tại không có quyền duyệt hoặc phân công loại công việc này.');
   }
 
+  private assertProxyManagementRole(actor: OperationalActor) {
+    if (!new Set<Role>([Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER]).has(actor.role)) {
+      throw new ForbiddenException('Vai trò hiện tại không có quyền ghi nhận thay tài xế.');
+    }
+  }
+
   private assertAcceptanceRole(actor: OperationalActor, type: WorkOrderType) {
     if (actor.role === Role.SUPER_ADMIN) return;
     if (type === WorkOrderType.TRANSPORT && actor.role === Role.DISPATCHER) return;
@@ -1930,6 +2063,9 @@ export class WorkOrdersService implements OnModuleInit, OnModuleDestroy {
     if (!assignment || assignment.driverId !== driverId) throw new ForbiddenException('Công việc không thuộc tài xế hiện tại.');
     const session = await tx.workExecutionSegment.findFirst({ where: { workOrderId, driverId, status: { not: WorkSessionStatus.ENDED } }, orderBy: { startedAt: 'desc' } });
     if (!session) throw new BadRequestException('Không có phiên làm việc đang mở.');
+    if (!session.workDate || this.dateOnly(session.workDate).getTime() !== this.dateOnly(new Date()).getTime()) {
+      throw new BadRequestException('Phiên làm việc thuộc ngày trước. Tài xế không được tiếp tục thao tác; quản lý phải đối soát và giao lệnh ngày mới.');
+    }
     return session;
   }
 

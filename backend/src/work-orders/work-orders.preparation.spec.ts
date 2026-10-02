@@ -13,9 +13,9 @@ import { buildDriverDelayAlert, WorkOrdersService } from './work-orders.service'
 describe('driver delay alert', () => {
   const now = new Date('2026-09-12T08:00:00.000Z');
 
-  it('warns separately while waiting for acceptance and waiting for departure', () => {
+  it('warns only while waiting for the driver to accept', () => {
     expect(buildDriverDelayAlert({ status: WorkOrderStatus.ASSIGNED, plannedStartAt: new Date('2026-09-12T07:00:00.000Z') }, now)).toMatchObject({ delayMinutes: 60, phase: 'WAITING_ACCEPTANCE' });
-    expect(buildDriverDelayAlert({ status: WorkOrderStatus.DRIVER_ACCEPTED, plannedStartAt: new Date('2026-09-12T07:00:00.000Z') }, now)).toMatchObject({ delayMinutes: 60, phase: 'WAITING_DEPARTURE' });
+    expect(buildDriverDelayAlert({ status: WorkOrderStatus.DRIVER_ACCEPTED, plannedStartAt: new Date('2026-09-12T07:00:00.000Z') }, now)).toBeNull();
   });
 
   it('does not warn before the 15-minute threshold or after execution starts', () => {
@@ -134,8 +134,8 @@ describe('WorkOrdersService manual preparation', () => {
   });
 
   it.each([
-    ['team leader', { id: 5, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM }],
-    ['admin', { id: 1, role: Role.SUPER_ADMIN, unit: Unit.TOAN_KLH }],
+    ['quanly.kounmom (quản lý cơ giới/khu vực)', { id: 5, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM, username: 'quanly.kounmom' }],
+    ['admin', { id: 1, role: Role.SUPER_ADMIN, unit: Unit.TOAN_KLH, username: 'admin' }],
   ])('issues an open agricultural order for %s when the catalog enterprise differs from the resource team', async (_label, operationalActor) => {
     const tx: any = {
       $queryRaw: jest.fn().mockResolvedValue([]),

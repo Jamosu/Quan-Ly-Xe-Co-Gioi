@@ -201,6 +201,7 @@ export const VehiclesPage: React.FC<VehiclesPageProps> = ({ assetScope = 'FLEET'
 
   // Global KLH from Header Filter
   const globalKLH = useAppStore((state) => state.selectedKLH);
+  const isAreaManager = useAppStore((state) => state.currentUser?.role === 'FARM_MANAGER');
 
   // Filter state is sent to MySQL through GET /api/vehicles.
   const [selectedComplex, setSelectedComplex] = useState(globalKLH || ALL);
@@ -1612,7 +1613,7 @@ export const VehiclesPage: React.FC<VehiclesPageProps> = ({ assetScope = 'FLEET'
   return (
     <div className="space-y-4">
       {/* 7 TILES OPERATIONAL STATUS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${isAreaManager ? 'lg:grid-cols-6' : 'lg:grid-cols-7'} gap-3`}>
         {/* Row 1 - Card 1: Tổng quy mô MMTB */}
         <button
           type="button"
@@ -1780,6 +1781,7 @@ export const VehiclesPage: React.FC<VehiclesPageProps> = ({ assetScope = 'FLEET'
         </button>
 
         {/* Row 1 - Card 7: Thiếu đơn vị sử dụng */}
+        {!isAreaManager && (
         <button
           type="button"
           onClick={() => navigate('/doi-xe/phan-xe')}
@@ -1799,6 +1801,7 @@ export const VehiclesPage: React.FC<VehiclesPageProps> = ({ assetScope = 'FLEET'
             Xe/máy và thiết bị chờ phân bổ →
           </div>
         </button>
+        )}
       </div>
 
       {/* Row 2: ba nhóm xe cơ giới */}

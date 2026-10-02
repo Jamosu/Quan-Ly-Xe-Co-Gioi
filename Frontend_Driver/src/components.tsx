@@ -135,8 +135,12 @@ export function SyncPill({ status }: { status: SyncStatus }) {
 const STATUS_LABEL: Record<string, string> = {
   ASSIGNED: 'Chờ nhận lệnh',
   DRIVER_ACCEPTED: 'Đã nhận lệnh',
+  DEPARTED: 'Đang đến điểm làm việc',
+  AT_WORKSITE: 'Đã đến điểm làm việc',
   VEHICLE_RECEIVED: 'Đã nhận xe',
   WORKING: 'Đang thực hiện',
+  SHIFT_FINISHED: 'Đã kết thúc việc trong ngày',
+  WAITING_REVIEW: 'Chờ duyệt báo cáo ngày',
   IN_TRANSIT: 'Đang vận chuyển',
   ON_BREAK: 'Đang nghỉ giữa ca',
   PAUSED: 'Tạm dừng',
@@ -154,6 +158,19 @@ const STATUS_LABEL: Record<string, string> = {
   ORDER_COMPLETION_REQUESTED: 'Đã báo hoàn thành công việc',
   DAILY_REPORT_DRAFT_SAVED: 'Đã lưu nháp báo cáo cuối ngày',
   DAILY_REPORT_SUBMITTED: 'Đã gửi báo cáo cuối ngày',
+  DRAFT: 'Bản nháp',
+  SUBMITTED_ON_TIME: 'Đã gửi đúng hạn',
+  LATE: 'Đã gửi trễ',
+  MISSING: 'Thiếu báo cáo',
+  SUBMITTED_BY_MANAGER: 'Quản lý đã ghi nhận thay',
+  REVISION_REQUESTED: 'Cần chỉnh sửa',
+  ACCEPTED: 'Đã được quản lý duyệt',
+  DEPART_TO_WORK: 'Bắt đầu đến điểm làm việc',
+  ARRIVED_WORKSITE: 'Đã đến điểm làm việc',
+  WORK_STARTED: 'Bắt đầu làm việc',
+  WORK_FINISHED: 'Kết thúc việc trong ngày',
+  RETURN_TO_DEPOT: 'Bắt đầu trở về bãi',
+  ARRIVED_DEPOT: 'Đã về đến bãi',
 };
 
 export function statusLabel(value: string) {
@@ -176,6 +193,63 @@ export function formatDate(value: string | null, withDate = false, withYear = fa
   return `${hh}:${mm} ${dd}/${MM}`;
 }
 
+export function formatDateOnly(value: string | null, withYear = true): string {
+  if (!value) return '--/--';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '--/--';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return withYear ? `${dd}/${MM}/${yyyy}` : `${dd}/${MM}`;
+}
+
+export function formatDayDate(value: string | null, withYear = true): string {
+  if (!value) return 'Chưa có ngày';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return 'Chưa có ngày';
+  const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  const dayName = days[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return withYear ? `${dayName}, ${dd}/${MM}/${yyyy}` : `${dayName}, ${dd}/${MM}`;
+}
+
+export function isTodayDate(value: string | null): boolean {
+  if (!value) return false;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  return (
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+  );
+}
+
+export function calculateDurationText(
+  start: string | null,
+  end: string | null,
+  durationMinutes?: number,
+): string {
+  let minutes = 0;
+  if (durationMinutes && durationMinutes > 0) {
+    minutes = durationMinutes;
+  } else if (start && end) {
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    if (!isNaN(s) && !isNaN(e) && e > s) {
+      minutes = Math.round((e - s) / 60000);
+    }
+  }
+  if (minutes <= 0) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h} giờ ${m} phút`;
+  if (h > 0) return `${h} giờ`;
+  return `${m} phút`;
+}
+
 // ==========================================
 // 4. TASK CARD
 // ==========================================
@@ -186,6 +260,18 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
   const isCompleted = ['COMPLETED', 'DELIVERED', 'ACCEPTED', 'CLOSED'].includes(order.local_status);
   const isAssigned = order.local_status === 'ASSIGNED';
 
+  let raw: any = {};
+  try {
+    raw = JSON.parse(order.raw_json || '{}');
+  } catch {}
+
+  const dayDate = formatDayDate(order.planned_start);
+  const isToday = isTodayDate(order.planned_start);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const isPastActive = Boolean(order.planned_start && new Date(order.planned_start).getTime() < todayStart.getTime() && !isCompleted);
+  const durationText = calculateDurationText(order.planned_start, order.planned_end, raw.workDurationMinutes);
+
   // Parse work volume/area from raw_json or defaults based on order type
   const isTransport = order.order_type === 'TRANSPORT';
   let metricIcon: keyof typeof Ionicons.glyphMap = isTransport ? 'cube-outline' : 'speedometer-outline';
@@ -194,7 +280,6 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
   let progressPercent = 0;
 
   try {
-    const raw = JSON.parse(order.raw_json || '{}');
     if (isTransport) {
       metricIcon = 'cube-outline';
       const tonnage = Number(raw.tonnage || 0);
@@ -262,6 +347,10 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
     ctaText = 'Tiếp tục';
     ctaIcon = 'play';
   }
+  if (isPastActive) {
+    ctaText = 'Xem lệnh tồn đọng';
+    ctaIcon = 'warning-outline';
+  }
 
   return (
     <TouchableOpacity
@@ -305,6 +394,22 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
 
       {/* Metadata Rows with clear outdoor icons */}
       <View style={styles.metaContainer}>
+        {/* Planned Date */}
+        <View style={styles.cardDateRow}>
+          <Ionicons name="calendar-outline" size={15} color={colors.brand} />
+          <Text style={styles.cardDateText}>{dayDate}</Text>
+          {isToday && (
+            <View style={styles.todayPill}>
+              <Text style={styles.todayPillText}>HÔM NAY</Text>
+            </View>
+          )}
+          {isPastActive && (
+            <View style={[styles.todayPill, { backgroundColor: colors.dangerSoft }]}>
+              <Text style={[styles.todayPillText, { color: colors.danger }]}>TỒN ĐỌNG NGÀY CŨ</Text>
+            </View>
+          )}
+        </View>
+
         {/* Location */}
         <View style={styles.metaRow}>
           <Ionicons name="location" size={17} color={colors.brand} />
@@ -319,6 +424,7 @@ export function TaskCard({ order, onPress }: { order: LocalOrder; onPress: () =>
             <Ionicons name="time-outline" size={16} color={colors.muted} />
             <Text style={styles.detailText}>
               {formatDate(order.planned_start)} – {formatDate(order.planned_end)}
+              {durationText ? ` (${durationText})` : ''}
             </Text>
           </View>
           <View style={styles.detailItem}>
@@ -1026,6 +1132,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  cardDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  cardDateText: {
+    color: colors.brandDark,
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  todayPill: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 4,
+  },
+  todayPillText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   metaRowText: {
     color: colors.inkLight,

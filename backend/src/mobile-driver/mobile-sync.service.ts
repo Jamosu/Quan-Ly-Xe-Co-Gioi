@@ -1,9 +1,10 @@
 import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
-import { MobileSyncEventStatus, Prisma, Role, Unit, WorkBreakType, WorkPauseReason } from '@prisma/client';
+import { EvidenceLocationStatus, MobileSyncEventStatus, Prisma, Role, Unit, WorkBreakType, WorkEvidenceType, WorkPauseReason } from '@prisma/client';
 import 'multer';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperationalActor } from '../common/utils/operational-access';
 import { WorkOrdersService } from '../work-orders/work-orders.service';
+import { JourneyAction } from '../work-orders/dto/work-order-actions.dto';
 import { SyncEventDto, SyncPushDto } from './dto/sync.dto';
 import { MobileDriverService } from './mobile-driver.service';
 import { OperationalRealtimeService } from '../operational-realtime/operational-realtime.service';
@@ -256,6 +257,18 @@ export class MobileSyncService {
       switch (event.eventType) {
         case 'ORDER_ACCEPTED':
           return this.workOrders.driverAccept(order.workOrderId, actor);
+        case 'DEPART_TO_WORK':
+          return this.executeJourneyAction(order.workOrderId, JourneyAction.DEPART_TO_WORK, payload, actor);
+        case 'ARRIVED_WORKSITE':
+          return this.executeJourneyAction(order.workOrderId, JourneyAction.ARRIVE_WORKSITE, payload, actor);
+        case 'WORK_STARTED':
+          return this.executeJourneyAction(order.workOrderId, JourneyAction.START_WORK, payload, actor);
+        case 'WORK_FINISHED':
+          return this.executeJourneyAction(order.workOrderId, JourneyAction.FINISH_WORK, payload, actor);
+        case 'RETURN_TO_DEPOT':
+          return this.executeJourneyAction(order.workOrderId, JourneyAction.RETURN_TO_DEPOT, payload, actor);
+        case 'ARRIVED_DEPOT':
+          return this.executeJourneyAction(order.workOrderId, JourneyAction.ARRIVE_DEPOT, payload, actor);
         case 'JOB_STARTED':
           return this.workOrders.startExecution(order.workOrderId, {
             startOdoKm: this.numberValue(payload.startOdoKm),
@@ -286,7 +299,11 @@ export class MobileSyncService {
             overallProgressPercent: this.numberValue(payload.overallProgressPercent),
             description: typeof payload.description === 'string' ? payload.description : undefined,
             note: typeof payload.note === 'string' ? payload.note : event.note,
-            evidenceUrls: Array.isArray(payload.evidenceUrls) ? payload.evidenceUrls.map(String) : undefined,
+            evidenceUrls: Array.isArray(payload.evidenceUrls)
+              ? payload.evidenceUrls.map(String)
+              : typeof payload.photoUrl === 'string'
+                ? [payload.photoUrl]
+                : undefined,
           }, actor);
         case 'DAILY_REPORT_DRAFT_SAVED':
         case 'DAILY_REPORT_SUBMITTED': {
@@ -335,6 +352,45 @@ export class MobileSyncService {
   private numberValue(value: unknown) {
     const parsed = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  private journeyPayload(payload: Record<string, unknown>) {
+    return {
+      evidenceId: this.numberValue(payload.evidenceId),
+      odoKm: this.numberValue(payload.odoKm ?? payload.startOdoKm ?? payload.finishOdoKm),
+      machineHours: this.numberValue(payload.machineHours ?? payload.startMachineHours ?? payload.finishMachineHours),
+      lat: this.numberValue(payload.latitude ?? payload.lat),
+      lng: this.numberValue(payload.longitude ?? payload.lng),
+      notes: typeof payload.note === 'string' ? payload.note : undefined,
+    };
+  }
+
+  private async executeJourneyAction(workOrderId: number, action: JourneyAction, payload: Record<string, unknown>, actor: OperationalActor) {
+    const dto = this.journeyPayload(payload);
+    if (typeof payload.photoUrl === 'string') {
+      const typeByAction: Partial<Record<JourneyAction, WorkEvidenceType>> = {
+        [JourneyAction.ARRIVE_WORKSITE]: WorkEvidenceType.ARRIVAL_PHOTO,
+        [JourneyAction.FINISH_WORK]: WorkEvidenceType.WORK_COMPLETION_PHOTO,
+        [JourneyAction.ARRIVE_DEPOT]: WorkEvidenceType.DEPOT_RETURN_PHOTO,
+      };
+      const evidenceType = typeByAction[action];
+      if (evidenceType) {
+        const evidence = await this.prisma.workEvidence.create({
+          data: {
+            workOrderId,
+            type: evidenceType,
+            url: payload.photoUrl,
+            capturedAt: new Date(),
+            lat: dto.lat,
+            lng: dto.lng,
+            locationStatus: dto.lat !== undefined && dto.lng !== undefined ? EvidenceLocationStatus.GPS_RECORDED : EvidenceLocationStatus.LOCATION_UNKNOWN,
+            createdById: actor.id,
+          },
+        });
+        dto.evidenceId = evidence.id;
+      }
+    }
+    return this.workOrders.journeyAction(workOrderId, action, dto, actor);
   }
 
   private async recordConflict(

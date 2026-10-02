@@ -257,7 +257,8 @@ export async function enqueueEvent(input: {
         JOB_PAUSED: 'PAUSED', WORK_PAUSED: 'PAUSED', JOB_RESUMED: 'WORKING', WORK_RESUMED: 'WORKING',
         BREAK_STARTED: 'ON_BREAK', BREAK_ENDED: 'WORKING', JOB_COMPLETED: 'READY_TO_CONTINUE',
         WORK_SESSION_ENDED: 'READY_TO_CONTINUE', ORDER_COMPLETION_REQUESTED: 'SUBMITTED_FOR_ACCEPTANCE',
-        DAILY_REPORT_SUBMITTED: 'WAITING_REVIEW',
+        DEPART_TO_WORK: 'DEPARTED', ARRIVED_WORKSITE: 'AT_WORKSITE', WORK_STARTED: 'WORKING',
+        WORK_FINISHED: 'SHIFT_FINISHED', RETURN_TO_DEPOT: 'RETURNING_TO_DEPOT', ARRIVED_DEPOT: 'COMPLETED',
       };
       await tx.runAsync(
         `UPDATE dispatch_orders SET local_status=?, sync_status='PENDING', local_updated_at=?,
@@ -303,10 +304,16 @@ export async function markAttachment(id: number, status: SyncStatus, remoteUrl?:
   const nextRetryAt = error ? new Date(Date.now() + retryDelayMs((current?.retry_count ?? 0) + 1)).toISOString() : null;
   await db.runAsync('UPDATE attachments SET upload_status=?, remote_url=COALESCE(?,remote_url), retry_count=retry_count+?, next_retry_at=? WHERE id=?', status, remoteUrl ?? null, error ? 1 : 0, nextRetryAt, id);
   if (remoteUrl) {
-    const attachment = await db.getFirstAsync<{ event_id: string }>('SELECT event_id FROM attachments WHERE id=?', id);
+    const attachment = await db.getFirstAsync<{ event_id: string; type: string }>('SELECT event_id, type FROM attachments WHERE id=?', id);
     if (attachment) {
       const queue = await db.getFirstAsync<{ payload_json: string }>('SELECT payload_json FROM sync_queue WHERE event_id=?', attachment.event_id);
-      if (queue) await db.runAsync('UPDATE sync_queue SET payload_json=? WHERE event_id=?', JSON.stringify({ ...JSON.parse(queue.payload_json), photoUrl: remoteUrl }), attachment.event_id);
+        if (queue) {
+          const payload = JSON.parse(queue.payload_json);
+          const nextPayload = attachment.type === 'DAILY_REPORT_EVIDENCE'
+            ? { ...payload, evidenceUrls: [...new Set([...(Array.isArray(payload.evidenceUrls) ? payload.evidenceUrls : []), remoteUrl])] }
+            : { ...payload, photoUrl: remoteUrl };
+          await db.runAsync('UPDATE sync_queue SET payload_json=? WHERE event_id=?', JSON.stringify(nextPayload), attachment.event_id);
+        }
     }
   }
 }
@@ -357,9 +364,10 @@ export async function applyPull(payload: any) {
       const latestSession = sessions.length ? sessions[sessions.length - 1] : undefined;
       const serverLocalStatus = activeSession?.status === 'ON_BREAK' ? 'ON_BREAK'
         : activeSession?.status === 'PAUSED' ? 'PAUSED'
-          : activeSession?.status === 'ACTIVE' ? 'WORKING'
-            : item.operationalWorkOrder?.status === 'IN_PROGRESS' ? 'READY_TO_CONTINUE'
-              : item.operationalWorkOrder?.status ?? serverStatus;
+          : item.orderType === 'DISPATCH' ? serverStatus
+            : activeSession?.status === 'ACTIVE' ? 'WORKING'
+              : item.operationalWorkOrder?.status === 'IN_PROGRESS' ? 'READY_TO_CONTINUE'
+                : item.operationalWorkOrder?.status ?? serverStatus;
       const preserveLocal = existing && ['PENDING', 'SYNCING', 'FAILED', 'CONFLICT'].includes(existing.sync_status);
       const vehicle = item.vehicle;
       const title = item.orderType === 'DISPATCH' ? item.purpose : item.cargoType || item.operationalWorkOrder?.jobName || 'Vận chuyển';
@@ -426,30 +434,39 @@ export async function applyPull(payload: any) {
     }
 
     // Reconcile deleted/unassigned active orders on server:
-    // Any locally SYNCED active order not present in server's active list should be purged
-    const activeServerKeys = all.map(item => `${item.orderType}:${item.id}`);
-    const staleWhere = activeServerKeys.length > 0
-      ? `sync_status = 'SYNCED' AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED') AND local_key NOT IN (${activeServerKeys.map(() => '?').join(',')})`
-      : `sync_status = 'SYNCED' AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED')`;
-    const staleOrders = await tx.getAllAsync<{ local_key: string }>(
-      `SELECT local_key FROM dispatch_orders WHERE ${staleWhere}`,
-      ...activeServerKeys,
-    );
-    if (staleOrders.length > 0) {
-      const staleKeys = staleOrders.map(o => o.local_key);
-      const p = staleKeys.map(() => '?').join(',');
-      const staleSessionIds = await tx.getAllAsync<{ id: number }>(`SELECT id FROM work_sessions WHERE dispatch_order_key IN (${p})`, ...staleKeys);
-      if (staleSessionIds.length) {
-        const sessionIds = staleSessionIds.map((item) => item.id);
-        const sessionPlaceholders = sessionIds.map(() => '?').join(',');
-        await tx.runAsync(`DELETE FROM work_breaks WHERE work_session_id IN (${sessionPlaceholders})`, ...sessionIds);
-        await tx.runAsync(`DELETE FROM work_pauses WHERE work_session_id IN (${sessionPlaceholders})`, ...sessionIds);
+    // Only purge if the server provided active keys, or this is a full sync
+    const activeServerKeys: string[] = Array.isArray(payload.activeOrderKeys)
+      ? payload.activeOrderKeys
+      : all
+          .filter((item: any) => !['COMPLETED', 'DELIVERED', 'ACCEPTED', 'CLOSED', 'CANCELLED'].includes(String(item.status)))
+          .map((item: any) => `${item.orderType}:${item.id}`);
+
+    const isFullSync = payload.isFullSync ?? !payload.since;
+
+    if (activeServerKeys.length > 0 || isFullSync) {
+      const staleWhere = activeServerKeys.length > 0
+        ? `sync_status = 'SYNCED' AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED','CANCELLED') AND local_key NOT IN (${activeServerKeys.map(() => '?').join(',')})`
+        : `sync_status = 'SYNCED' AND local_status NOT IN ('COMPLETED','DELIVERED','ACCEPTED','CLOSED','CANCELLED')`;
+      const staleOrders = await tx.getAllAsync<{ local_key: string }>(
+        `SELECT local_key FROM dispatch_orders WHERE ${staleWhere}`,
+        ...activeServerKeys,
+      );
+      if (staleOrders.length > 0) {
+        const staleKeys = staleOrders.map(o => o.local_key);
+        const p = staleKeys.map(() => '?').join(',');
+        const staleSessionIds = await tx.getAllAsync<{ id: number }>(`SELECT id FROM work_sessions WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+        if (staleSessionIds.length) {
+          const sessionIds = staleSessionIds.map((item) => item.id);
+          const sessionPlaceholders = sessionIds.map(() => '?').join(',');
+          await tx.runAsync(`DELETE FROM work_breaks WHERE work_session_id IN (${sessionPlaceholders})`, ...sessionIds);
+          await tx.runAsync(`DELETE FROM work_pauses WHERE work_session_id IN (${sessionPlaceholders})`, ...sessionIds);
+        }
+        await tx.runAsync(`DELETE FROM work_sessions WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+        await tx.runAsync(`DELETE FROM daily_progress WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+        await tx.runAsync(`DELETE FROM dispatch_events WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+        await tx.runAsync(`DELETE FROM attachments WHERE dispatch_order_key IN (${p})`, ...staleKeys);
+        await tx.runAsync(`DELETE FROM dispatch_orders WHERE local_key IN (${p})`, ...staleKeys);
       }
-      await tx.runAsync(`DELETE FROM work_sessions WHERE dispatch_order_key IN (${p})`, ...staleKeys);
-      await tx.runAsync(`DELETE FROM daily_progress WHERE dispatch_order_key IN (${p})`, ...staleKeys);
-      await tx.runAsync(`DELETE FROM dispatch_events WHERE dispatch_order_key IN (${p})`, ...staleKeys);
-      await tx.runAsync(`DELETE FROM attachments WHERE dispatch_order_key IN (${p})`, ...staleKeys);
-      await tx.runAsync(`DELETE FROM dispatch_orders WHERE local_key IN (${p})`, ...staleKeys);
     }
   });
   await setMeta('last_sync_at', payload.serverTime);

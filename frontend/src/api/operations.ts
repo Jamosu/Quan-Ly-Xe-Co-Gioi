@@ -25,6 +25,16 @@ export const operationsApi = {
   async createDispatch(data: Record<string, unknown>) { return payload<DispatchOrderRecord>(await apiClient.post('/dispatch-orders', data)); },
   async assignDispatch(id: number | string, data: { vehicleId: number; driverId: number; implementId?: number; implementIds?: number[]; departureTime: string; plannedEndTime: string }) { return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/assign`, data)); },
   async cancelDispatch(id: number | string, reason?: string) { return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/cancel`, { reason })); },
+  async driverAcceptDispatch(id: number | string, data?: { reason?: string }) { return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/driver-accept`, data)); },
+  async proxyProgressDispatch(id: number | string, data: { action: 'ARRIVE_WORKSITE' | 'START_WORK' | 'COMPLETE_WORK' | 'ACCEPT_QUANTITY' | 'RETURN_TO_DEPOT' | 'ARRIVE_DEPOT'; reason: string; actualQuantity?: number; unit?: string }) {
+    return payload<DispatchOrderRecord>(await apiClient.post(`/dispatch-orders/${id}/proxy-progress`, data));
+  },
+  async reassignWorkOrder(id: number | string, data: { driverId: number; vehicleId?: number; plannedStartAt: string; plannedEndAt: string; reason: string; expectedVersion?: number }) {
+    return payload<unknown>(await apiClient.post(`/work-orders/${id}/reassign`, data));
+  },
+  async continueOverdueWorkOrder(id: number | string, data: { previousDispatchOrderId: number; scheduledStartAt: string; workDurationMinutes: number; vehicleId: number; driverId: number; notes: string; reassignUnresolved: true }) {
+    return payload<unknown>(await apiClient.post(`/work-orders/${id}/continue-next-day`, data));
+  },
   async rescheduleDispatch(id: number | string, data: { newDepartureTime: string; newPlannedEndTime: string; reason?: string }) {
     return payload<{ order: DispatchOrderRecord; resetAssignment: boolean; conflicts: string[] }>(await apiClient.post(`/dispatch-orders/${id}/reschedule`, data));
   },
@@ -40,6 +50,10 @@ export const operationsApi = {
   async transportOrders(params: Record<string, unknown> = {}) { return payload<PaginatedResponse<TransportOrderRecord>>(await apiClient.get('/transport-orders', { params })); },
   async createTransport(data: Record<string, unknown>) { return payload<TransportOrderRecord>(await apiClient.post('/transport-orders', data)); },
   async assignTransport(id: number | string, data: { vehicleId: number; driverId: number; implementId?: number; departureTime: string; plannedEndTime: string }) { return payload<TransportOrderRecord>(await apiClient.post(`/transport-orders/${id}/assign`, data)); },
+  async driverAcceptTransport(id: number | string, data?: { reason?: string }) { return payload<TransportOrderRecord>(await apiClient.post(`/transport-orders/${id}/driver-accept`, data)); },
+  async proxyProgressTransport(id: number | string, data: { action: 'ARRIVE_WORKSITE' | 'START_WORK' | 'COMPLETE_WORK' | 'ACCEPT_QUANTITY' | 'RETURN_TO_DEPOT' | 'ARRIVE_DEPOT'; reason: string; actualQuantity?: number; unit?: string }) {
+    return payload<TransportOrderRecord>(await apiClient.post(`/transport-orders/${id}/proxy-progress`, data));
+  },
   async confirmations(params: Record<string, unknown> = {}) { return payload<PaginatedResponse<OperationConfirmationRecord>>(await apiClient.get('/operation-confirmations', { params })); },
   async confirm(id: number) { return payload<OperationConfirmationRecord>(await apiClient.patch(`/operation-confirmations/${id}/confirm`)); },
   async previewImport(data: ImportWorkbookPayload) { return payload<ImportPreview>(await apiClient.post('/transport-orders/import/preview', data)); },

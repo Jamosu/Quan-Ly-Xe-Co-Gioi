@@ -67,6 +67,18 @@ export class ReassignWorkOrderDto {
   @IsString()
   reason: string;
 
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  plannedStartAt?: Date;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  plannedEndAt?: Date;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
@@ -307,6 +319,7 @@ export class ContinueNextDayDto {
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) driverId?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) implementId?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+  @ApiPropertyOptional({ description: 'Điều chuyển một lệnh ngày cũ chưa có báo cáo hợp lệ sang lượt thực hiện mới.' }) @IsOptional() @IsBoolean() reassignUnresolved?: boolean;
 }
 
 export class DailyReportReviewDto {

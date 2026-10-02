@@ -239,6 +239,34 @@ export const ConstructionDispatchPage: React.FC = () => {
   const [selectedOperator, setSelectedOperator] = useState('ALL');
   const [view, setView] = useState<'table' | 'scheduler' | 'kanban'>('table');
 
+  const [page, setPage] = useState<number>(() => {
+    const qPage = new URLSearchParams(location.search).get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) return Number(qPage);
+    const saved = sessionStorage.getItem(`dispatch_page_${location.pathname}`);
+    if (saved && !isNaN(Number(saved)) && Number(saved) > 0) return Number(saved);
+    return 1;
+  });
+
+  const handlePageChange = React.useCallback((newPage: number) => {
+    setPage(newPage);
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(newPage));
+    const nextParams = new URLSearchParams(location.search);
+    if (newPage > 1) {
+      nextParams.set('page', String(newPage));
+    } else {
+      nextParams.delete('page');
+    }
+    const qStr = nextParams.toString();
+    navigate(qStr ? `?${qStr}` : location.pathname, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    const qPage = new URLSearchParams(location.search).get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) {
+      setPage(Number(qPage));
+    }
+  }, [location.search]);
+
   // 52 Tuần trong năm
   const availableWeeks = useMemo(() => {
     return [...getWeeksOfYear(2026)].sort((a, b) => b.weekNumber - a.weekNumber);
@@ -475,10 +503,26 @@ export const ConstructionDispatchPage: React.FC = () => {
       };
     }
 
+    const currentParams = new URLSearchParams(location.search);
+    if (page > 1) {
+      currentParams.set('page', String(page));
+    }
+    const fromPath = `${location.pathname}${currentParams.toString() ? `?${currentParams.toString()}` : ''}`;
+    const scrollPos = window.pageYOffset || document.documentElement.scrollTop || 0;
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(page));
+    sessionStorage.setItem('dispatch_last_order_id', String(shift.id));
+    sessionStorage.setItem('dispatch_last_order_code', String(shift.code));
+    sessionStorage.setItem('dispatch_scroll_pos', String(scrollPos));
+    sessionStorage.setItem('dispatch_last_from_path', fromPath);
+
     navigate(`/lenh-dieu-xe/chi-tiet/${shift.id}`, {
       state: {
         order: targetOrder,
-        from: location.pathname + location.search,
+        from: fromPath,
+        page,
+        lastOrderId: shift.id,
+        lastOrderCode: shift.code,
+        scrollPos,
       },
     });
   };
@@ -603,6 +647,42 @@ export const ConstructionDispatchPage: React.FC = () => {
       return sortOrder === 'time_asc' ? timeA.localeCompare(timeB) : timeB.localeCompare(timeA);
     });
   }, [shifts, search, selectedCategory, selectedMachine, selectedOperator, selectedWeek, availableWeeks, selectedDate, statusFilter, globalKLH, sortOrder]);
+
+  // Khi quay lại từ trang chi tiết: Giữ đúng trang hiện tại và làm nổi bật dòng ca máy vừa thao tác (không tự động cuộn màn hình)
+  useEffect(() => {
+    if (loading) return;
+
+    const lastOrderId = sessionStorage.getItem('dispatch_last_order_id') || (location.state as any)?.lastOrderId;
+    const lastOrderCode = sessionStorage.getItem('dispatch_last_order_code') || (location.state as any)?.lastOrderCode;
+
+    if (!lastOrderId && !lastOrderCode) return;
+
+    let attempts = 0;
+    const maxAttempts = 15;
+    const interval = setInterval(() => {
+      attempts++;
+      const el = (lastOrderId ? document.getElementById(`datatable-row-${lastOrderId}`) : null)
+        || (lastOrderCode ? document.querySelector(`[data-order-code="${lastOrderCode}"]`) : null);
+
+      if (el) {
+        clearInterval(interval);
+        el.classList.add('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        setTimeout(() => {
+          el.classList.remove('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        }, 3500);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      }
+    }, 80);
+
+    return () => clearInterval(interval);
+  }, [loading, filteredShifts, page, location.state]);
 
   // Danh sách các ngày có ca máy
   const availableDates = useMemo(() => {
@@ -748,35 +828,35 @@ export const ConstructionDispatchPage: React.FC = () => {
     {
       key: 'code',
       title: 'Mã lệnh & Phân loại',
-      width: '200px',
+      width: '118px',
       sortable: true,
       render: (row) => (
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="space-y-0.5 min-w-0">
+          <div className="flex items-center gap-1 flex-wrap">
             <b
-              className="font-mono font-bold text-primary text-xs hover:underline cursor-pointer"
+              className="font-mono font-bold text-primary text-[11px] hover:underline cursor-pointer tracking-tight"
               onClick={() => handleOpenShift(row)}
             >
               {row.code}
             </b>
             {row.status === 'CHO_DUYET' && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                <Clock className="h-3 w-3 text-amber-600" /> Chờ phân công
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.2 rounded">
+                <Clock className="h-2.5 w-2.5 text-amber-600" /> Chờ phân công
               </span>
             )}
           </div>
           {row.planCode && (
-            <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
+            <div className="text-[9px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1 py-0.2 rounded inline-flex items-center gap-0.5 truncate max-w-full" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
               <span className="text-slate-500 font-medium">KH:</span>
-              <span className="font-bold">{row.planCode}</span>
+              <span className="font-bold truncate">{row.planCode}</span>
             </div>
           )}
-          <div className="flex items-center gap-1">
-            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-              <HardHat className="h-3 w-3 text-amber-600" /> Công trình ca máy
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="inline-flex items-center gap-0.5 rounded bg-amber-50 border border-amber-200 px-1 py-0.5 text-[10px] font-bold text-amber-800">
+              <HardHat className="h-2.5 w-2.5 text-amber-600 shrink-0" /> Công trình
             </span>
-            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-semibold">
-              {row.shiftType === 'CA_NGAY' ? 'Ca Ngày (07:00-17:00)' : 'Ca Đêm'}
+            <span className="text-[9px] text-slate-500 bg-slate-100 px-1 py-0.2 rounded font-semibold">
+              {row.shiftType === 'CA_NGAY' ? 'Ngày' : 'Đêm'}
             </span>
           </div>
         </div>
@@ -785,20 +865,20 @@ export const ConstructionDispatchPage: React.FC = () => {
     {
       key: 'departureTime',
       title: 'Thời gian thực hiện',
-      width: '155px',
+      width: '92px',
       sortable: true,
       render: (row) => {
         if (!row.workDate) return <span className="text-slate-400">—</span>;
         const d = new Date(row.workDate);
         return (
-          <div className="text-xs">
-            <div className="font-bold text-slate-900 flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5 text-slate-400" />
-              {d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+          <div className="text-xs space-y-0.5 min-w-0">
+            <div className="font-bold text-slate-800 flex items-center gap-1 text-[10.5px] truncate">
+              <Calendar className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+              <span className="truncate">{d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
             </div>
-            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-              <Clock className="h-3 w-3 text-slate-400" />
-              {row.plannedStartTime || '07:00'} ➔ 17:00
+            <div className="text-[10px] text-slate-500 font-medium flex items-center gap-0.5 truncate">
+              <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+              <span>{row.plannedStartTime || '07:00'} ➔ 17:00</span>
             </div>
           </div>
         );
@@ -807,21 +887,22 @@ export const ConstructionDispatchPage: React.FC = () => {
     {
       key: 'purpose',
       title: 'Nhiệm vụ & Khối lượng',
-      width: '200px',
+      width: '125px',
       render: (row) => (
-        <div className="space-y-1">
+        <div className="space-y-0.5 min-w-0">
           <div className="flex items-center gap-1 flex-wrap">
-            <b className="font-bold text-slate-900 text-xs leading-snug">{row.projectName}</b>
+            <b className="font-bold text-slate-900 text-xs leading-snug line-clamp-2" title={row.projectName}>
+              {row.projectName}
+            </b>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit || row.complexCode || 'KOUN_MOM'}</span>
-            <span className="font-bold text-emerald-700">
+          <div className="flex items-center gap-1 text-[10px] text-slate-500 flex-wrap">
+            <span className="font-medium text-slate-700 bg-slate-100 px-1 py-0.2 rounded text-[9.5px]">{row.unit || row.complexCode || 'KOUN_MOM'}</span>
+            <span className="font-bold text-emerald-700 whitespace-nowrap">
               🎯 {row.workVolumeTarget} {row.workVolumeUnit}
             </span>
-            <span className="text-[10.5px] font-semibold text-slate-600">({row.jobCategoryName})</span>
           </div>
           {row.notes && (
-            <div className="text-[10.5px] text-slate-500 italic line-clamp-1" title={`Ghi chú: ${row.notes}`}>
+            <div className="text-[9.5px] text-slate-500 italic truncate max-w-full" title={`Ghi chú: ${row.notes}`}>
               📝 {row.notes}
             </div>
           )}
@@ -831,15 +912,17 @@ export const ConstructionDispatchPage: React.FC = () => {
     {
       key: 'vehicle',
       title: 'Phương tiện & Thiết bị',
-      width: '120px',
+      width: '88px',
       render: (row) => (
-        <div className="text-xs space-y-0.5 max-w-[115px]">
-          <div className={`font-bold flex items-center gap-1.5 ${(!row.machineCode || row.machineCode === 'CHUA_GAN') ? 'text-red-700' : 'text-slate-900'}`}>
-            <Wrench className={`h-3.5 w-3.5 shrink-0 ${(!row.machineCode || row.machineCode === 'CHUA_GAN') ? 'text-red-500' : 'text-amber-600'}`} />
-            <span className="truncate">{row.machineCode && row.machineCode !== 'CHUA_GAN' ? row.machineCode : 'Chưa gán máy'}</span>
+        <div className="text-xs space-y-0.5 min-w-0">
+          <div className={`font-bold flex items-center gap-1 truncate ${(!row.machineCode || row.machineCode === 'CHUA_GAN') ? 'text-red-700' : 'text-slate-900'}`}>
+            <Wrench className={`h-3 w-3 shrink-0 ${(!row.machineCode || row.machineCode === 'CHUA_GAN') ? 'text-red-500' : 'text-amber-600'}`} />
+            <span className="truncate text-xs" title={row.machineCode && row.machineCode !== 'CHUA_GAN' ? row.machineCode : 'Chưa gán máy'}>
+              {row.machineCode && row.machineCode !== 'CHUA_GAN' ? row.machineCode : 'Chưa gán máy'}
+            </span>
           </div>
           {row.machineName && row.machineCode !== 'CHUA_GAN' && (
-            <div className="text-[10px] text-slate-500 truncate" title={row.machineName}>
+            <div className="text-[9.5px] text-slate-500 truncate" title={row.machineName}>
               {row.machineName}
             </div>
           )}
@@ -849,15 +932,17 @@ export const ConstructionDispatchPage: React.FC = () => {
     {
       key: 'driver',
       title: 'Lái xe / Thợ máy',
-      width: '135px',
+      width: '88px',
       render: (row) => (
-        <div className="text-xs">
-          <div className={`font-bold flex items-center gap-1 ${(!row.operatorName || row.operatorName.includes('Chưa')) ? 'text-red-700' : 'text-slate-800'}`}>
-            <User className={`h-3.5 w-3.5 shrink-0 ${(!row.operatorName || row.operatorName.includes('Chưa')) ? 'text-red-500' : 'text-slate-400'}`} />
-            <span className="truncate">{row.operatorName || 'Chưa gán thợ máy'}</span>
+        <div className="text-xs space-y-0.5 min-w-0">
+          <div className={`font-bold flex items-center gap-1 truncate ${(!row.operatorName || row.operatorName.includes('Chưa')) ? 'text-red-700' : 'text-slate-800'}`}>
+            <User className={`h-3 w-3 shrink-0 ${(!row.operatorName || row.operatorName.includes('Chưa')) ? 'text-red-500' : 'text-slate-400'}`} />
+            <span className="truncate text-xs" title={row.operatorName || 'Chưa gán thợ máy'}>
+              {row.operatorName || 'Chưa gán thợ máy'}
+            </span>
           </div>
           {row.operatorPhone && (
-            <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+            <div className="text-[9.5px] text-slate-500 font-medium truncate">
               📞 {row.operatorPhone}
             </div>
           )}
@@ -867,39 +952,43 @@ export const ConstructionDispatchPage: React.FC = () => {
     {
       key: 'route',
       title: 'Lộ trình / Vị trí',
-      width: '260px',
-      render: (row) => (
-        <div className="text-xs space-y-0.5 min-w-[200px]">
-          <div className="flex items-start gap-1 text-slate-600">
-            <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-            <span className="font-medium text-slate-700 leading-snug">Bãi máy Công trình</span>
+      width: '105px',
+      render: (row) => {
+        const origin = row.rawOrder?.origin || 'Bãi máy Công trình';
+        const destination = row.rawOrder?.destination || row.locationDetails?.replace(/^.*?➔\s*/, '') || 'Khu vực công trường';
+        return (
+          <div className="text-xs space-y-0.5 min-w-0">
+            <div className="flex items-center gap-1 text-slate-600 truncate text-[10.5px]" title={origin}>
+              <MapPin className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+              <span className="truncate">{origin}</span>
+            </div>
+            <div className="text-xs font-bold text-slate-900 pl-3 leading-snug truncate" title={destination}>
+              ➔ {destination}
+            </div>
           </div>
-          <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
-            ➔ {row.locationDetails || 'Khu vực công trường thi công'}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'status',
       title: 'Trạng thái',
-      width: '135px',
+      width: '92px',
       render: (row) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.status} />
+        <div className="space-y-0.5 min-w-0">
+          <StatusBadge status={row.status} size="sm" />
           {(!row.machineCode || row.machineCode === 'CHUA_GAN' || !row.operatorName || row.operatorName.includes('Chưa')) && (
-            <div className="flex flex-wrap gap-1">
-              {(!row.machineCode || row.machineCode === 'CHUA_GAN') && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu máy</span>}
-              {(!row.operatorName || row.operatorName.includes('Chưa')) && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu thợ máy</span>}
+            <div className="flex flex-wrap gap-0.5">
+              {(!row.machineCode || row.machineCode === 'CHUA_GAN') && <span className="rounded bg-red-50 px-1 py-0.2 text-[8.5px] font-bold text-red-700">Thiếu máy</span>}
+              {(!row.operatorName || row.operatorName.includes('Chưa')) && <span className="rounded bg-red-50 px-1 py-0.2 text-[8.5px] font-bold text-red-700">Thiếu thợ</span>}
             </div>
           )}
-          <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-            <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
-            <span>Định mức: <b>{row.plannedFuelLiters.toFixed(1)}L</b> ({row.fuelQuotaLitersPerHour}L/h)</span>
+          <div className="text-[9.5px] text-slate-500 font-medium flex items-center gap-0.5 truncate">
+            <Fuel className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+            <span>ĐM: <b>{row.plannedFuelLiters.toFixed(1)}L</b></span>
           </div>
           {row.actualWorkingHours !== undefined && row.actualWorkingHours > 0 && (
-            <div className="text-[10px] text-emerald-700 font-bold">
-              ⏱ Giờ máy: {row.actualWorkingHours}h / {row.plannedHours}h
+            <div className="text-[9.5px] text-emerald-700 font-bold truncate">
+              ⏱ {row.actualWorkingHours}h / {row.plannedHours}h
             </div>
           )}
         </div>
@@ -907,8 +996,8 @@ export const ConstructionDispatchPage: React.FC = () => {
     },
     {
       key: 'user',
-      title: 'User',
-      width: '70px',
+      title: 'Người tạo',
+      width: '42px',
       align: 'center',
       render: (row) => (
         <AuditUserPopover
@@ -924,18 +1013,12 @@ export const ConstructionDispatchPage: React.FC = () => {
       key: 'actions',
       title: 'Tác vụ',
       align: 'center',
-      width: '140px',
+      width: '74px',
       render: (row) => (
-        <div className="flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => handleOpenShift(row)}
-            className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 hover:text-amber-800 transition-colors border border-amber-200"
-            title="Điều động ca máy / Chi tiết"
-          >
-            <HardHat className="w-3.5 h-3.5" />
-          </button>
+        <div className="flex flex-col items-center justify-center gap-0.5 py-0.5" onClick={(e) => e.stopPropagation()}>
+          {/* Hàng 1: 3 tác vụ chính */}
           <TableRowActions
+            className="gap-0.5"
             onView={() => handleOpenShift(row)}
             onEdit={() => handleOpenShift(row)}
             onDelete={() => {
@@ -944,6 +1027,17 @@ export const ConstructionDispatchPage: React.FC = () => {
               }
             }}
           />
+          {/* Hàng 2: Tác vụ phụ */}
+          <div className="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleOpenShift(row)}
+              className="p-0.5 rounded text-amber-600 hover:bg-amber-50 hover:text-amber-800 transition-colors"
+              title="Điều động ca máy / Chi tiết"
+            >
+              <HardHat className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       ),
     },
@@ -1590,10 +1684,15 @@ export const ConstructionDispatchPage: React.FC = () => {
         <DataTable
           columns={columns}
           data={filteredShifts}
+          isLoading={loading}
           onRowClick={handleOpenShift}
+          controlledPage={page}
+          totalItems={filteredShifts.length}
+          onPageChange={handlePageChange}
           useGlobalFilters={false}
           showSearch={false}
           showExport={false}
+          compact={true}
         />
       ) : view === 'scheduler' ? (
         /* GIAO DIỆN SCHEDULER LỊCH CHẠY THEO XE / MÁY CÔNG TRÌNH 24 TIẾNG */
@@ -1787,6 +1886,20 @@ export const ConstructionDispatchPage: React.FC = () => {
                   const reasons = body?.message?.reasons ?? body?.reasons;
                   const message = Array.isArray(reasons) ? reasons.map((item: any) => item.message).filter(Boolean).join('; ') : typeof body?.message === 'string' ? body.message : error?.message;
                   useAppStore.getState().setHeaderAlert({ type: 'error', message: `Phân công thất bại: ${message || 'Không thể phân công lệnh công trình.'}` });
+                }
+              }}
+              onReceive={async () => {
+                try {
+                  const orderId = Number(selectedShift.id);
+                  if (Number.isInteger(orderId) && orderId > 0) {
+                    await operationsApi.driverAcceptDispatch(orderId, { reason: 'Quản lý xác nhận nhận việc thay thợ máy' });
+                  }
+                  updateShift(selectedShift.id, {
+                    status: 'DANG_THI_CONG',
+                  });
+                  useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã xác nhận nhận việc thay thợ máy ${selectedShift.operatorName} cho ca máy ${selectedShift.code}.` });
+                } catch (err: any) {
+                  useAppStore.getState().setHeaderAlert({ type: 'error', message: err?.response?.data?.message || 'Không thể xác nhận nhận việc.' });
                 }
               }}
             />

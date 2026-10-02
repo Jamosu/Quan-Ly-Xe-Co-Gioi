@@ -198,6 +198,7 @@ export const OtherAssetsPage: React.FC = () => {
 
   // Global Complex
   const globalKLH = useAppStore((s) => s.selectedKLH);
+  const isAreaManager = useAppStore((s) => s.currentUser?.role === 'FARM_MANAGER');
   const [selectedComplex, setSelectedComplex] = useState(globalKLH || ALL);
   const [selectedRegion, setSelectedRegion] = useState(ALL);
   const { units: managementFilterUnits, managers: managementFilterManagers } = useManagementFilterCatalog(
@@ -925,7 +926,7 @@ export const OtherAssetsPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* ═══ ROW 1: TRẠNG THÁI VẬN HÀNH & GIÁM SÁT (6 THẺ ĐỒNG BỘ CHUẨN THIẾT BỊ) ═══ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isAreaManager ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3`}>
         {/* Card 1: Tổng quy mô */}
         <button
           type="button"
@@ -1059,6 +1060,7 @@ export const OtherAssetsPage: React.FC = () => {
         </button>
 
         {/* Card 6: Thiếu đơn vị sử dụng */}
+        {!isAreaManager && (
         <button
           type="button"
           onClick={() => navigate('/doi-xe/phan-xe')}
@@ -1078,6 +1080,7 @@ export const OtherAssetsPage: React.FC = () => {
             Xe/máy và thiết bị chờ phân bổ →
           </div>
         </button>
+        )}
       </div>
 
       {/* ═══ ROW 2: PHÂN LOẠI 6 CHỦNG LOẠI MÁY PHỤ TRỢ (TƯƠNG TỰ NHƯ TRANG THIẾT BỊ) ═══ */}

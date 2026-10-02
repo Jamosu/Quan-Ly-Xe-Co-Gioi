@@ -57,7 +57,7 @@ export class UsersService {
     }
     if (actor.role === Role.FARM_MANAGER) {
       const scopes = await this.prisma.driverManagementAccessScope.findMany({ where: { userId: actor.id, complexCode: owner.complexCode, canAssignDrivers: true } });
-      if (!scopes.some((scope) => !scope.managementUnitId || scope.managementUnitId === owner.id)) {
+      if (!scopes.some((scope) => !scope.managementUnitId || scope.managementUnitId === owner.id || (teamUnitId && scope.managementUnitId === teamUnitId))) {
         throw new ForbiddenException('Đơn vị nằm ngoài phạm vi phân công tài xế được cấp.');
       }
     }
@@ -103,7 +103,26 @@ export class UsersService {
     });
   }
 
-  async findAll(role?: Role, unit?: Unit, search?: string) {
+  private async scopedDriverWhere(actor: OperationalActor, allowedIds?: number[]): Promise<Prisma.UserWhereInput> {
+    const ids = allowedIds ?? await scopedManagementUnitIds(this.prisma, actor) ?? [];
+    const now = new Date();
+    return {
+      role: Role.DRIVER,
+      driverProfile: { is: { OR: [
+        { managementAssignments: { some: {
+          effectiveFrom: { lte: now },
+          AND: [
+            { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+            { OR: [{ managementUnitId: { in: ids } }, { teamUnitId: { in: ids } }] },
+          ],
+        } } },
+        { vehicleAssignments: { some: { status: VehicleDriverAssignmentStatus.ACTIVE, vehicle: { managementUnitId: { in: ids } } } } },
+      ] } },
+    };
+  }
+
+  async findAll(role?: Role, unit?: Unit, search?: string, actor?: OperationalActor) {
+    if (actor?.role === Role.FARM_MANAGER && role && role !== Role.DRIVER) return [];
     const where: any = {};
 
     if (role) {
@@ -121,6 +140,7 @@ export class UsersService {
         { phone: { contains: search } },
       ];
     }
+    if (actor?.role === Role.FARM_MANAGER) Object.assign(where, await this.scopedDriverWhere(actor));
 
     const users = await this.prisma.user.findMany({
       where,
@@ -163,8 +183,8 @@ export class UsersService {
     });
   }
 
-  async findDrivers(unit?: Unit) {
-    return this.findAll(Role.DRIVER, unit);
+  async findDrivers(unit?: Unit, actor?: OperationalActor) {
+    return this.findAll(Role.DRIVER, unit, undefined, actor);
   }
 
   resolveDriverComplexCode(driver: any): 'KOUN_MOM' | 'SNOUL' | 'NAM_LAO' {
@@ -215,10 +235,10 @@ export class UsersService {
     if (filter.unit && !hasGlobalOperationalAccess(actor) && filter.unit !== actor.unit) {
       throw new ForbiddenException('Không được xem hồ sơ tài xế ngoài đơn vị được phân quyền.');
     }
-    const driverWhere = actor.role === Role.DRIVER
+    const driverWhere: Prisma.UserWhereInput = actor.role === Role.DRIVER
       ? { role: Role.DRIVER, id: actor.id }
       : actor.role === Role.FARM_MANAGER
-        ? { role: Role.DRIVER }
+        ? await this.scopedDriverWhere(actor, allowedManagementUnitIds ?? [])
       : { role: Role.DRIVER, ...(!hasGlobalOperationalAccess(actor) ? { unit: actor.unit } : {}) };
     const [drivers, employeeRecords] = await Promise.all([
       this.prisma.user.findMany({
@@ -248,7 +268,7 @@ export class UsersService {
               currentShiftStatus: true, currentLocation: true,
               licensesJson: true,
               vehicleAssignments: {
-                where: { status: 'ACTIVE' },
+                where: { status: 'ACTIVE', ...(actor.role === Role.FARM_MANAGER ? { vehicle: { managementUnitId: { in: allowedManagementUnitIds ?? [] } } } : {}) },
                 include: { vehicle: true },
                 orderBy: { effectiveFrom: 'desc' },
               },
@@ -260,13 +280,13 @@ export class UsersService {
             },
           },
           assignedVehicle: {
-            select: { id: true, code: true, plate: true, name: true, category: true, status: true },
+            select: { id: true, code: true, plate: true, name: true, category: true, status: true, managementUnitId: true },
           },
           drivenVehicles: {
-            select: { id: true, code: true, plate: true, name: true, category: true, status: true },
+            select: { id: true, code: true, plate: true, name: true, category: true, status: true, managementUnitId: true },
           },
           secondaryVehicles: {
-            select: { id: true, code: true, plate: true, name: true, category: true, status: true },
+            select: { id: true, code: true, plate: true, name: true, category: true, status: true, managementUnitId: true },
           },
         },
         orderBy: { fullName: 'asc' },
@@ -310,7 +330,13 @@ export class UsersService {
         const activeAssignments = profile?.vehicleAssignments || [];
         const primaryAssignments = activeAssignments.filter((a) => a.type === 'PRIMARY');
         const secondaryAssignments = activeAssignments.filter((a) => a.type === 'SECONDARY');
-        const defaultVehicle = primaryAssignments[0]?.vehicle || driver.assignedVehicle || driver.drivenVehicles[0] || driver.secondaryVehicles[0] || null;
+        const scopedVehicles = (vehicles: typeof driver.drivenVehicles) => actor.role === Role.FARM_MANAGER
+          ? vehicles.filter((vehicle) => allowedManagementUnitIdSet.has(vehicle.managementUnitId ?? -1))
+          : vehicles;
+        const drivenVehicles = scopedVehicles(driver.drivenVehicles);
+        const secondaryVehicles = scopedVehicles(driver.secondaryVehicles);
+        const assignedVehicle = driver.assignedVehicle && (actor.role !== Role.FARM_MANAGER || allowedManagementUnitIdSet.has(driver.assignedVehicle.managementUnitId ?? -1)) ? driver.assignedVehicle : null;
+        const defaultVehicle = primaryAssignments[0]?.vehicle || assignedVehicle || drivenVehicles[0] || secondaryVehicles[0] || null;
         const managementAssignment = profile?.managementAssignments[0] || null;
         const teamManagerAssignment = managementAssignment?.teamUnitId ? managerByUnit.get(managementAssignment.teamUnitId) || null : null;
         const ownerManagerAssignment = managementAssignment ? managerByUnit.get(managementAssignment.managementUnitId) || null : null;
@@ -333,6 +359,7 @@ export class UsersService {
 
         return {
           ...driver,
+          drivenVehicles,
           ...(profile ? {
             employmentStatus: profile.employmentStatus,
             joinedDate: profile.joinedDate,
@@ -368,7 +395,7 @@ export class UsersService {
           secondaryVehicles: secondaryAssignments.map((a) => a.vehicle),
           licenses,
           complianceStatus: getDriverComplianceStatus(compliance),
-          complex: this.resolveDriverComplexCode({
+          complex: managementAssignment?.managementUnit.complexCode || activeAssignments[0]?.vehicle.complexCode || this.resolveDriverComplexCode({
             ...driver,
             managementUnit: managementAssignment?.managementUnit,
             employee,
@@ -378,12 +405,14 @@ export class UsersService {
       .filter((item) => {
         if (actor.role === Role.FARM_MANAGER) {
           const assignment = item.managementAssignment;
-          if (!assignment || !allowedManagementUnitIdSet.has(assignment.managementUnitId)) return false;
+          const hasManagementAssignment = assignment && (allowedManagementUnitIdSet.has(assignment.managementUnitId) || (assignment.teamUnitId && allowedManagementUnitIdSet.has(assignment.teamUnitId)));
+          const hasAssignedVehicle = item.assignedVehicles.some((vehicle) => allowedManagementUnitIdSet.has(vehicle.vehicle.managementUnitId));
+          if (!hasManagementAssignment && !hasAssignedVehicle) return false;
         }
         if (filter.complex || filter.complexCode) {
           const reqComp = (filter.complex || filter.complexCode || '').trim().toUpperCase();
           if (reqComp !== 'ALL') {
-            const itemComp = this.resolveDriverComplexCode(item);
+            const itemComp = item.complex || this.resolveDriverComplexCode(item);
             const isMatch =
               itemComp === reqComp ||
               (reqComp === 'KOUN_MOM' && itemComp === 'KOUN_MOM') ||
@@ -457,8 +486,16 @@ export class UsersService {
 
   async getDriverProfileOptions(actor: OperationalActor) {
     const allowedManagementUnitIds = await scopedManagementUnitIds(this.prisma, actor);
+    const [managedDrivers, teamUnits] = actor.role === Role.FARM_MANAGER
+      ? await Promise.all([
+          this.prisma.user.findMany({ where: await this.scopedDriverWhere(actor, allowedManagementUnitIds ?? []), select: { code: true } }),
+          this.prisma.driverManagementUnit.findMany({ where: { id: { in: allowedManagementUnitIds ?? [] }, level: DriverManagementLevel.TEAM }, select: { parentId: true } }),
+        ])
+      : [null, []];
+    const parentUnitIds = teamUnits.flatMap((unit) => unit.parentId ? [unit.parentId] : []);
     const [employees, vehicles, managementUnits] = await Promise.all([
       this.prisma.employeeRecord.findMany({
+        where: managedDrivers ? { empCode: { in: managedDrivers.map((driver) => driver.code) } } : {},
         select: {
           complex: true,
           businessUnit: true,
@@ -478,7 +515,7 @@ export class UsersService {
             where: {
               status: 'ACTIVE',
               ...(actor.role === Role.FARM_MANAGER
-                ? { OR: [{ id: { in: allowedManagementUnitIds ?? [] } }, { parentId: { in: allowedManagementUnitIds ?? [] } }] }
+                ? { OR: [{ id: { in: [...(allowedManagementUnitIds ?? []), ...parentUnitIds] } }, { parentId: { in: allowedManagementUnitIds ?? [] } }] }
                 : {}),
             },
             include: {
@@ -516,6 +553,11 @@ export class UsersService {
   }
 
   async findDriverProfile(id: number, actor?: OperationalActor) {
+    const allowedVehicleUnitIds = actor?.role === Role.FARM_MANAGER ? await scopedManagementUnitIds(this.prisma, actor) ?? [] : null;
+    if (actor?.role === Role.FARM_MANAGER) {
+      const visible = await this.prisma.user.count({ where: { id, ...await this.scopedDriverWhere(actor, allowedVehicleUnitIds ?? []) } });
+      if (!visible) throw new ForbiddenException('Không được xem hồ sơ tài xế ngoài phạm vi quản lý được cấp.');
+    }
     const driver = await this.prisma.user.findFirst({
       where: { id, role: Role.DRIVER },
       select: {
@@ -543,7 +585,7 @@ export class UsersService {
         updatedAt: true,
         driverProfile: {
           include: {
-            vehicleAssignments: { include: { vehicle: true, assignedBy: { select: { id: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } },
+            vehicleAssignments: { where: allowedVehicleUnitIds ? { vehicle: { managementUnitId: { in: allowedVehicleUnitIds } } } : undefined, include: { vehicle: true, assignedBy: { select: { id: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } },
             unavailability: { orderBy: { startAt: 'desc' }, take: 20 },
             managementAssignments: { include: { managementUnit: true, teamUnit: true, assignedBy: { select: { id: true, code: true, fullName: true } } }, orderBy: { effectiveFrom: 'desc' } },
           },
@@ -589,15 +631,6 @@ export class UsersService {
 
     if (actor?.role === Role.DRIVER && actor.id !== id) {
       throw new ForbiddenException('Tài xế chỉ được xem hồ sơ của chính mình.');
-    }
-
-    if (actor?.role === Role.FARM_MANAGER) {
-      const now = new Date();
-      const currentAssignment = driver.driverProfile?.managementAssignments.find((item) => item.effectiveFrom <= now && (!item.effectiveTo || item.effectiveTo > now));
-      const scopes = await this.prisma.driverManagementAccessScope.findMany({ where: { userId: actor.id } });
-      if (!currentAssignment || !scopes.some((scope) => scope.complexCode === currentAssignment.managementUnit.complexCode && (!scope.managementUnitId || scope.managementUnitId === currentAssignment.managementUnitId))) {
-        throw new ForbiddenException('Không được xem hồ sơ tài xế ngoài phạm vi quản lý được cấp.');
-      }
     }
 
     const profile = driver.driverProfile;
@@ -653,6 +686,11 @@ export class UsersService {
 
     return {
       ...driver,
+      ...(allowedVehicleUnitIds ? {
+        assignedVehicle: driver.assignedVehicle && allowedVehicleUnitIds.includes(driver.assignedVehicle.managementUnitId ?? -1) ? driver.assignedVehicle : null,
+        drivenVehicles: driver.drivenVehicles.filter((vehicle) => allowedVehicleUnitIds.includes(vehicle.managementUnitId ?? -1)),
+        secondaryVehicles: driver.secondaryVehicles.filter((vehicle) => allowedVehicleUnitIds.includes(vehicle.managementUnitId ?? -1)),
+      } : {}),
       ...(profile ? {
         employmentStatus: profile.employmentStatus,
         joinedDate: profile.joinedDate,
@@ -710,7 +748,7 @@ export class UsersService {
           dto.managementUnitId,
           dto.teamUnitId,
           actor,
-          false,
+          actor.role === Role.FARM_MANAGER,
         )
       : null;
 
@@ -763,7 +801,7 @@ export class UsersService {
             ? dto.assignedVehicleIds.map((vId) => ({ vehicleId: vId, type: VehicleDriverAssignmentType.PRIMARY }))
             : (dto.assignedVehicleId ? [{ vehicleId: dto.assignedVehicleId, type: VehicleDriverAssignmentType.PRIMARY }] : []));
       if (assignmentsToSync.length > 0) {
-        await this.syncDriverVehicleAssignments(tx, driver.id, assignmentsToSync, actor?.id ?? driver.id);
+        await this.syncDriverVehicleAssignments(tx, driver.id, assignmentsToSync, actor?.id ?? driver.id, actor);
       }
 
       if (managementSelection && tx.driverManagementAssignment) {
@@ -804,6 +842,10 @@ export class UsersService {
     }
     if (!hasGlobalOperationalAccess(actor) && current.unit !== actor.unit) {
       throw new ForbiddenException('Không được cập nhật hồ sơ tài xế ngoài đơn vị được phân quyền.');
+    }
+    if (actor.role === Role.FARM_MANAGER) {
+      const visible = await this.prisma.user.count({ where: { id, ...await this.scopedDriverWhere(actor) } });
+      if (!visible) throw new ForbiddenException('Tài xế nằm ngoài phạm vi quản lý được cấp.');
     }
 
     if (dto.username && dto.username !== current.username) {
@@ -870,7 +912,7 @@ export class UsersService {
         assignmentsToSync = dto.assignedVehicleId ? [{ vehicleId: dto.assignedVehicleId, type: VehicleDriverAssignmentType.PRIMARY }] : [];
       }
       if (assignmentsToSync !== null) {
-        await this.syncDriverVehicleAssignments(tx, id, assignmentsToSync, actor.id);
+        await this.syncDriverVehicleAssignments(tx, id, assignmentsToSync, actor.id, actor);
       }
 
       if (managementSelection !== undefined && tx.driverManagementAssignment) {
@@ -974,6 +1016,7 @@ export class UsersService {
     driverId: number,
     assignedVehicles: Array<{ vehicleId: number; type: VehicleDriverAssignmentType }>,
     actorId: number,
+    actor?: OperationalActor,
   ) {
     const primaryCount = assignedVehicles.filter((v) => v.type === VehicleDriverAssignmentType.PRIMARY).length;
     const secondaryCount = assignedVehicles.filter((v) => v.type === VehicleDriverAssignmentType.SECONDARY).length;
@@ -987,6 +1030,15 @@ export class UsersService {
     const currentAssignments = await tx.vehicleDriverAssignment.findMany({
       where: { driverId, status: VehicleDriverAssignmentStatus.ACTIVE },
     });
+
+    if (actor?.role === Role.FARM_MANAGER) {
+      const allowedIds = await scopedManagementUnitIds(this.prisma, actor) ?? [];
+      const vehicleIds = [...new Set([...currentAssignments.map((item) => item.vehicleId), ...assignedVehicles.map((item) => item.vehicleId)])];
+      const allowedVehicleCount = await tx.vehicle.count({ where: { id: { in: vehicleIds }, managementUnitId: { in: allowedIds } } });
+      if (allowedVehicleCount !== vehicleIds.length) {
+        throw new ForbiddenException('Chỉ được phân công xe thuộc phạm vi quản lý được cấp.');
+      }
+    }
 
     const targetMap = new Map<number, VehicleDriverAssignmentType>();
     for (const item of assignedVehicles) {
@@ -1055,7 +1107,11 @@ export class UsersService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, actor?: OperationalActor) {
+    if (actor?.role === Role.FARM_MANAGER && id !== actor.id) {
+      const visible = await this.prisma.user.count({ where: { id, ...await this.scopedDriverWhere(actor) } });
+      if (!visible) throw new ForbiddenException('Nhân sự nằm ngoài phạm vi quản lý được cấp.');
+    }
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {

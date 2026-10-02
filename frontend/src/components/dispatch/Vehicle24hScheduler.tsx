@@ -1,36 +1,19 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   Calendar,
+  CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock,
+  Clock3,
+  LayoutGrid,
+  Milestone,
+  Moon,
   Search,
   Truck,
-  Tractor,
+  UserCheck,
   Wrench,
-  User,
-  CheckCircle2,
-  AlertTriangle,
-  Play,
-  RotateCcw,
-  Sparkles,
-  Layers,
-  MapPin,
-  ClipboardCheck,
-  Fuel,
-  LayoutGrid,
-  CalendarDays,
-  Milestone,
-  ZoomIn,
-  ZoomOut,
-  Moon,
-  Sun,
-  Filter,
-  SlidersHorizontal,
-  Flame,
-  FolderTree,
-  Target,
-  Check,
 } from 'lucide-react';
 
 export interface SchedulerItem {
@@ -42,8 +25,6 @@ export interface SchedulerItem {
   category?: 'AGRICULTURE' | 'CONSTRUCTION' | 'TRANSPORT' | string;
   unitName?: string;
   priority?: 'THAP' | 'TRUNG_BINH' | 'CAO' | 'KHAN_CAP';
-  
-  // Phương tiện & tài xế
   vehicleCode: string;
   vehicleName: string;
   vehiclePlate?: string;
@@ -51,33 +32,22 @@ export interface SchedulerItem {
   driverName?: string;
   driverPhone?: string;
   secondaryDriverName?: string;
-  
-  // Thời gian & ca làm việc
-  startTime: string; // "HH:mm" hoặc ISO string
-  endTime?: string;   // "HH:mm" hoặc ISO string
-  durationHours: number; // e.g. 7.5, 8.0, 4.0
+  startTime: string;
+  endTime?: string;
+  durationHours: number;
   workDate?: string;
   shiftType?: 'CA_NGAY' | 'CA_DEM' | string;
-  
-  // Trạng thái & Chu trình 3 giai đoạn chuẩn
+  driverAcceptedAt?: string;
+  actualStartTime?: string;
+  acceptedAt?: string;
   status: string;
   statusLabel?: string;
-  /**
-   * Chu trình 3 giai đoạn:
-   * 1: Tài xế giao nhận (Thời điểm ghi nhận / Phân công xe / Bàn giao ca)
-   * 2: Đang thực hiện (Thanh vàng dài trải qua các giờ xử lý / thi công)
-   * 3: Nghiệm thu (Nghiệm thu đạt & đóng phiếu)
-   */
   workflowStepIndex: number;
-  
-  // Chi tiết thực địa
-  workVolume?: string; // e.g. "12.5 Ha", "450 m³"
-  fuelInfo?: string;   // e.g. "Đã cấp 118L dầu"
-  acceptanceInfo?: string; // e.g. "Phan Long nghiệm thu · Đạt 100%"
+  workVolume?: string;
+  fuelInfo?: string;
+  acceptanceInfo?: string;
   notes?: string;
   isDelayed?: boolean;
-  
-  // Dữ liệu gốc để trigger modal
   rawItem: any;
 }
 
@@ -95,7 +65,7 @@ export interface SchedulerLane {
 
 interface Vehicle24hSchedulerProps {
   title?: string;
-  selectedDate: string; // "YYYY-MM-DD" hoặc "ALL"
+  selectedDate: string;
   onDateChange: (date: string) => void;
   availableDates?: string[];
   lanes: SchedulerLane[];
@@ -104,540 +74,296 @@ interface Vehicle24hSchedulerProps {
   kind?: 'AGRICULTURE' | 'CONSTRUCTION' | 'TRANSPORT' | 'GENERAL';
 }
 
-// 24 Giờ trong ngày (00:00 -> 23:00)
-const HOURS_24 = Array.from({ length: 24 }, (_, i) => ({
-  hour: i,
-  label: `${String(i).padStart(2, '0')}:00`,
-  shift: i < 6 ? 'NIGHT' : i < 12 ? 'MORNING' : i < 18 ? 'AFTERNOON' : 'EVENING',
-}));
+type TimelineMode = 'grid' | 'gantt' | 'milestones';
+
+const HOURS_24 = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`);
+const FINISHED_STATUSES = new Set(['COMPLETED', 'DELIVERED', 'ACCEPTED', 'HOAN_THANH', 'CLOSED']);
+
+function toDateString(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function parseTime(value?: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime()) && value.includes('T')) return parsed;
+  const match = value.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatTime(value?: string, fallback = '—') {
+  const date = parseTime(value);
+  if (!date) return fallback;
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function hourValue(value?: string) {
+  const date = parseTime(value);
+  return date ? date.getHours() + date.getMinutes() / 60 : 0;
+}
+
+function receiveDelta(item: SchedulerItem) {
+  const planned = parseTime(item.startTime);
+  const received = parseTime(item.driverAcceptedAt);
+  if (!planned || !received) return null;
+  const plannedMinute = Math.floor(planned.getTime() / 60_000);
+  const receivedMinute = Math.floor(received.getTime() / 60_000);
+  return receivedMinute - plannedMinute;
+}
+
+function deltaLabel(delta: number | null) {
+  if (delta === null) return 'Chưa nhận lệnh';
+  if (delta === 0) return 'Đúng giờ';
+  if (delta < 0) return `Sớm ${Math.abs(delta)} phút`;
+  return delta <= 15 ? `Sau dự kiến ${delta} phút · trong hạn` : `Quá hạn ${delta} phút`;
+}
+
+function deltaClass(delta: number | null) {
+  if (delta === null) return 'border-slate-200 bg-slate-100 text-slate-600';
+  if (delta > 15) return 'border-rose-200 bg-rose-50 text-rose-700';
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+}
+
+const WORKFLOW_STAGES = ['Tạo lệnh', 'Tài xế nhận lệnh', 'Đến điểm làm việc', 'Làm việc', 'Nghiệm thu', 'Trở về bãi'];
+
+function workflowIndex(item: SchedulerItem) {
+  if (item.status === 'RETURNING_TO_DEPOT' || item.status === 'CLOSED') return 5;
+  if (item.acceptedAt || item.status === 'ACCEPTED') return 4;
+  if (item.actualStartTime || ['WORKING', 'IN_PROGRESS', 'SHIFT_FINISHED', 'WAITING_REPORT', 'WAITING_REVIEW', 'COMPLETED'].includes(item.status)) return 3;
+  if (item.status === 'AT_WORKSITE') return 2;
+  if (item.driverAcceptedAt || ['DRIVER_ACCEPTED', 'DEPARTED', 'DA_NHAN'].includes(item.status)) return 1;
+  return 0;
+}
+
+const modeOptions: Array<{
+  value: TimelineMode;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { value: 'grid', label: 'Tổng quan', description: 'Đọc nhanh từng lệnh', icon: LayoutGrid },
+  { value: 'gantt', label: 'Tiến độ 24 giờ', description: 'So sánh thời lượng theo xe', icon: CalendarDays },
+  { value: 'milestones', label: 'Mốc thực tế', description: 'Nhận · Làm việc · Nghiệm thu', icon: Milestone },
+];
+
+const TimeAxis: React.FC<{ leftWidth: number; hourWidth: number; leftLabel: string }> = ({ leftWidth, hourWidth, leftLabel }) => (
+  <div className="grid border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-500" style={{ gridTemplateColumns: `${leftWidth}px repeat(24, ${hourWidth}px)` }}>
+    <div className="sticky left-0 z-20 border-r border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">{leftLabel}</div>
+    {HOURS_24.map((hour, index) => (
+      <div key={hour} className={`border-r border-slate-200 py-2 text-center font-mono ${index % 6 === 0 ? 'bg-slate-100 text-slate-800' : ''}`}>
+        {hour}
+      </div>
+    ))}
+  </div>
+);
 
 export const Vehicle24hScheduler: React.FC<Vehicle24hSchedulerProps> = ({
-  title = 'Scheduler lịch chạy phương tiện 24h',
+  title = 'Theo dõi lịch chạy và giờ nhận lệnh',
   selectedDate,
   onDateChange,
-  availableDates = [],
   lanes,
   unassignedItems = [],
   onItemClick,
-  kind = 'AGRICULTURE',
 }) => {
-  // 1. Chế độ hiển thị: Bảng Giai Đoạn (Grid) | Dòng Thời Gian (Gantt) | Cột Mốc (Milestones)
-  const [timelineMode, setTimelineMode] = useState<'grid' | 'gantt' | 'milestones'>('grid');
-
-  // 2. Độ phân giải thời gian: Ngày / 24 Giờ | Tuần | Tháng | Quý
-  const [timeGranularity, setTimeGranularity] = useState<'ngay' | 'tuan' | 'thang' | 'quy'>('ngay');
-
-  // 3. Thanh trượt thu phóng (Zoom slider): 70% -> 140%
-  const [zoomLevel, setZoomLevel] = useState<number>(100);
-
-  // 4. Bộ lọc ca đêm / chế độ tối (Night shift focus)
-  const [nightShiftOnly, setNightShiftOnly] = useState<boolean>(false);
-
-  // 5. Tìm kiếm & Bộ lọc nâng cao
+  const [timelineMode, setTimelineMode] = useState<TimelineMode>('grid');
+  const [zoomLevel, setZoomLevel] = useState(90);
+  const [nightShiftOnly, setNightShiftOnly] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterUnit, setFilterUnit] = useState<string>('ALL');
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const [filterPriority, setFilterPriority] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [showUnassigned, setShowUnassigned] = useState(true);
 
-  // 6. Trạng thái mở rộng / thu gọn
-  const [isAllExpanded, setIsAllExpanded] = useState<boolean>(true);
-  const [showUnassignedDrawer, setShowUnassignedDrawer] = useState<boolean>(true);
+  const filteredLanes = useMemo(() => {
+    const query = searchTerm.trim().toLocaleLowerCase('vi');
+    return lanes
+      .map((lane) => ({
+        ...lane,
+        items: lane.items.filter((item) => {
+          if (query) {
+            const source = [item.code, item.title, item.location, item.driverName, lane.vehicleCode, lane.vehicleName, lane.vehiclePlate]
+              .filter(Boolean)
+              .join(' ')
+              .toLocaleLowerCase('vi');
+            if (!source.includes(query)) return false;
+          }
+          if (filterStatus === 'WAITING' && item.driverAcceptedAt) return false;
+          if (filterStatus === 'LATE' && !(receiveDelta(item) !== null && receiveDelta(item)! > 15)) return false;
+          if (filterStatus === 'RUNNING' && item.workflowStepIndex !== 2) return false;
+          if (filterStatus === 'DONE' && !FINISHED_STATUSES.has(item.status)) return false;
+          if (nightShiftOnly) {
+            const hour = hourValue(item.startTime);
+            if (hour >= 6 && hour < 18) return false;
+          }
+          return true;
+        }),
+      }))
+      .filter((lane) => lane.items.length > 0);
+  }, [filterStatus, lanes, nightShiftOnly, searchTerm]);
 
-  // Danh sách các đơn vị / xí nghiệp duy nhất để đưa vào dropdown lọc
-  const uniqueUnits = useMemo(() => {
-    const set = new Set<string>();
-    for (const lane of lanes) {
-      for (const item of lane.items) {
-        if (item.unitName) set.add(item.unitName);
-      }
-    }
-    return Array.from(set);
+  const allItems = useMemo(() => filteredLanes.flatMap((lane) => lane.items.map((item) => ({ lane, item }))), [filteredLanes]);
+  const summary = useMemo(() => {
+    const items = lanes.flatMap((lane) => lane.items);
+    return {
+      total: items.length,
+      received: items.filter((item) => item.driverAcceptedAt).length,
+      late: items.filter((item) => (receiveDelta(item) ?? 0) > 15).length,
+      waiting: items.filter((item) => !item.driverAcceptedAt).length,
+    };
   }, [lanes]);
 
-  // Lọc dữ liệu theo Search và 3 Dropdown
-  const filteredLanes = useMemo(() => {
-    return lanes
-      .map((lane) => {
-        const matchingItems = lane.items.filter((it) => {
-          // Lọc theo search
-          if (searchTerm.trim()) {
-            const q = searchTerm.toLowerCase();
-            const matchCode = it.code.toLowerCase().includes(q);
-            const matchTitle = it.title.toLowerCase().includes(q);
-            const matchLoc = (it.location || '').toLowerCase().includes(q);
-            const matchDriver = (it.driverName || '').toLowerCase().includes(q);
-            const matchVehicle =
-              lane.vehicleCode.toLowerCase().includes(q) ||
-              lane.vehicleName.toLowerCase().includes(q) ||
-              (lane.vehiclePlate || '').toLowerCase().includes(q);
-            if (!matchCode && !matchTitle && !matchLoc && !matchDriver && !matchVehicle) {
-              return false;
-            }
-          }
-
-          // Lọc theo 3 Giai đoạn chuẩn
-          if (filterStatus !== 'ALL') {
-            if (filterStatus === 'GIAO_NHAN' && it.workflowStepIndex !== 1) return false;
-            if (filterStatus === 'THUC_HIEN' && it.workflowStepIndex !== 2) return false;
-            if (filterStatus === 'NGHIEM_THU' && it.workflowStepIndex < 3) return false;
-          }
-
-          // Lọc theo Đơn vị / Xí nghiệp
-          if (filterUnit !== 'ALL' && it.unitName && it.unitName !== filterUnit) {
-            return false;
-          }
-
-          // Lọc theo Ca đêm (nếu bật nút 🌙 Ca đêm / Tối)
-          if (nightShiftOnly) {
-            const startHour = parseHourValue(it.startTime);
-            const isNight = startHour >= 18 || startHour < 6;
-            if (!isNight) return false;
-          }
-
-          return true;
-        });
-
-        return { ...lane, items: matchingItems };
-      })
-      .filter((lane) => isAllExpanded || lane.items.length > 0);
-  }, [lanes, searchTerm, filterStatus, filterUnit, filterPriority, nightShiftOnly, isAllExpanded]);
-
-  // Điều hướng ngày
-  const handleStepDate = (days: number) => {
-    const base = selectedDate === 'ALL' || !selectedDate ? new Date() : new Date(selectedDate);
-    base.setDate(base.getDate() + days);
-    const y = base.getFullYear();
-    const m = String(base.getMonth() + 1).padStart(2, '0');
-    const d = String(base.getDate()).padStart(2, '0');
-    onDateChange(`${y}-${m}-${d}`);
-  };
-
-  const toDateString = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
+  const displayDate = selectedDate === 'ALL' || !selectedDate
+    ? 'Tất cả ngày'
+    : selectedDate.split('-').reverse().join('/');
   const isToday = selectedDate === toDateString(new Date());
+  const hourWidth = Math.round(64 * zoomLevel / 100);
+  const timelineWidth = 24 * hourWidth;
 
-  // Xóa toàn bộ bộ lọc
-  const handleResetFilters = () => {
+  const stepDate = (days: number) => {
+    const date = selectedDate === 'ALL' || !selectedDate ? new Date() : new Date(`${selectedDate}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    onDateChange(toDateString(date));
+  };
+
+  const resetFilters = () => {
     setSearchTerm('');
-    setFilterUnit('ALL');
     setFilterStatus('ALL');
-    setFilterPriority('ALL');
     setNightShiftOnly(false);
   };
 
-  // Tính toán độ rộng cột giờ dựa trên thanh trượt Zoom
-  const hourColWidth = useMemo(() => {
-    const base = 70; // 70px ở 100%
-    return Math.max(50, Math.min(120, Math.round(base * (zoomLevel / 100))));
-  }, [zoomLevel]);
-
-  // Phân giải giờ bắt đầu (0 -> 23.99)
-  function parseHourValue(timeStr?: string): number {
-    if (!timeStr) return 7;
-    if (timeStr.includes('T')) {
-      const d = new Date(timeStr);
-      if (!isNaN(d.getTime())) return d.getHours() + d.getMinutes() / 60;
-    }
-    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
-    if (match) {
-      return parseInt(match[1], 10) + parseInt(match[2], 10) / 60;
-    }
-    return 7;
-  }
-
-  // Định dạng chuỗi giờ "HH:mm"
-  function formatHourString(timeStr?: string): string {
-    if (!timeStr) return '07:00';
-    if (timeStr.includes('T')) {
-      const d = new Date(timeStr);
-      if (!isNaN(d.getTime())) {
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      }
-    }
-    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
-    if (match) {
-      return `${match[1].padStart(2, '0')}:${match[2]}`;
-    }
-    return timeStr;
-  }
-
-  // Định dạng ngày hiển thị VN
-  const displayFormattedDate = useMemo(() => {
-    if (selectedDate === 'ALL' || !selectedDate) return 'Tất cả các ngày';
-    const parts = selectedDate.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return selectedDate;
-  }, [selectedDate]);
+  const renderTiming = (item: SchedulerItem, compact = false) => {
+    const delta = receiveDelta(item);
+    return (
+      <div className={`grid ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'} gap-2`}>
+        <div className="rounded-lg bg-slate-50 px-2.5 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Dự kiến bắt đầu</div>
+          <div className="mt-0.5 font-mono text-sm font-black text-slate-900">{formatTime(item.startTime)}</div>
+        </div>
+        <div className="rounded-lg bg-sky-50 px-2.5 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-700">Tài xế nhận lệnh</div>
+          <div className="mt-0.5 font-mono text-sm font-black text-sky-950">{formatTime(item.driverAcceptedAt)}</div>
+        </div>
+        {!compact && (
+          <>
+            <div className="rounded-lg bg-amber-50 px-2.5 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Bắt đầu làm việc</div>
+              <div className="mt-0.5 font-mono text-sm font-black text-amber-950">{formatTime(item.actualStartTime)}</div>
+            </div>
+            <div className="rounded-lg bg-emerald-50 px-2.5 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Nghiệm thu</div>
+              <div className="mt-0.5 font-mono text-sm font-black text-emerald-950">{formatTime(item.acceptedAt)}</div>
+            </div>
+          </>
+        )}
+        <span className={`col-span-2 w-fit rounded-full border px-2 py-0.5 text-[10px] font-bold ${deltaClass(delta)}`}>
+          {deltaLabel(delta)}
+        </span>
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-3.5 select-none font-sans">
-      {/* 1. THANH TIÊU CHUẨN: "CÁC CHẶNG TIẾN ĐỘ" (LEGEND BĂNG TRÊN CÙNG - 3 GIAI ĐOẠN) */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs sm:text-[13px] font-extrabold uppercase tracking-wider text-slate-900">
-            CÁC CHẶNG TIẾN ĐỘ:
-          </span>
-        </div>
-
-        {/* 3 Badge chặng tiến độ chuẩn: Tài xế giao nhận -> Đang thực hiện -> Nghiệm thu */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 text-xs font-semibold">
-          {/* Chặng 1: Tài xế giao nhận */}
-          <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#0284c7] px-2.5 py-0.5 text-[11px] font-bold text-white shadow-2xs">
-              <span>📌</span> Tài xế giao nhận
-            </span>
-            <span className="text-[11.5px] text-slate-600 font-medium">Thời điểm ghi nhận / Bàn giao xe & việc</span>
+    <section className="space-y-3.5">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <div className="flex flex-col gap-4 border-b border-slate-200 bg-gradient-to-r from-slate-950 to-slate-800 px-5 py-4 text-white lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-5 w-5 text-amber-400" />
+              <h2 className="text-base font-black">{title}</h2>
+            </div>
+            <p className="mt-1 text-xs text-slate-300">Đối chiếu giờ dự kiến với lúc tài xế nhận lệnh và tiến độ làm việc.</p>
           </div>
-
-          {/* Chặng 2: Đang thực hiện */}
-          <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#ea580c] px-2.5 py-0.5 text-[11px] font-bold text-white shadow-2xs">
-              <span>⚡</span> Đang thực hiện
-            </span>
-            <span className="text-[11.5px] text-slate-600 font-medium">Thanh vàng dài trải qua các giờ xử lý</span>
-          </div>
-
-          {/* Chặng 3: Nghiệm thu */}
-          <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#16a34a] px-2.5 py-0.5 text-[11px] font-bold text-white shadow-2xs">
-              <span>✅</span> Nghiệm thu
-            </span>
-            <span className="text-[11.5px] text-slate-600 font-medium">Nghiệm thu đạt & đóng phiếu</span>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ['Lệnh đã xếp', summary.total, 'text-white'],
+              ['Đã nhận', summary.received, 'text-sky-300'],
+              ['Nhận quá hạn', summary.late, 'text-rose-300'],
+              ['Chờ nhận', summary.waiting, 'text-amber-300'],
+            ].map(([label, value, color]) => (
+              <div key={String(label)} className="min-w-[94px] rounded-xl border border-white/10 bg-white/10 px-3 py-2">
+                <div className="text-[10px] font-semibold text-slate-300">{label}</div>
+                <div className={`text-lg font-black ${color}`}>{value}</div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
 
-      {/* 2. KHUNG ĐIỀU KHIỂN & BỘ LỌC TIMELINE ĐỒNG BỘ 100% VỚI HÌNH */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs space-y-3">
-        {/* HÀNG 1: CÁC NÚT CHUYỂN CHẾ ĐỘ + GRANULARITY + ZOOM + NGÀY + TỐI */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* Nhóm trái 1: Chuyển chế độ [Bảng Giai Đoạn (Grid)] [Dòng Thời Gian (Gantt)] [Cột Mốc (Milestones)] */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setTimelineMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                timelineMode === 'grid'
-                  ? 'bg-[#166534] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Bảng Giai Đoạn (Grid)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTimelineMode('gantt')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                timelineMode === 'gantt'
-                  ? 'bg-[#166534] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-              }`}
-            >
-              <CalendarDays className="h-3.5 w-3.5" />
-              <span>Dòng Thời Gian (Gantt)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTimelineMode('milestones')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                timelineMode === 'milestones'
-                  ? 'bg-[#166534] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-              }`}
-            >
-              <Milestone className="h-3.5 w-3.5" />
-              <span>Cột Mốc (Milestones)</span>
-            </button>
-          </div>
-
-          {/* Nhóm 2: Chuyển chu kỳ [Ngày | Tuần | Tháng | Quý] */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 shadow-2xs text-xs">
-            {(['ngay', 'tuan', 'thang', 'quy'] as const).map((g) => {
-              const labelMap = { ngay: 'Ngày (24h)', tuan: 'Tuần', thang: 'Tháng', quy: 'Quý' };
-              const isActive = timeGranularity === g;
+        <div className="p-3.5">
+          <div className="grid gap-2 lg:grid-cols-3" role="tablist" aria-label="Chế độ hiển thị lịch chạy">
+            {modeOptions.map((mode) => {
+              const Icon = mode.icon;
+              const active = timelineMode === mode.value;
               return (
                 <button
-                  key={g}
+                  key={mode.value}
                   type="button"
-                  onClick={() => setTimeGranularity(g)}
-                  className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-white text-emerald-900 shadow-2xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTimelineMode(mode.value)}
+                  className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all ${active ? 'border-emerald-700 bg-emerald-700 text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50'}`}
                 >
-                  {labelMap[g]}
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-white/15 text-amber-300' : 'bg-slate-100 text-slate-600'}`}>
+                    <Icon className="h-4.5 w-4.5" />
+                  </span>
+                  <span>
+                    <span className="block text-xs font-black">{mode.label}</span>
+                    <span className={`mt-0.5 block text-[10px] font-medium ${active ? 'text-emerald-100' : 'text-slate-500'}`}>{mode.description}</span>
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          {/* Nhóm 3: Thanh trượt Zoom [ 🔍 - ===●=== + 100% ] */}
-          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1 border border-slate-200 shadow-2xs text-xs">
-            <Search className="h-3.5 w-3.5 text-slate-400" />
-            <button
-              type="button"
-              onClick={() => setZoomLevel((z) => Math.max(70, z - 10))}
-              className="font-bold text-slate-600 hover:text-slate-900 px-1 py-0.5 rounded hover:bg-slate-200"
-              title="Thu nhỏ"
-            >
-              -
-            </button>
-            <input
-              type="range"
-              min="70"
-              max="140"
-              step="5"
-              value={zoomLevel}
-              onChange={(e) => setZoomLevel(parseInt(e.target.value, 10))}
-              className="w-20 sm:w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-700"
-            />
-            <button
-              type="button"
-              onClick={() => setZoomLevel((z) => Math.min(140, z + 10))}
-              className="font-bold text-slate-600 hover:text-slate-900 px-1 py-0.5 rounded hover:bg-slate-200"
-              title="Phóng to"
-            >
-              +
-            </button>
-            <span className="font-mono text-[11px] font-bold text-emerald-900 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-              {zoomLevel}%
-            </span>
-          </div>
-
-          {/* Nhóm 4: Điều hướng ngày & Nút Hôm nay & Nút Ca Đêm/Tối */}
-          <div className="flex items-center gap-2">
-            {/* Bộ chọn ngày < 14/08/2026 📅 > */}
-            <div className="flex items-center rounded-xl bg-slate-50 border border-slate-200 p-0.5 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => handleStepDate(-1)}
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                title="Ngày trước"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-
-              <div className="flex items-center gap-1.5 px-2.5 py-0.5">
-                <span className="text-xs font-bold text-slate-900 font-mono">
-                  {displayFormattedDate}
-                </span>
-                <input
-                  type="date"
-                  value={selectedDate === 'ALL' || !selectedDate ? '' : selectedDate}
-                  onChange={(e) => onDateChange(e.target.value || 'ALL')}
-                  className="opacity-0 w-4 h-4 absolute cursor-pointer"
-                  title="Chọn ngày"
-                />
-                <Calendar className="h-3.5 w-3.5 text-emerald-700 cursor-pointer pointer-events-none" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleStepDate(1)}
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                title="Ngày sau"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+              <button type="button" onClick={() => stepDate(-1)} title="Ngày trước" className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-900"><ChevronLeft className="h-4 w-4" /></button>
+              <label className="relative flex min-w-[112px] cursor-pointer items-center justify-center gap-1.5 px-2 text-xs font-bold text-slate-900">
+                <Calendar className="h-3.5 w-3.5 text-emerald-700" />
+                {displayDate}
+                <input type="date" value={selectedDate === 'ALL' ? '' : selectedDate} onChange={(event) => onDateChange(event.target.value || 'ALL')} className="absolute inset-0 cursor-pointer opacity-0" />
+              </label>
+              <button type="button" onClick={() => stepDate(1)} title="Ngày sau" className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-900"><ChevronRight className="h-4 w-4" /></button>
             </div>
+            <button type="button" onClick={() => onDateChange(toDateString(new Date()))} className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${isToday ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50'}`}>Hôm nay</button>
 
-            {/* Nút Hôm nay (viền xanh lá) */}
-            <button
-              type="button"
-              onClick={() => onDateChange(toDateString(new Date()))}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                isToday
-                  ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                  : 'border-emerald-600 text-emerald-700 hover:bg-emerald-50 bg-white'
-              }`}
-            >
-              Hôm nay
-            </button>
+            <div className="relative min-w-[220px] flex-1 lg:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm mã lệnh, xe hoặc tài xế" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs outline-none focus:border-emerald-600 focus:bg-white" />
+            </div>
+            <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-emerald-600">
+              <option value="ALL">Tất cả tiến độ</option>
+              <option value="WAITING">Chưa nhận lệnh</option>
+              <option value="LATE">Quá 15 phút chưa nhận</option>
+              <option value="RUNNING">Đang thực hiện</option>
+              <option value="DONE">Đã nghiệm thu</option>
+            </select>
+            <button type="button" aria-pressed={nightShiftOnly} onClick={() => setNightShiftOnly((value) => !value)} className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold ${nightShiftOnly ? 'border-indigo-950 bg-indigo-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}><Moon className="h-3.5 w-3.5" /> Ca đêm</button>
+            {(searchTerm || filterStatus !== 'ALL' || nightShiftOnly) && <button type="button" onClick={resetFilters} className="text-xs font-bold text-emerald-700 hover:underline">Xóa lọc</button>}
 
-            {/* Nút Ca đêm / Tối */}
-            <button
-              type="button"
-              onClick={() => setNightShiftOnly(!nightShiftOnly)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                nightShiftOnly
-                  ? 'bg-indigo-950 text-white border-indigo-900 shadow-xs'
-                  : 'border-slate-200 text-slate-700 hover:bg-slate-100 bg-white'
-              }`}
-              title="Lọc ca đêm 18:00 - 06:00"
-            >
-              <Moon className={`h-3.5 w-3.5 ${nightShiftOnly ? 'text-amber-400' : 'text-slate-600'}`} />
-              <span>Tối</span>
-            </button>
-          </div>
-        </div>
-
-        {/* HÀNG 2: THANH BỘ LỌC CHI TIẾT (SEARCH + 3 DROPDOWNS + MỞ TẤT CẢ / THU GỌN / XÓA LỌC) */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100 text-xs">
-          {/* Ô tìm kiếm */}
-          <div className="relative flex-1 min-w-[240px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm theo mã issue/lệnh, tiêu đề, phân hệ, người xử lý..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-emerald-600 focus:outline-none transition-colors"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
-              >
-                ✕
-              </button>
+            {timelineMode !== 'grid' && (
+              <label className="ml-auto flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                Thu phóng
+                <input type="range" min="75" max="130" step="5" value={zoomLevel} onChange={(event) => setZoomLevel(Number(event.target.value))} className="w-24 accent-emerald-700" />
+                <span className="w-9 font-mono text-slate-700">{zoomLevel}%</span>
+              </label>
             )}
-          </div>
-
-          {/* Dropdown 1: Tất cả dự án / phân hệ / đơn vị */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
-            <span className="text-amber-600">📁</span>
-            <select
-              value={filterUnit}
-              onChange={(e) => setFilterUnit(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer pr-1"
-            >
-              <option value="ALL">Tất cả dự án / phần mềm</option>
-              {uniqueUnits.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-              {uniqueUnits.length === 0 && (
-                <>
-                  <option value="NÔNG_NGHIỆP">Phân hệ Nông nghiệp</option>
-                  <option value="CÔNG_TRÌNH">Phân hệ Công trình</option>
-                  <option value="VẬN_CHUYỂN">Phân hệ Vận chuyển nội bộ</option>
-                </>
-              )}
-            </select>
-          </div>
-
-          {/* Dropdown 2: Tất cả trạng thái (3 giai đoạn) */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
-            <span className="text-pink-600">🎯</span>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer pr-1"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="GIAO_NHAN">📌 1. Tài xế giao nhận</option>
-              <option value="THUC_HIEN">⚡ 2. Đang thực hiện</option>
-              <option value="NGHIEM_THU">✅ 3. Nghiệm thu hoàn tất</option>
-            </select>
-          </div>
-
-          {/* Dropdown 3: Mọi mức độ / Ưu tiên */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
-            <span className="text-orange-500">🔥</span>
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer pr-1"
-            >
-              <option value="ALL">Mọi mức độ</option>
-              <option value="KHAN_CAP">Khẩn cấp / SOS</option>
-              <option value="CAO">Ưu tiên cao</option>
-              <option value="TRUNG_BINH">Bình thường</option>
-              <option value="THAP">Ưu tiên thấp</option>
-            </select>
-          </div>
-
-          {/* Nút tiện ích bên phải: Mở tất cả | Thu gọn | Xóa lọc */}
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              onClick={() => setIsAllExpanded(true)}
-              className={`text-[11px] font-bold transition-colors cursor-pointer ${
-                isAllExpanded ? 'text-emerald-700 underline' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Mở tất cả
-            </button>
-            <span className="text-slate-300">|</span>
-            <button
-              type="button"
-              onClick={() => setIsAllExpanded(false)}
-              className={`text-[11px] font-bold transition-colors cursor-pointer ${
-                !isAllExpanded ? 'text-emerald-700 underline' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Thu gọn
-            </button>
-            <span className="text-slate-300">|</span>
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-            >
-              <RotateCcw className="h-3 w-3 text-slate-500" />
-              <span>Xóa lọc</span>
-            </button>
           </div>
         </div>
       </div>
 
-      {/* 3. NGĂN LỆNH CHỜ PHÂN CÔNG (UNASSIGNED ITEMS) */}
       {unassignedItems.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-              <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                Lệnh chờ phân công xe & thợ lái ({unassignedItems.length} lệnh chưa gán)
-              </h4>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowUnassignedDrawer(!showUnassignedDrawer)}
-              className="text-[11px] font-bold text-amber-900 hover:underline cursor-pointer"
-            >
-              {showUnassignedDrawer ? 'Thu gọn ▲' : 'Mở rộng ▼'}
-            </button>
-          </div>
-
-          {showUnassignedDrawer && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 mt-2">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+          <button type="button" onClick={() => setShowUnassigned((value) => !value)} className="flex w-full items-center justify-between text-left">
+            <span className="flex items-center gap-2 text-xs font-black text-amber-950"><AlertTriangle className="h-4 w-4 text-amber-600" /> {unassignedItems.length} lệnh chưa có xe hoặc tài xế</span>
+            <span className="text-[10px] font-bold text-amber-800">{showUnassigned ? 'Thu gọn' : 'Xem lệnh'}</span>
+          </button>
+          {showUnassigned && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {unassignedItems.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  onClick={() => onItemClick(item.rawItem)}
-                  className="rounded-xl border border-amber-200 bg-white p-2.5 text-left text-xs shadow-2xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono font-bold text-primary text-[11px]">{item.code}</span>
-                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded-md">
-                      Chờ gán xe
-                    </span>
-                  </div>
-                  <div className="font-semibold text-slate-900 text-xs truncate" title={item.title}>
-                    {item.title}
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="truncate">{item.location || 'Chưa định vị'}</span>
-                    <span className="font-bold text-slate-700">{item.durationHours}h</span>
-                  </div>
-                  <div className="mt-1.5 pt-1.5 border-t border-amber-100 flex items-center justify-between text-[10px] text-emerald-800 font-bold">
-                    <span>👉 Bấm để chọn xe & thợ lái</span>
-                  </div>
+                <button key={item.id} type="button" onClick={() => onItemClick(item.rawItem)} className="rounded-xl border border-amber-200 bg-white p-3 text-left hover:border-amber-400 hover:shadow-sm">
+                  <div className="flex items-center justify-between gap-2"><span className="font-mono text-[11px] font-black text-emerald-800">{item.code}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">Chờ phân công</span></div>
+                  <div className="mt-1 truncate text-xs font-bold text-slate-900">{item.title}</div>
+                  <div className="mt-2 text-[10px] text-slate-500">Bắt đầu dự kiến <span className="font-mono font-bold text-slate-800">{formatTime(item.startTime)}</span></div>
                 </button>
               ))}
             </div>
@@ -645,387 +371,104 @@ export const Vehicle24hScheduler: React.FC<Vehicle24hSchedulerProps> = ({
         </div>
       )}
 
-      {/* 4. VÙNG HIỂN THỊ CHÍNH TIMELINE (GRID / GANTT / MILESTONES) */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <div
-          style={{
-            minWidth: `${280 + 24 * hourColWidth}px`,
-          }}
-        >
-          {/* HÀNG BANNER PHÂN CHIA 4 CA VẬN HÀNH TRONG 24H */}
-          <div
-            className="grid border-b border-slate-200 bg-slate-100/90 text-[11px] font-bold"
-            style={{
-              gridTemplateColumns: `280px repeat(24, ${hourColWidth}px)`,
-            }}
-          >
-            {/* Cột Trái Cố Định */}
-            <div className="p-2.5 flex items-center gap-1.5 text-slate-700 border-r border-slate-200 bg-slate-100">
-              <Truck className="h-4 w-4 text-primary shrink-0" />
-              <span className="truncate">Phương tiện & Thợ lái</span>
-            </div>
-
-            {/* 4 Ca làm việc 24 tiếng */}
-            <div className="col-span-6 bg-indigo-50/90 text-indigo-900 border-r border-indigo-200 py-1.5 px-2 flex items-center justify-center gap-1">
-              <span>🌙 Ca Đêm (00:00 - 06:00)</span>
-            </div>
-            <div className="col-span-6 bg-amber-50/90 text-amber-900 border-r border-amber-200 py-1.5 px-2 flex items-center justify-center gap-1">
-              <span>🌅 Ca Sáng (06:00 - 12:00)</span>
-            </div>
-            <div className="col-span-6 bg-sky-50/90 text-sky-900 border-r border-sky-200 py-1.5 px-2 flex items-center justify-center gap-1">
-              <span>☀️ Ca Chiều (12:00 - 18:00)</span>
-            </div>
-            <div className="col-span-6 bg-purple-50/90 text-purple-900 py-1.5 px-2 flex items-center justify-center gap-1">
-              <span>🌆 Ca Tối (18:00 - 24:00)</span>
-            </div>
-          </div>
-
-          {/* HÀNG CỘT MỐC 24 GIỜ (00:00 -> 23:00) */}
-          <div
-            className="grid border-b border-slate-200 bg-slate-50 text-[11px] font-mono font-bold text-slate-600"
-            style={{
-              gridTemplateColumns: `280px repeat(24, ${hourColWidth}px)`,
-            }}
-          >
-            <div className="p-2 border-r border-slate-200 text-slate-500 text-[10px] flex items-center justify-between">
-              <span>24 Giờ Hoạt động</span>
-              <span className="font-sans font-bold text-slate-700">{filteredLanes.length} xe</span>
-            </div>
-            {HOURS_24.map((h) => (
-              <div
-                key={h.hour}
-                style={{ width: `${hourColWidth}px` }}
-                className={`border-r border-slate-200 py-2 text-center select-none ${
-                  h.hour === 6 || h.hour === 12 || h.hour === 18 ? 'bg-slate-100 font-extrabold text-slate-900' : ''
-                }`}
-              >
-                {h.label}
-              </div>
-            ))}
-          </div>
-
-          {/* CÁC LÀN CHẠY PHƯƠNG TIỆN (LANES) */}
-          {filteredLanes.length === 0 ? (
-            <div className="p-16 text-center text-sm font-medium text-slate-400 space-y-2">
-              <p>Không có dữ liệu lịch chạy xe nào phù hợp với bộ lọc.</p>
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="text-primary hover:underline text-xs font-bold"
-              >
-                Xóa bộ lọc để xem toàn bộ 24h
-              </button>
-            </div>
-          ) : (
-            filteredLanes.map((lane) => (
-              <div
-                key={lane.laneKey}
-                className="grid min-h-[110px] border-b border-slate-100 hover:bg-slate-50/40 transition-colors relative"
-                style={{
-                  gridTemplateColumns: `280px repeat(24, ${hourColWidth}px)`,
-                }}
-              >
-                {/* CỘT PHƯƠNG TIỆN CỐ ĐỊNH BÊN TRÁI */}
-                <div className="p-3 flex flex-col justify-center border-r border-slate-200 bg-slate-50/80 select-none">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-bold font-mono text-slate-900">{lane.vehicleCode}</span>
-                    {lane.vehiclePlate && (
-                      <span className="text-[10px] font-mono bg-white border border-slate-200 px-1 py-0.2 rounded text-slate-700">
-                        {lane.vehiclePlate}
-                      </span>
-                    )}
+      {allItems.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+          Không có lịch chạy phù hợp. <button type="button" onClick={resetFilters} className="font-bold text-emerald-700 hover:underline">Xóa bộ lọc</button>
+        </div>
+      ) : timelineMode === 'grid' ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {allItems.map(({ lane, item }) => {
+            const delta = receiveDelta(item);
+            return (
+              <button key={`${lane.laneKey}-${item.id}`} type="button" onClick={() => onItemClick(item.rawItem)} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition-all hover:border-emerald-300 hover:shadow-md">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-xs font-black text-emerald-800">{item.code}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${deltaClass(delta)}`}>{deltaLabel(delta)}</span></div>
+                    <div className="mt-1 truncate text-sm font-black text-slate-900">{item.title}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600"><span className="font-semibold"><Truck className="mr-1 inline h-3 w-3" />{lane.vehicleCode}</span><span><UserCheck className="mr-1 inline h-3 w-3" />{item.driverName || 'Chưa gán tài xế'}</span>{item.implementName && <span><Wrench className="mr-1 inline h-3 w-3" />{item.implementName}</span>}</div>
                   </div>
-
-                  <div className="text-[11px] font-semibold text-slate-800 line-clamp-1 mt-0.5" title={lane.vehicleName}>
-                    {lane.vehicleName}
-                  </div>
-
-                  {lane.implementName && (
-                    <div className="flex items-center gap-1 text-[10.5px] text-amber-800 font-medium truncate mt-0.5" title={lane.implementName}>
-                      <Wrench className="h-3 w-3 text-amber-600 shrink-0" />
-                      <span className="truncate">{lane.implementName}</span>
-                    </div>
-                  )}
-
-                  <div className="mt-1 flex items-center justify-between pt-1 border-t border-slate-200/60 text-[10.5px]">
-                    <span className="text-slate-600 font-medium truncate" title={lane.primaryDriverName}>
-                      👤 {lane.primaryDriverName || 'Chưa gán thợ'}
-                    </span>
-                    <span className="font-bold text-primary text-[10px] shrink-0 ml-1">
-                      {lane.items.length} ca
-                    </span>
-                  </div>
+                  <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">{formatTime(item.startTime)}–{formatTime(item.endTime)}</span>
                 </div>
-
-                {/* VÙNG LƯỚI THỜI GIAN 24 CỘT */}
-                <div
-                  className="col-span-24 relative grid p-2 items-center gap-1"
-                  style={{
-                    gridTemplateColumns: `repeat(24, ${hourColWidth}px)`,
-                  }}
-                >
-                  {/* Đường lưới giờ mờ */}
-                  <div
-                    className="absolute inset-0 grid pointer-events-none"
-                    style={{
-                      gridTemplateColumns: `repeat(24, ${hourColWidth}px)`,
-                    }}
-                  >
-                    {HOURS_24.map((h) => (
-                      <div
-                        key={h.hour}
-                        style={{ width: `${hourColWidth}px` }}
-                        className={`border-r border-slate-100 h-full ${
-                          h.hour === 6 || h.hour === 12 || h.hour === 18 ? 'bg-slate-50/50 border-slate-200/60' : ''
-                        }`}
-                      />
-                    ))}
-                  </div>
-
-                  {/* RENDER THEO 3 CHẾ ĐỘ: GRID / GANTT / MILESTONES */}
-                  {lane.items.map((item) => {
-                    const startHour = parseHourValue(item.startTime);
-                    const colStart = Math.max(1, Math.min(24, Math.floor(startHour) + 1));
-                    const durationCol = Math.max(2, Math.min(24 - colStart + 1, Math.round(item.durationHours || 4)));
-                    const colEnd = colStart + durationCol;
-
-                    const startLabel = formatHourString(item.startTime);
-                    const endLabel = item.endTime
-                      ? formatHourString(item.endTime)
-                      : `${String(Math.min(23, Math.floor(startHour + (item.durationHours || 4)))).padStart(2, '0')}:00`;
-
-                    // ================= CHẾ ĐỘ 1: BẢNG GIAI ĐOẠN (GRID) =================
-                    if (timelineMode === 'grid') {
-                      let cardBg = 'bg-sky-50/95 border-sky-300 hover:bg-sky-100/90 text-sky-950 shadow-2xs';
-                      if (item.workflowStepIndex === 2) {
-                        cardBg = 'bg-amber-50/95 border-amber-400 hover:bg-amber-100/90 text-amber-950 shadow-xs ring-1 ring-amber-400/60';
-                      } else if (item.workflowStepIndex >= 3) {
-                        cardBg = 'bg-emerald-50/95 border-emerald-300 hover:bg-emerald-100/90 text-emerald-950 shadow-2xs';
-                      } else if (item.status === 'TAM_DUNG' || item.isDelayed) {
-                        cardBg = 'bg-red-50/95 border-red-300 hover:bg-red-100/90 text-red-950';
-                      }
-
-                      return (
-                        <button
-                          type="button"
-                          key={item.id}
-                          onClick={() => onItemClick(item.rawItem)}
-                          style={{
-                            gridColumnStart: colStart,
-                            gridColumnEnd: colEnd,
-                          }}
-                          className={`z-10 rounded-xl border p-2.5 text-left text-xs shadow-2xs transition-all hover:scale-[1.01] hover:shadow-md cursor-pointer relative ${cardBg}`}
-                        >
-                          {/* Hàng 1: Mã lệnh + Khung giờ */}
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-primary text-[11px]">{item.code}</span>
-                              {item.isDelayed && <AlertTriangle className="h-3.5 w-3.5 text-red-600" />}
-                            </div>
-                            <span className="font-mono text-[10px] font-bold bg-white/90 border border-slate-200/80 px-1.5 py-0.2 rounded shadow-2xs">
-                              {startLabel} ➔ {endLabel} ({item.durationHours}h)
-                            </span>
-                          </div>
-
-                          {/* Hàng 2: Tiêu đề công việc */}
-                          <div className="font-bold text-[11.5px] text-slate-900 truncate mb-1" title={item.title}>
-                            {item.title}
-                          </div>
-
-                          {/* 3 GIAI ĐOẠN TIẾN ĐỘ CHUẨN: TÀI XẾ GIAO NHẬN ➔ ĐANG THỰC HIỆN ➔ NGHIỆM THU */}
-                          <div className="my-1.5 rounded-lg bg-white/80 border border-slate-200/70 p-1.5 space-y-1">
-                            <div className="grid grid-cols-3 gap-1 text-[9.5px] font-bold">
-                              {/* Giai đoạn 1: Tài xế giao nhận */}
-                              <div
-                                className={`flex items-center gap-1 px-1 py-0.5 rounded truncate border ${
-                                  item.workflowStepIndex >= 1
-                                    ? 'bg-sky-100 text-sky-900 border-sky-300 font-extrabold shadow-2xs'
-                                    : 'bg-slate-100 text-slate-400 border-transparent'
-                                }`}
-                                title={`1. Tài xế giao nhận: ${item.driverName || 'Chưa gán'}`}
-                              >
-                                <span>📌</span>
-                                <span className="truncate">{item.driverName ? item.driverName.split(' ').slice(-1)[0] : 'Giao nhận'}</span>
-                              </div>
-
-                              {/* Giai đoạn 2: Đang thực hiện */}
-                              <div
-                                className={`flex items-center gap-1 px-1 py-0.5 rounded truncate border ${
-                                  item.workflowStepIndex === 2
-                                    ? 'bg-amber-100 text-amber-950 border-amber-400 font-extrabold ring-1 ring-amber-400 shadow-2xs animate-pulse'
-                                    : item.workflowStepIndex > 2
-                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                    : 'bg-slate-100 text-slate-400 border-transparent'
-                                }`}
-                                title={`2. Đang thực hiện: ${item.workVolume || `${item.durationHours}h`}`}
-                              >
-                                <span>⚡</span>
-                                <span className="truncate">{item.workVolume || 'Đang thực hiện'}</span>
-                              </div>
-
-                              {/* Giai đoạn 3: Nghiệm thu */}
-                              <div
-                                className={`flex items-center gap-1 px-1 py-0.5 rounded truncate border ${
-                                  item.workflowStepIndex >= 3
-                                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-extrabold shadow-2xs'
-                                    : 'bg-slate-100 text-slate-400 border-transparent'
-                                }`}
-                                title={`3. Nghiệm thu: ${item.acceptanceInfo || 'Chưa nghiệm thu'}`}
-                              >
-                                <span>✅</span>
-                                <span className="truncate">{item.workflowStepIndex >= 3 ? 'Đạt chuẩn' : 'Nghiệm thu'}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Hàng cuối: Vị trí + Nhiên liệu */}
-                          <div className="flex items-center justify-between text-[10px] text-slate-600 mt-1">
-                            <span className="truncate font-medium flex items-center gap-1" title={item.location}>
-                              <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{item.location || 'Tại thực địa'}</span>
-                            </span>
-
-                            {item.fuelInfo && (
-                              <span className="inline-flex items-center gap-0.5 font-bold text-amber-800 bg-amber-100/80 px-1 py-0.2 rounded text-[9.5px]">
-                                <Fuel className="h-2.5 w-2.5" />
-                                {item.fuelInfo}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    }
-
-                    // ================= CHẾ ĐỘ 2: DÒNG THỜI GIAN (GANTT) =================
-                    if (timelineMode === 'gantt') {
-                      let barColor = 'bg-sky-600 hover:bg-sky-700 text-white';
-                      if (item.workflowStepIndex === 2) barColor = 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse';
-                      if (item.workflowStepIndex >= 3) barColor = 'bg-emerald-600 hover:bg-emerald-700 text-white';
-
-                      return (
-                        <button
-                          type="button"
-                          key={item.id}
-                          onClick={() => onItemClick(item.rawItem)}
-                          style={{
-                            gridColumnStart: colStart,
-                            gridColumnEnd: colEnd,
-                          }}
-                          className={`z-10 h-11 rounded-xl p-2 flex items-center justify-between shadow-xs transition-all hover:scale-[1.01] hover:shadow-md cursor-pointer ${barColor}`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="font-mono font-black text-xs">{item.code}</span>
-                            <span className="text-[11px] font-semibold truncate">
-                              {item.title} ({item.driverName || 'Chưa gán TX'})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0 pl-2">
-                            <span className="bg-black/20 text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded">
-                              {startLabel} - {endLabel}
-                            </span>
-                            {item.workflowStepIndex >= 3 && <Check className="h-3.5 w-3.5 text-white" />}
-                          </div>
-                        </button>
-                      );
-                    }
-
-                    // ================= CHẾ ĐỘ 3: CỘT MỐC (MILESTONES - 3 MỐC) =================
+                <div className="mt-3 border-t border-slate-100 pt-3">{renderTiming(item)}</div>
+                <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                  {WORKFLOW_STAGES.map((stage, index) => {
+                    const reached = index <= workflowIndex(item);
                     return (
-                      <div
-                        key={item.id}
-                        style={{
-                          gridColumnStart: colStart,
-                          gridColumnEnd: colEnd,
-                        }}
-                        className="z-10 relative flex items-center justify-between px-2"
-                      >
-                        {/* Mốc 1: Tài xế giao nhận */}
-                        <button
-                          type="button"
-                          onClick={() => onItemClick(item.rawItem)}
-                          className="flex flex-col items-center group cursor-pointer"
-                          title={`1. Tài xế giao nhận: ${item.driverName || 'Chưa gán'}`}
-                        >
-                          <span className={`h-6 w-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-xs group-hover:scale-110 transition-transform ${
-                            item.workflowStepIndex >= 1 ? 'bg-sky-600' : 'bg-slate-400'
-                          }`}>
-                            📌
-                          </span>
-                          <span className="text-[10px] font-mono font-bold text-slate-700 mt-0.5">
-                            {startLabel}
-                          </span>
-                          <span className="text-[9px] text-slate-500 font-medium truncate max-w-[60px]">
-                            Giao nhận
-                          </span>
-                        </button>
-
-                        {/* Đoạn nối 1 ➔ 2 */}
-                        <div className="flex-1 h-1 bg-slate-200 mx-1.5 rounded-full relative overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              item.workflowStepIndex >= 2 ? 'bg-amber-500 w-full' : 'bg-transparent'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Mốc 2: Đang thực hiện */}
-                        <button
-                          type="button"
-                          onClick={() => onItemClick(item.rawItem)}
-                          className="flex flex-col items-center group cursor-pointer"
-                          title={`2. Đang thực hiện: ${item.workVolume || 'Đang thi công'}`}
-                        >
-                          <span className={`h-6 w-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-xs group-hover:scale-110 transition-transform ${
-                            item.workflowStepIndex === 2
-                              ? 'bg-amber-600 ring-2 ring-amber-400 animate-pulse'
-                              : item.workflowStepIndex > 2
-                              ? 'bg-amber-600'
-                              : 'bg-slate-400'
-                          }`}>
-                            ⚡
-                          </span>
-                          <span className="text-[9px] font-bold text-slate-700 mt-0.5">
-                            Thực hiện
-                          </span>
-                        </button>
-
-                        {/* Đoạn nối 2 ➔ 3 */}
-                        <div className="flex-1 h-1 bg-slate-200 mx-1.5 rounded-full relative overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              item.workflowStepIndex >= 3 ? 'bg-emerald-500 w-full' : 'bg-transparent'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Mốc 3: Nghiệm thu */}
-                        <button
-                          type="button"
-                          onClick={() => onItemClick(item.rawItem)}
-                          className="flex flex-col items-center group cursor-pointer"
-                          title={`3. Nghiệm thu: ${item.acceptanceInfo || 'Nghiệm thu đạt'}`}
-                        >
-                          <span className={`h-6 w-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-xs group-hover:scale-110 transition-transform ${
-                            item.workflowStepIndex >= 3 ? 'bg-emerald-600' : 'bg-slate-400'
-                          }`}>
-                            ✅
-                          </span>
-                          <span className="text-[10px] font-mono font-bold text-slate-700 mt-0.5">
-                            {endLabel}
-                          </span>
-                          <span className="text-[9px] text-slate-500 font-medium truncate max-w-[60px]">
-                            Nghiệm thu
-                          </span>
-                        </button>
+                      <div key={stage} className={`rounded-lg border px-2 py-1.5 text-center text-[9px] font-bold ${reached ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                        <span className="mr-1">{reached ? '✓' : index + 1}</span>{stage}
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            ))
-          )}
+              </button>
+            );
+          })}
         </div>
+      ) : timelineMode === 'gantt' ? (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
+          <div style={{ minWidth: 260 + timelineWidth }}>
+            <TimeAxis leftWidth={260} hourWidth={hourWidth} leftLabel={`${filteredLanes.length} phương tiện`} />
+            {filteredLanes.map((lane) => {
+              const rowHeight = Math.max(76, lane.items.length * 58 + 16);
+              return (
+                <div key={lane.laneKey} className="grid border-b border-slate-100" style={{ gridTemplateColumns: `260px ${timelineWidth}px`, minHeight: rowHeight }}>
+                  <div className="sticky left-0 z-20 flex flex-col justify-center border-r border-slate-200 bg-slate-50 px-3">
+                    <div className="font-mono text-xs font-black text-slate-900">{lane.vehicleCode}</div><div className="truncate text-[11px] font-semibold text-slate-600">{lane.vehicleName}</div><div className="mt-1 truncate text-[10px] text-slate-500">{lane.primaryDriverName || 'Chưa gán tài xế'}</div>
+                  </div>
+                  <div className="relative" style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${hourWidth - 1}px, #e2e8f0 ${hourWidth - 1}px, #e2e8f0 ${hourWidth}px)` }}>
+                    {lane.items.map((item, index) => {
+                      const start = hourValue(item.startTime);
+                      const duration = Math.max(0.75, Math.min(24 - start, item.durationHours || 1));
+                      const delta = receiveDelta(item);
+                      const receiveHour = hourValue(item.driverAcceptedAt);
+                      return (
+                        <button key={item.id} type="button" onClick={() => onItemClick(item.rawItem)} className={`absolute h-11 overflow-hidden rounded-lg border px-2.5 text-left shadow-sm hover:brightness-95 ${item.isDelayed || (delta ?? 0) > 0 ? 'border-rose-300 bg-rose-100 text-rose-950' : item.workflowStepIndex >= 3 ? 'border-emerald-300 bg-emerald-100 text-emerald-950' : 'border-sky-300 bg-sky-100 text-sky-950'}`} style={{ left: start * hourWidth, top: 8 + index * 58, width: Math.max(74, duration * hourWidth) }} title={`${item.code}: ${deltaLabel(delta)}`}>
+                          <div className="truncate text-[10px] font-black">{item.code} · {item.title}</div><div className="mt-0.5 flex items-center gap-2 text-[9px] font-semibold"><span>Dự kiến {formatTime(item.startTime)}</span><span>Nhận {formatTime(item.driverAcceptedAt)}</span></div>
+                          {item.driverAcceptedAt && <span className="absolute bottom-0 top-0 w-0.5 bg-sky-700" style={{ left: Math.max(2, Math.min(duration * hourWidth - 2, (receiveHour - start) * hourWidth)) }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
+          <div style={{ minWidth: 300 + timelineWidth }}>
+            <TimeAxis leftWidth={300} hourWidth={hourWidth} leftLabel="Lệnh / phương tiện" />
+            {allItems.map(({ lane, item }) => {
+              const milestones = [
+                { label: 'Dự kiến', value: item.startTime, color: 'border-slate-700 bg-white text-slate-800' },
+                { label: 'Tài xế nhận', value: item.driverAcceptedAt, color: 'border-sky-600 bg-sky-600 text-white' },
+                { label: 'Bắt đầu làm việc', value: item.actualStartTime, color: 'border-amber-600 bg-amber-500 text-white' },
+                { label: 'Nghiệm thu', value: item.acceptedAt, color: 'border-emerald-700 bg-emerald-600 text-white' },
+              ].filter((point) => point.value);
+              const delta = receiveDelta(item);
+              return (
+                <div key={`${lane.laneKey}-${item.id}`} className="grid min-h-[92px] border-b border-slate-100" style={{ gridTemplateColumns: `300px ${timelineWidth}px` }}>
+                  <button type="button" onClick={() => onItemClick(item.rawItem)} className="sticky left-0 z-20 border-r border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50">
+                    <div className="flex items-center justify-between gap-2"><span className="font-mono text-[11px] font-black text-emerald-800">{item.code}</span><span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${deltaClass(delta)}`}>{deltaLabel(delta)}</span></div><div className="mt-1 truncate text-xs font-bold text-slate-900">{item.title}</div><div className="mt-1 truncate text-[10px] text-slate-500">{lane.vehicleCode} · {item.driverName || 'Chưa gán tài xế'}</div>
+                  </button>
+                  <div className="relative" style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${hourWidth - 1}px, #e2e8f0 ${hourWidth - 1}px, #e2e8f0 ${hourWidth}px)` }}>
+                    <div className="absolute left-0 right-0 top-[30px] h-0.5 bg-slate-200" />
+                    {milestones.map((point, index) => (
+                      <button key={`${point.label}-${point.value}`} type="button" onClick={() => onItemClick(item.rawItem)} className="absolute top-4 -translate-x-1/2 text-center" style={{ left: hourValue(point.value) * hourWidth, zIndex: 10 + index }} title={`${point.label}: ${formatTime(point.value)}`}>
+                        <span className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full border-2 text-[10px] font-black shadow-sm ${point.color}`}>{index + 1}</span><span className="mt-1 block whitespace-nowrap rounded bg-white/90 px-1 text-[9px] font-bold text-slate-700">{point.label} {formatTime(point.value)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-slate-600">
+        <span className="font-black text-slate-800">Chú thích thời gian</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-slate-700" /> Dự kiến bắt đầu</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-sky-600" /> Tài xế nhận lệnh</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" /> Bắt đầu làm việc</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-600" /> Nghiệm thu</span><span className="ml-auto flex items-center gap-1 text-slate-500"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Bấm vào lệnh để xem chi tiết</span>
       </div>
-    </div>
+    </section>
   );
 };

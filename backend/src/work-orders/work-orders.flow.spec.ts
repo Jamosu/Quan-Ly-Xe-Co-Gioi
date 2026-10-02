@@ -12,7 +12,7 @@ import {
 } from '@prisma/client';
 import { WorkOrdersService } from './work-orders.service';
 
-const driver = { id: 20, role: Role.DRIVER, unit: Unit.KOUN_MOM };
+const driver = { id: 20, role: Role.DRIVER, unit: Unit.KOUN_MOM, username: 'km.tx001' };
 const manager = { id: 10, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM };
 
 const baseOrder = (status: WorkOrderStatus, overrides: Record<string, unknown> = {}) => ({
@@ -95,7 +95,7 @@ describe('WorkOrdersService business-flow guards', () => {
     });
   });
 
-  it('test_driver_accept_requires_assigned_and_ownership', async () => {
+  it('lets km.tx001 accept only their assigned dispatch order', async () => {
     const order = baseOrder(WorkOrderStatus.ASSIGNED);
     const tx = {
       ...lockedTx(order),
@@ -228,5 +228,49 @@ describe('WorkOrdersService business-flow guards', () => {
     const service = new WorkOrdersService(prisma as never, {} as never);
 
     await expect(service.findOne(order.id, driver)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('keeps the selected driver, vehicle and new time when reassigning an old order', async () => {
+    const service = new WorkOrdersService({} as never, {} as never);
+    const current = {
+      ...baseOrder(WorkOrderStatus.IN_PROGRESS),
+      vehicleAssignments: [{ vehicleId: 5, status: WorkAssignmentStatus.ACCEPTED }],
+    };
+    jest.spyOn(service, 'findOne').mockResolvedValue(current as never);
+    const assign = jest.spyOn(service, 'assign').mockResolvedValue(current as never);
+    const plannedStartAt = new Date('2026-09-29T01:00:00.000Z');
+    const plannedEndAt = new Date('2026-09-29T09:00:00.000Z');
+
+    await service.reassign(current.id, { driverId: driver.id, plannedStartAt, plannedEndAt, reason: 'Điều chuyển lệnh tồn đọng' }, manager);
+
+    expect(assign).toHaveBeenCalledWith(current.id, expect.objectContaining({
+      vehicleId: 5,
+      driverId: driver.id,
+      plannedStartAt,
+      plannedEndAt,
+      reason: 'Điều chuyển lệnh tồn đọng',
+    }), manager);
+  });
+
+  it('blocks reassignment while the current execution segment is still open', async () => {
+    const order = baseOrder(WorkOrderStatus.IN_PROGRESS, { managementUnitId: 12 });
+    const tx = {
+      ...lockedTx(order),
+      driverManagementUnit: {
+        findUnique: jest.fn().mockResolvedValue({ id: 12, status: 'ACTIVE', complexCode: Unit.KOUN_MOM }),
+        findMany: jest.fn().mockResolvedValue([{ id: 12 }]),
+      },
+      driverManagementAccessScope: { findMany: jest.fn().mockResolvedValue([{ managementUnitId: 12, isManagerProjection: false }]) },
+      workExecutionSegment: { findFirst: jest.fn().mockResolvedValue({ id: 99 }) },
+    };
+    const service = new WorkOrdersService(transactionPrisma(tx) as never, {} as never);
+
+    await expect(service.assign(order.id, {
+      vehicleId: 5,
+      driverId: driver.id,
+      assignmentMode: WorkAssignmentMode.FIXED_ASSIGNMENT,
+      expectedVersion: order.version,
+      reason: 'Điều chuyển lệnh tồn đọng',
+    }, manager)).rejects.toThrow(/phiên thực hiện đang mở/i);
   });
 });

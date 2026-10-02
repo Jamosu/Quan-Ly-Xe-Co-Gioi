@@ -116,6 +116,34 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
   const [selectedDate, setSelectedDate] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
 
+  const [page, setPage] = useState<number>(() => {
+    const qPage = new URLSearchParams(location.search).get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) return Number(qPage);
+    const saved = sessionStorage.getItem(`dispatch_page_${location.pathname}`);
+    if (saved && !isNaN(Number(saved)) && Number(saved) > 0) return Number(saved);
+    return 1;
+  });
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setPage(newPage);
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(newPage));
+    const nextParams = new URLSearchParams(location.search);
+    if (newPage > 1) {
+      nextParams.set('page', String(newPage));
+    } else {
+      nextParams.delete('page');
+    }
+    const qStr = nextParams.toString();
+    navigate(qStr ? `?${qStr}` : location.pathname, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    const qPage = new URLSearchParams(location.search).get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) {
+      setPage(Number(qPage));
+    }
+  }, [location.search]);
+
   useEffect(() => {
     if (globalKLH) {
       setSelectedKLH(globalKLH);
@@ -366,10 +394,58 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
 
   // Mở chi tiết lệnh điều xe
   const handleOpenDetail = (order: CompletedOrderRecord) => {
+    const currentParams = new URLSearchParams(location.search);
+    if (page > 1) {
+      currentParams.set('page', String(page));
+    }
+    const fromPath = `${location.pathname}${currentParams.toString() ? `?${currentParams.toString()}` : ''}`;
+    const scrollPos = window.pageYOffset || document.documentElement.scrollTop || 0;
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(page));
+    sessionStorage.setItem('dispatch_last_order_id', String(order.id));
+    sessionStorage.setItem('dispatch_last_order_code', String(order.code));
+    sessionStorage.setItem('dispatch_scroll_pos', String(scrollPos));
+    sessionStorage.setItem('dispatch_last_from_path', fromPath);
+
     navigate(`/lenh-dieu-xe/chi-tiet/${order.id}`, {
-      state: { order, from: location.pathname },
+      state: { order, from: fromPath, page, lastOrderId: order.id, lastOrderCode: order.code, scrollPos },
     });
   };
+
+  // Khi quay lại từ trang chi tiết: Giữ đúng trang hiện tại và làm nổi bật dòng lệnh vừa thao tác (không tự động cuộn màn hình)
+  useEffect(() => {
+    if (loading) return;
+
+    const lastOrderId = sessionStorage.getItem('dispatch_last_order_id') || (location.state as any)?.lastOrderId;
+    const lastOrderCode = sessionStorage.getItem('dispatch_last_order_code') || (location.state as any)?.lastOrderCode;
+
+    if (!lastOrderId && !lastOrderCode) return;
+
+    let attempts = 0;
+    const maxAttempts = 15;
+    const interval = setInterval(() => {
+      attempts++;
+      const el = (lastOrderId ? document.getElementById(`datatable-row-${lastOrderId}`) : null)
+        || (lastOrderCode ? document.querySelector(`[data-order-code="${lastOrderCode}"]`) : null);
+
+      if (el) {
+        clearInterval(interval);
+        el.classList.add('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        setTimeout(() => {
+          el.classList.remove('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        }, 3500);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      }
+    }, 80);
+
+    return () => clearInterval(interval);
+  }, [loading, filteredOrders, page, location.state]);
 
   // Xuất file CSV báo cáo nghiệm thu
   const handleExportCSV = () => {
@@ -878,11 +954,14 @@ export const CompletedOrdersPage: React.FC<CompletedOrdersPageProps> = ({ initia
           data={filteredOrders}
           isLoading={loading}
           onRowClick={handleOpenDetail}
+          controlledPage={page}
+          onPageChange={handlePageChange}
           serverSide={false}
           totalItems={filteredOrders.length}
           useGlobalFilters={false}
           showSearch={false}
           showExport={false}
+          compact={true}
         />
       </div>
     </div>

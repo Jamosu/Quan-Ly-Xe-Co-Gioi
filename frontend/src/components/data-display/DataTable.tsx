@@ -13,6 +13,8 @@ export interface Column<T> {
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
   width?: string;
+  minWidth?: string;
+  className?: string;
   filterElement?: React.ReactNode;
 }
 
@@ -36,6 +38,8 @@ export interface DataTableProps<T> {
   totalItems?: number;
   onPageChange?: (page: number) => void;
   minWidth?: string | number;
+  compact?: boolean;
+  tableClassName?: string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -58,6 +62,8 @@ export function DataTable<T extends Record<string, any>>({
   totalItems,
   onPageChange,
   minWidth,
+  compact = false,
+  tableClassName,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -98,13 +104,16 @@ export function DataTable<T extends Record<string, any>>({
   }, [filteredData, sortKey, sortDirection, serverSide]);
 
   // Pagination
-  const activePage = controlledPage ?? currentPage;
+  const rawPage = controlledPage ?? currentPage;
   const resolvedTotal = serverSide ? (totalItems ?? data.length) : sortedData.length;
   const totalPages = Math.ceil(resolvedTotal / pageSize) || 1;
+  const activePage = (isLoading && controlledPage) ? controlledPage : Math.max(1, Math.min(rawPage, totalPages));
 
   useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
+    if (!isLoading && resolvedTotal > 0) {
+      setCurrentPage((page) => Math.min(page, totalPages));
+    }
+  }, [totalPages, isLoading, resolvedTotal]);
 
   const paginatedData = useMemo(() => {
     const start = (activePage - 1) * pageSize;
@@ -205,23 +214,28 @@ export function DataTable<T extends Record<string, any>>({
       )}
 
       {/* Table Content */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" id="dispatch-table-container">
         <table
-          className="w-full text-left text-xs min-w-full"
+          className={`w-full text-left text-xs min-w-full ${compact ? 'table-fixed' : ''} ${tableClassName || ''}`}
           style={{ minWidth: minWidth ? (typeof minWidth === 'number' ? `${minWidth}px` : minWidth) : undefined }}
         >
           <thead className="bg-slate-50/75 border-b border-slate-200/80 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
             <tr>
-              <th className="py-2 px-1.5 w-8 text-center whitespace-nowrap">STT</th>
+              <th
+                className={`${compact ? 'py-1.5 px-0.5 w-7 text-center' : 'py-2 px-1.5 w-8 text-center'} whitespace-nowrap`}
+                style={compact ? { width: '28px' } : undefined}
+              >
+                STT
+              </th>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`py-2 px-2 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'} ${col.sortable ? 'cursor-pointer hover:text-slate-900 select-none' : ''}`}
-                  style={{ width: col.width, minWidth: col.width }}
+                  className={`${compact ? 'py-1.5 px-1 sm:px-1.5' : 'py-2 px-2'} ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'} ${col.sortable ? 'cursor-pointer hover:text-slate-900 select-none' : ''} ${col.className || ''}`}
+                  style={{ width: col.width, minWidth: col.minWidth }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
-                  <div className={`inline-flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : col.align === 'right' ? 'justify-end' : 'justify-start'}`}>
-                    <span className="whitespace-nowrap">{col.title}</span>
+                  <div className={`inline-flex items-center gap-1 ${col.align === 'center' ? 'justify-center text-center' : col.align === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
+                    <span className={compact ? 'leading-tight' : 'whitespace-nowrap'}>{col.title}</span>
                     {col.sortable && (
                       <ArrowUpDown className={`w-3 h-3 shrink-0 ${sortKey === col.key ? 'text-primary' : 'text-slate-300'}`} />
                     )}
@@ -231,11 +245,11 @@ export function DataTable<T extends Record<string, any>>({
             </tr>
             {hasColumnFilters && (
               <tr className="bg-slate-100/90 border-t border-slate-200/80 text-slate-700 font-normal">
-                <th className="py-1.5 px-1.5 text-center font-normal">
+                <th className={`${compact ? 'py-1 px-0.5' : 'py-1.5 px-1.5'} text-center font-normal`} style={compact ? { width: '28px' } : undefined}>
                   <Filter className="w-3 h-3 text-slate-400 mx-auto" />
                 </th>
                 {columns.map((col) => (
-                  <th key={`filter-${col.key}`} className="py-1.5 px-2 font-normal" style={{ width: col.width, minWidth: col.width }}>
+                  <th key={`filter-${col.key}`} className={`${compact ? 'py-1 px-1 sm:px-1.5' : 'py-1.5 px-2'} font-normal ${col.className || ''}`} style={{ width: col.width, minWidth: col.minWidth }}>
                     {col.filterElement || null}
                   </th>
                 ))}
@@ -262,17 +276,20 @@ export function DataTable<T extends Record<string, any>>({
               paginatedData.map((row, idx) => (
                 <tr
                   key={row.id || idx}
+                  id={row.id ? `datatable-row-${row.id}` : undefined}
+                  data-order-id={row.id || undefined}
+                  data-order-code={row.code || undefined}
                   onClick={() => onRowClick && onRowClick(row)}
                   className={`hover:bg-slate-50/70 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
                 >
-                  <td className="py-2 px-1.5 text-center text-slate-400 font-medium text-xs whitespace-nowrap">
+                  <td className={`${compact ? 'py-1.5 px-0.5 text-[11px]' : 'py-2 px-1.5 text-xs'} text-center text-slate-400 font-medium whitespace-nowrap`}>
                     {(activePage - 1) * pageSize + idx + 1}
                   </td>
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`py-2 px-2 text-slate-800 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}
-                      style={{ width: col.width, minWidth: col.width }}
+                      className={`${compact ? 'py-1.5 px-1 sm:px-1.5' : 'py-2 px-2'} text-slate-800 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'} ${col.className || ''}`}
+                      style={{ width: col.width, minWidth: col.minWidth }}
                     >
                       {col.render ? col.render(row) : row[col.key] ?? '—'}
                     </td>

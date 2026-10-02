@@ -4,10 +4,26 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { getDeviceId, loadSession, saveSession } from './session';
 import { DriverSession } from './types';
 
-const rawApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.apiBaseUrl;
-// Web and driver mobile intentionally use the same canonical NestJS API.
-// Deployments may override it, but the fallback must remain the main backend.
-export const API_BASE_URL = (rawApiUrl || 'http://10.23.2.228:3001/api').replace(/\/$/, '');
+function resolveApiBaseUrl(): string {
+  try {
+    const hostUri = Constants?.expoConfig?.hostUri;
+    if (hostUri) {
+      const metroHost = hostUri.split(':')[0];
+      if (metroHost) {
+        return `http://${metroHost}:3001/api`;
+      }
+    }
+
+    const raw = process.env.EXPO_PUBLIC_API_BASE_URL ?? Constants?.expoConfig?.extra?.apiBaseUrl;
+    if (raw) return raw.replace(/\/$/, '');
+  } catch {
+    // fallback to current LAN IP
+  }
+
+  return 'http://10.23.2.206:3001/api';
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const api = axios.create({ baseURL: API_BASE_URL, timeout: 20000 });
 
@@ -76,5 +92,9 @@ export async function uploadImage(localUri: string) {
   }
   if (response.status < 200 || response.status >= 300) throw new Error(`Upload ảnh thất bại (${response.status}).`);
   const body = JSON.parse(response.body);
-  return body.data ?? body;
+  const result = body.data ?? body;
+  if (typeof result?.url === 'string' && result.url.startsWith('/')) {
+    result.url = `${new URL(API_BASE_URL).origin}${result.url}`;
+  }
+  return result;
 }

@@ -29,6 +29,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       session, offlineUnlocked: Boolean(localDriver && canOpenOffline(session)),
       online: Boolean(network.isConnected && network.isInternetReachable !== false), ready: true,
     });
+    if (session && network.isConnected && network.isInternetReachable !== false) {
+      const { syncNow } = require('./syncEngine');
+      await syncNow();
+    }
     await get().refreshLocal();
   },
   setOnline: online => set({ online }),

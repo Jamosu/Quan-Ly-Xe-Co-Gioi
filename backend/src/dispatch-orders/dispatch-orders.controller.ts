@@ -15,6 +15,7 @@ import { DispatchFilterDto } from './dto/dispatch-filter.dto';
 import { UpdateDispatchOrderDto } from './dto/update-dispatch-order.dto';
 import { BatchRescheduleDispatchDto, RescheduleDispatchDto } from './dto/reschedule-dispatch.dto';
 import { RetroactiveCompleteDto } from './dto/retroactive-complete.dto';
+import { ProxyProgressDto } from './dto/proxy-progress.dto';
 
 @ApiTags('Dispatch Orders - Lệnh điều xe')
 @Controller('dispatch-orders')
@@ -67,27 +68,32 @@ export class DispatchOrdersController {
 
   @Post(':id/driver-accept')
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.DRIVER)
-  driverAccept(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.driverAccept(id, actor); }
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  driverAccept(@Param('id', ParseIntPipe) id: number, @Body() body?: { reason?: string }, @CurrentUser() actor?: OperationalActor) { return this.service.driverAccept(id, actor, body?.reason); }
+
+  @Post(':id/proxy-progress')
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
+  proxyProgress(@Param('id', ParseIntPipe) id: number, @Body() dto: ProxyProgressDto, @CurrentUser() actor?: OperationalActor) { return this.service.proxyProgress(id, dto, actor); }
 
   @Post(':id/depart')
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   depart(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.depart(id, actor); }
 
   @Post(':id/start')
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   start(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.start(id, actor); }
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.DRIVER)
+  @Roles(Role.DRIVER, Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   complete(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.complete(id, actor); }
 
   @Post(':id/accept')
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.SUPER_ADMIN, Role.FARM_MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.DISPATCHER, Role.FARM_MANAGER)
   accept(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor?: OperationalActor) { return this.service.accept(id, actor); }
 
   @Post(':id/close')

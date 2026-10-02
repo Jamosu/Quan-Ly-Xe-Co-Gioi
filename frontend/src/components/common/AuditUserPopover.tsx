@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ExternalLink } from 'lucide-react';
 
 export interface AuditUserPopoverProps {
@@ -34,22 +35,65 @@ export const AuditUserPopover: React.FC<AuditUserPopoverProps> = ({
   className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  const updatePosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const popoverWidth = 440;
+
+    let left = align === 'left' ? rect.left : rect.right - popoverWidth;
+    if (left < 8) left = 8;
+    if (left + popoverWidth > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - popoverWidth - 8);
+    }
+
+    let top = rect.bottom + 6;
+    if (top + 160 > window.innerHeight && rect.top - 160 > 0) {
+      top = rect.top - 160;
+    }
+
+    setCoords({ top, left });
+  }, [align]);
+
+  const toggleOpen = () => {
+    if (!isOpen) {
+      updatePosition();
+    }
+    setIsOpen(!isOpen);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
 
+    updatePosition();
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (buttonRef.current && buttonRef.current.contains(target)) {
+        return;
+      }
+      if (popoverRef.current && !popoverRef.current.contains(target)) {
         setIsOpen(false);
       }
     };
 
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
     document.addEventListener('mousedown', handleClickOutside);
+
     return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
   const displayCreatedDate = formatDateString(createdDate, '14-03-2026');
   const displayCreatedUser = createdUser || 'admin';
@@ -58,13 +102,13 @@ export const AuditUserPopover: React.FC<AuditUserPopoverProps> = ({
 
   return (
     <div
-      ref={containerRef}
-      className={`relative inline-flex items-center justify-center ${className}`}
+      className={`inline-flex items-center justify-center ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         title={title}
         className={`inline-flex items-center justify-center p-1 rounded transition-colors cursor-pointer ${
           isOpen
@@ -75,11 +119,16 @@ export const AuditUserPopover: React.FC<AuditUserPopoverProps> = ({
         <ExternalLink className="w-4 h-4" />
       </button>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className={`absolute top-8 ${
-            align === 'left' ? 'left-0' : 'right-0'
-          } z-50 w-[440px] bg-white rounded border border-slate-300 shadow-xl p-3 text-left animate-in fade-in zoom-in-95 duration-150 font-sans`}
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            zIndex: 99999,
+          }}
+          className="w-[440px] max-w-[calc(100vw-16px)] bg-white rounded-lg border border-slate-300 shadow-2xl p-3 text-left animate-in fade-in zoom-in-95 duration-150 font-sans"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="grid grid-cols-4 gap-2 mb-2 text-xs">
@@ -130,7 +179,8 @@ export const AuditUserPopover: React.FC<AuditUserPopoverProps> = ({
               [ Đóng lại ]
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

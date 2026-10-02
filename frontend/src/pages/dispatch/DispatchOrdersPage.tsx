@@ -89,6 +89,7 @@ export interface ExtendedDispatchOrder extends Omit<DispatchOrderRecord, 'implem
   planNotes?: string;
   taskNotes?: string;
   actualEndTime?: string;
+  actualCompletedTime?: string;
   completedAt?: string;
   completedBy?: string;
   acceptanceRating?: string;
@@ -154,14 +155,40 @@ export const syncApprovedPlansToDispatchOrders = (existingOrders: ExtendedDispat
 
 const groups = [
   { key: 'pending', title: 'Chờ duyệt / Phân công', statuses: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'] },
-  { key: 'assigned', title: 'Đã giao xe / Tiếp nhận', statuses: ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'] },
-  { key: 'working', title: 'Đang vận hành / Thi công', statuses: ['AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'] },
+  { key: 'assigned', title: 'Đã giao xe / Tiếp nhận', statuses: ['ASSIGNED', 'DA_DUYET'] },
+  { key: 'working', title: 'Đang vận hành / Thi công', statuses: ['DRIVER_ACCEPTED', 'DEPARTED', 'DA_NHAN', 'AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'] },
   { key: 'completed', title: 'Hoàn tất & Nghiệm thu', statuses: ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'] },
 ];
 
 const MANAGEMENT_ATTENTION_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'];
-const DEPARTURE_DELAY_STATUSES = ['APPROVED', 'ASSIGNED', 'DRIVER_ACCEPTED', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN'];
+const ACCEPTANCE_DELAY_STATUSES = ['APPROVED', 'ASSIGNED', 'CHO_PHAN_CONG', 'DA_DUYET'];
 const DEPARTURE_DELAY_MINUTES = 15;
+const OPERATIONAL_OVERDUE_MINUTES = 120;
+const REPORT_OR_ACCEPTANCE_PENDING_STATUSES = [
+  'DRIVER_ACCEPTED', 'DEPARTED', 'DA_NHAN', 'AT_WORKSITE', 'WORKING', 'SHIFT_FINISHED',
+  'WAITING_REPORT', 'WAITING_REVIEW', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG',
+  'TAM_DUNG', 'AT_PICKUP', 'LOADING', 'AT_DELIVERY', 'UNLOADING', 'DELIVERED', 'COMPLETED',
+];
+
+export type OperationalOverdueReason = 'DRIVER_ACCEPTANCE' | 'REPORT_OR_ACCEPTANCE';
+
+export const getOperationalOverdueReason = (
+  order: Pick<ExtendedDispatchOrder, 'status' | 'departureTime' | 'scheduledStartAt' | 'plannedEndTime' | 'scheduledEndAt' | 'driverAcceptedAt' | 'acceptedAt' | 'completedAt'>,
+  now = Date.now(),
+): OperationalOverdueReason | null => {
+  if (['CANCELLED', 'CLOSED', 'ACCEPTED', 'HOAN_THANH'].includes(order.status)) return null;
+  if (order.status === 'COMPLETED' && (order.acceptedAt || order.completedAt)) return null;
+  const threshold = OPERATIONAL_OVERDUE_MINUTES * 60_000;
+  const startAt = new Date(order.scheduledStartAt ?? order.departureTime ?? '').getTime();
+  if (['ASSIGNED', 'DA_DUYET'].includes(order.status) && !order.driverAcceptedAt && Number.isFinite(startAt) && startAt <= now - threshold) {
+    return 'DRIVER_ACCEPTANCE';
+  }
+  const endAt = new Date(order.scheduledEndAt ?? order.plannedEndTime ?? '').getTime();
+  if (REPORT_OR_ACCEPTANCE_PENDING_STATUSES.includes(order.status) && Number.isFinite(endAt) && endAt <= now - threshold) {
+    return 'REPORT_OR_ACCEPTANCE';
+  }
+  return null;
+};
 
 export const needsOperatorAttention = (order: Pick<ExtendedDispatchOrder, 'status' | 'departureTime' | 'actualDepartureTime' | 'needsAttention'>, now = Date.now()) => {
   if (order.needsAttention !== undefined) return order.needsAttention;
@@ -170,8 +197,8 @@ export const needsOperatorAttention = (order: Pick<ExtendedDispatchOrder, 'statu
   return Number.isFinite(plannedStart) && plannedStart < now;
 };
 
-export const isDepartureDelayed = (order: Pick<ExtendedDispatchOrder, 'status' | 'departureTime' | 'actualDepartureTime' | 'isOverdue'>, now = Date.now()) => {
-  if (!DEPARTURE_DELAY_STATUSES.includes(order.status) || !order.departureTime || order.actualDepartureTime) return false;
+export const isDepartureDelayed = (order: Pick<ExtendedDispatchOrder, 'status' | 'departureTime' | 'driverAcceptedAt' | 'isOverdue'>, now = Date.now()) => {
+  if (!ACCEPTANCE_DELAY_STATUSES.includes(order.status) || !order.departureTime || order.driverAcceptedAt) return false;
   if (order.isOverdue !== undefined) return order.isOverdue;
   const plannedStart = new Date(order.departureTime).getTime();
   return Number.isFinite(plannedStart) && plannedStart <= now - DEPARTURE_DELAY_MINUTES * 60_000;
@@ -198,11 +225,33 @@ export const DispatchOrdersPage: React.FC = () => {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   // Xác định xem đang xem trang Nông nghiệp riêng hay Tổng hợp tất cả lệnh
+  // Đọc filter lưu trữ khi quay lại từ trang chi tiết
+  const savedFilterState = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem('dispatch_saved_filter_state');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const isReturningFromDetail = Boolean(
+    sessionStorage.getItem('dispatch_last_order_id') ||
+    sessionStorage.getItem('dispatch_last_from_path') ||
+    (location.state as any)?.lastOrderId
+  );
+
+  // Xác định xem đang xem trang Nông nghiệp riêng hay Tổng hợp tất cả lệnh
   const isAgriculturalSpecific = location.pathname.includes('/lenh-nong-nghiep');
 
   const [selectedCategory, setSelectedCategory] = useState<DispatchCategory>(() => {
+    if (isAgriculturalSpecific) return 'NONG_NGHIEP';
     const requested = searchParams.get('category');
-    return isAgriculturalSpecific ? 'NONG_NGHIEP' : requested === 'CUU_HO_SOS' ? 'CUU_HO_SOS' : 'ALL';
+    if (requested) return requested as DispatchCategory;
+    if (isReturningFromDetail && savedFilterState?.selectedCategory) {
+      return savedFilterState.selectedCategory as DispatchCategory;
+    }
+    return 'ALL';
   });
 
   // Khi URL thay đổi, đồng bộ lại category nếu vào trang Nông nghiệp
@@ -212,28 +261,101 @@ export const DispatchOrdersPage: React.FC = () => {
     }
   }, [isAgriculturalSpecific]);
 
-  const [view, setView] = useState<'table' | 'daily_timeline' | 'kanban'>('table');
+  const [view, setView] = useState<'table' | 'daily_timeline' | 'kanban'>(() => {
+    const qView = searchParams.get('view');
+    if (qView && ['table', 'daily_timeline', 'kanban'].includes(qView)) return qView as any;
+    if (isReturningFromDetail && savedFilterState?.view) return savedFilterState.view;
+    return 'table';
+  });
   const [statusFilter, setStatusFilter] = useState<string>(() => {
-    const qStatus = searchParams.get('status');
+    const qStatus = searchParams.get('statusFilter') || searchParams.get('status');
     if (qStatus) return qStatus;
+    if (isReturningFromDetail && savedFilterState?.statusFilter) {
+      return savedFilterState.statusFilter;
+    }
     return 'ALL';
   });
 
   useEffect(() => {
-    const qStatus = searchParams.get('status');
+    const qStatus = searchParams.get('statusFilter') || searchParams.get('status');
     if (qStatus) {
       setStatusFilter(qStatus);
     }
   }, [searchParams]);
 
-  const [selectedPurpose, setSelectedPurpose] = useState<string>('ALL');
-  const [selectedVehicle, setSelectedVehicle] = useState<string>('ALL');
-  const [selectedDriver, setSelectedDriver] = useState<string>('ALL');
+  const [selectedPurpose, setSelectedPurpose] = useState<string>(() => {
+    const q = searchParams.get('purpose');
+    if (q) return q;
+    if (isReturningFromDetail && savedFilterState?.selectedPurpose) {
+      return savedFilterState.selectedPurpose;
+    }
+    return 'ALL';
+  });
+
+  const [selectedVehicle, setSelectedVehicle] = useState<string>(() => {
+    const q = searchParams.get('vehicle');
+    if (q) return q;
+    if (isReturningFromDetail && savedFilterState?.selectedVehicle) {
+      return savedFilterState.selectedVehicle;
+    }
+    return 'ALL';
+  });
+
+  const [selectedDriver, setSelectedDriver] = useState<string>(() => {
+    const q = searchParams.get('driver');
+    if (q) return q;
+    if (isReturningFromDetail && savedFilterState?.selectedDriver) {
+      return savedFilterState.selectedDriver;
+    }
+    return 'ALL';
+  });
+
   const [orders, setOrders] = useState<ExtendedDispatchOrder[]>([]);
   const [selected, setSelected] = useState<ExtendedDispatchOrder | null>(null);
+  const [showReassign, setShowReassign] = useState(false);
+  const [reassignReason, setReassignReason] = useState('Điều chuyển lệnh tồn đọng');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState(() => searchParams.get('planCode') || '');
+  const [search, setSearch] = useState(() => {
+    const qSearch = searchParams.get('search') || searchParams.get('planCode');
+    if (qSearch) return qSearch;
+    if (isReturningFromDetail && savedFilterState?.search) {
+      return savedFilterState.search;
+    }
+    return '';
+  });
+
+  // Quản lý trang hiện tại (lưu vào URL và sessionStorage để khi xem chi tiết quay lại không bị nhảy về trang 1)
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    const qPage = searchParams.get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) return Number(qPage);
+    if (isReturningFromDetail && savedFilterState?.currentPage && !isNaN(Number(savedFilterState.currentPage))) {
+      return Number(savedFilterState.currentPage);
+    }
+    const saved = sessionStorage.getItem(`dispatch_page_${location.pathname}`);
+    if (saved && !isNaN(Number(saved)) && Number(saved) > 0) return Number(saved);
+    return 1;
+  });
+
+  useEffect(() => {
+    const qPage = searchParams.get('page');
+    if (qPage && !isNaN(Number(qPage)) && Number(qPage) > 0) {
+      setCurrentPage(Number(qPage));
+    }
+  }, [searchParams]);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(newPage));
+    const nextParams = new URLSearchParams(location.search);
+    if (newPage > 1) {
+      nextParams.set('page', String(newPage));
+    } else {
+      nextParams.delete('page');
+    }
+    const qStr = nextParams.toString();
+    navigate(qStr ? `?${qStr}` : location.pathname, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   // --- State cho tính năng xử lý lệnh trễ hạn ---
   const [rescheduleTarget, setRescheduleTarget] = useState<ExtendedDispatchOrder | null>(null);
@@ -251,6 +373,10 @@ export const DispatchOrdersPage: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelSaving, setCancelSaving] = useState(false);
   const [cancelError, setCancelError] = useState('');
+
+  // Dữ liệu form Xác nhận nhận việc thay tài xế
+  const [proxyAcceptTarget, setProxyAcceptTarget] = useState<ExtendedDispatchOrder | null>(null);
+  const [proxyAcceptReason, setProxyAcceptReason] = useState('Tài xế đã nhận lệnh trực tiếp/qua bộ đàm');
 
   const handleOpenCancel = (order: ExtendedDispatchOrder) => {
     setCancelTarget(order);
@@ -282,21 +408,65 @@ export const DispatchOrdersPage: React.FC = () => {
     }
   };
 
+  const handleOpenProxyAccept = (order: ExtendedDispatchOrder) => {
+    setProxyAcceptTarget(order);
+    setProxyAcceptReason('Tài xế đã nhận lệnh trực tiếp/qua bộ đàm');
+    setActionError('');
+  };
 
-  // 52 Tuần trong năm
+  const handleConfirmProxyAccept = async () => {
+    if (!proxyAcceptTarget) return;
+    setActionSaving(true);
+    setActionError('');
+    try {
+      if (proxyAcceptTarget.orderCategory === 'VAN_CHUYEN') {
+        const realId = proxyAcceptTarget.id > 200_000 ? proxyAcceptTarget.id - 200_000 : proxyAcceptTarget.id;
+        await operationsApi.driverAcceptTransport(realId, { reason: proxyAcceptReason });
+      } else {
+        await operationsApi.driverAcceptDispatch(proxyAcceptTarget.id, { reason: proxyAcceptReason });
+      }
+      useAppStore.getState().setHeaderAlert({
+        type: 'success',
+        message: `Đã xác nhận nhận việc thay tài xế cho lệnh ${proxyAcceptTarget.code} thành công!`,
+      });
+      setProxyAcceptTarget(null);
+      void load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Có lỗi xảy ra khi xác nhận nhận việc.');
+      setActionError(msg);
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+
+  // 52 Tuần trong năm: Sắp xếp GIẢM DẦN để Tuần mới nhất / Tuần hiện tại luôn nằm ở đầu danh sách
   const availableWeeks = useMemo(() => {
-    return [...getWeeksOfYear(2026)].sort((a, b) => b.weekNumber - a.weekNumber);
-  }, []);
+    const today = new Date();
+    const currentWeek = getWeekNumber(today);
+    const maxOrderWeek = orders.reduce((max, o) => {
+      const w = (o as any).weekNumber || (o.departureTime ? getWeekNumber(o.departureTime) : 0);
+      return Math.max(max, w);
+    }, currentWeek);
+    const maxWeek = Math.max(currentWeek, Math.min(52, maxOrderWeek));
+    return getWeeksOfYear(today.getFullYear())
+      .filter((week) => week.weekNumber <= maxWeek)
+      .sort((a, b) => b.weekNumber - a.weekNumber);
+  }, [orders]);
 
   // Bộ lọc Tuần dạng khoảng: weekFrom đến weekTo (mặc định = tuần hiện tại)
   const [weekFrom, setWeekFrom] = useState<number | 'ALL'>(() => {
-    const qWeek = searchParams.get('week');
+    const qWeek = searchParams.get('weekFrom') || searchParams.get('week');
+    if (qWeek === 'ALL') return 'ALL';
     if (qWeek && !isNaN(Number(qWeek))) return Number(qWeek);
+    if (isReturningFromDetail && savedFilterState?.weekFrom !== undefined) return savedFilterState.weekFrom;
     return getWeekNumber(new Date());
   });
   const [weekTo, setWeekTo] = useState<number | 'ALL'>(() => {
-    const qWeek = searchParams.get('week');
+    const qWeek = searchParams.get('weekTo') || searchParams.get('week');
+    if (qWeek === 'ALL') return 'ALL';
     if (qWeek && !isNaN(Number(qWeek))) return Number(qWeek);
+    if (isReturningFromDetail && savedFilterState?.weekTo !== undefined) return savedFilterState.weekTo;
     return getWeekNumber(new Date());
   });
   // Alias cho các nơi dùng selectedWeek (dùng weekFrom để filter theo tuần chính)
@@ -306,22 +476,38 @@ export const DispatchOrdersPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const qDate = searchParams.get('date');
     if (qDate) return qDate;
+    if (isReturningFromDetail && savedFilterState?.selectedDate) return savedFilterState.selectedDate;
     return 'ALL';
   });
   const [sortOrder, setSortOrder] = useState<'time_asc' | 'time_desc'>('time_asc');
 
   // Cập nhật state nếu URL searchParams thay đổi
   useEffect(() => {
-    const qPlan = searchParams.get('planCode');
-    if (qPlan) setSearch(qPlan);
-    const qWeek = searchParams.get('week');
-    if (qWeek && !isNaN(Number(qWeek))) {
-      setWeekFrom(Number(qWeek));
-      setWeekTo(Number(qWeek));
+    const qPlan = searchParams.get('planCode') || searchParams.get('search');
+    if (qPlan !== null && qPlan !== undefined) setSearch(qPlan);
+    const qWeekFrom = searchParams.get('weekFrom') || searchParams.get('week');
+    if (qWeekFrom) {
+      setWeekFrom(qWeekFrom === 'ALL' ? 'ALL' : Number(qWeekFrom));
     }
+    const qWeekTo = searchParams.get('weekTo') || searchParams.get('week');
+    if (qWeekTo) {
+      setWeekTo(qWeekTo === 'ALL' ? 'ALL' : Number(qWeekTo));
+    }
+    const qDate = searchParams.get('date');
+    if (qDate) setSelectedDate(qDate);
     const qCategory = searchParams.get('category');
-    if (!isAgriculturalSpecific && qCategory === 'CUU_HO_SOS') setSelectedCategory('CUU_HO_SOS');
-  }, [searchParams]);
+    if (qCategory && !isAgriculturalSpecific) setSelectedCategory(qCategory as DispatchCategory);
+    const qStatus = searchParams.get('statusFilter') || searchParams.get('status');
+    if (qStatus) setStatusFilter(qStatus);
+    const qPurpose = searchParams.get('purpose');
+    if (qPurpose) setSelectedPurpose(qPurpose);
+    const qVehicle = searchParams.get('vehicle');
+    if (qVehicle) setSelectedVehicle(qVehicle);
+    const qDriver = searchParams.get('driver');
+    if (qDriver) setSelectedDriver(qDriver);
+    const qView = searchParams.get('view');
+    if (qView && ['table', 'daily_timeline', 'kanban'].includes(qView)) setView(qView as any);
+  }, [searchParams, isAgriculturalSpecific]);
 
   const selectedStatus = useFilterStore((state) => state.selectedStatus);
 
@@ -392,6 +578,12 @@ export const DispatchOrdersPage: React.FC = () => {
             destination: item.destination || 'Điểm giao hàng',
             departureTime: item.departureTime || item.executionDate || item.requestDate,
             plannedEndTime: item.plannedEndTime,
+            scheduledStartAt: item.scheduledStartAt || item.departureTime || item.executionDate || item.requestDate,
+            scheduledEndAt: item.scheduledEndAt || item.plannedEndTime,
+            driverAcceptedAt: item.driverAcceptedAt,
+            acceptedAt: item.acceptedAt,
+            actualEndTime: item.actualEndTime,
+            completedAt: item.completedAt,
             status: item.status,
             isDelayed: Boolean(item.isRouteDeviated),
             vehicle: item.vehicle,
@@ -460,18 +652,65 @@ export const DispatchOrdersPage: React.FC = () => {
         plannedEndTime: currentEnd,
       };
     }
+
+    const scrollPos = window.pageYOffset || document.documentElement.scrollTop || 0;
+    const currentParams = new URLSearchParams(location.search);
+    if (currentPage > 1) currentParams.set('page', String(currentPage));
+    if (weekFrom !== undefined && weekFrom !== 'ALL') currentParams.set('weekFrom', String(weekFrom));
+    else if (weekFrom === 'ALL') currentParams.set('weekFrom', 'ALL');
+    if (weekTo !== undefined && weekTo !== 'ALL') currentParams.set('weekTo', String(weekTo));
+    else if (weekTo === 'ALL') currentParams.set('weekTo', 'ALL');
+    if (selectedDate && selectedDate !== 'ALL') currentParams.set('date', selectedDate);
+    if (selectedCategory && selectedCategory !== 'ALL') currentParams.set('category', selectedCategory);
+    if (selectedPurpose && selectedPurpose !== 'ALL') currentParams.set('purpose', selectedPurpose);
+    if (selectedVehicle && selectedVehicle !== 'ALL') currentParams.set('vehicle', selectedVehicle);
+    if (selectedDriver && selectedDriver !== 'ALL') currentParams.set('driver', selectedDriver);
+    if (statusFilter && statusFilter !== 'ALL') currentParams.set('statusFilter', statusFilter);
+    if (selectedStatus && selectedStatus !== 'ALL') currentParams.set('status', selectedStatus);
+    if (search && search.trim()) currentParams.set('search', search.trim());
+    if (view && view !== 'table') currentParams.set('view', view);
+
+    const fromPath = `${location.pathname}${currentParams.toString() ? `?${currentParams.toString()}` : ''}`;
+    sessionStorage.setItem(`dispatch_page_${location.pathname}`, String(currentPage));
+    sessionStorage.setItem('dispatch_last_order_id', String(order.id));
+    sessionStorage.setItem('dispatch_last_order_code', String(order.code));
+    sessionStorage.setItem('dispatch_scroll_pos', String(scrollPos));
+    sessionStorage.setItem('dispatch_last_from_path', fromPath);
+    sessionStorage.setItem(
+      'dispatch_saved_filter_state',
+      JSON.stringify({
+        currentPage,
+        weekFrom,
+        weekTo,
+        selectedDate,
+        selectedCategory,
+        selectedPurpose,
+        selectedVehicle,
+        selectedDriver,
+        statusFilter,
+        selectedStatus,
+        search,
+        view,
+        scrollPos,
+      })
+    );
+
     navigate(`/lenh-dieu-xe/chi-tiet/${order.id}`, {
       state: {
         order: targetOrder,
-        from: location.pathname + location.search,
+        from: fromPath,
+        page: currentPage,
+        lastOrderId: order.id,
+        lastOrderCode: order.code,
+        scrollPos,
       },
     });
   };
 
   const workflowStep = (status: DispatchOrderRecord['status']): DemoWorkflowStep => {
     if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(status)) return 'COMPLETED';
-    if (['DRIVER_ACCEPTED', 'DEPARTED', 'AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(status)) return 'RECEIVED';
-    if (['ASSIGNED', 'DA_NHAN'].includes(status)) return 'APPROVED';
+    if (['DRIVER_ACCEPTED', 'DEPARTED', 'AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'DA_NHAN'].includes(status)) return 'RECEIVED';
+    if (['ASSIGNED', 'DA_DUYET'].includes(status)) return 'APPROVED';
     return 'PENDING';
   };
 
@@ -635,7 +874,7 @@ export const DispatchOrdersPage: React.FC = () => {
       }
 
       // Lọc theo khoảng tuần (weekFrom → weekTo) - bỏ qua khi đang lọc riêng Lệnh trễ hoặc Lệnh tương lai
-      if (weekFrom !== 'ALL' && weekTo !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED') {
+      if (weekFrom !== 'ALL' && weekTo !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'OVERDUE' && statusFilter !== 'FUTURE_UNASSIGNED') {
         const fromObj = availableWeeks.find((w) => w.weekNumber === Math.min(Number(weekFrom), Number(weekTo)));
         const toObj   = availableWeeks.find((w) => w.weekNumber === Math.max(Number(weekFrom), Number(weekTo)));
         if (fromObj && toObj) {
@@ -659,9 +898,9 @@ export const DispatchOrdersPage: React.FC = () => {
         if (statusFilter === 'CHO_DUYET' || statusFilter === 'CHUA_PHAN_CONG') {
           if (!['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(order.status)) return false;
         } else if (statusFilter === 'DA_DUYET' || statusFilter === 'DA_GIAO_VIEC') {
-          if (!['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(order.status)) return false;
+          if (!['ASSIGNED', 'DA_DUYET'].includes(order.status)) return false;
         } else if (statusFilter === 'WORKING' || statusFilter === 'DANG_LAM_VIEC') {
-          if (!['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(order.status)) return false;
+          if (!['DRIVER_ACCEPTED', 'DEPARTED', 'DA_NHAN', 'AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(order.status)) return false;
         } else if (statusFilter === 'DRIVER_PENDING' || statusFilter === 'TAI_XE_CHUA_XAC_NHAN') {
           const isDriverPending = order.status === 'ASSIGNED' || (order.status === 'DA_DUYET' && !['DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(order.status));
           if (!isDriverPending) return false;
@@ -671,6 +910,8 @@ export const DispatchOrdersPage: React.FC = () => {
           const isDelayed = isDepartureDelayed(order);
           const isPastUnassigned = needsOperatorAttention(order) && (!order.vehicle || !order.driver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(order.status));
           if (!isDelayed && !isPastUnassigned) return false;
+        } else if (statusFilter === 'OVERDUE') {
+          if (!getOperationalOverdueReason(order)) return false;
         } else if (statusFilter === 'FUTURE_UNASSIGNED') {
           if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED', 'CANCELLED'].includes(order.status)) return false;
           const currentWeekNum = getWeekNumber(new Date());
@@ -694,7 +935,7 @@ export const DispatchOrdersPage: React.FC = () => {
       }
 
       // Lọc theo Ngày: So khớp theo ngày khởi hành/ngày tác nghiệp chính (bỏ qua khi lọc Lệnh trễ hoặc Lệnh tương lai hoặc Lệnh đã hủy)
-      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'FUTURE_UNASSIGNED' && statusFilter !== 'CANCELLED') {
+      if (selectedDate !== 'ALL' && statusFilter !== 'DELAYED' && statusFilter !== 'OVERDUE' && statusFilter !== 'FUTURE_UNASSIGNED' && statusFilter !== 'CANCELLED') {
         const orderDate = order.departureTime ? toDateString(order.departureTime) : (order.plannedEndTime ? toDateString(order.plannedEndTime) : '');
         if (orderDate !== selectedDate) return false;
       }
@@ -723,6 +964,47 @@ export const DispatchOrdersPage: React.FC = () => {
     });
   }, [orders, selectedCategory, selectedPurpose, selectedVehicle, selectedDriver, weekFrom, weekTo, availableWeeks, statusFilter, selectedStatus, selectedDate, search, sortOrder, selectedKLH]);
 
+  // Khi quay lại từ trang chi tiết: Giữ đúng trang hiện tại, khôi phục vị trí cuộn và làm nổi bật dòng lệnh vừa thao tác
+  useEffect(() => {
+    if (loading) return;
+
+    const lastOrderId = sessionStorage.getItem('dispatch_last_order_id') || (location.state as any)?.lastOrderId;
+    const lastOrderCode = sessionStorage.getItem('dispatch_last_order_code') || (location.state as any)?.lastOrderCode;
+    const savedScroll = sessionStorage.getItem('dispatch_scroll_pos') || (location.state as any)?.scrollPos;
+
+    if (!lastOrderId && !lastOrderCode && !savedScroll) return;
+
+    if (savedScroll && Number(savedScroll) > 0) {
+      window.scrollTo({ top: Number(savedScroll), behavior: 'auto' });
+    }
+
+    let attempts = 0;
+    const maxAttempts = 15;
+    const interval = setInterval(() => {
+      attempts++;
+      const el = (lastOrderId ? document.getElementById(`datatable-row-${lastOrderId}`) : null)
+        || (lastOrderCode ? document.querySelector(`[data-order-code="${lastOrderCode}"]`) : null);
+
+      if (el) {
+        clearInterval(interval);
+        el.classList.add('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        setTimeout(() => {
+          el.classList.remove('bg-amber-100/90', 'ring-2', 'ring-amber-400');
+        }, 3500);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        sessionStorage.removeItem('dispatch_last_order_id');
+        sessionStorage.removeItem('dispatch_last_order_code');
+        sessionStorage.removeItem('dispatch_scroll_pos');
+      }
+    }, 80);
+
+    return () => clearInterval(interval);
+  }, [loading, filteredOrders, currentPage, location.state]);
+
   // Đếm số lượng theo từng nhóm trạng thái cho bộ lọc statusFilter
   const statusCounts = useMemo(() => {
     const baseList = orders.filter((o) => {
@@ -749,14 +1031,19 @@ export const DispatchOrdersPage: React.FC = () => {
     const activeList = baseList.filter((o) => o.status !== 'CANCELLED');
     const cancelledCount = baseList.filter((o) => o.status === 'CANCELLED').length;
     const chuaPhanCong = activeList.filter((o) => ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status)).length;
-    const daGiaoViec = activeList.filter((o) => ['ASSIGNED', 'DRIVER_ACCEPTED', 'DEPARTED', 'DA_DUYET', 'DA_NHAN'].includes(o.status)).length;
-    const dangLamViec = activeList.filter((o) => ['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(o.status)).length;
+    const daGiaoViec = activeList.filter((o) => ['ASSIGNED', 'DA_DUYET'].includes(o.status)).length;
+    const dangLamViec = activeList.filter((o) => ['DRIVER_ACCEPTED', 'DEPARTED', 'DA_NHAN', 'AT_WORKSITE', 'WORKING', 'RETURNING_TO_DEPOT', 'IN_TRANSIT', 'DANG_THI_CONG', 'TAM_DUNG'].includes(o.status)).length;
     const driverPending = activeList.filter((o) => o.status === 'ASSIGNED' || (o.status === 'DA_DUYET' && !['DRIVER_ACCEPTED', 'DA_NHAN', 'DEPARTED', 'WORKING', 'IN_TRANSIT', 'DANG_THI_CONG'].includes(o.status))).length;
     const completed = activeList.filter((o) => ['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED'].includes(o.status)).length;
     const delayed = activeList.filter((o) => {
       const isDelayed = isDepartureDelayed(o);
       const isPastUnassigned = needsOperatorAttention(o) && (!o.vehicle || !o.driver || ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CHO_DUYET', 'CHO_PHAN_CONG'].includes(o.status));
       return isDelayed || isPastUnassigned;
+    }).length;
+    const operationalOverdue = orders.filter((o) => {
+      if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
+      if (selectedCategory !== 'ALL' && o.orderCategory !== selectedCategory) return false;
+      return Boolean(getOperationalOverdueReason(o));
     }).length;
 
     const currentWeekNum = getWeekNumber(new Date());
@@ -785,6 +1072,7 @@ export const DispatchOrdersPage: React.FC = () => {
       TAI_XE_CHUA_XAC_NHAN: driverPending,
       COMPLETED: completed,
       DELAYED: delayed,
+      OVERDUE: operationalOverdue,
       FUTURE_UNASSIGNED: futureUnassigned,
       CANCELLED: cancelledCount,
     };
@@ -825,9 +1113,9 @@ export const DispatchOrdersPage: React.FC = () => {
       let stepIdx = 0;
       if (['COMPLETED', 'DELIVERED', 'ACCEPTED', 'HOAN_THANH', 'CLOSED'].includes(order.status)) {
         stepIdx = 3; // 3. Nghiệm thu
-      } else if (['WORKING', 'IN_PROGRESS', 'DEPARTED', 'IN_TRANSIT', 'DANG_THI_CONG', 'RETURNING'].includes(order.status)) {
+      } else if (['WORKING', 'IN_PROGRESS', 'DEPARTED', 'IN_TRANSIT', 'DANG_THI_CONG', 'RETURNING', 'DRIVER_ACCEPTED', 'DA_NHAN'].includes(order.status)) {
         stepIdx = 2; // 2. Đang thực hiện
-      } else if (['APPROVED', 'ASSIGNED', 'DA_DUYET', 'DRIVER_ACCEPTED', 'DA_NHAN', 'AT_PICKUP', 'LOADING'].includes(order.status) || order.vehicle || order.driver) {
+      } else if (['APPROVED', 'ASSIGNED', 'DA_DUYET', 'AT_PICKUP', 'LOADING'].includes(order.status) || order.vehicle || order.driver) {
         stepIdx = 1; // 1. Tài xế giao nhận
       }
 
@@ -868,6 +1156,9 @@ export const DispatchOrdersPage: React.FC = () => {
               driverName: member.driverName,
               startTime: member.startTime || '07:00',
               endTime: member.endTime,
+              driverAcceptedAt: order.driverAcceptedAt,
+              actualStartTime: order.actualStartTime,
+              acceptedAt: order.acceptedAt,
               durationHours: member.durationHours || defaultDuration,
               status: order.status,
               workflowStepIndex: stepIdx,
@@ -906,6 +1197,9 @@ export const DispatchOrdersPage: React.FC = () => {
             driverName: member.driverName || lane.primaryDriverName,
             startTime: member.startTime || order.departureTime || '07:00',
             endTime: member.endTime || order.plannedEndTime,
+            driverAcceptedAt: order.driverAcceptedAt,
+            actualStartTime: order.actualStartTime,
+            acceptedAt: order.acceptedAt,
             durationHours: member.durationHours || defaultDuration,
             status: order.status,
             workflowStepIndex: stepIdx,
@@ -950,6 +1244,9 @@ export const DispatchOrdersPage: React.FC = () => {
           driverPhone: (order.driver as any)?.phone,
           startTime: order.departureTime || '07:00',
           endTime: order.plannedEndTime || order.actualEndTime,
+          driverAcceptedAt: order.driverAcceptedAt,
+          actualStartTime: order.actualStartTime,
+          acceptedAt: order.acceptedAt,
           durationHours: defaultDuration,
           status: order.status,
           workflowStepIndex: stepIdx,
@@ -974,6 +1271,9 @@ export const DispatchOrdersPage: React.FC = () => {
           driverName: order.driver?.fullName || 'Chưa gán tài xế',
           startTime: order.departureTime || '07:00',
           endTime: order.plannedEndTime,
+          driverAcceptedAt: order.driverAcceptedAt,
+          actualStartTime: order.actualStartTime,
+          acceptedAt: order.acceptedAt,
           durationHours: defaultDuration,
           status: order.status,
           workflowStepIndex: stepIdx,
@@ -1031,9 +1331,13 @@ export const DispatchOrdersPage: React.FC = () => {
       CONG_TRINH: nonCancelled.filter((o) => o.orderCategory === 'CONG_TRINH').length,
       VAN_CHUYEN: nonCancelled.filter((o) => o.orderCategory === 'VAN_CHUYEN').length,
       CUU_HO_SOS: nonCancelled.filter((o) => o.orderCategory === 'CUU_HO_SOS').length,
+      OVERDUE: nonCancelled.filter((o) => {
+        if (selectedKLH && selectedKLH !== 'ALL' && !matchesKLH(o, selectedKLH)) return false;
+        return Boolean(getOperationalOverdueReason(o));
+      }).length,
       CANCELLED: statusCounts.CANCELLED,
     };
-  }, [orders, statusCounts.CANCELLED]);
+  }, [orders, selectedKLH, statusCounts.CANCELLED]);
 
   // Tính toán cảnh báo lệnh quá hạn chuẩn xác theo từng loại lệnh đang xem (Nông nghiệp vs Toàn hệ thống)
   const computedOverdueSummary = useMemo(() => {
@@ -1045,7 +1349,6 @@ export const DispatchOrdersPage: React.FC = () => {
     });
 
     const now = Date.now();
-    const departureDelayThreshold = now - DEPARTURE_DELAY_MINUTES * 60 * 1000;
     // CHỈ BÁO CÁC LỆNH ĐÃ ĐẾN HẠN HOẶC QUÁ HẠN (departureTime <= now) — KHÔNG BÁO LỆNH TƯƠNG LAI
     const activeOverdue = scoped.filter((o) => {
       if (['COMPLETED', 'ACCEPTED', 'CLOSED', 'HOAN_THANH', 'DELIVERED', 'CANCELLED'].includes(o.status)) return false;
@@ -1064,14 +1367,10 @@ export const DispatchOrdersPage: React.FC = () => {
       (!o.driver && (!o.assignedTeamDetails || o.assignedTeamDetails.length === 0))
     ).length;
 
-    const delayedList = activeOverdue.filter((o) => {
-      const depTime = new Date(o.departureTime!).getTime();
-      if (isNaN(depTime) || depTime > departureDelayThreshold) return false;
-      return !o.actualDepartureTime && !['WORKING', 'IN_TRANSIT', 'DANG_THI_CONG', 'DEPARTED'].includes(o.status);
-    });
+    const delayedList = scoped.filter((o) => Boolean(getOperationalOverdueReason(o, now)));
 
-    const lateAssigned = delayedList.filter((o) => o.status === 'ASSIGNED' || o.status === 'DA_DUYET').length;
-    const lateAccepted = delayedList.filter((o) => o.status === 'DRIVER_ACCEPTED' || o.status === 'DA_NHAN').length;
+    const lateAssigned = delayedList.filter((o) => getOperationalOverdueReason(o, now) === 'DRIVER_ACCEPTANCE').length;
+    const lateAccepted = delayedList.filter((o) => getOperationalOverdueReason(o, now) === 'REPORT_OR_ACCEPTANCE').length;
 
     return {
       totalAttention,
@@ -1146,26 +1445,26 @@ export const DispatchOrdersPage: React.FC = () => {
     switch (cat) {
       case 'NONG_NGHIEP':
         return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-            <Tractor className="h-3 w-3 text-emerald-600" /> Nông nghiệp
+          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 border border-emerald-200 px-1 py-0.5 text-[10px] font-bold text-emerald-700">
+            <Tractor className="h-2.5 w-2.5 text-emerald-600 shrink-0" /> Nông nghiệp
           </span>
         );
       case 'CONG_TRINH':
         return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-            <HardHat className="h-3 w-3 text-amber-600" /> Công trình ca máy
+          <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1 py-0.5 text-[10px] font-bold text-amber-800">
+            <HardHat className="h-2.5 w-2.5 text-amber-600 shrink-0" /> Công trình
           </span>
         );
       case 'VAN_CHUYEN':
         return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-bold text-blue-700">
-            <Truck className="h-3 w-3 text-blue-600" /> Vận chuyển nội bộ
+          <span className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-1 py-0.5 text-[10px] font-bold text-blue-700">
+            <Truck className="h-2.5 w-2.5 text-blue-600 shrink-0" /> Vận chuyển
           </span>
         );
       case 'CUU_HO_SOS':
         return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-red-50 border border-red-200 px-2 py-0.5 text-[11px] font-bold text-red-700 animate-pulse">
-            <ShieldAlert className="h-3 w-3 text-red-600" /> Cứu hộ SOS
+          <span className="inline-flex items-center gap-1 rounded bg-red-50 border border-red-200 px-1 py-0.5 text-[10px] font-bold text-red-700 animate-pulse">
+            <ShieldAlert className="h-2.5 w-2.5 text-red-600 shrink-0" /> Cứu hộ SOS
           </span>
         );
       default:
@@ -1177,24 +1476,24 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'code',
       title: 'Mã lệnh & Phân loại',
-      width: '200px',
+      width: '118px',
       sortable: true,
       render: (row) => (
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <b className="font-mono font-bold text-primary text-xs hover:underline cursor-pointer" onClick={() => handleOpenOrder(row)}>
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1 flex-wrap">
+            <b className="font-mono font-bold text-primary text-[11px] hover:underline cursor-pointer tracking-tight" onClick={() => handleOpenOrder(row)}>
               {row.code}
             </b>
             {(needsOperatorAttention(row) || isDepartureDelayed(row)) && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded" title={needsOperatorAttention(row) ? 'Lệnh đã qua lịch nhưng chưa được duyệt hoặc phân công' : 'Lệnh đã giao nhưng chưa xuất phát đúng hạn'}>
-                <AlertTriangle className="h-3 w-3" /> {needsOperatorAttention(row) ? 'Chưa xử lý' : 'Trễ xuất phát'} · {overdueDayCount(row.departureTime) > 0 ? `${overdueDayCount(row.departureTime)} ngày` : 'quá giờ'}
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1 py-0.2 rounded" title={needsOperatorAttention(row) ? 'Lệnh đã qua lịch nhưng chưa được duyệt hoặc phân công' : 'Quá 15 phút nhưng tài xế chưa nhận lệnh'}>
+                <AlertTriangle className="h-2.5 w-2.5 shrink-0" /> {needsOperatorAttention(row) ? 'Chưa xử lý' : 'Trễ hạn'}
               </span>
             )}
           </div>
           {row.planCode && (
-            <div className="text-[10px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
+            <div className="text-[9px] font-mono text-emerald-800 bg-emerald-50/90 border border-emerald-200 px-1 py-0.2 rounded inline-flex items-center gap-0.5 truncate max-w-[110px]" title={`Thuộc Kế hoạch lớn: ${row.planCode}`}>
               <span className="text-slate-500 font-medium">KH:</span>
-              <span className="font-bold">{row.planCode}</span>
+              <span className="font-bold truncate">{row.planCode}</span>
             </div>
           )}
           <div>{renderCategoryBadge(row.orderCategory)}</div>
@@ -1204,20 +1503,20 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'departureTime',
       title: 'Thời gian thực hiện',
-      width: '155px',
+      width: '92px',
       sortable: true,
       render: (row) => {
         if (!row.departureTime) return <span className="text-slate-400">—</span>;
         const d = new Date(row.departureTime);
         const endD = row.plannedEndTime ? new Date(row.plannedEndTime) : null;
         return (
-          <div className="text-xs">
-            <div className="font-bold text-slate-900 flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5 text-slate-400" />
-              {d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+          <div className="text-xs space-y-0.5">
+            <div className="font-bold text-slate-800 flex items-center gap-1 text-[10.5px] whitespace-nowrap">
+              <Calendar className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+              {d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
             </div>
-            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-              <Clock className="h-3 w-3 text-slate-400" />
+            <div className="text-[10px] text-slate-500 font-medium flex items-center gap-0.5 whitespace-nowrap">
+              <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
               {d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
               {endD && ` ➔ ${endD.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`}
             </div>
@@ -1228,30 +1527,32 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'purpose',
       title: 'Nhiệm vụ & Khối lượng',
-      width: '200px',
+      width: '125px',
       render: (row) => {
         const { planNotes, taskNotes } = parseOrderNotes(row);
         const notePreview = taskNotes || planNotes;
         return (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <div className="flex items-center gap-1 flex-wrap">
               {row.taskJobCode && (
-                <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1 py-0.2 rounded">
+                <span className="font-mono text-[9px] font-bold text-slate-700 bg-slate-100 px-1 py-0.2 rounded">
                   {row.taskJobCode}
                 </span>
               )}
-              <b className="font-bold text-slate-900 text-xs leading-snug">{row.taskJobName || row.purpose}</b>
+              <b className="font-bold text-slate-900 text-xs leading-snug line-clamp-2" title={row.taskJobName || row.purpose}>
+                {row.taskJobName || row.purpose}
+              </b>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{row.unit}</span>
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 flex-wrap">
+              <span className="font-medium text-slate-700 bg-slate-100 px-1 py-0.2 rounded text-[9.5px]">{row.unit}</span>
               {row.workVolumeTarget && (
-                <span className="font-bold text-emerald-700">
+                <span className="font-bold text-emerald-700 whitespace-nowrap">
                   🎯 {row.workVolumeTarget} {row.workVolumeUnit || 'Ha'}
                 </span>
               )}
             </div>
             {notePreview && (
-              <div className="text-[10.5px] text-slate-500 italic line-clamp-1" title={`Ghi chú: ${notePreview}`}>
+              <div className="text-[9.5px] text-slate-500 italic truncate max-w-[115px]" title={`Ghi chú: ${notePreview}`}>
                 📝 {notePreview}
               </div>
             )}
@@ -1262,15 +1563,17 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'vehicle',
       title: 'Phương tiện & Thiết bị',
-      width: '120px',
+      width: '88px',
       render: (row) => (
-        <div className="text-xs space-y-0.5 max-w-[115px]">
-          <div className={`font-bold flex items-center gap-1.5 ${needsOperatorAttention(row) && !row.vehicle ? 'text-red-700' : 'text-slate-900'}`}>
-            <Truck className={`h-3.5 w-3.5 shrink-0 ${needsOperatorAttention(row) && !row.vehicle ? 'text-red-500' : 'text-slate-400'}`} />
-            <span className="truncate">{row.vehicle?.plate || row.vehicle?.code || row.vehicle?.name || 'Chưa gán xe'}</span>
+        <div className="text-xs space-y-0.5">
+          <div className={`font-bold flex items-center gap-1 truncate ${needsOperatorAttention(row) && !row.vehicle ? 'text-red-700' : 'text-slate-900'}`}>
+            <Truck className={`h-3 w-3 shrink-0 ${needsOperatorAttention(row) && !row.vehicle ? 'text-red-500' : 'text-slate-400'}`} />
+            <span className="truncate text-xs" title={row.vehicle?.plate || row.vehicle?.code || row.vehicle?.name || 'Chưa gán xe'}>
+              {row.vehicle?.plate || row.vehicle?.code || row.vehicle?.name || 'Chưa gán xe'}
+            </span>
           </div>
           {row.implement && (
-            <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+            <div className="text-[9.5px] text-slate-500 truncate flex items-center gap-0.5" title={row.implement.name}>
               <Wrench className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
               <span className="truncate">{row.implement.name}</span>
             </div>
@@ -1281,20 +1584,22 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'driver',
       title: 'Lái xe / Thợ máy',
-      width: '135px',
+      width: '88px',
       render: (row) => (
-        <div className="text-xs">
-          <div className={`font-bold flex items-center gap-1 ${needsOperatorAttention(row) && !row.driver ? 'text-red-700' : 'text-slate-800'}`}>
-            <User className={`h-3.5 w-3.5 shrink-0 ${needsOperatorAttention(row) && !row.driver ? 'text-red-500' : 'text-slate-400'}`} />
-            <span className="truncate">{row.driver?.fullName || 'Chưa gán tài xế'}</span>
+        <div className="text-xs space-y-0.5">
+          <div className={`font-bold flex items-center gap-1 truncate ${needsOperatorAttention(row) && !row.driver ? 'text-red-700' : 'text-slate-800'}`}>
+            <User className={`h-3 w-3 shrink-0 ${needsOperatorAttention(row) && !row.driver ? 'text-red-500' : 'text-slate-400'}`} />
+            <span className="truncate text-xs" title={row.driver?.fullName || 'Chưa gán tài xế'}>
+              {row.driver?.fullName || 'Chưa gán tài xế'}
+            </span>
           </div>
           {row.secondaryDriverName && (
-            <div className="text-[11px] text-purple-700 font-medium mt-0.5 truncate">
+            <div className="text-[9.5px] text-purple-700 font-medium truncate" title={`Phụ: ${row.secondaryDriverName}`}>
               Phụ: {row.secondaryDriverName}
             </div>
           )}
           {row.driver?.licenseClass && (
-            <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+            <div className="text-[9.5px] text-slate-400 font-medium">
               {row.driver.licenseClass}
             </div>
           )}
@@ -1304,14 +1609,14 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'route',
       title: 'Lộ trình / Vị trí',
-      width: '260px',
+      width: '105px',
       render: (row) => (
-        <div className="text-xs space-y-0.5 min-w-[200px]">
-          <div className="flex items-start gap-1 text-slate-600">
-            <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-            <span className="font-medium text-slate-700 leading-snug">{row.origin || 'Kho xuất / Điểm đi'}</span>
+        <div className="text-xs space-y-0.5">
+          <div className="flex items-center gap-1 text-slate-600 truncate text-[10.5px]" title={row.origin || 'Kho xuất'}>
+            <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+            <span className="truncate">{row.origin || 'Kho xuất'}</span>
           </div>
-          <div className="text-xs font-bold text-slate-900 pl-4.5 leading-snug break-words">
+          <div className="text-xs font-bold text-slate-900 pl-3 leading-snug truncate" title={row.taskPlot || row.destination || 'Lô thửa tác nghiệp'}>
             ➔ {row.taskPlot || row.destination || 'Lô thửa tác nghiệp'}
           </div>
         </div>
@@ -1320,28 +1625,33 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'status',
       title: 'Trạng thái',
-      width: '145px',
+      width: '92px',
       render: (row) => (
-        <div className="space-y-1">
-          <StatusBadge status={row.status} />
+        <div className="space-y-0.5">
+          <StatusBadge status={row.status} size="sm" />
+          {getOperationalOverdueReason(row) && (
+            <div className="rounded border border-rose-200 bg-rose-50 px-1 py-0.5 text-[8.5px] font-bold leading-tight text-rose-700">
+              {getOperationalOverdueReason(row) === 'DRIVER_ACCEPTANCE' ? 'Quá 2 giờ chưa nhận' : 'Quá 2 giờ chờ báo cáo/nghiệm thu'}
+            </div>
+          )}
           {row.status === 'CANCELLED' && (row.cancellationReason || row.rejectionReason) && (
             <div
-              className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded leading-tight line-clamp-2"
+              className="text-[9px] text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.2 rounded leading-tight line-clamp-1"
               title={`Lý do hủy: ${row.cancellationReason || row.rejectionReason}`}
             >
               <span className="font-bold">Lý do:</span> {row.cancellationReason || row.rejectionReason}
             </div>
           )}
           {needsOperatorAttention(row) && (!row.vehicle || !row.driver) && (
-            <div className="flex flex-wrap gap-1">
-              {!row.vehicle && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu xe</span>}
-              {!row.driver && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Thiếu tài xế</span>}
+            <div className="flex flex-wrap gap-0.5">
+              {!row.vehicle && <span className="rounded bg-red-50 px-1 py-0.2 text-[8.5px] font-bold text-red-700">Thiếu xe</span>}
+              {!row.driver && <span className="rounded bg-red-50 px-1 py-0.2 text-[8.5px] font-bold text-red-700">Thiếu tài</span>}
             </div>
           )}
           {row.plannedFuelLiters && row.status !== 'CANCELLED' && (
-            <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-              <Fuel className="h-3 w-3 text-slate-400 shrink-0" />
-              <span>Định mức: <b>{row.plannedFuelLiters}L</b></span>
+            <div className="text-[9.5px] text-slate-500 font-medium flex items-center gap-0.5">
+              <Fuel className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+              <span>ĐM: <b>{row.plannedFuelLiters}L</b></span>
             </div>
           )}
         </div>
@@ -1350,7 +1660,8 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'user',
       title: 'Người tạo',
-      width: '135px',
+      width: '42px',
+      align: 'center',
       render: (row) => (
         <AuditUserPopover
           createdDate={row.createdAt || row.departureTime || '—'}
@@ -1364,14 +1675,16 @@ export const DispatchOrdersPage: React.FC = () => {
     {
       key: 'actions',
       title: 'Tác vụ',
-      width: '135px',
+      width: '74px',
       align: 'center',
       render: (row) => {
         const canAction = isDepartureDelayed(row);
-        const requiresAction = needsOperatorAttention(row) || canAction;
+        const requiresAction = needsOperatorAttention(row) || canAction || Boolean(getOperationalOverdueReason(row));
         return (
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex flex-col items-center justify-center gap-0.5 py-0.5" onClick={(e) => e.stopPropagation()}>
+            {/* Hàng 1: 3 tác vụ chính (Xem, Sửa, Xóa) */}
             <TableRowActions
+              className="gap-0.5"
               onView={() => handleOpenOrder(row)}
               onEdit={() => handleOpenOrder(row)}
               onDelete={['PENDING_APPROVAL', 'APPROVED', 'ASSIGNED', 'CHO_DUYET', 'CHO_PHAN_CONG', 'DA_DUYET', 'DA_NHAN', 'DRAFT'].includes(row.status) ? () => handleOpenCancel(row) : undefined}
@@ -1380,35 +1693,51 @@ export const DispatchOrdersPage: React.FC = () => {
               deleteTitle="Hủy lệnh điều xe"
               requireAdminToDelete={false}
             />
-            {/* Giữ nguyên icon điều xe */}
-            <button
-              type="button"
-              onClick={() => handleOpenOrder(row)}
-              className={`p-1 rounded transition-colors cursor-pointer ${
-                requiresAction ? 'text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
-              }`}
-              title={requiresAction ? 'Lệnh cần xử lý ngay' : 'Điều phối lệnh xe'}
-            >
-              <Truck className="w-3.5 h-3.5" />
-            </button>
-            {canAction && (
+            {/* Hàng 2: 2-3 tác vụ phụ (Điều phối xe, Dời lịch, Xác nhận giùm tài xế) */}
+            <div className="flex items-center justify-center gap-1">
               <button
                 type="button"
-                className="p-1 rounded hover:bg-amber-50 text-amber-700 transition-colors cursor-pointer"
-                onClick={() => {
-                  setRescheduleTarget(row);
-                  setRescheduleForm({
-                    newDepartureTime: row.departureTime ? new Date(row.departureTime).toISOString().slice(0, 16) : '',
-                    newPlannedEndTime: row.plannedEndTime ? new Date(row.plannedEndTime).toISOString().slice(0, 16) : '',
-                    reason: '',
-                  });
-                  setActionError('');
-                }}
-                title="Dời sang lịch mới"
+                onClick={() => handleOpenOrder(row)}
+                className={`p-0.5 rounded transition-colors cursor-pointer ${
+                  requiresAction ? 'text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
+                }`}
+                title={requiresAction ? 'Lệnh cần xử lý ngay' : 'Điều phối lệnh xe'}
               >
-                <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
+                <Truck className="w-3.5 h-3.5" />
               </button>
-            )}
+              {canAction ? (
+                <button
+                  type="button"
+                  className="p-0.5 rounded hover:bg-amber-50 text-amber-600 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setRescheduleTarget(row);
+                    setRescheduleForm({
+                      newDepartureTime: row.departureTime ? new Date(row.departureTime).toISOString().slice(0, 16) : '',
+                      newPlannedEndTime: row.plannedEndTime ? new Date(row.plannedEndTime).toISOString().slice(0, 16) : '',
+                      reason: '',
+                    });
+                    setActionError('');
+                  }}
+                  title="Dời sang lịch mới"
+                >
+                  <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
+                </button>
+              ) : (
+                <span className="p-0.5 text-slate-300 opacity-40 cursor-not-allowed" title="Chỉ áp dụng khi lệnh trễ hạn">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                </span>
+              )}
+              {['ASSIGNED'].includes(row.status) && (
+                <button
+                  type="button"
+                  className="p-0.5 rounded hover:bg-blue-50 text-blue-600 transition-colors cursor-pointer"
+                  onClick={() => handleOpenProxyAccept(row)}
+                  title="Xác nhận nhận việc giùm tài xế"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         );
       },
@@ -1664,16 +1993,16 @@ export const DispatchOrdersPage: React.FC = () => {
           <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 animate-pulse" />
           <div className="flex-1">
             <p className="text-sm font-bold text-red-700">
-              {computedOverdueSummary.totalAttention} lệnh {computedOverdueSummary.categoryName ? `${computedOverdueSummary.categoryName} ` : ''}chờ điều độ · {computedOverdueSummary.totalOverdue} lệnh trễ xuất phát
+              {computedOverdueSummary.totalAttention} lệnh {computedOverdueSummary.categoryName ? `${computedOverdueSummary.categoryName} ` : ''}chờ điều độ · {computedOverdueSummary.totalOverdue} lệnh quá hạn trên 2 giờ
             </p>
             <p className="text-xs text-red-500 mt-0.5">
-              {computedOverdueSummary.awaitingApproval} chưa duyệt · {computedOverdueSummary.missingVehicle} thiếu xe/máy · {computedOverdueSummary.missingDriver} thiếu tài xế · {computedOverdueSummary.lateAssigned} chờ tài xế nhận · {computedOverdueSummary.lateAccepted} đã nhận nhưng chưa đi.
+              {computedOverdueSummary.awaitingApproval} chưa duyệt · {computedOverdueSummary.missingVehicle} thiếu xe/máy · {computedOverdueSummary.missingDriver} thiếu tài xế · {computedOverdueSummary.lateAssigned} chưa nhận lệnh · {computedOverdueSummary.lateAccepted} chờ báo cáo/nghiệm thu.
             </p>
           </div>
           <button
             type="button"
             className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-            onClick={() => { setWeekFrom('ALL'); setWeekTo('ALL'); setSelectedDate('ALL'); setStatusFilter('DELAYED'); setView('table'); }}
+            onClick={() => { setWeekFrom('ALL'); setWeekTo('ALL'); setSelectedDate('ALL'); setStatusFilter('OVERDUE'); setView('table'); }}
           >
             Xem và xử lý
           </button>
@@ -1685,6 +2014,8 @@ export const DispatchOrdersPage: React.FC = () => {
         activeTab={
           statusFilter === 'CANCELLED'
             ? 'CANCELLED'
+            : statusFilter === 'OVERDUE'
+            ? 'OVERDUE'
             : isAgriculturalSpecific
             ? 'NONG_NGHIEP'
             : (selectedCategory === 'ALL' ? 'ALL' : selectedCategory as any)
@@ -1694,6 +2025,14 @@ export const DispatchOrdersPage: React.FC = () => {
           if (tabKey === 'CANCELLED') {
             setStatusFilter('CANCELLED');
             setView('table');
+          } else if (tabKey === 'OVERDUE') {
+            setWeekFrom('ALL');
+            setWeekTo('ALL');
+            setSelectedDate('ALL');
+            setSelectedCategory('ALL');
+            setStatusFilter('OVERDUE');
+            setView('table');
+            navigate('/lenh-dieu-xe/danh-sach?status=OVERDUE');
           } else if (tabKey === 'ALL') {
             setStatusFilter('ALL');
             navigate('/lenh-dieu-xe/danh-sach');
@@ -1729,18 +2068,18 @@ export const DispatchOrdersPage: React.FC = () => {
           className={statusFilter === 'ALL' ? 'ring-2 ring-blue-500/30 border-blue-500' : ''}
         />
         <StatCard
-          label="Lệnh trễ do chưa phân công"
-          value={statusCounts.DELAYED}
+          label="Lệnh quá 2 giờ chưa xử lý"
+          value={statusCounts.OVERDUE}
           icon={<AlertTriangle className="h-5 w-5 text-rose-600" />}
-          pillText="Lệnh trễ phân công"
+          pillText="Lệnh quá hạn"
           pillVariant="danger"
           onClick={() => {
             setWeekFrom('ALL');
             setWeekTo('ALL');
             setSelectedDate('ALL');
-            setStatusFilter(statusFilter === 'DELAYED' ? 'ALL' : 'DELAYED');
+            setStatusFilter(statusFilter === 'OVERDUE' ? 'ALL' : 'OVERDUE');
           }}
-          className={statusFilter === 'DELAYED' ? 'ring-2 ring-rose-500/30 border-rose-500' : ''}
+          className={statusFilter === 'OVERDUE' ? 'ring-2 ring-rose-500/30 border-rose-500' : ''}
         />
         <StatCard
           label="Tài xế chưa xác nhận nhận lệnh"
@@ -1947,13 +2286,11 @@ export const DispatchOrdersPage: React.FC = () => {
                 className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 px-3 text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:outline-none transition-colors cursor-pointer truncate shadow-2xs"
               >
                 <option value="ALL">Tất cả</option>
-                {availableWeeks
-                  .filter((w) => weekFrom === 'ALL' || w.weekNumber >= Number(weekFrom))
-                  .map((w) => (
-                    <option key={w.weekNumber} value={w.weekNumber}>
-                      {w.label}
-                    </option>
-                  ))}
+                {availableWeeks.map((w) => (
+                  <option key={w.weekNumber} value={w.weekNumber}>
+                    {w.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -2076,7 +2413,7 @@ export const DispatchOrdersPage: React.FC = () => {
           onChange={setView}
           options={[
             { value: 'table', label: 'Bảng kê tổng hợp toàn bộ lệnh' },
-            { value: 'daily_timeline', label: 'Scheduler lịch chạy theo xe' },
+            { value: 'daily_timeline', label: 'Giờ nhận & lịch chạy theo xe', icon: <UserCheck className="h-4 w-4" /> },
             { value: 'kanban', label: 'Kanban 4 nhóm trạng thái' },
           ]}
         />
@@ -2089,6 +2426,7 @@ export const DispatchOrdersPage: React.FC = () => {
               className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-900 focus:border-primary focus:outline-none cursor-pointer"
             >
               <option value="ALL">Toàn bộ trạng thái ({statusCounts.ALL})</option>
+              <option value="OVERDUE">Lệnh quá hạn trên 2 giờ ({statusCounts.OVERDUE})</option>
               <option value="DELAYED">Lệnh trễ phân công ({statusCounts.DELAYED})</option>
               <option value="DRIVER_PENDING">Đôn đốc tài xế ({statusCounts.DRIVER_PENDING})</option>
               <option value="FUTURE_UNASSIGNED">Kế hoạch tuần tới ({statusCounts.FUTURE_UNASSIGNED})</option>
@@ -2134,8 +2472,9 @@ export const DispatchOrdersPage: React.FC = () => {
       {error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : loading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-sm font-medium text-slate-400">
-          Đang tải dữ liệu lệnh điều xe...
+        <div className="rounded-2xl border border-slate-200 bg-white py-16 flex flex-col items-center justify-center gap-3 text-sm font-medium text-slate-600 shadow-2xs">
+          <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+          <span>Đang tải và đồng bộ danh sách lệnh điều xe...</span>
         </div>
       ) : view === 'table' ? (
         /* GIAO DIỆN BẢNG KÊ TỔNG HỢP */
@@ -2144,16 +2483,19 @@ export const DispatchOrdersPage: React.FC = () => {
           data={filteredOrders}
           isLoading={loading}
           onRowClick={handleOpenOrder}
-          serverSide={false}
+          controlledPage={currentPage}
           totalItems={filteredOrders.length}
+          onPageChange={handlePageChange}
+          serverSide={false}
           useGlobalFilters={false}
           showSearch={false}
           showExport={false}
+          compact={true}
         />
       ) : view === 'daily_timeline' ? (
         /* GIAO DIỆN SCHEDULER LỊCH CHẠY THEO XE 24 TIẾNG */
         <Vehicle24hScheduler
-          title={isAgriculturalSpecific ? 'Scheduler lịch chạy máy Nông nghiệp 24h' : 'Scheduler lịch chạy phương tiện 24h'}
+          title={isAgriculturalSpecific ? 'Lịch nhận lệnh & vận hành máy Nông nghiệp' : 'Lịch nhận lệnh & vận hành phương tiện 24 giờ'}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           availableDates={availableDates}
@@ -2227,7 +2569,7 @@ export const DispatchOrdersPage: React.FC = () => {
       {/* 7. Modal Chi tiết & Phân công Lệnh điều xe */}
       <Modal
         isOpen={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={() => { setSelected(null); setShowReassign(false); setActionError(''); }}
         title={`Chi tiết & Phân công Lệnh điều xe ${selected?.code ?? ''}`}
         size="xl"
       >
@@ -2241,6 +2583,20 @@ export const DispatchOrdersPage: React.FC = () => {
                 <StatusBadge status={selected.status} />
               </div>
             </div>
+
+            {getOperationalOverdueReason(selected) && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-950">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-extrabold">Lệnh tồn đọng cần xử lý</p>
+                    <p className="mt-0.5 text-amber-800">Lệnh đã quá 2 giờ và vẫn chờ tài xế nhận hoặc chờ báo cáo/nghiệm thu. Có thể chọn lại tài xế, xe và thời gian thực hiện.</p>
+                  </div>
+                  <Button variant="outline" icon={<RotateCcw size={16} />} onClick={() => { setShowReassign((value) => !value); setActionError(''); }}>
+                    {showReassign ? 'Đóng điều chuyển' : 'Điều chuyển lệnh'}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* CẢNH BÁO LỆNH ĐÃ HỦY */}
             {selected.status === 'CANCELLED' && (
@@ -2456,8 +2812,68 @@ export const DispatchOrdersPage: React.FC = () => {
               )}
             </div>
 
+            {showReassign && selected.operationalWorkOrder?.id && (
+              <div className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50/40 p-3.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Lý do điều chuyển
+                  <input value={reassignReason} onChange={(event) => setReassignReason(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-medium" />
+                </label>
+                {actionError && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{actionError}</p>}
+                <WorkflowActionPanel
+                  key={`reassign-${selected.id}`}
+                  kind={selected.orderCategory === 'CONG_TRINH' ? 'CONSTRUCTION' : selected.orderCategory === 'VAN_CHUYEN' ? 'TRANSPORT' : 'AGRICULTURE'}
+                  step="PENDING"
+                  taskName={selected.purpose}
+                  currentOrderId={selected.id}
+                  recommendationWorkOrderId={selected.operationalWorkOrder.id}
+                  existingOrders={orders}
+                  initialStartTime={selected.departureTime}
+                  initialDurationHours={selected.departureTime && selected.plannedEndTime ? Math.max(0.5, (new Date(selected.plannedEndTime).getTime() - new Date(selected.departureTime).getTime()) / 3_600_000) : 8}
+                  unit={selected.unit}
+                  complexCode={selected.operationalWorkOrder.complexCode ?? selected.complexCode ?? selected.unit}
+                  managementUnitId={selected.operationalWorkOrder.managementUnitId}
+                  submitLabel="Xác nhận điều chuyển"
+                  onApprove={async (vehicle, driver, schedule) => {
+                    if (!reassignReason.trim()) {
+                      setActionError('Vui lòng nhập lý do điều chuyển.');
+                      return;
+                    }
+                    try {
+                      const plannedEndAt = new Date(new Date(schedule.startTime).getTime() + schedule.durationHours * 3_600_000).toISOString();
+                      if (selected.orderCategory === 'VAN_CHUYEN') {
+                        await operationsApi.reassignWorkOrder(selected.operationalWorkOrder!.id, {
+                          vehicleId: vehicle.id,
+                          driverId: driver.id,
+                          plannedStartAt: schedule.startTime,
+                          plannedEndAt,
+                          reason: reassignReason.trim(),
+                          expectedVersion: selected.operationalWorkOrder!.version,
+                        });
+                      } else {
+                        await operationsApi.continueOverdueWorkOrder(selected.operationalWorkOrder!.id, {
+                          previousDispatchOrderId: selected.id,
+                          vehicleId: vehicle.id,
+                          driverId: driver.id,
+                          scheduledStartAt: schedule.startTime,
+                          workDurationMinutes: Math.round(schedule.durationHours * 60),
+                          notes: reassignReason.trim(),
+                          reassignUnresolved: true,
+                        });
+                      }
+                      useAppStore.getState().setHeaderAlert({ type: 'success', message: `Đã điều chuyển lệnh ${selected.code}.` });
+                      setShowReassign(false);
+                      setSelected(null);
+                      await load();
+                    } catch (error: unknown) {
+                      setActionError((error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (error instanceof Error ? error.message : 'Không thể điều chuyển lệnh.'));
+                    }
+                  }}
+                />
+              </div>
+            )}
+
             {/* 4. Khung quy trình phê duyệt & phân công vào ca (Chỉ hiển thị cho lệnh chưa hủy) */}
-            {selected.status !== 'CANCELLED' && (
+            {selected.status !== 'CANCELLED' && !showReassign && (
               <WorkflowActionPanel
                 key={selected.id}
                 kind={selected.orderCategory === 'CONG_TRINH' ? 'CONSTRUCTION' : selected.orderCategory === 'VAN_CHUYEN' ? 'TRANSPORT' : 'AGRICULTURE'}
@@ -2777,6 +3193,89 @@ export const DispatchOrdersPage: React.FC = () => {
               <div className="rounded-xl bg-red-100 border border-red-300 p-2.5 text-red-800 font-medium">
                 {cancelError}
               </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ===================== MODAL: XÁC NHẬN NHẬN VIỆC THAY TÀI XẾ ===================== */}
+      <Modal
+        isOpen={Boolean(proxyAcceptTarget)}
+        onClose={() => { setProxyAcceptTarget(null); setActionError(''); }}
+        title={`Xác nhận tiếp nhận ca thay tài xế: ${proxyAcceptTarget?.code || ''}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => { setProxyAcceptTarget(null); setActionError(''); }} disabled={actionSaving}>
+              Đóng
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+              icon={<UserCheck className="h-4 w-4" />}
+              onClick={handleConfirmProxyAccept}
+              disabled={actionSaving}
+            >
+              {actionSaving ? 'Đang xác nhận...' : 'Xác nhận vào ca'}
+            </Button>
+          </div>
+        }
+      >
+        {proxyAcceptTarget && (
+          <div className="space-y-4 text-xs">
+            <div className="rounded-xl bg-blue-50/70 border border-blue-200 p-3.5 text-blue-900 leading-relaxed">
+              <div className="font-bold flex items-center gap-1.5 mb-1 text-blue-800">
+                <UserCheck className="h-4 w-4 text-blue-600" />
+                <span>Xác nhận tiếp nhận lệnh thay lái xe / thợ máy</span>
+              </div>
+              Dành cho <b>Quản trị viên & Quản lý xe cơ giới</b> xác nhận thay khi tài xế đã tiếp nhận nhiệm vụ ngoài hiện trường nhưng không có kết nối 4G hoặc thiết bị di động. Lệnh sẽ chuyển sang trạng thái <b>Đã tiếp nhận</b>.
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-slate-700">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã lệnh:</span>
+                <span className="font-mono font-bold text-primary">{proxyAcceptTarget.code}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tài xế phân công:</span>
+                <span className="font-bold text-slate-900">{proxyAcceptTarget.driver?.fullName || 'Chưa gán'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Phương tiện / Đầu máy:</span>
+                <span className="font-bold text-slate-900 font-mono">{proxyAcceptTarget.vehicle?.code || 'Chưa gán'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Kế hoạch xuất phát:</span>
+                <span className="font-semibold text-slate-800">{proxyAcceptTarget.departureTime ? new Date(proxyAcceptTarget.departureTime).toLocaleString('vi-VN') : '—'}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block font-bold text-slate-800">
+                Nguyên nhân xác nhận thay <span className="text-rose-600">*</span>
+              </label>
+              <select
+                value={proxyAcceptReason}
+                onChange={(e) => setProxyAcceptReason(e.target.value)}
+                className="w-full h-9 text-xs border border-slate-300 rounded-lg px-2.5 bg-white mb-2 focus:ring-1 focus:ring-primary focus:outline-none"
+              >
+                <option value="Tài xế đã nhận lệnh trực tiếp/qua bộ đàm">Tài xế đã nhận lệnh trực tiếp/qua bộ đàm</option>
+                <option value="Khu vực lô thửa mất sóng 4G/không có kết nối mạng">Khu vực lô thửa mất sóng 4G/không có kết nối mạng</option>
+                <option value="Điện thoại tài xế hết pin/hỏng thiết bị">Điện thoại tài xế hết pin/hỏng thiết bị</option>
+                <option value="Tài xế chưa cài app/không sử dụng smartphone">Tài xế chưa cài app/không sử dụng smartphone</option>
+                <option value="Khác (nhập chi tiết)">Khác (nhập chi tiết)</option>
+              </select>
+              {proxyAcceptReason.startsWith('Khác') && (
+                <input
+                  type="text"
+                  placeholder="Nhập lý do cụ thể..."
+                  className="w-full h-8 text-xs border border-slate-300 rounded-lg px-2.5 mt-1"
+                  onChange={(e) => setProxyAcceptReason(e.target.value)}
+                />
+              )}
+            </div>
+
+            {actionError && (
+              <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-700">{actionError}</p>
             )}
           </div>
         )}

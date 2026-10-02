@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layers, Tractor, HardHat, Truck, ShieldAlert, XCircle } from 'lucide-react';
+import { AlertTriangle, Layers, Tractor, HardHat, Truck, ShieldAlert, XCircle } from 'lucide-react';
 import { operationsApi } from '../../api/operations';
 
-export type DispatchCategoryTabKey = 'ALL' | 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' | 'CUU_HO_SOS' | 'CANCELLED';
+export type DispatchCategoryTabKey = 'ALL' | 'OVERDUE' | 'NONG_NGHIEP' | 'CONG_TRINH' | 'VAN_CHUYEN' | 'CUU_HO_SOS' | 'CANCELLED';
 
 export interface DispatchCategoryCounts {
   ALL?: number;
+  OVERDUE?: number;
   NONG_NGHIEP?: number;
   CONG_TRINH?: number;
   VAN_CHUYEN?: number;
@@ -30,6 +31,7 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
 
   const [internalCounts, setInternalCounts] = useState<DispatchCategoryCounts>({
     ALL: 0,
+    OVERDUE: 0,
     NONG_NGHIEP: 0,
     CONG_TRINH: 0,
     VAN_CHUYEN: 0,
@@ -42,6 +44,7 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
     const path = location.pathname;
     const params = new URLSearchParams(location.search);
     if (params.get('status') === 'CANCELLED') return 'CANCELLED';
+    if (params.get('status') === 'OVERDUE') return 'OVERDUE';
     if (params.get('category') === 'CUU_HO_SOS') return 'CUU_HO_SOS';
     if (path.includes('/lenh-nong-nghiep')) return 'NONG_NGHIEP';
     if (path.includes('/lenh-cong-trinh') || path.includes('/ca-may')) return 'CONG_TRINH';
@@ -106,6 +109,7 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
         if (isMounted) {
           setInternalCounts({
             ALL: totalCount,
+            OVERDUE: 0,
             NONG_NGHIEP: nongNghiepCount,
             CONG_TRINH: congTrinhCount,
             VAN_CHUYEN: vanChuyenCount,
@@ -140,6 +144,14 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
       icon: Layers,
       color: 'text-amber-400',
       path: '/lenh-dieu-xe/danh-sach',
+    },
+    {
+      key: 'OVERDUE',
+      label: 'Lệnh quá hạn',
+      count: counts.OVERDUE ?? 0,
+      icon: AlertTriangle,
+      color: 'text-rose-600',
+      path: '/lenh-dieu-xe/danh-sach?status=OVERDUE',
     },
     {
       key: 'CUU_HO_SOS',
@@ -197,6 +209,7 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
         const isActive = currentTab === tab.key;
         const Icon = tab.icon;
         const isCancelledTab = tab.key === 'CANCELLED';
+        const isAlertTab = isCancelledTab || tab.key === 'OVERDUE';
 
         return (
           <button
@@ -205,10 +218,10 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
             onClick={() => handleTabClick(tab)}
             className={`group flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 select-none cursor-pointer active:scale-95 ${
               isActive
-                ? isCancelledTab
+                ? isAlertTab
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-900 text-white shadow-xs'
-                : isCancelledTab
+                : isAlertTab
                 ? 'text-rose-600 hover:bg-rose-50 hover:text-rose-700'
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
@@ -216,7 +229,7 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
             <Icon
               className={`h-4 w-4 ${
                 isActive
-                  ? isCancelledTab
+                  ? isAlertTab
                     ? 'text-white'
                     : 'text-amber-400'
                   : tab.color
@@ -227,7 +240,7 @@ export const DispatchCategoryTabs: React.FC<DispatchCategoryTabsProps> = ({
               className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                 isActive
                   ? 'bg-white/20 text-white'
-                  : isCancelledTab
+                  : isAlertTab
                   ? 'bg-rose-100 text-rose-800'
                   : 'bg-slate-200 text-slate-700'
               }`}

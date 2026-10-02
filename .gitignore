@@ -24,6 +24,8 @@ logs/
 scratch/
 .tmp_brd_review/
 .android-toolchain/
+.codex-build/
+.codex-ppt-work/
 
 # --- Temporary export / scratch scripts ---
 export_mockup_pdf.js

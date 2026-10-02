@@ -41,7 +41,7 @@ describe('DispatchOrdersService 15/45-minute delay policy', () => {
     }));
     expect(tx.dispatchOrder.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { isDelayed: true } }));
     expect(alerts.emit).toHaveBeenCalledWith(expect.objectContaining({
-      alertType: 'DELAYED_DEPARTURE',
+      alertType: 'DELAYED_ACCEPTANCE',
       thresholdValue: 15,
       dedupeKey: 'DISPATCH:DELAYED:7',
     }), tx);
@@ -72,8 +72,9 @@ describe('DispatchOrdersService 15/45-minute delay policy', () => {
     expect(result).toEqual({ updatedCount: 0, warningCount: 0, reopenedCount: 1 });
     expect(prisma.dispatchOrder.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: expect.objectContaining({
-        status: { in: [DispatchStatus.ASSIGNED, DispatchStatus.DRIVER_ACCEPTED] },
+        status: { in: [DispatchStatus.ASSIGNED] },
         departureTime: { lte: new Date('2026-09-14T08:00:00.000Z') },
+        driverAcceptedAt: null,
         operationalWorkOrder: { is: { status: { not: WorkOrderStatus.OPEN_FOR_CLAIM } } },
       }),
     }));
@@ -116,5 +117,28 @@ describe('DispatchOrdersService 15/45-minute delay policy', () => {
       where: expect.objectContaining({ departureTime: { lte: new Date('2026-09-14T07:59:59.000Z') } }),
     }));
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('repairs stale delay flags and resolves old alerts for accepted orders', async () => {
+    const tx = {
+      dispatchOrder: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      alertEvent: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      dispatchOrder: { findMany: jest.fn().mockResolvedValue([{ id: 7 }]) },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+    };
+    const service = new DispatchOrdersService(prisma as never);
+
+    await expect((service as any).repairAcceptedDelayState()).resolves.toBe(1);
+
+    expect(tx.dispatchOrder.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: [7] }, driverAcceptedAt: { not: null }, isDelayed: true },
+      data: { isDelayed: false },
+    });
+    expect(tx.alertEvent.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ sourceId: { in: ['7'] } }),
+      data: expect.objectContaining({ status: 'RESOLVED', dedupeKey: null }),
+    }));
   });
 });

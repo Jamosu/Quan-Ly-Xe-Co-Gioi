@@ -93,7 +93,7 @@ export function ProfileScreen({ navigation }: any) {
         {/* Sync Center Navigation Button */}
         <TouchableOpacity
           style={styles.syncBtn}
-          onPress={() => navigation.navigate('Sync')}
+          onPress={() => navigation.navigate('TasksTab', { screen: 'SyncCenter' })}
           activeOpacity={0.8}
         >
           <View style={styles.syncIconBox}>

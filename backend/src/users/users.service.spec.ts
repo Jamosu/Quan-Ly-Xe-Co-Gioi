@@ -4,7 +4,7 @@ import { UsersService } from './users.service';
 
 describe('UsersService driver profile access', () => {
   const prisma = {
-    user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+    user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), count: jest.fn().mockResolvedValue(1) },
     employeeRecord: { findMany: jest.fn().mockResolvedValue([]) },
     driverManagementUnit: { findMany: jest.fn().mockResolvedValue([{ id: 1 }]) },
     driverManagementAccessScope: { findMany: jest.fn().mockResolvedValue([]) },
@@ -20,9 +20,11 @@ describe('UsersService driver profile access', () => {
       { managementUnitId: 1, complexCode: 'KOUN_MOM', isManagerProjection: false },
     ]);
     await service.findDriverProfiles({}, { id: 2, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM });
-    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { role: Role.DRIVER },
-    }));
+    const where = prisma.user.findMany.mock.calls[0][0].where;
+    expect(where.role).toBe(Role.DRIVER);
+    expect(where.driverProfile.is.OR).toEqual(expect.arrayContaining([
+      { vehicleAssignments: { some: { status: 'ACTIVE', vehicle: { managementUnitId: { in: [1] } } } } },
+    ]));
   });
 
   it('rejects a cross-unit list request', async () => {
@@ -79,6 +81,16 @@ describe('UsersService driver profile access', () => {
 
   it('rejects a farm manager updating another unit', async () => {
     prisma.user.findFirst.mockResolvedValue({ id: 9, unit: Unit.SNOUL, username: 'driver9' });
+    await expect(service.updateDriverProfile(
+      9,
+      { licenseNumber: 'NEW-001' },
+      { id: 2, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM },
+    )).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects a driver outside the manager scope even in the same complex', async () => {
+    prisma.user.findFirst.mockResolvedValue({ id: 9, unit: Unit.KOUN_MOM, username: 'driver9' });
+    prisma.user.count.mockResolvedValueOnce(0);
     await expect(service.updateDriverProfile(
       9,
       { licenseNumber: 'NEW-001' },

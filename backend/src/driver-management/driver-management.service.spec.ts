@@ -118,6 +118,26 @@ describe('DriverManagementService', () => {
     }));
   });
 
+  it('lets a TEAM manager assign a driver only to their own team', async () => {
+    const manager = { id: 7, role: Role.FARM_MANAGER, unit: Unit.KOUN_MOM };
+    const owner = { id: 10, level: DriverManagementLevel.OWNER, status: DriverManagementUnitStatus.ACTIVE, complexCode: 'KOUN_MOM' };
+    const tx: any = {
+      driverManagementAssignment: {
+        updateMany: jest.fn(),
+        create: jest.fn().mockResolvedValue({ id: 1, teamUnitId: 20 }),
+      },
+    };
+    const prisma: any = {
+      driverManagementUnit: { findUnique: jest.fn(({ where }) => where.id === 10 ? owner : ({ id: where.id, level: DriverManagementLevel.TEAM, parentId: 10, status: DriverManagementUnitStatus.ACTIVE })) },
+      driverManagementAccessScope: { findMany: jest.fn().mockResolvedValue([{ managementUnitId: 20, complexCode: 'KOUN_MOM', canAssignDrivers: true, isManagerProjection: false }]) },
+      driverProfile: { findUnique: jest.fn().mockResolvedValue({ userId: 9 }) },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const service = new DriverManagementService(prisma);
+    await expect(service.assignDriver({ driverId: 9, managementUnitId: 10, teamUnitId: 20 }, manager)).resolves.toMatchObject({ teamUnitId: 20 });
+    await expect(service.assignDriver({ driverId: 9, managementUnitId: 10, teamUnitId: 21 }, manager)).rejects.toThrow();
+  });
+
   it('closes the old assignment before creating its replacement', async () => {
     const previous = {
       id: 50,

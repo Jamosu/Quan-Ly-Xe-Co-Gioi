@@ -33,6 +33,7 @@ import {
   X,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAppStore } from '../../store/useAppStore';
 import { operationsApi } from '../../api/operations';
 import {
   schedulingApi,
@@ -495,9 +496,17 @@ const Section: React.FC<{
   </section>
 );
 
+// Map KLH code -> display name (mirrors KlhHeaderFilter DEFAULT_KLH_LIST)
+const KLH_COMPLEX_NAMES: Record<string, string> = {
+  KOUN_MOM: 'Khu liên hợp Koun Mom',
+  SNOUL: 'Khu liên hợp Snoul',
+  NAM_LAO: 'Khu liên hợp Nam Lào',
+};
+
 export const DispatchOrderForm: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const selectedKLH = useAppStore((state) => state.selectedKLH);
 
   const workOrderIdParam = Number(searchParams.get('workOrderId') || 0) || undefined;
   const planIdParam = Number(searchParams.get('planId') || 0) || undefined;
@@ -510,7 +519,18 @@ export const DispatchOrderForm: React.FC = () => {
       ? 'TRANSPORT'
       : 'AGRICULTURE';
 
-  const [form, setForm] = useState<FormState>(() => freshForm(initialCat));
+  // Resolve initial complexCode from global KLH filter (for new forms only)
+  const initialComplexCode =
+    selectedKLH && selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM';
+  const initialComplexName =
+    KLH_COMPLEX_NAMES[initialComplexCode] ?? 'Khu liên hợp Koun Mom';
+
+  const [form, setForm] = useState<FormState>(() => ({
+    ...freshForm(initialCat),
+    complexCode: initialComplexCode,
+    complexName: initialComplexName,
+    unit: initialComplexCode,
+  }));
   const [sourceOrder, setSourceOrder] = useState<OperationalWorkOrderRecord | null>(null);
   const [context, setContext] = useState<PreparationContextResponse | null>(null);
   const [generatedOrders, setGeneratedOrders] = useState<
@@ -538,9 +558,39 @@ export const DispatchOrderForm: React.FC = () => {
     else if (raw === 'AGRICULTURE' || raw === 'NONG_NGHIEP') targetCat = 'AGRICULTURE';
 
     if (targetCat && targetCat !== form.category) {
-      setForm(freshForm(targetCat));
+      const cc = selectedKLH && selectedKLH !== 'ALL' ? selectedKLH : 'KOUN_MOM';
+      const cn = KLH_COMPLEX_NAMES[cc] ?? 'Khu liên hợp Koun Mom';
+      setForm({ ...freshForm(targetCat), complexCode: cc, complexName: cn, unit: cc });
     }
-  }, [searchParams, sourceOrder, form.category]);
+  }, [searchParams, sourceOrder, form.category, selectedKLH]);
+
+  // Sync complexCode/complexName when topbar KLH filter changes (only for new forms without a management unit selected yet)
+  useEffect(() => {
+    if (sourceOrder || workOrderIdParam) return; // editing — don't override
+    if (!selectedKLH || selectedKLH === 'ALL') return;
+    const cc = selectedKLH;
+    const cn = KLH_COMPLEX_NAMES[cc] ?? cc;
+    setForm((old) => {
+      // Only update if the complex actually changed; reset unit-dependent fields
+      if (old.complexCode === cc) return old;
+      return {
+        ...old,
+        complexCode: cc,
+        complexName: cn,
+        unit: cc,
+        managementUnitId: '',
+        enterpriseCode: '',
+        enterpriseName: '',
+        farmCode: '',
+        farmName: '',
+        vehicleId: '',
+        driverId: '',
+        implementId: '',
+        workLocationKey: '',
+        workLocationText: '',
+      };
+    });
+  }, [selectedKLH, sourceOrder, workOrderIdParam]);
 
   // Nạp danh mục từ Catalogs API
   interface AdminUnitItem {
